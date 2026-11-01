@@ -33,7 +33,60 @@ private slots:
     void loadsFirstGraphSnapshotAfterAnInitiallyEmptyView();
     void preparesLatestEgoGraphWhileHidden();
     void changingNodeColorsPreservesLayout();
+    void hiddenManagerChangesPreserveLayout();
 };
+
+void GraphPageRenderingTest::hiddenManagerChangesPreserveLayout()
+{
+    darkeye::graph::GraphManager manager({}, {});
+    QVERIFY(manager.upsertRuntimeNode(
+        {QStringLiteral("w1"), QStringLiteral("Original"), QStringLiteral("work")}));
+    darkeye::graph_view::GraphViewWidget graph(manager);
+    graph.resize(480, 400);
+    auto *view = graph.view();
+    view->setSimulationBackendMode(QStringLiteral("cpu"));
+    graph.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&graph));
+    QTRY_COMPARE(view->getNodeIds(), QStringList{QStringLiteral("w1")});
+    QTest::qWait(50); // Drain the initial fit-to-content callback.
+    view->setGraph(1, {}, {123.0f, 456.0f}, {QStringLiteral("w1")},
+                   {QStringLiteral("Original")}, {7.0f});
+    view->pauseSimulation();
+    QTest::qWait(50); // setGraph also schedules its own initial camera fit.
+    const QPointF position = view->getNodePosition(QStringLiteral("w1"));
+    const float zoom = view->getZoom();
+    const float panX = view->getPanX();
+    const float panY = view->getPanY();
+    QSignalSpy started(view, &ForceViewRhiWidget::simulationStarted);
+
+    // Editing another page can emit several notifications while the graph is hidden.
+    for (int cycle = 0; cycle < 2; ++cycle) {
+        graph.hide();
+        for (int edit = 0; edit < 2; ++edit) {
+            QVERIFY(manager.upsertRuntimeNode(
+                {QStringLiteral("w1"), QStringLiteral("Edited %1 %2").arg(cycle).arg(edit),
+                 QStringLiteral("work")}));
+        }
+        graph.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&graph));
+        QTest::qWait(50);
+        QCOMPARE(started.count(), 0);
+        QCOMPARE(view->getNodePosition(QStringLiteral("w1")), position);
+        QCOMPARE(view->getZoom(), zoom);
+        QCOMPARE(view->getPanX(), panX);
+        QCOMPARE(view->getPanY(), panY);
+    }
+
+    // An explicit filter change still requires a full snapshot, even if a
+    // manager notification arrives before the page is shown again.
+    graph.hide();
+    graph.showEmpty();
+    QVERIFY(manager.upsertRuntimeNode(
+        {QStringLiteral("w1"), QStringLiteral("Final"), QStringLiteral("work")}));
+    graph.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&graph));
+    QTRY_VERIFY(view->getNodeIds().isEmpty());
+}
 
 void GraphPageRenderingTest::changingNodeColorsPreservesLayout()
 {

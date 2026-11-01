@@ -345,6 +345,7 @@ private:
     // CPU 仿真循环，推进物理状态并请求重绘。
     void simLoop();
     void advanceGpuSimulation(QRhiCommandBuffer* cb);
+    void tickGpuSimulation();
     // 按当前参数重新创建 Simulation 力模型。
     void rebuildSimulation();
     // 以线程安全方式请求 QRhi 画布更新。

@@ -63,8 +63,8 @@ class GpuSimulationTest : public QObject {
         if (rhi->beginOffscreenFrame(&cb) != QRhi::FrameOpSuccess) return false;
         const bool recorded = gpu.recordStep(cb, state, p);
         const auto status = rhi->endOffscreenFrame();
-        // Offscreen frame completion provides the synchronization only in this
-        // test harness. The widget uses asynchronous readback and never finish().
+        // Offscreen completion synchronizes scheduled readbacks. Both the
+        // harness and widget submit compute without an explicit finish().
         return recorded && status == QRhi::FrameOpSuccess && gpu.takeResult(output);
     }
 
@@ -78,6 +78,79 @@ class GpuSimulationTest : public QObject {
     }
 
 private slots:
+    void backgroundGpuSimulation_data()
+    {
+        QTest::addColumn<bool>("minimized");
+        QTest::newRow("hidden-page") << false;
+        QTest::newRow("minimized-window") << true;
+    }
+
+    void backgroundGpuSimulation()
+    {
+        QFETCH(bool, minimized);
+        ForceViewRhiWidget view;
+        view.resize(600, 400);
+        view.setSimulationBackendMode("gpu");
+        view.setManyBodyStrength(0);
+        view.setCenterStrength(0);
+        view.setLinkStrength(0);
+        view.setCollisionStrength(0);
+        view.setGraph(2, {}, {-100, 0, 100, 0}, {"a", "b"}, {"a", "b"}, {4, 4});
+        auto *canvas = view.findChild<QRhiWidget*>();
+        QVERIFY(canvas);
+        QSignalSpy frames(canvas, &QRhiWidget::frameSubmitted);
+        QSignalSpy stopped(&view, &ForceViewRhiWidget::simulationStopped);
+        view.show();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        if (minimized) view.showMinimized();
+        else view.hide();
+        QTest::qWait(100); // Drain any already requested paints.
+        const int frameCount = frames.size();
+        const int ticks = view.m_simulation->tickCount();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_simulation->tickCount() > ticks + 3, 3000);
+        QCOMPARE(frames.size(), frameCount);
+        QCOMPARE(view.activeSimulationBackend(), QStringLiteral("gpu"));
+
+        view.pauseSimulation();
+        const int pausedTicks = view.m_simulation->tickCount();
+        QTest::qWait(100);
+        QCOMPARE(view.m_simulation->tickCount(), pausedTicks);
+        view.resumeSimulation();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_simulation->tickCount() > pausedTicks, 3000);
+        stopped.clear();
+        QTRY_VERIFY_WITH_TIMEOUT(!view.m_simulation->isActive(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!view.m_gpuSimulation->hasPendingStep(), 3000);
+        QCOMPARE(stopped.size(), 1);
+        const int settledTicks = view.m_simulation->tickCount();
+        QTest::qWait(100);
+        QCOMPARE(view.m_simulation->tickCount(), settledTicks);
+        view.showNormal();
+        QTRY_VERIFY_WITH_TIMEOUT(frames.size() > frameCount, 3000);
+        QCOMPARE(view.m_simulation->tickCount(), settledTicks);
+    }
+
+    void paintingDoesNotAdvanceGpuSimulation()
+    {
+        ForceViewRhiWidget view;
+        view.resize(600, 400);
+        view.setSimulationBackendMode("gpu");
+        view.setGraph(2, {}, {-100, 0, 100, 0}, {"a", "b"}, {"a", "b"}, {4, 4});
+        view.show();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        view.m_gpuTimer.stop();
+        const int ticks = view.m_simulation->tickCount();
+        auto *canvas = view.findChild<QRhiWidget*>();
+        QVERIFY(canvas);
+        QSignalSpy frames(canvas, &QRhiWidget::frameSubmitted);
+        for (int i = 0; i < 3; ++i) {
+            const int count = frames.size();
+            canvas->update();
+            QTRY_VERIFY_WITH_TIMEOUT(frames.size() > count, 3000);
+            QCOMPARE(view.m_simulation->tickCount(), ticks);
+        }
+        view.pauseSimulation();
+    }
+
     void rightDragDoesNotOpenPerformanceMenu()
     {
         ForceViewRhiWidget view;

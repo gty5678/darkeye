@@ -149,7 +149,7 @@ ForceViewRhiWidget *GraphViewWidget::view() const noexcept
 void GraphViewWidget::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-    if (!m_pendingVisibleLoad && m_loaded) {
+    if (!m_pendingVisibleLoad && !m_pendingManagerChange && m_loaded) {
         // Hidden preparation already started the layout and atlas build. Fit
         // the prepared positions to the now-visible viewport without reloading.
         if (m_prepareWhileHidden) m_view->fitViewToContent();
@@ -161,7 +161,11 @@ void GraphViewWidget::showEvent(QShowEvent *event)
     // stacked page is hidden.
     QTimer::singleShot(0, this, [this] {
         if (isVisible()) {
-            loadVisibleSnapshot();
+            if (m_pendingVisibleLoad || !m_loaded) {
+                loadVisibleSnapshot();
+            } else if (m_pendingManagerChange) {
+                applyManagerChange();
+            }
         }
     });
 }
@@ -186,10 +190,14 @@ void GraphViewWidget::applyManagerChange()
             return;
         }
     }
-    if (!m_loaded || (!isVisible() && !m_prepareWhileHidden) || width() <= 0 || height() <= 0) {
-        // A deferred full snapshot also incorporates every manager update
-        // received while this page is hidden.
+    if (!m_loaded || m_pendingVisibleLoad) {
         m_pendingVisibleLoad = true;
+        return;
+    }
+    if ((!isVisible() && !m_prepareWhileHidden) || width() <= 0 || height() <= 0) {
+        // Keep the previous session snapshot and renderer positions. Coalesce
+        // hidden updates into one delta when this view becomes visible again.
+        m_pendingManagerChange = true;
         return;
     }
 
@@ -206,6 +214,7 @@ void GraphViewWidget::applyManagerChange()
         return;
     }
     m_presenter.apply(m_session.refresh(), m_style);
+    m_pendingManagerChange = false;
 }
 
 QString GraphViewWidget::imageFilePath(const QString &nodeId) const
@@ -281,6 +290,7 @@ void GraphViewWidget::loadVisibleSnapshot()
     m_presenter.load(m_session.reload(), m_style);
     m_loaded = true;
     m_pendingVisibleLoad = false;
+    m_pendingManagerChange = false;
     QTimer::singleShot(0, m_view, [view = m_view] {
         view->fitViewToContent();
         view->update();

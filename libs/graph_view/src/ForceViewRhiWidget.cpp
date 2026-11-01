@@ -170,17 +170,13 @@ ForceViewRhiWidget::ForceViewRhiWidget(QWidget* parent)
     connect(m_canvas, &QRhiWidget::frameSubmitted,
             this, &ForceViewRhiWidget::onFrameSubmitted);
     m_gpuTimer.setInterval(kSimTickIntervalMs);
-    connect(&m_gpuTimer, &QTimer::timeout, this, [this]() {
-        if (m_activeSimulationBackend == QStringLiteral("gpu")
-            && ((m_simulation && m_simulation->isActive())
-                || (m_gpuSimulation && m_gpuSimulation->hasPendingStep())))
-            m_canvas->update();
-    });
+    connect(&m_gpuTimer, &QTimer::timeout, this, &ForceViewRhiWidget::tickGpuSimulation);
     m_gpuTimer.start();
 }
 
 ForceViewRhiWidget::~ForceViewRhiWidget()
 {
+    m_gpuTimer.stop();
     // Child hide events may arrive during QWidget teardown, after our members.
     if (m_performanceOverlay) disconnect(m_performanceOverlay, nullptr, this, nullptr);
     stopSimThread();
@@ -654,7 +650,6 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     }
 
     const double paintStart = nowSec();
-    advanceGpuSimulation(cb);
     applyMsdfAtlasResultIfReady();
     advanceHover();
     if (m_physicsState) {
@@ -1155,6 +1150,31 @@ void ForceViewRhiWidget::applySimulationBackendPreference()
         if (!gpu) startSimThread();
         requestCanvasUpdate();
     }
+}
+
+void ForceViewRhiWidget::tickGpuSimulation()
+{
+    if (m_activeSimulationBackend != QStringLiteral("gpu") || !m_rhi
+        || !m_physicsState || !m_simulation || m_rhi->isRecordingFrame())
+        return;
+    // Initialize resident state even when paused so GPU rendering can use it.
+    // Once settled, only drain outstanding steps/readbacks; do no further work.
+    if (m_gpuSimulation && !m_simulation->isActive()
+        && !m_gpuSimulation->hasPendingStep()
+        && m_gpuSimulation->submittedSteps() == m_gpuSimulation->snapshotSteps())
+        return;
+
+    // All QRhi access remains on the GUI thread. Offscreen submission does not
+    // depend on QRhiWidget receiving paint events (hidden/minimized windows).
+    QRhiCommandBuffer* cb = nullptr;
+    if (m_rhi->beginOffscreenFrame(&cb) != QRhi::FrameOpSuccess)
+        return;
+    advanceGpuSimulation(cb);
+    const auto result = m_rhi->endOffscreenFrame();
+    if (result != QRhi::FrameOpSuccess)
+        qWarning("GPU layout: offscreen frame submission failed");
+    if (isVisible() && !window()->isMinimized())
+        m_canvas->update();
 }
 
 void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)

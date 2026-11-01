@@ -14,6 +14,8 @@
 #include <QDir>
 #include <QListWidget>
 #include <QPushButton>
+#include <QSqlQuery>
+#include <QSqlError>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -58,6 +60,8 @@ void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
     darkeye::WorkRepository works(publicConnection.database());
     darkeye::Work work;
     work.serialNumber = QStringLiteral("STATS-001");
+    work.releaseDate = QStringLiteral("2020-01-01");
+    work.director = QStringLiteral("统计导演");
     const auto workId = works.insertComplete(work, {*actressId}, {*actorId}, {}, &errorMessage);
     QVERIFY2(workId.has_value(), qPrintable(errorMessage));
     const auto unwatchedId = works.insertSerial(QStringLiteral("STATS-002"), &errorMessage);
@@ -92,6 +96,39 @@ void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
              1);
     QCOMPARE(statistics.favoriteUnwatchedSalesCycle(&errorMessage), 90);
     QCOMPARE(statistics.earliestRecordYear(&errorMessage), 2020);
+
+    QSqlQuery fixture(publicConnection.database());
+    QVERIFY2(fixture.exec(QStringLiteral("UPDATE actress SET birthday='2000-01-01'")),
+             qPrintable(fixture.lastError().text()));
+    QVERIFY(fixture.exec(QStringLiteral("INSERT INTO maker (cn_name) VALUES ('统计制作商')")));
+    QVERIFY(fixture.exec(QStringLiteral("UPDATE work SET maker_id=(SELECT MAX(maker_id) FROM maker)")));
+
+    // Soft deletion must exclude works in every work chart scope, even when
+    // favorites and historical records still reference the deleted work.
+    for (const bool deleted : {false, true, false})
+    {
+        QVERIFY(works.setDeleted(*workId, deleted, &errorMessage));
+        const auto current = statistics.dashboard(&errorMessage);
+        QVERIFY2(current.has_value(), qPrintable(errorMessage));
+        QCOMPARE(current->workCount, deleted ? 1 : 2);
+        QCOMPARE(current->recentThirtyDays, deleted ? 1 : 2);
+        QCOMPARE(statistics.workAddedDates(&errorMessage).size(), deleted ? 1 : 2);
+        for (int scope = -1; scope <= 2; ++scope)
+        {
+            errorMessage.clear();
+            const auto years = statistics.workReleaseYears(scope, &errorMessage);
+            QCOMPARE(years.size(), deleted ? 0 : 1);
+            if (!years.isEmpty()) QCOMPARE(years.first().value, 1.0);
+            QCOMPARE(statistics.topDirectors(scope, &errorMessage).size(), deleted ? 0 : 1);
+            const auto makers = statistics.topMakers(scope, &errorMessage);
+            QCOMPARE(makers.size(), deleted && scope >= 1 ? 0 : 1);
+            if (!makers.isEmpty()) QCOMPARE(makers.first().value, scope <= 0 ? (deleted ? 1.0 : 2.0)
+                                                                     : (deleted ? 0.0 : 1.0));
+            QCOMPARE(statistics.workActressAges(scope, &errorMessage).size(), deleted ? 0 : 1);
+            QVERIFY2(errorMessage.isEmpty(), qPrintable(errorMessage));
+        }
+    }
+
 }
 
 void StatisticsRepositoryTest::rendersDashboardPage()

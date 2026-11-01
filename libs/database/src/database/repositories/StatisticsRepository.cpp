@@ -107,13 +107,13 @@ std::optional<DashboardStatistics> StatisticsRepository::dashboard(QString *erro
         return scalarCount(m_privateDatabase, sql, errorMessage);
     };
 
-    const auto works = queryPublic(QStringLiteral("SELECT COUNT(*) FROM work"));
+    const auto works = queryPublic(QStringLiteral("SELECT COUNT(*) FROM work WHERE IFNULL(is_deleted, 0)=0"));
     const auto actresses = queryPublic(QStringLiteral("SELECT COUNT(*) FROM actress"));
     const auto actors = queryPublic(QStringLiteral("SELECT COUNT(*) FROM actor"));
     const auto tags =
         queryPublic(QStringLiteral("SELECT COUNT(*) FROM tag WHERE redirect_tag_id IS NULL"));
     const auto recent = queryPublic(QStringLiteral(
-        "SELECT COUNT(*) FROM work WHERE create_time >= date('now', '-30 day')"));
+        "SELECT COUNT(*) FROM work WHERE IFNULL(is_deleted, 0)=0 AND create_time >= date('now', '-30 day')"));
     const auto favoriteWorks = queryPrivate(QStringLiteral("SELECT COUNT(*) FROM favorite_work"));
     const auto favoriteActresses =
         queryPrivate(QStringLiteral("SELECT COUNT(*) FROM favorite_actress"));
@@ -275,8 +275,8 @@ QVector<WeightedChartValue> StatisticsRepository::workActressAges(int scope,
                                                     : workWeights(m_privateDatabase, scope, errorMessage);
     QVector<WeightedChartValue> result;
     QSqlQuery query(m_publicDatabase);
-    if (!query.exec(QStringLiteral("SELECT work_id, avg_age FROM v_work_avg_age_info "
-                                   "WHERE avg_age IS NOT NULL")))
+    if (!query.exec(QStringLiteral("SELECT age.work_id, age.avg_age FROM v_work_avg_age_info age JOIN work w ON w.work_id=age.work_id "
+                                   "WHERE IFNULL(w.is_deleted, 0)=0 AND avg_age IS NOT NULL")))
     { if (errorMessage) *errorMessage = query.lastError().text(); return result; }
     while (query.next())
     {
@@ -336,7 +336,7 @@ QVector<ChartValue> StatisticsRepository::workReleaseYears(int scope, QString *e
     QMap<QString, qreal> counts;
     QSqlQuery query(m_publicDatabase);
     if (!query.exec(QStringLiteral("SELECT work_id, SUBSTR(release_date, 1, 4) FROM work "
-                                   "WHERE release_date IS NOT NULL AND release_date != ''")))
+                                   "WHERE IFNULL(is_deleted, 0)=0 AND release_date IS NOT NULL AND release_date != ''")))
     { if (errorMessage) *errorMessage = query.lastError().text(); return {}; }
     while (query.next()) { const qint64 id=query.value(0).toLongLong(); if (scope<0 || weights.contains(id)) counts[query.value(1).toString()] += scope==2 ? weights.value(id) : 1.0; }
     if (counts.isEmpty()) return {};
@@ -406,7 +406,7 @@ QVector<WaistHipChartValue> StatisticsRepository::waistHipDistribution(
 QVector<ChartValue> StatisticsRepository::topDirectors(int scope, QString *errorMessage) const
 {
     const auto weights=scope<0?QHash<qint64,qreal>():workWeights(m_privateDatabase,scope,errorMessage); QMap<QString,qreal> counts; QSqlQuery query(m_publicDatabase);
-    if(!query.exec(QStringLiteral("SELECT work_id,director FROM work WHERE director IS NOT NULL AND director != '' AND director != '----'"))){if(errorMessage)*errorMessage=query.lastError().text();return{};}
+    if(!query.exec(QStringLiteral("SELECT work_id,director FROM work WHERE IFNULL(is_deleted, 0)=0 AND director IS NOT NULL AND director != '' AND director != '----'"))){if(errorMessage)*errorMessage=query.lastError().text();return{};}
     while(query.next()){const auto id=query.value(0).toLongLong();if(scope>=0&&!weights.contains(id))continue;counts[query.value(1).toString()]+=scope==2?weights.value(id):1.0;}
     QVector<ChartValue> result;for(auto it=counts.cbegin();it!=counts.cend();++it)result.append({it.key(),it.value()});std::sort(result.begin(),result.end(),[](const auto&a,const auto&b){return a.value>b.value;});return result.mid(0,20);
 }
@@ -414,7 +414,7 @@ QVector<ChartValue> StatisticsRepository::topDirectors(int scope, QString *error
 QVector<ChartValue> StatisticsRepository::topMakers(int scope, QString *errorMessage) const
 {
     const auto weights=scope<0?QHash<qint64,qreal>():workWeights(m_privateDatabase,scope,errorMessage); QMap<QString,qreal> counts; QSqlQuery query(m_publicDatabase);
-    if(!query.exec(QStringLiteral("SELECT w.work_id,m.cn_name FROM work w JOIN maker m ON m.maker_id=w.maker_id WHERE m.cn_name IS NOT NULL"))){if(errorMessage)*errorMessage=query.lastError().text();return{};}
+    if(!query.exec(QStringLiteral("SELECT w.work_id,m.cn_name FROM work w JOIN maker m ON m.maker_id=w.maker_id WHERE IFNULL(w.is_deleted, 0)=0 AND m.cn_name IS NOT NULL"))){if(errorMessage)*errorMessage=query.lastError().text();return{};}
     while(query.next()){const auto id=query.value(0).toLongLong();if(scope>=0&&!weights.contains(id))continue;counts[query.value(1).toString()]+=scope==2?weights.value(id):1.0;}
     QVector<ChartValue> result;for(auto it=counts.cbegin();it!=counts.cend();++it)result.append({it.key(),it.value()});std::sort(result.begin(),result.end(),[](const auto&a,const auto&b){return a.value>b.value;});return result.mid(0,20);
 }
@@ -430,7 +430,7 @@ QVector<ChartValue> StatisticsRepository::mostRecordedActresses(QString *errorMe
 QVector<QDate> StatisticsRepository::workAddedDates(QString *errorMessage) const
 {
     QVector<QDate> result; QSqlQuery query(m_publicDatabase);
-    if(!query.exec(QStringLiteral("SELECT create_time FROM work WHERE create_time IS NOT NULL AND create_time != ''"))){if(errorMessage)*errorMessage=query.lastError().text();return result;}
+    if(!query.exec(QStringLiteral("SELECT create_time FROM work WHERE IFNULL(is_deleted, 0)=0 AND create_time IS NOT NULL AND create_time != ''"))){if(errorMessage)*errorMessage=query.lastError().text();return result;}
     while(query.next()){const auto date=QDate::fromString(query.value(0).toString().left(10),Qt::ISODate);if(date.isValid())result.append(date);} return result;
 }
 

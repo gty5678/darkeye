@@ -62,6 +62,7 @@ private:
     int m_egoRadius = 2;
     bool m_loaded = false;
     bool m_pendingVisibleLoad = false;
+    bool m_pendingManagerChange = false;
     bool m_prepareWhileHidden = false;
     bool m_imageOverlayEnabled = true;
     QString m_actressImageDirectory;

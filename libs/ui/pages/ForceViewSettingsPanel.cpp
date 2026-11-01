@@ -82,6 +82,8 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     auto *lineWidth = slider(10, 300, 60, content);
     auto *neighborDepth = slider(1, 5, 2, content);
     auto *graphNeighborDepth = slider(1, 5, 3, content);
+    m_displayForm = displayForm;
+    m_graphNeighborDepth = graphNeighborDepth;
     displayForm->addRow(new DesignLabel(QStringLiteral("显示箭头"), content), showArrow);
     displayForm->addRow(new DesignLabel(QStringLiteral("箭头大小"), content), arrowSize);
     displayForm->addRow(new DesignLabel(QStringLiteral("显示图片"), content), showImage);
@@ -90,6 +92,7 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     displayForm->addRow(new DesignLabel(QStringLiteral("连线宽度"), content), lineWidth);
     displayForm->addRow(new DesignLabel(QStringLiteral("邻居深度"), content), neighborDepth);
     displayForm->addRow(new DesignLabel(QStringLiteral("图邻居深度"), content), graphNeighborDepth);
+    displayForm->setRowVisible(graphNeighborDepth, false);
     auto *colorColumn = new QVBoxLayout;
     colorColumn->setContentsMargins(0, 0, 0, 0);
     colorColumn->setSpacing(6);
@@ -147,6 +150,17 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
             [notifyContentSizeChanged](bool) { notifyContentSizeChanged(); });
     connect(display, &TokenCollapsibleSection::toggled, this,
             [notifyContentSizeChanged](bool) { notifyContentSizeChanged(); });
+}
+
+void ForceViewSettingsPanel::setGraphNeighborDepthVisible(bool visible)
+{
+    m_displayForm->setRowVisible(m_graphNeighborDepth, visible);
+    QTimer::singleShot(0, this, [this] {
+        widget()->updateGeometry();
+        widget()->layout()->activate();
+        updateGeometry();
+        emit contentSizeChanged();
+    });
 }
 
 QSlider *ForceViewSettingsPanel::slider(int minimum, int maximum, int value, QWidget *parent)

@@ -3,6 +3,7 @@
 #include <QScrollArea>
 
 class QColor;
+class QFormLayout;
 class QResizeEvent;
 class QSlider;
 
@@ -19,6 +20,7 @@ class ForceViewSettingsPanel final : public QScrollArea
 public:
     explicit ForceViewSettingsPanel(ThemeService &themeService, QWidget *parent = nullptr);
     [[nodiscard]] int preferredHeight() const;
+    void setGraphNeighborDepthVisible(bool visible);
 
 signals:
     void manyBodyStrengthChanged(float value);
@@ -40,7 +42,8 @@ private:
     void resizeEvent(QResizeEvent *event) override;
     void updateContentWidth();
     static QSlider *slider(int minimum, int maximum, int value, QWidget *parent);
-
+    QFormLayout *m_displayForm = nullptr;
+    QSlider *m_graphNeighborDepth = nullptr;
 };
 
 } // namespace darkeye

@@ -113,6 +113,7 @@ void ForceDirectPage::lazyLoad()
 {
     m_graphManager.scheduleInitialize();
     m_graphView->showAll();
+    m_settingsPanel->setGraphNeighborDepthVisible(false);
     m_needsRefresh = false;
 }
 
@@ -173,12 +174,14 @@ void ForceDirectPage::refreshGraph()
 void ForceDirectPage::setEgoGraph(const QString &centerId, int radius)
 {
     initialize();
+    m_settingsPanel->setGraphNeighborDepthVisible(!centerId.isEmpty());
     if (m_graphView != nullptr) m_graphView->setEgoGraph(centerId, radius);
 }
 
 void ForceDirectPage::showEmptyGraph()
 {
     initialize();
+    m_settingsPanel->setGraphNeighborDepthVisible(false);
     if (m_graphView != nullptr) m_graphView->showEmpty();
 }
 

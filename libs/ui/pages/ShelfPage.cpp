@@ -158,7 +158,9 @@ void ShelfPage::buildUi()
     m_scopeSelector = new DesignComboBox(filterBar);
     m_scopeSelector->setObjectName(QStringLiteral("ShelfScopeSelector"));
     m_scopeSelector->addItems({QStringLiteral("公共库范围"), QStringLiteral("收藏库范围"),
-                               QStringLiteral("收藏未观看"), QStringLiteral("已撸过")});
+                               QStringLiteral("收藏未观看"), QStringLiteral("已撸过"),
+                               QStringLiteral("本地有视频")});
+    m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏、观看记录或本地视频范围"));
     m_sortSelector = new DesignComboBox(filterBar);
     m_sortSelector->setObjectName(QStringLiteral("ShelfSortSelector"));
     const QList<QPair<QString, WorkSortOrder>> sorts{
@@ -438,6 +440,11 @@ WorkSearch ShelfPage::currentSearch() const
     search.randomSeed = m_randomSeed;
     search.randomSeed2 = m_randomSeed2;
     search.order = selectedSortOrder();
+    if (m_scopeSelector->currentIndex() == 4)
+    {
+        search.requireLocalVideo = true;
+        return search;
+    }
     if (!m_privateDatabase.isValid() || m_scopeSelector->currentIndex() == 0) return search;
     QString privateError;
     SqliteConnection connection;

@@ -422,12 +422,13 @@ void DvdShelfView::updateCoverInfo()
         const QString &fill=background;
         widget->setStyleSheet(fill.isEmpty()
             ? QStringLiteral("QToolButton { color:#263140;background:transparent;border:0;padding:0;font-size:14px; } QToolButton:hover { text-decoration:underline; }")
-            : QStringLiteral("QToolButton { color:%1;background:%2;border:0;border-radius:4px;padding:2px 5px;font-size:14px; } QToolButton:hover { border:1px solid #a0a8b8; }")
+            : QStringLiteral("QToolButton { color:%1;background:%2;border:1px solid transparent;border-radius:4px;padding:2px 5px;font-size:14px; } QToolButton:hover { border-color:#a0a8b8; }")
                 .arg(readableTextColor(fill).name(),fill));
         const QFontMetricsF metrics(bodyFont);
-        const int padding=fill.isEmpty()?0:4;
+        // Reserve the chip border in both states so hovering cannot elide the text.
+        const int padding=fill.isEmpty()?0:6;
         widget->setFixedHeight(qCeil(metrics.height())+padding);
-        widget->setFixedWidth(std::min(m_coverTextWidth,qCeil(metrics.horizontalAdvance(text))+(fill.isEmpty()?0:10)));
+        widget->setFixedWidth(std::min(m_coverTextWidth,qCeil(metrics.horizontalAdvance(text))+(fill.isEmpty()?0:12)));
         connect(widget,&QToolButton::clicked,this,handler); return widget;
     };
     const auto row=[&](const QString &prefix,QToolButton *value) {

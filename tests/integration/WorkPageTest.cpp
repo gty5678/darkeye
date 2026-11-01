@@ -99,6 +99,7 @@ class WorkPageTest final : public QObject
     void loadingCrLfStoriesDoesNotMarkWorkModified();
     void personSelectionChangesRenderWarningFrame();
     void tagSelectionChangesRenderWarningFrame();
+    void fanartChangesRenderWarningFrame();
     void downloadedCoverEnablesModifyAction();
     void identicalCoverDoesNotEnableModifyAction();
     void droppingOriginalAfterSaveDoesNotEnableModifyAction_data();
@@ -948,6 +949,53 @@ void WorkPageTest::personSelectionChangesRenderWarningFrame()
             QVERIFY(!save->isEnabled());
             QVERIFY(!hasOrangeEdges(selected));
         }
+    }
+}
+
+void WorkPageTest::fanartChangesRenderWarningFrame()
+{
+    const QString previousStyle = qApp->styleSheet();
+    const auto restoreStyle = qScopeGuard([previousStyle] { qApp->setStyleSheet(previousStyle); });
+    QTemporaryDir directory;
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(QDir(directory.path()).filePath("public.db"), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    darkeye::WorkRepository repository(connection.database());
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("FANART-FRAME-001");
+    const auto workId = repository.insertComplete(work, {}, {}, {}, &error);
+    QVERIFY2(workId.has_value(), qPrintable(error));
+    darkeye::ThemeService themes(*qApp);
+    darkeye::CrawlerScheduler scheduler(QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    darkeye::AddWorkTabPage3 editor(connection.database(), themes, scheduler);
+    editor.resize(1400, 1000);
+    editor.show();
+    auto *fanart = editor.findChild<darkeye::FanartStripWidget *>();
+    QVERIFY(fanart != nullptr);
+    const auto hasOrangeEdges = [fanart] {
+        const QImage image = fanart->grab().toImage();
+        const QColor orange(QStringLiteral("#FFA500"));
+        return !image.isNull()
+            && image.pixelColor(0, image.height() / 2) == orange
+            && image.pixelColor(image.width() - 1, image.height() / 2) == orange
+            && image.pixelColor(image.width() / 2, 0) == orange
+            && image.pixelColor(image.width() / 2, image.height() - 1) == orange;
+    };
+    for (auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark})
+    {
+        QVERIFY(themes.setTheme(theme));
+        QVERIFY(editor.loadWork(*workId));
+        QApplication::processEvents();
+        QVERIFY(!hasOrangeEdges());
+        fanart->setUrlList({QStringLiteral("https://example.invalid/scene.jpg")});
+        QVERIFY(fanart->property("addWorkModified").toBool());
+        QApplication::processEvents();
+        QVERIFY(hasOrangeEdges());
+        QVERIFY(editor.loadWork(*workId));
+        QApplication::processEvents();
+        QVERIFY(!fanart->property("addWorkModified").toBool());
+        QVERIFY(!hasOrangeEdges());
     }
 }
 

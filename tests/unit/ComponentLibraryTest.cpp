@@ -35,6 +35,7 @@
 #include "ui/components/WorkCompletenessIndicators.h"
 
 #include <QApplication>
+#include <QAbstractItemView>
 #include <QColor>
 #include <QCompleter>
 #include <QContextMenuEvent>
@@ -79,6 +80,7 @@ class ComponentLibraryTest final : public QObject
 
 private slots:
     void tokenControlsKeepPythonObjectNames();
+    void comboPopupKeepsBoundedHeightAndCurrentSelection();
     void labelSupportsToneAndFormColumn();
     void progressSupportsBusyAndDeterminateModes();
     void stateButtonTogglesAndRefreshes();
@@ -107,6 +109,31 @@ private slots:
     void pathManagementBrowsesWithOneClick();
     void workCompletenessIndicatorsKeepPythonContract();
 };
+
+void ComponentLibraryTest::comboPopupKeepsBoundedHeightAndCurrentSelection()
+{
+    darkeye::ThemeService themes(*qApp);
+    for (auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
+        QVERIFY(themes.setTheme(theme));
+        darkeye::DesignComboBox combo;
+        combo.setObjectName(QStringLiteral("BusinessSelector"));
+        combo.setMaxVisibleItems(8);
+        for (int i = 0; i < 100; ++i)
+            combo.addItem(QString::number(i));
+        combo.setCurrentIndex(70);
+        combo.resize(220, 36);
+        combo.move(300, 300);
+        combo.show();
+        QTest::qWait(20);
+        combo.showPopup();
+        QTRY_VERIFY(combo.view()->isVisible());
+        const auto selected = combo.model()->index(70, 0);
+        QTRY_VERIFY(combo.view()->viewport()->rect().intersects(combo.view()->visualRect(selected)));
+        QVERIFY(combo.view()->height() < combo.view()->sizeHintForRow(0) * 12);
+        QCOMPARE(combo.currentIndex(), 70);
+        combo.hidePopup();
+    }
+}
 
 void ComponentLibraryTest::workCompletenessIndicatorsKeepPythonContract()
 {

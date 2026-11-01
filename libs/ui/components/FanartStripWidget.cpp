@@ -322,9 +322,11 @@ FanartStripWidget::FanartStripWidget(QString fanartDirectory, QString legacyCove
 {
     qRegisterMetaType<QList<FanartEntry>>();
     setObjectName(QStringLiteral("FanartStripWidget"));
+    setAttribute(Qt::WA_StyledBackground);
     setFocusPolicy(Qt::ClickFocus);
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(0, 0, 0, 0);
+    // Reserve the warning frame so the scroll area's viewport cannot cover it.
+    root->setContentsMargins(2, 2, 2, 2);
     root->setSpacing(4);
 
     auto *scroll = new FanartHorizontalScrollArea(this);

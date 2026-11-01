@@ -5,6 +5,11 @@ QWidget {
     font-size: 14px;
 }
 
+/* Keep long option lists anchored to the field and respect maxVisibleItems. */
+QComboBox {
+    combobox-popup: 0;
+}
+
 QListWidget#mainSidebar {
     background-color: @BACKGROUND@;
     border: 0;

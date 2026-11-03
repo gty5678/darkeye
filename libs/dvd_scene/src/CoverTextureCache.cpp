@@ -27,7 +27,14 @@ CoverTextureCache::CoverTextureCache(QObject *parent):QObject(parent)
     texture->image=QImage(QStringLiteral(":/dvd_scene/maps/0.png")).convertToFormat(QImage::Format_RGBA8888);
     m_placeholder=std::move(texture);
 }
-CoverTextureCache::~CoverTextureCache() { m_pool.waitForDone(); }
+CoverTextureCache::~CoverTextureCache()
+{
+    // Discard obsolete queued decodes before joining the (at most two) workers.
+    // Keep this QObject alive until running tasks have posted their callbacks;
+    // QObject destruction then removes those queued callbacks safely.
+    m_pool.clear();
+    m_pool.waitForDone();
+}
 
 CoverTextureCache::Request CoverTextureCache::request(const QString &path,int pixels)
 {

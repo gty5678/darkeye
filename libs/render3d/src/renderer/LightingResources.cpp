@@ -204,17 +204,17 @@ bool LightingResources::ensurePipelines(QRhiShaderResourceBindings *geometryLayo
     }
     return true;
 }
-void LightingResources::beforeScene(QRhiCommandBuffer *cb,const std::function<void(QRhiGraphicsPipeline *)> &geometry)
+void LightingResources::beforeScene(QRhiCommandBuffer *cb,const std::function<void(QRhiGraphicsPipeline *, bool cameraVisibleOnly)> &geometry)
 {
     drawCalls=0;
     if(m_settings.shadows && m_shadow.target) {
         cb->beginPass(m_shadow.target.get(),Qt::white,{1,0});
-        cb->setViewport({0,0,2048,2048}); if(m_shadowPipeline) geometry(m_shadowPipeline.get()); cb->endPass();
+        cb->setViewport({0,0,2048,2048}); if(m_shadowPipeline) geometry(m_shadowPipeline.get(),false); cb->endPass();
     }
     if(m_settings.ambientOcclusion && m_normalDepth.target) {
         const auto size=m_normalDepth.color->pixelSize();
         cb->beginPass(m_normalDepth.target.get(),Qt::transparent,{1,0});
-        cb->setViewport({0,0,float(size.width()),float(size.height())}); if(m_depthPipeline) geometry(m_depthPipeline.get()); cb->endPass();
+        cb->setViewport({0,0,float(size.width()),float(size.height())}); if(m_depthPipeline) geometry(m_depthPipeline.get(),true); cb->endPass();
     }
     if(m_settings.ambientOcclusion && m_aoPipeline) {
         const auto size=m_ao.color->pixelSize();

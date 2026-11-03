@@ -215,9 +215,11 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_fanartContainer->setObjectName(QStringLiteral("ShelfFanartOverlay"));
     auto *fanartLayout = new QVBoxLayout(m_fanartContainer);
     fanartLayout->setContentsMargins(6, 4, 6, 4);
-    m_fanartStrip = new FanartStripWidget(m_fanartDirectory, m_coverDirectory, {}, m_fanartContainer);
+    m_fanartStrip = new FanartStripWidget(
+        m_fanartDirectory, m_coverDirectory,
+        QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")), m_fanartContainer);
     m_fanartStrip->setCanAdd(false);
-    m_fanartStrip->setPreviewMode(true);
+    m_fanartStrip->setMode(FanartStripWidget::Mode::Display);
     m_fanartContainer->setStyleSheet(QStringLiteral(
         "QWidget { background:transparent; }"
         "QLabel { background:transparent;color:#354052; }"

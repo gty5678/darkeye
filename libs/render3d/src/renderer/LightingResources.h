@@ -21,7 +21,7 @@ public:
                  std::shared_ptr<const EnvironmentMap> environment,QRhiCommandBuffer *cb,QString &error);
     bool ensurePipelines(QRhiShaderResourceBindings *geometryLayout,QRhiRenderPassDescriptor *scenePass,
                          int samples,QString &error);
-    void beforeScene(QRhiCommandBuffer *cb,const std::function<void(QRhiGraphicsPipeline *)> &geometry);
+    void beforeScene(QRhiCommandBuffer *cb,const std::function<void(QRhiGraphicsPipeline *, bool cameraVisibleOnly)> &geometry);
     void background(QRhiCommandBuffer *cb);
     std::vector<QRhiShaderResourceBinding> bindings() const;
     QRhiBuffer *uniform() const { return m_uniform.get(); }

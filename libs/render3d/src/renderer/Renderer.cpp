@@ -780,10 +780,12 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
     }
     cb->resourceUpdate(updates);
     int auxiliaryDraws=0;
-    m_lighting->beforeScene(cb,[&](QRhiGraphicsPipeline *pipeline) {
+    m_lighting->beforeScene(cb,[&](QRhiGraphicsPipeline *pipeline,bool cameraVisibleOnly) {
         cb->setGraphicsPipeline(pipeline);
         for(std::size_t i=0;i<m_items.size();++i) {
             const auto &item=m_items[i];
+            // SSAO uses camera depth. Shadows still need offscreen casters.
+            if(cameraVisibleOnly && !visibleNodes.contains(item.node)) continue;
             const auto &material=materialOf(item);
             if(transmissive(material)) continue; // no opaque shadow/AO occluder for clear plastic
             const auto &geometry=m_geometry.at(item.mesh.get());

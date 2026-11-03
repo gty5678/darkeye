@@ -147,36 +147,24 @@ protected:
 class FanartThumbCell final : public QFrame
 {
 public:
-    FanartThumbCell(std::function<void()> clicked, std::function<void()> longPressed,
-                    std::function<void()> removeRequested,
-                    std::function<void()> doubleClicked = {}, QWidget *parent = nullptr)
-        : QFrame(parent), m_clicked(std::move(clicked)), m_longPressed(std::move(longPressed)),
-          m_removeRequested(std::move(removeRequested)), m_doubleClicked(std::move(doubleClicked))
+    FanartThumbCell(std::function<void()> clicked, std::function<void()> removeRequested,
+                    QWidget *parent = nullptr)
+        : QFrame(parent), m_clicked(std::move(clicked)),
+          m_removeRequested(std::move(removeRequested))
     {
         setObjectName(QStringLiteral("FanartCell"));
+        setStyleSheet(QStringLiteral("QFrame#FanartCell, QFrame#FanartAddPlaceholder { background: transparent; border: none; padding: 0; margin: 0; }"));
         setFrameShape(QFrame::NoFrame);
         setFixedSize(fanartThumbCell, fanartThumbCell);
-        m_longPressTimer = new QTimer(this);
-        m_longPressTimer->setSingleShot(true);
-        m_longPressTimer->setInterval(450);
-        connect(m_longPressTimer, &QTimer::timeout, this, [this] {
-            m_longPressFired = true;
-            if (m_longPressed) m_longPressed();
-        });
-        m_clickTimer = new QTimer(this);
-        m_clickTimer->setSingleShot(true);
-        m_clickTimer->setInterval(QApplication::doubleClickInterval());
-        connect(m_clickTimer, &QTimer::timeout, this, [this] {
-            if (m_clicked) m_clicked();
-        });
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(fanartThumbMargin, fanartThumbMargin,
                                    fanartThumbMargin, fanartThumbMargin);
         m_label = new QLabel(this);
+        m_label->setStyleSheet(QStringLiteral("border: none; padding: 0; margin: 0; background: transparent;"));
         m_label->setAlignment(Qt::AlignCenter);
         m_label->setFixedSize(fanartThumbSide, fanartThumbSide);
         m_label->setAttribute(Qt::WA_TransparentForMouseEvents);
-        layout->addWidget(m_label);
+        layout->addWidget(m_label, 0, Qt::AlignCenter);
         m_close = new QToolButton(this);
         m_close->setText(QStringLiteral("×"));
         m_close->setFixedSize(20, 20);
@@ -225,13 +213,20 @@ public:
         if (enabled) m_close->raise();
     }
 
-    void setSelected(bool selected)
+protected:
+    void paintEvent(QPaintEvent *event) override
     {
-        m_selected = selected;
-        applyStyle();
+        QFrame::paintEvent(event);
+        if (!m_isAddPlaceholder)
+            return;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(QColor("#9aa0a6"), 2, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        const QRectF border = QRectF(rect()).adjusted(1, 1, -1, -1);
+        painter.drawRoundedRect(border, 4, 4);
     }
 
-protected:
     void resizeEvent(QResizeEvent *event) override
     {
         QFrame::resizeEvent(event);
@@ -240,78 +235,49 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() == Qt::LeftButton)
-        {
-            m_longPressFired = false;
-            m_pressPosition = event->position();
-            m_longPressTimer->start();
-        }
+        m_pressed = event->button() == Qt::LeftButton;
+        m_pressPosition = event->position();
         QFrame::mousePressEvent(event);
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (m_longPressTimer->isActive() && event->buttons().testFlag(Qt::LeftButton) &&
-            (event->position() - m_pressPosition).manhattanLength() > QApplication::startDragDistance())
-            m_longPressTimer->stop();
+        if ((event->position() - m_pressPosition).manhattanLength() > QApplication::startDragDistance())
+            m_pressed = false;
         QFrame::mouseMoveEvent(event);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        m_longPressTimer->stop();
-        if (event->button() == Qt::LeftButton && m_skipNextRelease)
-        {
-            m_skipNextRelease = false;
-        }
-        else if (event->button() == Qt::LeftButton && !m_longPressFired)
-        {
-            m_clickTimer->start();
-        }
-        m_longPressFired = false;
+        const bool clicked = m_pressed && event->button() == Qt::LeftButton &&
+                             rect().contains(event->position().toPoint());
+        m_pressed = false;
         QFrame::mouseReleaseEvent(event);
+        if (clicked && m_clicked)
+            m_clicked();
     }
 
     void mouseDoubleClickEvent(QMouseEvent *event) override
     {
-        m_longPressTimer->stop();
-        m_clickTimer->stop();
-        m_skipNextRelease = true;
-        if (event->button() == Qt::LeftButton && m_doubleClicked)
-            m_doubleClicked();
+        m_pressed = false;
         event->accept();
     }
 
 private:
     void applyStyle()
     {
-        if (m_isAddPlaceholder)
-        {
-            setStyleSheet(QStringLiteral("QFrame { background: transparent; border: 2px dashed #9aa0a6; border-radius: 4px; }"));
-        }
-        else if (m_selected)
-        {
-            setStyleSheet(QStringLiteral("QFrame { background: transparent; border: 2px solid #4a9eff; }"));
-        }
-        else
-        {
-            setStyleSheet(QStringLiteral("QFrame { background: transparent; border: none; }"));
-        }
+        // Paint the outline without changing the frame's contents rect: a QSS
+        // border consumes layout space and displaces the fixed-size thumbnail.
+        update();
     }
 
     QLabel *m_label = nullptr;
     QToolButton *m_close = nullptr;
-    QTimer *m_longPressTimer = nullptr;
-    QTimer *m_clickTimer = nullptr;
     QPointF m_pressPosition;
     std::function<void()> m_clicked;
-    std::function<void()> m_longPressed;
     std::function<void()> m_removeRequested;
-    std::function<void()> m_doubleClicked;
+    bool m_pressed = false;
     bool m_isAddPlaceholder = false;
-    bool m_selected = false;
-    bool m_longPressFired = false;
-    bool m_skipNextRelease = false;
 };
 } // namespace
 
@@ -333,7 +299,7 @@ FanartStripWidget::FanartStripWidget(QString fanartDirectory, QString legacyCove
     scroll->setObjectName(QStringLiteral("FanartScrollArea"));
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setMinimumHeight(fanartThumbCell + 8);
     auto *strip = new QWidget(scroll);
@@ -384,8 +350,6 @@ void FanartStripWidget::setEntries(const QList<FanartEntry> &entries)
         m_imageFetch->cancel(requestId);
         emit downloadStateChanged(false);
     }
-    m_editMode = false;
-    m_selectedIndex = -1;
     m_entries = entries;
     rebuild();
 }
@@ -428,7 +392,7 @@ void FanartStripWidget::setUrlList(const QStringList &urls)
 void FanartStripWidget::setCanAdd(bool canAdd)
 {
     m_canAdd = canAdd;
-    if (m_editMode)
+    if (m_mode == Mode::Edit)
         rebuild();
 }
 
@@ -437,11 +401,11 @@ bool FanartStripWidget::canAdd() const noexcept
     return m_canAdd;
 }
 
-void FanartStripWidget::setPreviewMode(bool enabled)
+void FanartStripWidget::setMode(Mode mode)
 {
-    m_previewMode = enabled;
-    if (m_previewMode)
-        leaveEditMode();
+    if (m_mode == mode)
+        return;
+    m_mode = mode;
     rebuild();
 }
 
@@ -469,6 +433,28 @@ bool FanartStripWidget::addLocalImage(const QString &path, QString *errorMessage
         return false;
     }
     m_entries.append({{}, {}, QDir::cleanPath(path)});
+    rebuild();
+    emit fanartChanged(m_entries);
+    return true;
+}
+
+bool FanartStripWidget::addImageUrl(const QString &url, QString *errorMessage)
+{
+    const QUrl source(url.trimmed());
+    QString error;
+    if (m_mode != Mode::Edit || !m_canAdd)
+        error = QStringLiteral("当前无法添加剧照");
+    else if (downloadInProgress())
+        error = QStringLiteral("请等待剧照下载完成");
+    else if (!source.isValid() || source.host().isEmpty() ||
+             (source.scheme() != QStringLiteral("http") && source.scheme() != QStringLiteral("https")))
+        error = QStringLiteral("请输入有效的 HTTP 或 HTTPS 图片网址");
+    if (!error.isEmpty())
+    {
+        if (errorMessage) *errorMessage = error;
+        return false;
+    }
+    m_entries.append({url.trimmed(), {}, {}});
     rebuild();
     emit fanartChanged(m_entries);
     return true;
@@ -645,33 +631,51 @@ QString FanartStripWidget::toJson(const QList<FanartEntry> &entries)
                            : QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
 }
 
-void FanartStripWidget::chooseLocalImage()
+void FanartStripWidget::chooseImage()
 {
-    const QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("选择剧照"), {},
-        QStringLiteral("图片文件 (*.jpg *.jpeg *.png *.webp *.bmp *.gif)"));
-    if (!path.isEmpty())
-        addLocalImage(path);
-}
-
-void FanartStripWidget::enterEditMode()
-{
-    if (m_previewMode)
-        return;
-    if (m_editMode)
-        return;
-    m_editMode = true;
-    setFocus(Qt::OtherFocusReason);
-    rebuild();
-}
-
-void FanartStripWidget::leaveEditMode()
-{
-    if (!m_editMode)
-        return;
-    m_editMode = false;
-    m_selectedIndex = -1;
-    rebuild();
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("添加剧照"));
+    dialog.resize(460, 160);
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(QStringLiteral("图片网址："), &dialog));
+    auto *url = new QLineEdit(&dialog);
+    url->setPlaceholderText(QStringLiteral("https://…"));
+    layout->addWidget(url);
+    auto *error = new QLabel(&dialog);
+    error->setWordWrap(true);
+    layout->addWidget(error);
+    auto *buttons = new QHBoxLayout;
+    auto *local = new QPushButton(QStringLiteral("选择本地图片…"), &dialog);
+    auto *add = new QPushButton(QStringLiteral("添加网址"), &dialog);
+    auto *cancel = new QPushButton(QStringLiteral("取消"), &dialog);
+    add->setDefault(true);
+    local->setAutoDefault(false);
+    cancel->setAutoDefault(false);
+    buttons->addWidget(local);
+    buttons->addStretch();
+    buttons->addWidget(add);
+    buttons->addWidget(cancel);
+    layout->addLayout(buttons);
+    connect(add, &QPushButton::clicked, &dialog, [this, &dialog, url, error] {
+        QString message;
+        if (addImageUrl(url->text(), &message))
+            dialog.accept();
+        else
+            error->setText(message);
+    });
+    connect(local, &QPushButton::clicked, &dialog, [this, &dialog, error] {
+        const QString path = QFileDialog::getOpenFileName(
+            &dialog, QStringLiteral("选择剧照"), {},
+            QStringLiteral("图片文件 (*.jpg *.jpeg *.png *.webp *.bmp *.gif)"));
+        if (path.isEmpty()) return;
+        QString message;
+        if (addLocalImage(path, &message))
+            dialog.accept();
+        else
+            error->setText(message);
+    });
+    connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+    dialog.exec();
 }
 
 void FanartStripWidget::showPreview(int index)
@@ -681,6 +685,12 @@ void FanartStripWidget::showPreview(int index)
 
     FanartPreviewDialog dialog(this);
     dialog.setObjectName(QStringLiteral("FanartPreviewDialog"));
+    // The DVD overlay uses transparent QWidget backgrounds. A top-level
+    // preview needs its own opaque surface instead of inheriting that rule.
+    dialog.setStyleSheet(QStringLiteral(
+        "QDialog#FanartPreviewDialog { background-color: palette(window); color: palette(window-text); }"
+        "QDialog#FanartPreviewDialog QLabel { color: palette(window-text); }"));
+    dialog.setAutoFillBackground(true);
     dialog.setWindowTitle(QStringLiteral("Fanart"));
     dialog.resize(440, 560);
     auto *layout = new QVBoxLayout(&dialog);
@@ -689,7 +699,7 @@ void FanartStripWidget::showPreview(int index)
     image->setAlignment(Qt::AlignCenter);
     image->setMinimumSize(600, 600);
     image->setStyleSheet(QStringLiteral("QLabel { background-color: transparent; border: none; }"));
-    image->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    image->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     layout->addWidget(image, 1);
 
     auto *position = new QLabel(&dialog);
@@ -716,7 +726,7 @@ void FanartStripWidget::showPreview(int index)
 
     layout->addWidget(new QLabel(QStringLiteral("图片网址："), &dialog));
     auto *url = new QLineEdit(&dialog);
-    url->setReadOnly(m_previewMode);
+    url->setReadOnly(m_mode == Mode::Display);
     url->setPlaceholderText(QStringLiteral("图片网址"));
     auto *download = new QPushButton(QStringLiteral("下载"), &dialog);
     download->setIcon(IconProvider::builtIn(QStringLiteral("arrow_down_to_line"), QSize(18, 18),
@@ -737,6 +747,13 @@ void FanartStripWidget::showPreview(int index)
     auto *cancel = new QPushButton(QStringLiteral("取消"), &dialog);
     actions->addWidget(confirm);
     actions->addWidget(cancel);
+    if (m_mode == Mode::Display)
+    {
+        confirm->hide();
+        confirm->setDefault(false);
+        cancel->setText(QStringLiteral("关闭"));
+        cancel->setDefault(true);
+    }
     layout->addLayout(actions);
 
     int currentIndex = index;
@@ -799,7 +816,7 @@ void FanartStripWidget::showPreview(int index)
     connect(this, &FanartStripWidget::downloadStateChanged, &dialog,
             [refresh](bool) { refresh(); });
     connect(confirm, &QPushButton::clicked, &dialog, [this, &draftUrls, &dialog] {
-        if (!m_previewMode)
+        if (m_mode == Mode::Edit)
         {
             for (int i = 0; i < m_entries.size() && i < draftUrls.size(); ++i)
                 m_entries[i].url = draftUrls.at(i);
@@ -827,41 +844,23 @@ void FanartStripWidget::rebuild()
     {
         const FanartEntry &entry = m_entries.at(index);
         auto *cell = new FanartThumbCell(
-            [this, index] {
-                if (m_previewMode)
-                {
-                    showPreview(index);
-                }
-                else if (m_editMode)
-                {
-                    m_selectedIndex = index;
-                    rebuild();
-                }
-                else
-                {
-                    showPreview(index);
-                }
-            },
-            [this] { enterEditMode(); },
-            [this, index] { removeEntry(index); },
-            [this, index] {
-                if (!m_editMode) showPreview(index);
-            }, this);
+            [this, index] { QTimer::singleShot(0, this, [this, index] { showPreview(index); }); },
+            [this, index] { removeEntry(index); }, this);
         cell->setObjectName(QStringLiteral("FanartCell"));
         cell->setToolTip(entry.url.isEmpty() ? entry.file : entry.url);
         cell->setThumbnail(resolvedPath(entry), !entry.url.isEmpty());
-        cell->setSelected(m_selectedIndex == index);
-        cell->setEditMode(m_editMode);
+        cell->setEditMode(m_mode == Mode::Edit);
         m_stripLayout->addWidget(cell);
     }
-    if (m_editMode)
+    if (m_mode == Mode::Edit)
     {
         auto *addCell = new FanartThumbCell(
-            [this] { chooseLocalImage(); }, [this] { enterEditMode(); }, {}, {}, this);
+            [this] { chooseImage(); }, {}, this);
         addCell->setObjectName(QStringLiteral("FanartAddPlaceholder"));
         addCell->setAddPlaceholder();
+        addCell->setEditMode(m_mode == Mode::Edit);
         addCell->setEnabled(m_canAdd && !downloadInProgress());
-        addCell->setToolTip(QStringLiteral("点击添加本地图片"));
+        addCell->setToolTip(QStringLiteral("点击添加图片网址或本地图片"));
         m_stripLayout->addWidget(addCell);
     }
     m_stripLayout->addStretch();

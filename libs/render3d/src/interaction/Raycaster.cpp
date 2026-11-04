@@ -11,7 +11,14 @@ std::optional<RayHit> raycast(const Scene &scene, const Ray &ray, RaycastMode mo
         || !std::isfinite(ray.origin.lengthSquared()))
         return std::nullopt;
     std::optional<RayHit> result;
-    std::map<const MeshData *,std::pair<QVector3D,QVector3D>> bounds;
+    struct CachedBounds {
+        std::weak_ptr<const MeshData> source;
+        std::pair<QVector3D,QVector3D> extent;
+    };
+    // Scene mesh handles are immutable assets. Weak ownership avoids retaining
+    // removed models; per-thread storage also keeps independent callers safe.
+    thread_local std::map<const MeshData *,CachedBounds> bounds;
+    std::erase_if(bounds, [](const auto &entry) { return entry.second.source.expired(); });
     for (const auto &item : scene.renderItems()) {
         bool invertible = false;
         const auto inverse = item.world.inverted(&invertible);
@@ -30,9 +37,9 @@ std::optional<RayHit> raycast(const Scene &scene, const Ray &ray, RaycastMode mo
                     lower[axis]=std::min(lower[axis],vertex.position[axis]);
                     upper[axis]=std::max(upper[axis],vertex.position[axis]);
                 }
-            bounds.emplace(item.mesh.get(),std::make_pair(lower,upper));
+            bounds.emplace(item.mesh.get(),CachedBounds{item.mesh,{lower,upper}});
         }
-        const auto &[lower,upper]=bounds.at(item.mesh.get());
+        const auto &[lower,upper]=bounds.at(item.mesh.get()).extent;
         float enter = 0;
         float exit = std::numeric_limits<float>::max();
         bool miss = false;

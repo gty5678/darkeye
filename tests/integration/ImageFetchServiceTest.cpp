@@ -125,6 +125,7 @@ private slots:
     void timesOutStalledRequest();
     void suggestsSafeJpegFileName();
     void updatesFanartEntryAfterDownload();
+    void displayPreviewPublishesDownloadWithoutConfirmation();
     void changingEntriesAbandonsOldDownload();
     void previewNavigatesWhileDownloading();
 };
@@ -262,6 +263,52 @@ void ImageFetchServiceTest::changingEntriesAbandonsOldDownload()
     QCOMPARE(rejected.count(), 0);
 }
 
+void ImageFetchServiceTest::displayPreviewPublishesDownloadWithoutConfirmation()
+{
+    FakeImageProxy proxy(proxyResponse(true, pngPayload()), true, 50);
+    QTemporaryDir directory;
+    darkeye::FanartStripWidget strip(directory.path(), {}, proxy.endpoint());
+    strip.setMode(darkeye::FanartStripWidget::Mode::Display);
+    strip.setStyleSheet(QStringLiteral("QWidget { background: transparent; } QLabel { color: #354052; }"));
+    strip.setEntries({{QStringLiteral("https://images.example.test/scene.png"), {}, {}}});
+    strip.show();
+    QSignalSpy changed(&strip, &darkeye::FanartStripWidget::fanartChanged);
+    QString persistedJson;
+    connect(&strip, &darkeye::FanartStripWidget::fanartChanged, &strip,
+            [&](const QList<darkeye::FanartEntry> &entries) {
+                persistedJson = darkeye::FanartStripWidget::toJson(entries);
+            });
+    bool checked = false;
+    QTimer::singleShot(5000, &strip, [&] {
+        if (auto *dialog = strip.findChild<QDialog *>(QStringLiteral("FanartPreviewDialog")))
+            dialog->reject();
+    });
+    connect(&strip, &darkeye::FanartStripWidget::fanartChanged, &strip, [&] {
+        QTimer::singleShot(50, &strip, [&] {
+            auto *dialog = strip.findChild<QDialog *>(QStringLiteral("FanartPreviewDialog"));
+            QVERIFY(dialog);
+            QCOMPARE(changed.count(), 1);
+            QVERIFY(dialog->isVisible());
+            auto *image = dialog->findChild<QLabel *>(QStringLiteral("FanartPreviewImage"));
+            QVERIFY(image);
+            QVERIFY(!image->pixmap().isNull());
+            QVERIFY(!strip.entries().first().file.isEmpty());
+            QVERIFY(QFile::exists(directory.filePath(strip.entries().first().file)));
+            QVERIFY(persistedJson.contains(strip.entries().first().file));
+            for (auto *button : dialog->findChildren<QPushButton *>())
+                QVERIFY(!button->isVisible() || (button->text() != QStringLiteral("确定") &&
+                                                 button->text() != QStringLiteral("取消")));
+            checked = true;
+            dialog->reject();
+        });
+    });
+    auto *cell = strip.findChild<QWidget *>(QStringLiteral("FanartCell"));
+    QVERIFY(cell);
+    QTest::mouseClick(cell, Qt::LeftButton);
+    QTRY_VERIFY(checked);
+    QCOMPARE(changed.count(), 1);
+}
+
 void ImageFetchServiceTest::previewNavigatesWhileDownloading()
 {
     FakeImageProxy proxy(proxyResponse(true, pngPayload()), true, 250);
@@ -280,7 +327,7 @@ void ImageFetchServiceTest::previewNavigatesWhileDownloading()
         if (auto *dialog = strip.findChild<QDialog *>(QStringLiteral("FanartPreviewDialog")))
             dialog->reject();
     });
-    QTimer::singleShot(0, &strip, [&] {
+    QTimer::singleShot(50, &strip, [&] {
         auto *dialog = strip.findChild<QDialog *>(QStringLiteral("FanartPreviewDialog"));
         QVERIFY(dialog);
         QVERIFY(strip.downloadInProgress());
@@ -323,8 +370,8 @@ void ImageFetchServiceTest::previewNavigatesWhileDownloading()
     });
     auto *cell = strip.findChild<QWidget *>(QStringLiteral("FanartCell"));
     QVERIFY(cell);
-    QTest::mouseDClick(cell, Qt::LeftButton);
-    QVERIFY(checked);
+    QTest::mouseClick(cell, Qt::LeftButton);
+    QTRY_VERIFY(checked);
     QCOMPARE(strip.entries().at(1).url, QStringLiteral("https://images.example.test/local.png"));
 }
 

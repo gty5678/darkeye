@@ -43,6 +43,37 @@ QColor at(const QImage &image,const RhiSceneWidget &view,QVector3D point)
 class LightingTest final:public QObject {
     Q_OBJECT
 private slots:
+    void aoCullsOffscreenMeshesButShadowsKeepCasters()
+    {
+        RhiSceneWidget view;
+        view.resize(320,240);
+        auto scene=std::make_shared<Scene>();
+        const auto mesh=std::make_shared<const MeshData>(coloredCube());
+        QVERIFY(scene->setMesh(scene->createNode(),mesh));
+        view.setScene(scene);
+        LightingSettings settings;
+        settings.ambientOcclusion=true;
+        view.setLighting(settings);
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(!view.grabFramebuffer().isNull());
+        const auto visibleDraws=view.statistics().drawCalls;
+        const auto offscreen=scene->createNode();
+        QVERIFY(scene->setMesh(offscreen,mesh));
+        Transform pose;
+        pose.translation={100,0,0};
+        QVERIFY(scene->setTransform(offscreen,pose));
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QCOMPARE(view.statistics().visibleItems,1);
+        QCOMPARE(view.statistics().drawCalls,visibleDraws);
+        settings.shadows=true;
+        view.setLighting(settings);
+        QVERIFY(!view.grabFramebuffer().isNull());
+        // Both meshes must still be submitted to the light's shadow pass.
+        QCOMPARE(view.statistics().drawCalls,visibleDraws+2);
+        QVERIFY(view.lastError().isEmpty());
+    }
+
     void keyLightDirectionFollowsCamera()
     {
         RhiSceneWidget view; view.resize(320,240);

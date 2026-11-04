@@ -38,9 +38,12 @@ public:
     void setUrlList(const QStringList &urls);
     void setCanAdd(bool canAdd);
     [[nodiscard]] bool canAdd() const noexcept;
-    void setPreviewMode(bool enabled);
+    enum class Mode { Edit, Display };
+    void setMode(Mode mode);
+    [[nodiscard]] Mode mode() const noexcept { return m_mode; }
 
     bool addLocalImage(const QString &path, QString *errorMessage = nullptr);
+    bool addImageUrl(const QString &url, QString *errorMessage = nullptr);
     bool removeEntry(int index);
     bool moveEntry(int from, int to);
     bool updateEntry(int index, const QString &url, const QString &file = {});
@@ -61,9 +64,7 @@ signals:
     void downloadStateChanged(bool downloading);
 
 private:
-    void chooseLocalImage();
-    void enterEditMode();
-    void leaveEditMode();
+    void chooseImage();
     void showPreview(int index);
     void rebuild();
     [[nodiscard]] QString resolvedPath(const FanartEntry &entry) const;
@@ -76,9 +77,7 @@ private:
     QList<FanartEntry> m_entries;
     QHBoxLayout *m_stripLayout = nullptr;
     bool m_canAdd = true;
-    bool m_previewMode = false;
-    bool m_editMode = false;
-    int m_selectedIndex = -1;
+    Mode m_mode = Mode::Edit;
     int m_activeDownloadIndex = -1;
     quint64 m_activeRequestId = 0;
 };

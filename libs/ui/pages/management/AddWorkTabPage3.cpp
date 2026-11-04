@@ -382,6 +382,7 @@ void AddWorkTabPage3::lazyLoad()
     m_fanart =
         new FanartStripWidget(m_fanartDirectory, m_coverDirectory, m_imageFetchEndpoint, this);
     m_fanart->setProperty("workControlId", QStringLiteral("WorkFanartStrip"));
+    m_fanart->setMode(FanartStripWidget::Mode::Edit);
     m_fanart->setCanAdd(true);
     m_crawlerFields = new CrawlerFieldSelector(this);
     // Python uses a compact 32 px IconPushButton here.  A text button makes

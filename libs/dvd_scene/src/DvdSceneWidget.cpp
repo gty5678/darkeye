@@ -248,8 +248,6 @@ struct DvdSceneWidget::Impl {
         const auto id=hit(hoverPosition);
         interaction.hover(id,now());
         canvas->setCursor(id.isEmpty()?Qt::ArrowCursor:Qt::PointingHandCursor);
-        const int index=shelf.indexOf(id);
-        canvas->setToolTip(index>=0?shelf.items()[index].title:QString());
     }
 
     void cameraChanged()
@@ -601,7 +599,6 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
         d->hoverPositionValid=false;
         d->interaction.hover({},d->now());
         d->canvas->setCursor(Qt::ArrowCursor);
-        d->canvas->setToolTip({});
         d->updateTimer(); break;
     default:break;
     }

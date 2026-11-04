@@ -15,6 +15,7 @@
 #include <QPainter>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QToolButton>
 #include <QtTest>
 
 class MediaComponentTest final : public QObject
@@ -38,8 +39,75 @@ private slots:
     void imageDropPreservesOriginalJpegBytes();
     void fanartPreservesJsonOrderAndRemoteState();
     void fanartFinalizesPendingLocalImages();
+    void fanartAddIsAccessibleWithoutLongPress();
+    void fanartAddsImageUrl();
     void crawlerFieldsKeepPythonSelectionContract();
 };
+
+void MediaComponentTest::fanartAddsImageUrl()
+{
+    QTemporaryDir directory;
+    darkeye::FanartStripWidget widget(directory.path());
+    widget.setEntries({{QStringLiteral("https://example.invalid/existing.jpg"), {}, {}}});
+    QSignalSpy changed(&widget, &darkeye::FanartStripWidget::fanartChanged);
+    QString error;
+    QVERIFY(!widget.addImageUrl(QStringLiteral("file:///scene.jpg"), &error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!widget.addImageUrl(QStringLiteral("https://"), &error));
+    QCOMPARE(widget.entries().size(), 1);
+    QCOMPARE(changed.count(), 0);
+    QVERIFY(widget.addImageUrl(QStringLiteral(" https://example.invalid/new.jpg "), &error));
+    QCOMPARE(widget.entries().size(), 2);
+    QCOMPARE(widget.entries().last().url, QStringLiteral("https://example.invalid/new.jpg"));
+    QCOMPARE(changed.count(), 1);
+    QList<darkeye::FanartEntry> saved;
+    QVERIFY(darkeye::FanartStripWidget::parseJson(
+        darkeye::FanartStripWidget::toJson(widget.entries()), &saved));
+    QCOMPARE(saved, widget.entries());
+    widget.setMode(darkeye::FanartStripWidget::Mode::Display);
+    QVERIFY(!widget.addImageUrl(QStringLiteral("https://example.invalid/blocked.jpg"), &error));
+    QCOMPARE(widget.entries().size(), 2);
+}
+
+void MediaComponentTest::fanartAddIsAccessibleWithoutLongPress()
+{
+    QTemporaryDir directory;
+    darkeye::FanartStripWidget widget(directory.path());
+    widget.resize(400, 160);
+    widget.show();
+    auto addPlaceholder = [&widget]() -> QWidget * {
+        for (auto *child : widget.findChildren<QWidget *>(QStringLiteral("FanartAddPlaceholder")))
+            if (child->isVisible())
+                return child;
+        return nullptr;
+    };
+    QTRY_VERIFY(addPlaceholder() != nullptr);
+    QVERIFY(addPlaceholder()->isEnabled());
+    widget.setEntries({{QStringLiteral("https://example.invalid/scene.jpg"), {}, {}}});
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QTRY_VERIFY(addPlaceholder() != nullptr);
+    auto *remove = widget.findChild<QToolButton *>();
+    QVERIFY(remove != nullptr);
+    QVERIFY(remove->isVisible());
+    QTest::mouseClick(remove, Qt::LeftButton);
+    QVERIFY(widget.entries().isEmpty());
+    widget.setEntries({{QStringLiteral("https://example.invalid/scene.jpg"), {}, {}}});
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    widget.setCanAdd(false);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QTRY_VERIFY(addPlaceholder() != nullptr);
+    QVERIFY(!addPlaceholder()->isEnabled());
+    widget.setMode(darkeye::FanartStripWidget::Mode::Display);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(addPlaceholder() == nullptr);
+    QCoreApplication::processEvents();
+    for (auto *button : widget.findChildren<QToolButton *>())
+        QVERIFY(!button->isVisible());
+    widget.setMode(darkeye::FanartStripWidget::Mode::Edit);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QTRY_VERIFY(addPlaceholder() != nullptr);
+    QTRY_VERIFY(widget.findChild<QToolButton *>()->isVisible());
+}
 
 void MediaComponentTest::imageDropRetainsBrowserTemporaryFileAfterResize()
 {

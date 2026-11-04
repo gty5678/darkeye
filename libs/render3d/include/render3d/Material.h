@@ -38,6 +38,7 @@ struct Material {
     float occlusionStrength = 1;
     QVector3D emissiveFactor{0,0,0}; // linear; does not depend on lighting/AO
     float emissiveStrength = 1;
+    QVector4D sparkle{0,0,0,0}; // time, seed, enabled, reserved
     // glTF transmission/IOR/volume. Thickness is in model-space length units.
     float transmission = 0;
     float ior = 1.5f;

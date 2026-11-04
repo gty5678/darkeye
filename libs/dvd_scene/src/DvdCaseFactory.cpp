@@ -5,6 +5,19 @@ namespace darkeye::dvd_scene {
 using namespace render3d;
 DvdCaseFactory::DvdCaseFactory(std::shared_ptr<const ModelAsset> asset):m_asset(std::move(asset)) {}
 
+void DvdCaseFactory::updateSparkle(Scene &scene,const DvdCaseInstance &instance,double time) const
+{
+    const float seed=float(qHash(instance.stableId)%65536);
+    for(const auto id:instance.spineCoverPrimitives) {
+        const auto *node=scene.node(id);
+        if(!node || !node->material) continue;
+        if(!instance.hasLocalVideo && node->material->sparkle.z()==0) continue;
+        auto material=std::make_shared<Material>(*node->material);
+        material->sparkle=instance.hasLocalVideo?QVector4D(float(time),seed,1,0):QVector4D();
+        scene.setMesh(id,node->mesh,std::move(material));
+    }
+}
+
 Transform DvdCaseFactory::shelfTransform(int index)
 {
     // Preserve the QML model pivot for both creation and later layout updates.
@@ -52,6 +65,7 @@ DvdCaseInstance DvdCaseFactory::create(Scene &scene,const DvdItemViewModel &item
                 copy->baseColorTexture=cover;
                 material=copy;
                 result.coverPrimitives.push_back(part);
+                if(source.name=="spine") result.spineCoverPrimitives.push_back(part);
             }
             if(material && material->name=="disc-cover") {
                 auto copy=std::make_shared<Material>(*material);

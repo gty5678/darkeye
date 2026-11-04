@@ -13,6 +13,7 @@ struct DvdCaseInstance {
     bool expanded=false;
     std::vector<render3d::NodeId> primitives;
     std::vector<render3d::NodeId> coverPrimitives;
+    std::vector<render3d::NodeId> spineCoverPrimitives;
     std::vector<render3d::NodeId> discCoverPrimitives;
 };
 
@@ -24,6 +25,7 @@ public:
         const DvdItemViewModel &item,int index,std::shared_ptr<const render3d::TextureData> cover) const;
     void setCover(render3d::Scene &scene,const DvdCaseInstance &instance,
                   std::shared_ptr<const render3d::TextureData> cover) const;
+    void updateSparkle(render3d::Scene &scene,const DvdCaseInstance &instance,double time) const;
 private:
     std::shared_ptr<const render3d::ModelAsset> m_asset;
 };

@@ -39,6 +39,7 @@ struct WorkSummary final
     QString imageUrl;
     int highlightTagId = 0;
     bool standard = false;
+    QString videoUrl;
 };
 
 struct WorkStateRecord final

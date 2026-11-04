@@ -19,6 +19,7 @@ layout(std140, binding = 0) uniform Object {
     vec4 emission; // linear RGB factor, strength
     vec4 transmission; // factor, IOR, model-space thickness, inverse attenuation distance
     vec4 attenuation; // linear absorption color, base-color anisotropy tap limit
+    vec4 sparkle; // time, seed, enabled, reserved
 };
 layout(binding = 1) uniform sampler2D colorTexture;
 layout(binding = 2) uniform sampler2D metallicRoughnessTexture;
@@ -141,6 +142,43 @@ vec4 sampleBaseColor()
     return sum/float(taps);
 }
 
+float sparkleHash(vec2 p)
+{
+    vec3 q=fract(vec3(p.xyx)*0.1031);
+    q+=dot(q,q.yzx+33.33);
+    return fract((q.x+q.y)*q.z);
+}
+
+vec3 sparkleLight()
+{
+    // Each jittered cell has its own event duration, delay and orientation.
+    // The next event changes position and brightness while fully faded out.
+    vec2 grid=uv*16.0;
+    vec2 cell=floor(grid);
+    vec2 key=cell+vec2(sparkle.y*0.013,sparkle.y*0.037);
+    float period=mix(1.4,4.7,sparkleHash(key));
+    float clock=sparkle.x+sparkleHash(key+17.0)*period;
+    float event=floor(clock/period);
+    float local=mod(clock,period);
+    vec2 eventKey=key+event*vec2(7.31,13.71);
+    float duration=mix(0.45,1.1,sparkleHash(eventKey+31.0));
+    float delay=sparkleHash(eventKey+47.0)*(period-duration);
+    float t=clamp((local-delay)/duration,0.0,1.0);
+    float envelope=pow(max(0.0,sin(t*PI)),2.0);
+    vec2 center=vec2(sparkleHash(eventKey+3.0),sparkleHash(eventKey+5.0))*0.6+0.2;
+    vec2 p=fract(grid)-center;
+    float angle=sparkleHash(eventKey+11.0)*PI;
+    p=mat2(cos(angle),-sin(angle),sin(angle),cos(angle))*p;
+    float radius=mix(0.065,0.14,sparkleHash(eventKey+23.0));
+    float aa=max(length(fwidth(grid))*0.5,0.008);
+    float core=1.0-smoothstep(radius*0.08,radius*0.08+aa,length(p));
+    float arms=exp(-min(abs(p.x),abs(p.y))/max(aa,radius*0.09))
+        *(1.0-smoothstep(radius*0.35,radius,length(p)));
+    float halo=exp(-dot(p,p)/(radius*radius*0.35))*0.22;
+    float brightness=mix(2.5,6.0,sparkleHash(eventKey+59.0));
+    return vec3(1.0,0.85,0.5)*(core+arms*0.7+halo)*envelope*brightness;
+}
+
 void main()
 {
     vec4 sampleColor = sampleBaseColor();
@@ -213,6 +251,7 @@ void main()
             result+=amount*(1.0-metallic)*(1.0-f)*albedo*transmittedLight(n,v,roughness);
         }
     }
+    if(sparkle.z>0.5) result+=sparkleLight();
     // Linear output: transparent blending happens in RGBA16F, before the
     // separate presentation pass applies display sRGB encoding.
     fragColor = vec4(result, alpha);

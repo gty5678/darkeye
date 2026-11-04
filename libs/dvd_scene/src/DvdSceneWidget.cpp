@@ -100,7 +100,8 @@ struct DvdSceneWidget::Impl {
     {
         const bool moving=std::abs(camera.target.x()-cameraTargetX)>1e-5f;
         return owner->isVisible() && !owner->window()->isMinimized()
-            && (interaction.active() || moving);
+            && (interaction.active() || moving || std::any_of(cases.begin(),cases.end(),
+                [](const auto &entry) { return entry.second.hasLocalVideo; }));
     }
     void updateTimer()
     {
@@ -200,6 +201,7 @@ struct DvdSceneWidget::Impl {
                 }
             }
         }
+        for(const auto &[id,instance]:cases) factory->updateSparkle(*scene,instance,now());
     }
 
     void tick()

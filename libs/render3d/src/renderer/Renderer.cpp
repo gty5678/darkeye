@@ -19,7 +19,7 @@ Q_LOGGING_CATEGORY(render3dLog, "darkeye.render3d")
 
 namespace darkeye::render3d {
 namespace {
-constexpr quint32 uniformBytes = 320;
+constexpr quint32 uniformBytes = 336;
 
 std::array<std::shared_ptr<const TextureData>,8> materialTextures(const Material &material)
 {
@@ -747,7 +747,7 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
             const auto model = root * item.world;
             const auto normal = model.inverted().transposed();
             const auto mvp = projection * view * model;
-            std::array<float, 80> uniform{};
+            std::array<float, 84> uniform{};
             std::copy_n(mvp.constData(), 16, uniform.begin());
             std::copy_n(model.constData(), 16, uniform.begin() + 16);
             std::copy_n(normal.constData(), 16, uniform.begin() + 32);
@@ -774,6 +774,8 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
             uniform[75] = material.attenuationDistance>0?1.0f/material.attenuationDistance:0;
             uniform[76] = material.attenuationColor.x(); uniform[77] = material.attenuationColor.y();
             uniform[78] = material.attenuationColor.z();
+            uniform[80] = material.sparkle.x(); uniform[81] = material.sparkle.y();
+            uniform[82] = material.sparkle.z(); uniform[83] = material.sparkle.w();
             std::memcpy(bytes.data() + qsizetype(i) * m_uniformStride, uniform.data(), uniformBytes);
         }
         updates->updateDynamicBuffer(m_uniform.get(), 0, bytes);

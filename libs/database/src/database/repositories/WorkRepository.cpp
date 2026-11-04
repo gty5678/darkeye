@@ -403,7 +403,7 @@ QList<WorkSummary> WorkRepository::search(const WorkSearch &search, QString *err
         "SELECT work.work_id,work.serial_number,work.cn_title,work.release_date,work.director,"
         "work.image_url,wtr.tag_id,"
         "CASE WHEN (SELECT cn_name FROM maker WHERE maker_id=work.maker_id) IS NULL "
-        "THEN 0 ELSE 1 END FROM work "
+        "THEN 0 ELSE 1 END,work.video_url FROM work "
         "LEFT JOIN work_tag_relation wtr ON work.work_id=wtr.work_id "
         "AND wtr.tag_id IN (1,2,3)");
     sql += clause.sql;
@@ -451,6 +451,7 @@ QList<WorkSummary> WorkRepository::search(const WorkSearch &search, QString *err
         work.imageUrl = query.value(5).toString();
         work.highlightTagId = query.value(6).toInt();
         work.standard = query.value(7).toBool();
+        work.videoUrl = query.value(8).toString();
         works.append(work);
     }
     return works;

@@ -21,6 +21,7 @@ layout(std140, binding = 0) uniform Object {
     vec4 emission;
     vec4 transmission; // factor, IOR, model-space thickness, inverse attenuation distance
     vec4 attenuation; // linear absorption color
+    vec4 sparkle; // time, seed, enabled, reserved
 };
 void main()
 {

@@ -316,7 +316,7 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
         }
         if(cover.isEmpty()) cover=QStringLiteral(":/assets/maps/0.png");
         const auto title=!work.chineseTitle.isEmpty()?work.chineseTitle:work.serialNumber;
-        items.append({QString::number(work.id),cover,title,i,false});
+        items.append({QString::number(work.id),cover,title,i,false,!work.videoUrl.trimmed().isEmpty()});
     }
     m_scene->setItems(std::move(items));
     updateInitialCamera();

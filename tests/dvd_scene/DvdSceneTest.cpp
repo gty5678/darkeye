@@ -40,6 +40,39 @@ std::shared_ptr<const ModelAsset> model()
 class DvdSceneTest final:public QObject {
     Q_OBJECT
 private slots:
+    void localVideoSparkleTracksAvailability()
+    {
+        GltfLoader loader;
+        const auto loaded=loadDvdModel(loader,QStringLiteral(DARKEYE_DVD_SOURCE_DIR)+"/libs/dvd/dvd.glb");
+        QVERIFY2(loaded,qPrintable(loaded.error));
+        Scene scene;
+        DvdCaseFactory factory(loaded.asset);
+        auto item=sampleItems(1).first();
+        auto instance=factory.create(scene,item,0,{});
+        QVERIFY(!instance.coverPrimitives.empty());
+        QVERIFY(!instance.spineCoverPrimitives.empty());
+        const auto part=instance.spineCoverPrimitives.front();
+        factory.updateSparkle(scene,instance,0);
+        QCOMPARE(scene.node(part)->material->sparkle.z(),0.0f);
+        instance.hasLocalVideo=true;
+        factory.updateSparkle(scene,instance,0);
+        const auto first=scene.node(part)->material;
+        QCOMPARE(first->sparkle.z(),1.0f);
+        for(const auto id:instance.coverPrimitives) {
+            const auto *node=scene.node(id);
+            if(node->parent!=instance.spine) QCOMPARE(node->material->sparkle.z(),0.0f);
+        }
+        factory.updateSparkle(scene,instance,0.6);
+        QVERIFY(scene.node(part)->material->sparkle.x()!=first->sparkle.x());
+        auto cover=std::make_shared<TextureData>();
+        factory.setCover(scene,instance,cover);
+        QCOMPARE(scene.node(part)->material->sparkle.z(),1.0f);
+        instance.hasLocalVideo=false;
+        factory.updateSparkle(scene,instance,1);
+        QCOMPARE(scene.node(part)->material->sparkle.z(),0.0f);
+        QCOMPARE(scene.node(part)->material->baseColorTexture.get(),cover.get());
+    }
+
     void wheelRefreshesHoverWithoutMouseMovement()
     {
         GltfLoader loader;

@@ -33,7 +33,7 @@ PersonCard::PersonCard(qint64 personId, const QString &name, const QString &imag
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(4);
+    layout->setSpacing(0);
     layout->addWidget(m_avatar);
     layout->addWidget(m_nameLabel, 0, Qt::AlignCenter);
 

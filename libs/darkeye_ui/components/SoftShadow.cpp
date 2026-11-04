@@ -14,13 +14,14 @@ namespace darkeye {
 
 // Bound the cache and serialize misses so matching shapes are blurred once.
 // Call from a loading worker; painting should only consume the returned image.
-QImage renderSoftShadow(const QSize &pixels, const QPainterPath &path, qreal dpr)
+QImage renderSoftShadow(const QSize &pixels, const QPainterPath &path, qreal dpr,
+                        qreal offsetY, qreal blurSigma)
 {
     static QMutex mutex;
     static QCache<QByteArray, QImage> cache(8192); // KiB
     QByteArray key;
     QDataStream stream(&key, QIODevice::WriteOnly);
-    stream << pixels << dpr << path;
+    stream << pixels << dpr << path << offsetY << blurSigma;
     QMutexLocker lock(&mutex);
     if (const auto *cached = cache.object(key)) return *cached;
     QImage composite(pixels, QImage::Format_ARGB32_Premultiplied);
@@ -32,12 +33,12 @@ QImage renderSoftShadow(const QSize &pixels, const QPainterPath &path, qreal dpr
     {
         QPainter painter(&silhouette);
         painter.setRenderHint(QPainter::Antialiasing);
-        painter.translate(0, 2);
+        painter.translate(0, offsetY);
         painter.fillPath(path, Qt::black);
     }
-    // Separable Gaussian in physical pixels; the visible blur stays 2 DIP
+    // Separable Gaussian in physical pixels keeps the blur consistent
     // at every scale factor.
-    const qreal sigma = 2.0 * dpr;
+    const qreal sigma = blurSigma * dpr;
     const int radius = qCeil(3 * sigma);
     std::vector<qreal> kernel(2 * radius + 1);
     qreal total = 0;

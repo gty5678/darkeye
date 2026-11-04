@@ -3,6 +3,8 @@
 
 #include <QDir>
 #include <QEvent>
+#include <QEnterEvent>
+#include <QMouseEvent>
 #include <QImageReader>
 #include <QFileInfo>
 #include <QPainter>
@@ -28,6 +30,8 @@ namespace darkeye {
 namespace {
 
 constexpr auto kAnonymousImagePath = ":/icons/anonymous.jpg";
+constexpr int kShadowExtension = 4;
+constexpr int kShadowBlurPadding = 3;
 
 QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath &path,
                     bool shadow, qreal dpr)
@@ -35,7 +39,7 @@ QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath 
     const QSize pixels(qCeil(size.width() * dpr), qCeil(size.height() * dpr));
     QImage composite;
     if (shadow) {
-        composite = renderSoftShadow(pixels, path, dpr);
+        composite = renderSoftShadow(pixels, path, dpr, 2.0 + kShadowExtension, 3.0);
     } else {
         composite = QImage(pixels, QImage::Format_ARGB32_Premultiplied);
         composite.setDevicePixelRatio(dpr);
@@ -69,9 +73,11 @@ OctImage::OctImage(const QString &imagePath, const QString &basePath, int diamet
     : QLabel(parent), m_diameter(qMax(16, diameter)), m_basePath(basePath), m_shadow(shadow)
 {
     setObjectName(QStringLiteral("DesignOctImage"));
-    setFixedSize(m_diameter, m_diameter);
+    setFixedSize(m_diameter, m_diameter
+                               + (m_shadow ? kShadowExtension + kShadowBlurPadding : 0));
     setAlignment(Qt::AlignCenter);
-    setCursor(Qt::PointingHandCursor);
+    setCursor(Qt::ArrowCursor);
+    setMouseTracking(true);
     setAttribute(Qt::WA_TranslucentBackground);
     updateImage(imagePath);
 }
@@ -143,6 +149,17 @@ void OctImage::applyImage(quint64 request, const QString &path, const QImage &im
 
 bool OctImage::event(QEvent *event)
 {
+    if (event->type() == QEvent::Enter) {
+        const auto *enterEvent = static_cast<QEnterEvent *>(event);
+        setCursor(containsAvatarPoint(enterEvent->position())
+                      ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    } else if (event->type() == QEvent::MouseMove) {
+        const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        setCursor(containsAvatarPoint(mouseEvent->position())
+                      ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    } else if (event->type() == QEvent::Leave) {
+        setCursor(Qt::ArrowCursor);
+    }
     const bool handled = QLabel::event(event);
     if (event->type() == QEvent::DevicePixelRatioChange && !m_source.isEmpty()) {
         ++m_request;
@@ -156,7 +173,8 @@ QPainterPath OctImage::avatarPath() const
 {
     // Keep the entire shadow inside the widget, including the downward offset.
     const qreal margin = m_shadow ? qMin(8.0, m_diameter / 8.0) : 0.0;
-    const QRectF bounds = QRectF(rect()).adjusted(margin, margin, -margin, -margin);
+    const QRectF bounds = QRectF(0, 0, m_diameter, m_diameter)
+                              .adjusted(margin, margin, -margin, -margin);
     const qreal cut = bounds.width() / (2.0 + std::sqrt(2.0));
     QPainterPath path;
     path.moveTo(bounds.left() + cut, bounds.top());

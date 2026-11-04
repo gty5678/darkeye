@@ -83,10 +83,33 @@ bool testRenderSnapshotsStayConsistent()
     return true;
 }
 
+bool testBarnesHutCutoffBoundary()
+{
+    PhysicsState state;
+    state.init(ManyBodyForce::kBarnesHutThreshold, {});
+    for (int i = 1; i < state.nNodes; ++i) {
+        state.pos[2 * i] = i == 1 ? 190.0f : 210.0f + i * 0.001f;
+        state.pos[2 * i + 1] = i == 1 ? 0.0f : (i % 17) * 0.001f;
+    }
+    state.pos[0] = state.pos[1] = 0.0f;
+    ManyBodyForce force(100.0f, 40000.0f);
+    force.initialize(&state);
+    force.apply(1.0f);
+    const float expected = -100.0f / (190.0f * 190.0f);
+    if (!nearlyEqual(state.vel[0], expected, 1e-7f)
+        || !nearlyEqual(state.vel[1], 0.0f, 1e-7f)) {
+        std::cerr << "Barnes-Hut lost a neighbor inside the cutoff\n";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int main()
 {
+    if (!testBarnesHutCutoffBoundary())
+        return 1;
     if (!testInvalidEdgesAreRejected())
         return 1;
     if (!testOverlappingCollisionIsSymmetric())

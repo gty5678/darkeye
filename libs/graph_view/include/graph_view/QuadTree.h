@@ -16,6 +16,7 @@ struct QuadNode
     float halfSize = 0.0f; // half of cell side length (s/2 for theta: s/d)
     int child[4] = {-1, -1, -1, -1}; // NW, NE, SW, SE
     int leafIdx = -1;     // node index if leaf (single point), else -1
+    float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
 };
 
 /**

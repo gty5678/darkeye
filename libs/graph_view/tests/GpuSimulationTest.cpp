@@ -78,6 +78,45 @@ class GpuSimulationTest : public QObject {
     }
 
 private slots:
+    void cutoffBoundaryPreservesNearbyForce()
+    {
+        PhysicsState state;
+        state.init(1500, {});
+        for (int i = 0; i < state.nNodes; ++i) {
+            state.pos[2 * i] = i == 0 ? 0.0f : i == 1 ? 190.0f : 210.0f + i * 0.001f;
+            state.pos[2 * i + 1] = i < 2 ? 0.0f : (i % 17) * 0.001f;
+        }
+        GpuSimulation gpu;
+        QVERIFY(gpu.initialize(rhi.get(), state));
+        GpuSimulation::Parameters p;
+        p.manyBody = 100.0f;
+        p.center = p.link = p.collisionStrength = 0.0f;
+        std::vector<float> output;
+        QVERIFY(step(gpu, state, p, output));
+        const float expected = -100.0f / (190.0f * 190.0f) * p.velocityDecay * p.dt;
+        QVERIFY(std::abs(output[0] - expected) < 1e-7f);
+        QVERIFY(std::abs(output[1]) < 1e-7f);
+    }
+
+    void topologyMutationReleasesDraggedNode()
+    {
+        ForceViewRhiWidget view;
+        view.setSimulationBackendMode("cpu");
+        view.setGraph(3, {}, {0, 0, 50, 0, 100, 0}, {"a", "b", "c"}, {}, {});
+        view.pauseSimulation();
+        view.m_physicsState->dragging[1] = 1;
+        view.m_selectedIndex = 1;
+        view.m_dragging = true;
+        // Removing another node shifts the dragged node's index.
+        view.remove_node_runtime("a");
+        view.pauseSimulation();
+        QCOMPARE(view.m_selectedIndex, -1);
+        QVERIFY(!view.m_dragging);
+        QVERIFY(std::all_of(view.m_physicsState->dragging.begin(),
+                            view.m_physicsState->dragging.end(),
+                            [](uint8_t value) { return value == 0; }));
+    }
+
     void backgroundGpuSimulation_data()
     {
         QTest::addColumn<bool>("minimized");

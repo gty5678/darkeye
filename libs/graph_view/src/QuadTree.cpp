@@ -193,6 +193,26 @@ void QuadTree::build(const float* pos, const float* mass, int n)
     }
 
     computeMassAndCom(0);
+
+    // Actual descendant bounds also cover coincident points placed in a
+    // different quadrant to terminate subdivision.
+    for (int index = static_cast<int>(m_nodes.size()) - 1; index >= 0; --index) {
+        auto& node = m_nodes[index];
+        if (node.leafIdx >= 0) {
+            node.minX = node.maxX = node.cx;
+            node.minY = node.maxY = node.cy;
+        } else {
+            node.minX = node.minY = std::numeric_limits<float>::max();
+            node.maxX = node.maxY = -std::numeric_limits<float>::max();
+            for (int child : node.child) {
+                if (child < 0) continue;
+                node.minX = std::min(node.minX, m_nodes[child].minX);
+                node.minY = std::min(node.minY, m_nodes[child].minY);
+                node.maxX = std::max(node.maxX, m_nodes[child].maxX);
+                node.maxY = std::max(node.maxY, m_nodes[child].maxY);
+            }
+        }
+    }
 }
 
 

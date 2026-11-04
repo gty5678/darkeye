@@ -781,7 +781,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     {
         m_actressDetailPage = new ActressDetailPage(
             m_publicDatabase, m_privateDatabase, m_themeService,
-            m_paths.actressImageDirectory(), parent, m_paths.workCoverDirectory());
+            m_paths.actressImageDirectory(), parent, m_paths.workCoverDirectory(), m_graphManager.get());
         connect(m_actressDetailPage, &PersonDetailPage::editRequested, this, &MainWindow::openPersonEditor);
         connect(m_actressDetailPage, &PersonDetailPage::workRequested, this, [this](qint64 workId) {
             showWorkInShelf(workId);

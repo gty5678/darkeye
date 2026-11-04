@@ -78,10 +78,8 @@ inline void manyBodyAccumulate(
         return;
     }
 
-    // For internal nodes, compute minimum possible squared distance to any
-    // point in the cell (nearest-edge distance) for the cutoff test, instead
-    // of using center-of-mass distance which can incorrectly prune nearby
-    // children.
+    // Approximate only subtrees entirely inside the cutoff. A center of mass
+    // outside the cutoff does not imply that every descendant is outside.
     float dx_com = xi - nd.cx;
     float dy_com = yi - nd.cy;
     float dist2_com = dx_com * dx_com + dy_com * dy_com + 1e-6f;
@@ -90,7 +88,14 @@ inline void manyBodyAccumulate(
     float cellSize = 2.0f * nd.halfSize;
     float s_over_d = cellSize / std::max(d, 1e-6f);
 
-    if (s_over_d < theta) {
+    const float nearX = std::max({nd.minX - xi, xi - nd.maxX, 0.0f});
+    const float nearY = std::max({nd.minY - yi, yi - nd.maxY, 0.0f});
+    if (nearX * nearX + nearY * nearY + 1e-6f >= cutoff2) return;
+    const float farX = std::max(std::abs(xi - nd.minX), std::abs(xi - nd.maxX));
+    const float farY = std::max(std::abs(yi - nd.minY), std::abs(yi - nd.maxY));
+    const bool fullyInsideCutoff = farX * farX + farY * farY + 1e-6f < cutoff2;
+
+    if (s_over_d < theta && fullyInsideCutoff) {
         // Cell is far enough: use cutoff on center-of-mass distance
         if (dist2_com >= cutoff2) return;
 

@@ -53,7 +53,7 @@ QString currentIsoWeek()
 }
 
 #ifdef Q_OS_WIN
-bool startUpdater()
+bool startUpdater() +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   
 {
     const QString updater = QDir(QCoreApplication::applicationDirPath())
                                 .filePath(QStringLiteral("DarkEyeUpdater.exe"));

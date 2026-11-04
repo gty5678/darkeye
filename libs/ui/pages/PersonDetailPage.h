@@ -12,6 +12,8 @@ namespace darkeye
 
 class PersonInfoPanel;
 class ActressWorkTimeline;
+class ForceDirectPage;
+namespace graph { class GraphManager; }
 
 class PersonDetailPage : public LazyWidget
 {
@@ -21,7 +23,7 @@ public:
     explicit PersonDetailPage(PersonKind kind, QSqlDatabase publicDatabase,
                               QSqlDatabase privateDatabase, ThemeService &themes,
                               QString imageDirectory = {}, QWidget *parent = nullptr,
-                              QString coverDirectory = {});
+                              QString coverDirectory = {}, graph::GraphManager *graphManager = nullptr);
 
     bool showPerson(qint64 personId);
     [[nodiscard]] QWidget *captureContent();
@@ -46,6 +48,7 @@ private:
     std::optional<PersonDetails> m_details;
     PersonInfoPanel *m_panel = nullptr;
     ActressWorkTimeline *m_timeline = nullptr;
+    ForceDirectPage *m_relationGraph = nullptr;
 };
 
 } // namespace darkeye

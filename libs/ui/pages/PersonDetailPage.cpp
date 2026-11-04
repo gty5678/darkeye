@@ -3,6 +3,7 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "ui/components/ActressWorkTimeline.h"
 #include "ui/components/PersonInfoPanel.h"
+#include "ui/pages/ForceDirectPage.h"
 
 #include <QHBoxLayout>
 #include <QScrollArea>
@@ -17,11 +18,24 @@ namespace darkeye
 PersonDetailPage::PersonDetailPage(PersonKind kind, QSqlDatabase publicDatabase,
                                    QSqlDatabase privateDatabase, ThemeService &themes,
                                    QString imageDirectory, QWidget *parent,
-                                   QString coverDirectory)
+                                   QString coverDirectory, graph::GraphManager *graphManager)
     : LazyWidget(parent), m_kind(kind), m_repository(std::move(publicDatabase)),
       m_privateRepository(std::move(privateDatabase)), m_themes(themes),
       m_imageDirectory(std::move(imageDirectory)), m_coverDirectory(std::move(coverDirectory))
 {
+    if (m_kind == PersonKind::Actress && graphManager != nullptr)
+    {
+        m_relationGraph = new ForceDirectPage(m_themes, *graphManager, this,
+                                             m_imageDirectory, m_coverDirectory);
+        m_relationGraph->setObjectName(QStringLiteral("actressRelationGraph"));
+        m_relationGraph->setMinimumSize(320, 280);
+        m_relationGraph->setFavoriteFilterToggleVisible(false);
+        m_relationGraph->showEmptyGraph();
+        connect(m_relationGraph, &ForceDirectPage::workRequested,
+                this, &PersonDetailPage::workRequested);
+        connect(m_relationGraph, &ForceDirectPage::actressRequested,
+                this, [this](qint64 id) { showPerson(id); });
+    }
 }
 
 void PersonDetailPage::lazyLoad()
@@ -36,9 +50,12 @@ void PersonDetailPage::lazyLoad()
         infoRow->setSpacing(0);
         m_panel = new PersonInfoPanel(m_themes, std::move(m_imageDirectory), this);
         m_panel->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
-        infoRow->addStretch();
+        if (m_relationGraph == nullptr) infoRow->addStretch();
         infoRow->addWidget(m_panel, 0, Qt::AlignTop);
-        infoRow->addStretch();
+        if (m_relationGraph != nullptr)
+            infoRow->addWidget(m_relationGraph, 1);
+        else
+            infoRow->addStretch();
         root->addLayout(infoRow);
 
         m_timeline = new ActressWorkTimeline(this, std::move(m_coverDirectory));
@@ -92,6 +109,8 @@ bool PersonDetailPage::showPerson(qint64 personId)
     m_panel->setDetails(*details, favorite);
     if (m_timeline != nullptr)
         m_timeline->setWorks(details->works);
+    if (m_relationGraph != nullptr)
+        m_relationGraph->setEgoGraph(QStringLiteral("a%1").arg(personId), 3);
     return true;
 }
 

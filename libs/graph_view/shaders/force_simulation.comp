@@ -92,13 +92,16 @@ vec2 treeForces(uint i, vec2 position)
         float size = max(t.bounds.z - t.bounds.x, t.bounds.w - t.bounds.y);
         bool containsSelf = all(greaterThanEqual(position, t.bounds.xy))
                          && all(lessThanEqual(position, t.bounds.zw));
+        vec2 farthest = max(abs(position - t.bounds.xy), abs(position - t.bounds.zw));
+        bool fullyInsideCutoff = dot(farthest, farthest) + 1e-6 < p.integration.w;
         if (n >= firstLeaf) {
             uint j = keys[n - firstLeaf].y;
             if (j != i && d2 < p.integration.w) {
                 vec2 direction = raw2 < 1e-10 ? overlapDirection(i, j) : d * inversesqrt(d2);
                 result += p.forces.x * control[i].w * t.centerMass.z / max(d2, 1.0) * alpha * direction;
             }
-        } else if (!containsSelf && size * size < p.collision.w * p.collision.w * d2) {
+        } else if (!containsSelf && fullyInsideCutoff
+                   && size * size < p.collision.w * p.collision.w * d2) {
             if (d2 < p.integration.w)
                 result += p.forces.x * control[i].w * t.centerMass.z / max(d2, 1.0) * alpha * d * inversesqrt(d2);
         } else {

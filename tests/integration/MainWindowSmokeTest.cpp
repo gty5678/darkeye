@@ -12,6 +12,7 @@
 #include "ui/components/ShopSceneWidget.h"
 #include "ui/pages/ManagementPage.h"
 #include "ui/pages/PersonDetailPage.h"
+#include "ui/pages/ForceDirectPage.h"
 #include "ui/pages/PersonPage.h"
 #include "ui/pages/StatisticsPage.h"
 #include "ui/pages/PlotTabPage.h"
@@ -1047,6 +1048,13 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QCOMPARE(pages->currentWidget(), actressDetail);
     QCOMPARE(actressDetail->currentPersonId(), *actressId);
     QCOMPARE(sidebar->selectedId(), QStringLiteral("actress"));
+    auto *actressGraph = actressDetail->findChild<darkeye::ForceDirectPage *>(
+        QStringLiteral("actressRelationGraph"));
+    QVERIFY(actressGraph != nullptr);
+    QVERIFY(!actressGraph->isHidden());
+    emit actressGraph->actressRequested(*actressId);
+    QCOMPARE(actressDetail->currentPersonId(), *actressId);
+    QCOMPARE(pages->currentWidget(), actressDetail);
     emit actressDetail->editRequested(darkeye::PersonKind::Actress, *actressId);
     QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ModifyActressPage"));
     QCOMPARE(sidebar->selectedId(), QStringLiteral("actress"));

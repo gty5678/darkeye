@@ -2854,6 +2854,9 @@ void ForceViewRhiWidget::update_node_runtime(const QString& nodeId,
 
 void ForceViewRhiWidget::resetInteractionStateForGraphMutation()
 {
+    if (m_physicsState) {
+        std::fill(m_physicsState->dragging.begin(), m_physicsState->dragging.end(), 0);
+    }
     const int n = m_physicsState ? std::max(0, m_physicsState->nNodes) : 0;
     m_hoverIndex = -1;
     m_lastHoverIndex = -1;

@@ -18,6 +18,9 @@ namespace darkeye
 {
 
 class FanartStripWidget;
+class ThemeService;
+class StateToggleButton;
+class ForceViewSettingsPanel;
 namespace dvd_scene { class DvdSceneWidget; }
 namespace graph {
 class GraphManager;
@@ -35,6 +38,7 @@ public:
                           graph::GraphManager *graphManager, const QString &coverDirectory,
                           const QString &fanartDirectory, QWidget *parent = nullptr);
     void setWorks(const QList<WorkSummary> &works);
+    void enableGraphSettings(ThemeService &themes);
     bool openWork(qint64 workId);
     [[nodiscard]] qint64 currentWorkId() const;
 
@@ -132,6 +136,7 @@ private:
     void showRelationGraph(qint64 workId);
     void hideOverlays();
     void updateRelationGraphGeometry(qreal centerX, qreal centerY);
+    void updateRelationGraphControls();
     void updateFanartGeometry(qreal left, qreal top, qreal width);
     void persistFanartPreview();
 
@@ -168,6 +173,8 @@ private:
     graph_view::GraphViewWidget *m_relationGraph = nullptr;
     FanartStripWidget *m_fanartStrip = nullptr;
     QWidget *m_relationGraphContainer = nullptr;
+    StateToggleButton *m_relationGraphSettingsButton = nullptr;
+    ForceViewSettingsPanel *m_relationGraphSettingsPanel = nullptr;
     QWidget *m_fanartContainer = nullptr;
     qint64 m_overlayWorkId = 0;
     qint64 m_relationGraphWorkId = 0;

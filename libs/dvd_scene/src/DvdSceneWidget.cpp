@@ -201,6 +201,7 @@ struct DvdSceneWidget::Impl {
                 }
             }
         }
+        covers.retainRequests(QSet<QString>(coverKeys.cbegin(), coverKeys.cend()));
         for(const auto &[id,instance]:cases) factory->updateSparkle(*scene,instance,now());
     }
 

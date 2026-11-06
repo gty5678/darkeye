@@ -13,9 +13,9 @@ namespace darkeye
 {
 
 PersonCard::PersonCard(qint64 personId, const QString &name, const QString &imagePath,
-                       const QString &imageDirectory, QWidget *parent)
+                       const QString &imageDirectory, QWidget *parent, bool deferImage)
     : QWidget(parent), m_personId(personId),
-      m_avatar(new OctImage(imagePath, imageDirectory, 150, true, this)),
+      m_avatar(new OctImage(imagePath, imageDirectory, 150, true, this, deferImage)),
       m_nameLabel(new ClickableLabel(name, false, this))
 {
     setObjectName(QStringLiteral("PersonCard"));

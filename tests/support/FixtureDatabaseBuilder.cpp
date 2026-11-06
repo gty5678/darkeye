@@ -47,9 +47,15 @@ bool buildCurrent(const QString &path, darkeye::DatabaseKind kind,
 {
     prepareTarget(path);
     darkeye::SqliteConnection connection;
-    if (!connection.open(path, false, errorMessage)
-        || !darkeye::SchemaManager::initializeEmptyDatabase(connection, kind,
-                                                            errorMessage)) {
+    if (!connection.open(path, false, errorMessage)) {
+        return false;
+    }
+    // The public golden fixture supplies its own reference data and IDs.
+    const bool initialized = kind == darkeye::DatabaseKind::Public && !seedPath.isEmpty()
+        ? darkeye::SqlScriptRunner::executeResource(connection.database(),
+              QStringLiteral(":/sql/initPublicTable.sql"), errorMessage)
+        : darkeye::SchemaManager::initializeEmptyDatabase(connection, kind, errorMessage);
+    if (!initialized) {
         return false;
     }
     if (!seedPath.isEmpty()) {

@@ -214,6 +214,7 @@ void ShelfPage::buildUi()
     body->addWidget(m_tagPanel);
     m_shelfView = new DvdShelfView(m_database, m_privateDatabase, m_graphManager,
                                    m_coverDirectory, m_fanartDirectory, this);
+    m_shelfView->enableGraphSettings(m_themeService);
     connect(m_shelfView, &DvdShelfView::workSelected, this, &ShelfPage::detailRequested);
     connect(m_shelfView, &DvdShelfView::editRequested, this, &ShelfPage::editRequested);
     connect(m_shelfView, &DvdShelfView::favoriteChanged, this, &ShelfPage::favoriteChanged);

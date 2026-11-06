@@ -2,6 +2,7 @@
 
 #include "darkeye_ui/layouts/WaterfallLayout.h"
 
+#include <QEvent>
 #include <QScrollBar>
 #include <QResizeEvent>
 #include <QTimer>
@@ -31,8 +32,17 @@ void LazyScrollArea::setLoader(Loader loader)
     reset();
 }
 
+void LazyScrollArea::setViewportItemHandler(std::function<void(QWidget *, bool)> handler)
+{
+    m_viewportItemHandler = std::move(handler);
+    scheduleViewportUpdate();
+}
+
 void LazyScrollArea::reset()
 {
+    for (QWidget *widget : std::as_const(m_activeItems))
+        m_viewportItemHandler(widget, false);
+    m_activeItems.clear();
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
             // Match the Python implementation: remove cards from the content
@@ -148,6 +158,7 @@ void LazyScrollArea::setColumnWidth(int columnWidth)
 void LazyScrollArea::setPrefetchDistance(int distance)
 {
     m_prefetchDistance = qMax(0, distance);
+    scheduleViewportUpdate();
 }
 
 void LazyScrollArea::resizeEvent(QResizeEvent *event)
@@ -156,8 +167,49 @@ void LazyScrollArea::resizeEvent(QResizeEvent *event)
     updateContentGeometry();
 }
 
+bool LazyScrollArea::viewportEvent(QEvent *event)
+{
+    const bool handled = QScrollArea::viewportEvent(event);
+    if (event->type() == QEvent::Show || event->type() == QEvent::Hide
+        || event->type() == QEvent::Resize)
+        scheduleViewportUpdate();
+    return handled;
+}
+
+void LazyScrollArea::scheduleViewportUpdate()
+{
+    if (!m_viewportItemHandler || m_viewportUpdateScheduled) return;
+    m_viewportUpdateScheduled = true;
+    QTimer::singleShot(0, this, [this] {
+        m_viewportUpdateScheduled = false;
+        updateViewportItems();
+    });
+}
+
+void LazyScrollArea::updateViewportItems()
+{
+    QSet<QWidget *> active;
+    if (viewport()->isVisible()) {
+        m_layout->activate();
+        const QPoint origin = m_waterfallWidget->mapFrom(viewport(), QPoint());
+        const QRect prefetch = QRect(origin, viewport()->size())
+            .adjusted(0, -m_prefetchDistance, 0, m_prefetchDistance);
+        for (int index = 0; index < m_layout->count(); ++index) {
+            QWidget *widget = m_layout->itemAt(index)->widget();
+            if (widget && prefetch.intersects(widget->geometry()))
+                active.insert(widget);
+        }
+    }
+    for (QWidget *widget : std::as_const(m_activeItems))
+        if (!active.contains(widget)) m_viewportItemHandler(widget, false);
+    for (QWidget *widget : std::as_const(active))
+        if (!m_activeItems.contains(widget)) m_viewportItemHandler(widget, true);
+    m_activeItems = std::move(active);
+}
+
 void LazyScrollArea::handleScroll(int value)
 {
+    scheduleViewportUpdate();
     const QScrollBar *scrollBar = verticalScrollBar();
     if (value >= scrollBar->maximum() - m_prefetchDistance) {
         loadNextPage();
@@ -213,6 +265,7 @@ void LazyScrollArea::updateContentGeometry()
     m_waterfallWidget->setMinimumHeight(m_layout->heightForWidth(contentWidth));
     m_waterfallWidget->updateGeometry();
     m_contentWidget->updateGeometry();
+    scheduleViewportUpdate();
 }
 
 } // namespace darkeye

@@ -16,7 +16,7 @@ class PersonCard final : public QWidget
 
 public:
     explicit PersonCard(qint64 personId, const QString &name, const QString &imagePath = {},
-                        const QString &imageDirectory = {}, QWidget *parent = nullptr);
+                        const QString &imageDirectory = {}, QWidget *parent = nullptr, bool deferImage = false);
 
     [[nodiscard]] qint64 personId() const noexcept;
     [[nodiscard]] QString name() const;

@@ -13,8 +13,9 @@ class OctImage final : public QLabel
 public:
     explicit OctImage(const QString &imagePath = {}, const QString &basePath = {},
                       int diameter = 150, bool shadow = true,
-                      QWidget *parent = nullptr);
+                      QWidget *parent = nullptr, bool deferImage = false);
     QString source() const;
+    void setImageActive(bool active);
     void updateImage(const QString &imagePath);
     bool containsAvatarPoint(const QPointF &point) const;
 
@@ -38,6 +39,8 @@ private:
     QString m_source;
     quint64 m_request = 0;
     bool m_shadow = true;
+    bool m_imageActive = true;
+    bool m_loading = false;
     QPixmap m_renderCache;
 };
 

@@ -29,11 +29,9 @@
 #include <QSignalBlocker>
 #include <QThreadPool>
 #include <QTimer>
-#include <QVector>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <functional>
-#include <memory>
 
 namespace darkeye
 {
@@ -62,12 +60,6 @@ void populateSelector(MakerSelector *selector, const QList<NamedIdOption> &optio
         selector->setEditText(text);
 }
 
-struct CoverBatchState final
-{
-    int pendingVisible = 0;
-    bool deferredReleased = false;
-    QList<QPointer<WorkCard>> deferredCards;
-};
 }
 
 WorkPage::WorkPage(QSqlDatabase database, ThemeService &themeService,
@@ -90,6 +82,9 @@ void WorkPage::lazyLoad()
     m_tagPanelVisible = appSettings.workTagSelectorVisible;
     buildUi();
     refreshData();
+    m_lazyArea->setViewportItemHandler([](QWidget *widget, bool active) {
+        static_cast<WorkCard *>(widget)->setCoverActive(active);
+    });
     m_lazyArea->setLoader([this](int pageIndex, int pageSize)
                           { return loadCardPage(pageIndex, pageSize); });
 }
@@ -588,71 +583,13 @@ QList<QWidget *> WorkPage::loadCardPage(int pageIndex, int pageSize)
 
     QList<QWidget *> cards;
     cards.reserve(works.size());
-    QList<WorkCard *> workCards;
-    workCards.reserve(works.size());
     for (const WorkSummary &work : works)
     {
         auto *card = new WorkCard(work, m_coverDirectory, m_largeCoverView, nullptr, true);
         connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
         connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
         cards.append(card);
-        workCards.append(card);
     }
-
-    const int columnWidth = m_largeCoverView ? 250 : 220;
-    int viewportWidth = m_lazyArea->viewport()->width();
-    int viewportHeight = m_lazyArea->viewport()->height();
-    if (viewportWidth < columnWidth)
-        viewportWidth = qMax(columnWidth, width() - (m_tagPanelVisible ? 108 : 0));
-    if (viewportHeight < 100)
-        viewportHeight = qMax(600, height() - 50);
-    constexpr int spacing = 10;
-    constexpr int topMargin = 5;
-    const int columns = qMax(1, (viewportWidth + spacing) / (columnWidth + spacing));
-    QVector<int> heights(columns, topMargin);
-    QList<WorkCard *> visibleCards;
-    QList<WorkCard *> deferredCards;
-    const int priorityExtent = viewportHeight + 300;
-    for (WorkCard *card : std::as_const(workCards))
-    {
-        int column = 0;
-        for (int index = 1; index < heights.size(); ++index)
-            if (heights.at(index) < heights.at(column))
-                column = index;
-        if (heights.at(column) < priorityExtent)
-            visibleCards.append(card);
-        else
-            deferredCards.append(card);
-        heights[column] += card->sizeHint().height() + spacing;
-    }
-
-    auto batch = std::make_shared<CoverBatchState>();
-    batch->pendingVisible = visibleCards.size();
-    for (WorkCard *card : std::as_const(deferredCards))
-        batch->deferredCards.append(card);
-    const auto releaseDeferred = [batch]
-    {
-        if (batch->deferredReleased)
-            return;
-        batch->deferredReleased = true;
-        for (const QPointer<WorkCard> &card : std::as_const(batch->deferredCards))
-            if (card)
-                card->startCoverLoad(-10);
-    };
-    for (WorkCard *card : std::as_const(visibleCards))
-        connect(card, &WorkCard::coverLoadFinished, this, [batch, releaseDeferred]
-        {
-            if (batch->deferredReleased || batch->pendingVisible <= 0)
-                return;
-            if (--batch->pendingVisible == 0)
-                releaseDeferred();
-        });
-    if (visibleCards.isEmpty())
-        releaseDeferred();
-    else
-        for (WorkCard *card : std::as_const(visibleCards))
-            card->startCoverLoad(100);
-    QTimer::singleShot(180, this, releaseDeferred);
     return cards;
 }
 

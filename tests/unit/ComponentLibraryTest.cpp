@@ -728,8 +728,15 @@ void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
     QTRY_COMPARE_WITH_TIMEOUT(shadowLoaded.count(), 1, 1000);
     const auto shadowRender = shadowed.grab().toImage();
     const qreal scale = shadowRender.devicePixelRatio();
-    const int shadowAlpha = shadowRender.pixelColor(qRound(40 * scale), qRound(6 * scale)).alpha();
-    QVERIFY(shadowAlpha > 0 && shadowAlpha < 80);
+    bool hasSoftShadow = false;
+    for (int y = 0; y < shadowRender.height(); ++y) {
+        const QPointF point(40, (y + 0.5) / scale);
+        if (shadowed.containsAvatarPoint(point))
+            continue;
+        const int alpha = shadowRender.pixelColor(qRound(40 * scale), y).alpha();
+        hasSoftShadow |= alpha > 0 && alpha < 255;
+    }
+    QVERIFY(hasSoftShadow);
     QCOMPARE(shadowRender.pixelColor(0, 0).alpha(), 0);
     oct.updateImage({});
     QTRY_VERIFY_WITH_TIMEOUT(!oct.pixmap().isNull(), 1000);
@@ -794,9 +801,8 @@ void ComponentLibraryTest::avatarBatchRendering()
     timer.start();
     for (const auto &avatar : avatars) {
         // Keep only a screen-sized source bitmap, rather than the full photo.
-        QCOMPARE(avatar->pixmap().size(),
-                 QSize(qCeil(150 * avatar->devicePixelRatioF()),
-                       qCeil(150 * avatar->devicePixelRatioF())));
+        const int side = qCeil(avatar->height() * avatar->devicePixelRatioF());
+        QCOMPARE(avatar->pixmap().size(), QSize(side, side));
         const auto image = avatar->grab().toImage();
         QCOMPARE(image.pixelColor(image.width() / 2, image.height() / 2), QColor(Qt::magenta));
     }

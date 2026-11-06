@@ -1,4 +1,5 @@
 #include "GpuSimulation.h"
+#include "DampedIntegration.h"
 #include "PhysicsState.h"
 
 #include <QByteArray>
@@ -26,8 +27,9 @@ struct alignas(16) Uniforms {
     float forces[4] = {};
     float collision[4] = {};
     float integration[4] = {};
+    float motion[4] = {};
 };
-static_assert(sizeof(Uniforms) == 80);
+static_assert(sizeof(Uniforms) == 96);
 constexpr quint32 kMaxNodes = 1u << 20;
 struct Readback {
     QRhiReadbackResult result;
@@ -234,6 +236,9 @@ bool GpuSimulation::recordSteps(QRhiCommandBuffer* cb, const PhysicsState& state
         std::copy_n(std::array<float, 4>{p.manyBody, p.center, p.link, p.linkDistance}.data(), 4, base.forces);
         std::copy_n(std::array<float, 4>{p.alpha, p.collisionRadius, p.collisionStrength, p.theta}.data(), 4, base.collision);
         std::copy_n(std::array<float, 4>{p.dt, p.velocityDecay, p.maxDisplacement, p.cutoffSquared}.data(), 4, base.integration);
+        const auto weights = DampedIntegration::coefficients(p.dt, p.velocityDecay);
+        base.motion[0] = weights.velocityWeight;
+        base.motion[1] = weights.forceWeight;
         auto add = [&](quint32 mode, quint32 width = 0, quint32 k = 0, quint32 j = 0) {
             Uniforms u = base;
             u.meta[2] = mode;

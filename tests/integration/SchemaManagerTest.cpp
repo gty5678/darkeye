@@ -285,8 +285,7 @@ void SchemaManagerTest::migratesFrozenLegacyDatabase()
     QFETCH(int, kind);
     QFETCH(QString, fixtureName);
     const auto databaseKind = static_cast<darkeye::DatabaseKind>(kind);
-    const QString fixturePath = QDir(QStringLiteral(DARKEYE_SOURCE_DIR))
-        .filePath(QStringLiteral("tests/fixtures/databases/%1").arg(fixtureName));
+    const QString fixturePath = QDir(QStringLiteral(DARKEYE_TEST_DATABASE_DIR)).filePath(fixtureName);
     QFile original(fixturePath);
     QVERIFY(original.open(QIODevice::ReadOnly));
     const QByteArray before = QCryptographicHash::hash(original.readAll(), QCryptographicHash::Sha256);

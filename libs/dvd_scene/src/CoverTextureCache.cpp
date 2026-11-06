@@ -44,51 +44,90 @@ CoverTextureCache::Request CoverTextureCache::request(const QString &path,int pi
     const QString key=QStringLiteral("%1|%2|%3|%4")
         .arg(file.absoluteFilePath()).arg(file.lastModified().toMSecsSinceEpoch()).arg(file.size()).arg(pixels);
     if (auto texture=find(key)) return {key,std::move(texture)};
-    if (m_pending.insert(key).second) {
-        const QPointer<CoverTextureCache> context(this);
-        m_pool.start(QRunnable::create([context,path,pixels,key] {
-            QImageReader reader(path);
-            reader.setAutoTransform(true);
-            const auto original=reader.size();
-            QString error;
-            QImage image;
-            if (original.isValid() && original.width()<=32768 && original.height()<=32768) {
-                if(std::max(original.width(),original.height())>pixels)
-                    reader.setScaledSize(original.scaled(pixels,pixels,Qt::KeepAspectRatio));
-                image=reader.read();
-            }
-            if (image.isNull()) error=QStringLiteral("Cannot decode cover %1: %2").arg(path,reader.errorString());
-            else {
-                if(std::max(image.width(),image.height())>pixels)
-                    image=image.scaled(pixels,pixels,Qt::KeepAspectRatio,Qt::SmoothTransformation);
-                image=image.convertToFormat(QImage::Format_RGBA8888);
-            }
-            if (!context) return;
-            QMetaObject::invokeMethod(context,[context,image=std::move(image),error,path,key] {
-                if (!context) return;
-                Entry entry;
-                entry.error=error;
-                entry.lastUse=++context->m_clock;
-                if (image.isNull()) entry.texture=context->m_placeholder;
-                else {
-                    auto texture=std::make_shared<render3d::TextureData>();
-                    texture->source=path;
-                    texture->mipmap=render3d::TextureData::Mipmap::Linear;
-                    texture->maxAnisotropy=8;
-                    texture->image=image;
-                    entry.texture=std::move(texture);
-                    entry.bytes=quint64(image.sizeInBytes());
-                }
-                context->m_pending.erase(key);
-                context->m_bytes+=entry.bytes;
-                context->m_entries.insert(key,std::move(entry));
-                // Receivers acquire a shared reference before cache eviction.
-                emit context->textureReady(key);
-                if (context) context->evict();
-            },Qt::QueuedConnection);
-        }),pixels>256?10:0);
+    m_obsolete.remove(key);
+    if (!m_running.contains(key) && !m_queued.contains(key)) {
+        m_queued.insert(key, {path, pixels});
+        startDecodes();
     }
     return {key,m_placeholder};
+}
+
+void CoverTextureCache::retainRequests(const QSet<QString> &keys)
+{
+    for (auto it = m_queued.begin(); it != m_queued.end();) {
+        if (keys.contains(it.key())) ++it;
+        else it = m_queued.erase(it);
+    }
+    m_obsolete = m_running - keys;
+}
+
+void CoverTextureCache::startDecodes()
+{
+    // Count work until its result is consumed on the GUI thread, bounding
+    // both active decodes and decoded images waiting for delivery.
+    while (!m_queued.isEmpty() && m_running.size() < m_pool.maxThreadCount()) {
+        const auto next = std::max_element(m_queued.cbegin(), m_queued.cend(),
+            [](const DecodeRequest &a, const DecodeRequest &b) { return a.pixels < b.pixels; });
+        const QString key = next.key();
+        const DecodeRequest request = m_queued.take(key);
+        m_running.insert(key);
+        decode(key, request);
+    }
+}
+
+void CoverTextureCache::decode(const QString &key, const DecodeRequest &request)
+{
+    const QString path = request.path;
+    const int pixels = request.pixels;
+    const QPointer<CoverTextureCache> context(this);
+    m_pool.start(QRunnable::create([context,path,pixels,key] {
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        const auto original=reader.size();
+        QString error;
+        QImage image;
+        if (original.isValid() && original.width()<=32768 && original.height()<=32768) {
+            if(std::max(original.width(),original.height())>pixels)
+                reader.setScaledSize(original.scaled(pixels,pixels,Qt::KeepAspectRatio));
+            image=reader.read();
+        }
+        if (image.isNull()) error=QStringLiteral("Cannot decode cover %1: %2").arg(path,reader.errorString());
+        else {
+            if(std::max(image.width(),image.height())>pixels)
+                image=image.scaled(pixels,pixels,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+            image=image.convertToFormat(QImage::Format_RGBA8888);
+        }
+        if (!context) return;
+        QMetaObject::invokeMethod(context,[context,image=std::move(image),error,path,key] {
+            if (!context) return;
+            context->m_running.remove(key);
+            if (context->m_obsolete.remove(key)) {
+                context->startDecodes();
+                return;
+            }
+            Entry entry;
+            entry.error=error;
+            entry.lastUse=++context->m_clock;
+            if (image.isNull()) entry.texture=context->m_placeholder;
+            else {
+                auto texture=std::make_shared<render3d::TextureData>();
+                texture->source=path;
+                texture->mipmap=render3d::TextureData::Mipmap::Linear;
+                texture->maxAnisotropy=8;
+                texture->image=image;
+                entry.texture=std::move(texture);
+                entry.bytes=quint64(image.sizeInBytes());
+            }
+            context->m_bytes+=entry.bytes;
+            context->m_entries.insert(key,std::move(entry));
+            // Receivers acquire a shared reference before cache eviction.
+            emit context->textureReady(key);
+            if (context) {
+                context->evict();
+                context->startDecodes();
+            }
+        },Qt::QueuedConnection);
+    }));
 }
 
 std::shared_ptr<const render3d::TextureData> CoverTextureCache::find(const QString &key)

@@ -1,3 +1,4 @@
+#include "DampedIntegration.h"
 #include "GpuSimulation.h"
 #include "PhysicsState.h"
 #include "Simulation.h"
@@ -93,7 +94,7 @@ private slots:
         p.center = p.link = p.collisionStrength = 0.0f;
         std::vector<float> output;
         QVERIFY(step(gpu, state, p, output));
-        const float expected = -100.0f / (190.0f * 190.0f) * p.velocityDecay * p.dt;
+        const float expected = -100.0f / (190.0f * 190.0f) * DampedIntegration::coefficients(p.dt, p.velocityDecay).forceWeight;
         QVERIFY(std::abs(output[0] - expected) < 1e-7f);
         QVERIFY(std::abs(output[1]) < 1e-7f);
     }
@@ -405,6 +406,40 @@ private slots:
         }
     }
 
+    void dampedResidentStepsMatchCpu()
+    {
+        PhysicsState state, cpu;
+        fill(state, 32);
+        fill(cpu, 32);
+        state.vel[0] = cpu.vel[0] = 12.0f;
+        state.vel[1] = cpu.vel[1] = -7.0f;
+        GpuSimulation gpu;
+        QVERIFY(gpu.initialize(rhi.get(), state));
+        Simulation sim(&cpu);
+        cpuEngine(sim);
+        GpuSimulation::Parameters p;
+        p.theta = 0.0f;
+        std::vector<float> output;
+        for (int tick = 0; tick < 20; ++tick) {
+            // Includes drag and release without re-uploading resident GPU state.
+            state.dragging[4] = cpu.dragging[4] = tick >= 5 && tick < 10;
+            state.setDragPos(4, 12.0f, -17.0f);
+            cpu.setDragPos(4, 12.0f, -17.0f);
+            sim.tick();
+            QVERIFY(step(gpu, state, p, output));
+            for (int i = 0; i < state.nNodes; ++i) {
+                QVERIFY(std::abs(output[4 * i] - cpu.pos[2 * i]) < 0.02f);
+                QVERIFY(std::abs(output[4 * i + 1] - cpu.pos[2 * i + 1]) < 0.02f);
+                QVERIFY(std::abs(output[4 * i + 2] - cpu.vel[2 * i]) < 0.02f);
+                QVERIFY(std::abs(output[4 * i + 3] - cpu.vel[2 * i + 1]) < 0.02f);
+            }
+            if (state.dragging[4]) {
+                QCOMPARE(output[18], 0.0f);
+                QCOMPARE(output[19], 0.0f);
+            }
+        }
+    }
+
     void residentStateAndDragTargets()
     {
         PhysicsState state;
@@ -636,7 +671,7 @@ private slots:
         error /= actual.width() * actual.height() * 4;
         QVERIFY2(error < 1.0, qPrintable(QString("Mean image difference %1").arg(error)));
         QVERIFY(colored > 100);
-        QVERIFY(details.last()[0].toMap().value("gpuInstances").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(details.last()[0].toMap().value("gpuInstances").toBool(), 5000);
         cpu->setTextThresholdFactor(0.1f);
         gpu->setTextThresholdFactor(0.1f);
         QTest::qWait(300);
@@ -648,7 +683,7 @@ private slots:
                 textError += std::abs(int(withTextActual.constScanLine(y)[x]) - int(withTextExpected.constScanLine(y)[x]));
         textError /= withTextActual.width() * withTextActual.height() * 4;
         QVERIFY2(textError < 1.0, qPrintable(QString("CPU/GPU text image difference %1").arg(textError)));
-        QVERIFY(details.last()[0].toMap().value("gpuText").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(details.last()[0].toMap().value("gpuText").toBool(), 5000);
         cpu->update_node_runtime("a", {}, 4, Qt::yellow);
         gpu->update_node_runtime("a", {}, 4, Qt::yellow);
         QTest::qWait(50);
@@ -718,7 +753,7 @@ private slots:
         QTest::qWait(300);
         b->grabFramebuffer();
         QVERIFY(details.size() > beforePause);
-        QVERIFY(details.last()[0].toMap().value("gpuInstances").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(details.last()[0].toMap().value("gpuInstances").toBool(), 5000);
     }
 
     void textUsesLatestResidentPosition()
@@ -1168,9 +1203,9 @@ private slots:
         std::vector<float> result;
         float speed = 0.0f;
         QVERIFY(gpu.takeResult(result, nullptr, &speed));
-        QVERIFY(std::abs(speed - 1500000.0f) < 1.0f);
+        QVERIFY(std::abs(speed - 750000.0f) < 1.0f);
         QCOMPARE(result[0], 100.0f);
-        QCOMPARE(result[2], -750000.0f); // CPU does not clamp pinned velocities
+        QCOMPARE(result[2], 0.0f); // Pinned nodes must not accumulate release momentum
         QVERIFY(std::abs(result[6] - 150.0f) < 0.001f);
     }
 

@@ -149,6 +149,7 @@ void ShopSceneWidget::requestCovers() {
     for (const auto &path : m_paths) keys << m_covers.request(path,pixels).key;
     const bool samePaths = m_keys.size()==keys.size() && !m_keys.isEmpty();
     m_keys = keys;
+    m_covers.retainRequests(QSet<QString>(keys.cbegin(), keys.cend()));
     updateTextures(samePaths);
 }
 void ShopSceneWidget::updateTextures(bool keepExisting) {

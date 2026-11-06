@@ -28,6 +28,7 @@ private slots:
     void asyncImageLoadsOffThread();
     void asyncImageCanDeferOffscreenWork();
     void clearedImageRejectsStaleResult();
+    void asyncImageKeepsLatestSizeAfterRapidResize();
     void imageDropPurposeIsConfigurable();
     void imageDropDoesNotRewriteManagedSource();
     void imageDropRendersDashedPlaceholderBorder();
@@ -389,6 +390,32 @@ void MediaComponentTest::asyncImageCanDeferOffscreenWork()
     label.startDeferredLoad(100);
     QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 1, 3000);
     QCOMPARE(label.pixmap().size(), QSize(120, 80));
+}
+
+void MediaComponentTest::asyncImageKeepsLatestSizeAfterRapidResize()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("resize-cover.png"));
+    QImage source(1200, 800, QImage::Format_RGB32);
+    source.fill(Qt::green);
+    QVERIFY(source.save(path));
+
+    darkeye::AsyncImageLabel label;
+    label.resize(120, 80);
+    label.show();
+    QSignalSpy loaded(&label, &darkeye::AsyncImageLabel::imageLoaded);
+    label.setSource(path);
+    label.resize(180, 120);
+    label.resize(240, 160);
+
+    QTRY_COMPARE(loaded.count(), 1);
+    QCOMPARE(label.pixmap().size(), QSize(240, 160));
+    label.setDeferredLoading(true);
+    QVERIFY(label.pixmap().isNull());
+    label.setDeferredLoading(false);
+    QTRY_COMPARE(loaded.count(), 2);
+    QCOMPARE(label.pixmap().size(), QSize(240, 160));
 }
 
 void MediaComponentTest::clearedImageRejectsStaleResult()

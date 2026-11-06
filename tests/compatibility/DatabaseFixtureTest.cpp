@@ -23,8 +23,7 @@ private slots:
 
 QString fixturePath(const QString &name)
 {
-    return QDir(QStringLiteral(DARKEYE_SOURCE_DIR))
-        .filePath(QStringLiteral("tests/fixtures/databases/%1").arg(name));
+    return QDir(QStringLiteral(DARKEYE_TEST_DATABASE_DIR)).filePath(name);
 }
 
 void DatabaseFixtureTest::emptyAndHistoricalFixturesHaveExpectedVersions()
@@ -117,7 +116,8 @@ void DatabaseFixtureTest::typicalFixturesMatchGoldenQueries()
         {QStringLiteral("dailyMasturbationCounts2026"), countObject},
     };
 
-    QFile goldenFile(fixturePath(QStringLiteral("../golden/core-queries.json")));
+    QFile goldenFile(QDir(QStringLiteral(DARKEYE_SOURCE_DIR)).filePath(
+        QStringLiteral("tests/fixtures/golden/core-queries.json")));
     QVERIFY2(goldenFile.open(QIODevice::ReadOnly), qPrintable(goldenFile.errorString()));
     const QJsonObject golden = QJsonDocument::fromJson(goldenFile.readAll()).object();
     QCOMPARE(publicObject, golden.value(QStringLiteral("public")).toObject());

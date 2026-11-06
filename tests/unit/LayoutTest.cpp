@@ -19,6 +19,7 @@ private slots:
     void verticalTextLayoutKeepsPythonPunctuationAndRuns();
     void waterfallUsesShortestColumn();
     void lazyAreaLoadsOnePageAtATime();
+    void lazyAreaReleasesItemsOutsideViewport();
     void lazyAreaSupportsHeaderAndPreloadsUntilScrollable();
     void lazyAreaLoadsNextPageWhenScrolledNearBottom();
     void lazyAreaScrollRangeCoversWholeWaterfall();
@@ -146,6 +147,42 @@ void LayoutTest::lazyAreaLoadsOnePageAtATime()
     QVERIFY(area.reachedEnd());
     QVERIFY(!area.loadNextPage());
     QCOMPARE(calls, 2);
+}
+
+void LayoutTest::lazyAreaReleasesItemsOutsideViewport()
+{
+    QSet<QWidget *> active;
+    darkeye::LazyScrollArea area(100);
+    area.resize(140, 150);
+    area.setPrefetchDistance(0);
+    area.setViewportItemHandler([&active](QWidget *widget, bool visible) {
+        if (visible) active.insert(widget);
+        else active.remove(widget);
+    });
+    QList<QWidget *> cards;
+    area.setLoader([&cards](int, int) {
+        for (int index = 0; index < 12; ++index) {
+            auto *card = new QLabel(QString::number(index));
+            card->setFixedSize(100, 100);
+            cards.append(card);
+        }
+        return cards;
+    });
+    area.show();
+    QTRY_VERIFY(active.contains(cards.first()));
+    QVERIFY(!active.contains(cards.last()));
+
+    auto *scroll = area.verticalScrollBar();
+    scroll->setValue(scroll->maximum());
+    QTRY_VERIFY(active.contains(cards.last()));
+    QVERIFY(!active.contains(cards.first()));
+
+    scroll->setValue(0);
+    QTRY_VERIFY(active.contains(cards.first()));
+    QVERIFY(!active.contains(cards.last()));
+
+    area.hide();
+    QTRY_VERIFY(active.isEmpty());
 }
 
 void LayoutTest::lazyAreaSupportsHeaderAndPreloadsUntilScrollable()

@@ -3,6 +3,8 @@
 #include <QImage>
 #include <QLabel>
 #include <QString>
+#include <atomic>
+#include <memory>
 
 namespace darkeye {
 
@@ -19,6 +21,8 @@ class AsyncImageLabel final : public QLabel
 
 public:
     explicit AsyncImageLabel(QWidget *parent = nullptr);
+
+    ~AsyncImageLabel() override;
 
     QString source() const;
     void setSource(const QString &path);
@@ -51,6 +55,7 @@ private:
     bool m_loadPending = false;
     int m_loadPriority = 0;
     quint64 m_requestId = 0;
+    std::shared_ptr<std::atomic_bool> m_cancelLoad;
 };
 
 } // namespace darkeye

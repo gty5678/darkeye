@@ -1,4 +1,6 @@
 #include "Forces.h"
+#include "Simulation.h"
+#include "DampedIntegration.h"
 #include "PhysicsState.h"
 
 #include <atomic>
@@ -12,6 +14,78 @@ namespace {
 bool nearlyEqual(float lhs, float rhs, float tolerance = 1e-4f)
 {
     return std::abs(lhs - rhs) <= tolerance;
+}
+
+bool testSmoothDampedMotion()
+{
+    PhysicsState state;
+    state.init(1, {});
+    state.pos = {100.0f, 0.0f};
+    Simulation sim(&state);
+    sim.addForce("center", std::make_unique<CenterForce>(0, 0, 0.1f));
+    sim.start();
+    sim.tick();
+    // Analytic solution of v' = drive - friction*v for a constant force.
+    const double friction = -std::log(0.75) / 0.1;
+    const double expectedTravel = -30.0 * (0.1 - 0.25 / friction);
+    const double scale = 1.0 / std::sqrt(1.0 + 0.75 * 0.75 / 225.0);
+    if (!nearlyEqual(state.pos[0], 100.0f + expectedTravel * scale)
+        || !(state.pos[0] > 99.25f)) {
+        std::cerr << "damped integration did not soften the first impulse\n";
+        return false;
+    }
+    for (int i = 0; i < 1000 && sim.isActive(); ++i) sim.tick();
+    if (!std::isfinite(state.pos[0]) || std::abs(state.pos[0]) > 0.5f) {
+        std::cerr << "damped center motion did not settle\n";
+        return false;
+    }
+    const auto undamped = DampedIntegration::coefficients(0.1f, 1.0f);
+    const auto stopped = DampedIntegration::coefficients(0.1f, 0.0f);
+    return nearlyEqual(undamped.forceWeight, 0.05f)
+        && nearlyEqual(stopped.forceWeight, 0.0f);
+}
+
+bool testPinnedNodesHaveNoResidualVelocity()
+{
+    PhysicsState state;
+    state.init(1, {});
+    state.dragging[0] = 1;
+    state.setDragPos(0, 100.0f, -20.0f);
+    state.vel = {1000.0f, -1000.0f};
+    Simulation sim(&state);
+    sim.addForce("center", std::make_unique<CenterForce>(0, 0, 10000.0f));
+    sim.start();
+    for (int i = 0; i < 10; ++i) sim.tick();
+    if (state.pos != state.dragPos || state.vel != std::vector<float>({0, 0})) {
+        std::cerr << "pinned node retained force-induced velocity\n";
+        return false;
+    }
+    state.dragging[0] = 0;
+    sim.removeForce("center");
+    sim.tick();
+    return state.pos == state.dragPos && state.vel == std::vector<float>({0, 0});
+}
+
+bool testBarnesHutDoesNotIncludeSelf()
+{
+    PhysicsState state;
+    state.init(ManyBodyForce::kBarnesHutThreshold, {});
+    state.mass[0] = 100.0f;
+    float expected = 0.0f;
+    for (int i = 1; i < state.nNodes; ++i) {
+        const float x = 10.0f + i * 0.001f;
+        state.pos[2 * i] = x;
+        expected -= 100.0f / (x * x);
+    }
+    ManyBodyForce force(1.0f, 40000.0f, 100.0f);
+    force.initialize(&state);
+    force.apply(1.0f);
+    // Distant descendants may still be approximated, so allow their small error.
+    if (std::abs(state.vel[0] - expected) > std::abs(expected) * 0.01f) {
+        std::cerr << "Barnes-Hut included self in an aggregate\n";
+        return false;
+    }
+    return true;
 }
 
 bool testInvalidEdgesAreRejected()
@@ -108,6 +182,9 @@ bool testBarnesHutCutoffBoundary()
 
 int main()
 {
+    if (!testSmoothDampedMotion() || !testPinnedNodesHaveNoResidualVelocity()
+        || !testBarnesHutDoesNotIncludeSelf())
+        return 1;
     if (!testBarnesHutCutoffBoundary())
         return 1;
     if (!testInvalidEdgesAreRejected())

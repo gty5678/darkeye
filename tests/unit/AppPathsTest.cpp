@@ -291,7 +291,7 @@ void AppPathsTest::honorsCommandLineDirectoriesAcrossModules()
         darkeye::settings::Paths::configureFromArguments({QStringLiteral("Darkeye")});
     });
     QVERIFY(QDir::setCurrent(root.path()));
-    const QString config = root.filePath(QStringLiteral("dev config"));
+    const QString config = QDir::current().filePath(QStringLiteral("dev config"));
     const QString wiki = root.filePath(QStringLiteral("dev wiki"));
     const QString data = root.filePath(QStringLiteral("dev data"));
     QString error;

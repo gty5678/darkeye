@@ -46,7 +46,7 @@ public:
     int tickCount() const { return m_tickCount; }
 
 private:
-    /** Integrate velocities into positions, respecting dragging & max displacement.
+    /** Integrate constant per-step forces with exponential damping and a smooth cap.
      *  Returns total absolute speed (used for early-stop heuristic). */
     float integrate();
 
@@ -57,6 +57,9 @@ private:
     float m_alpha        = 1.0f;
     float m_alphaDecay   = 0.01f;
     float m_alphaMin     = 0.001f;
+
+    // Exact exponential damping with smooth displacement saturation.
+    std::vector<float> m_previousVelocity;
 
     // Integration
     float m_velocityDecay = 0.75f;

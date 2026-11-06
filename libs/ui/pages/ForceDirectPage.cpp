@@ -68,33 +68,7 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
     });
     connect(m_settingsPanel, &ForceViewSettingsPanel::contentSizeChanged, this,
             &ForceDirectPage::updateOverlayGeometry);
-    auto *view = m_graphView->view();
-    connect(m_settingsPanel, &ForceViewSettingsPanel::manyBodyStrengthChanged,
-            view, &ForceViewRhiWidget::setManyBodyStrength);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::centerStrengthChanged,
-            view, &ForceViewRhiWidget::setCenterStrength);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::linkStrengthChanged,
-            view, &ForceViewRhiWidget::setLinkStrength);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::linkDistanceChanged,
-            view, &ForceViewRhiWidget::setLinkDistance);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::radiusFactorChanged,
-            view, &ForceViewRhiWidget::setRadiusFactor);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::textThresholdFactorChanged,
-            view, &ForceViewRhiWidget::setTextThresholdFactor);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::linkWidthFactorChanged,
-            view, &ForceViewRhiWidget::setSideWidthFactor);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::neighborDepthChanged,
-            view, &ForceViewRhiWidget::setNeighborDepth);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::graphNeighborDepthChanged,
-            m_graphView, &graph_view::GraphViewWidget::setEgoRadius);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::arrowEnabledChanged,
-            view, &ForceViewRhiWidget::setArrowEnabled);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::imageOverlayEnabledChanged,
-            m_graphView, &graph_view::GraphViewWidget::setImageOverlayEnabled);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::arrowScaleChanged,
-            view, &ForceViewRhiWidget::setArrowScale);
-    connect(m_settingsPanel, &ForceViewSettingsPanel::nodeColorChanged,
-            m_graphView, &graph_view::GraphViewWidget::setNodeColor);
+    m_settingsPanel->bindGraph(m_graphView);
     connect(m_graphView, &graph_view::GraphViewWidget::nodeLeftClicked, this,
             [this](const QString &nodeId) {
                 bool ok = false;

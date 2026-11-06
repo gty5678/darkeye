@@ -10,6 +10,7 @@ class QSlider;
 namespace darkeye {
 
 class ThemeService;
+namespace graph_view { class GraphViewWidget; }
 
 /** Floating controls for the force-directed graph, matching the Python view's
  * effect and display sections. */
@@ -19,6 +20,7 @@ class ForceViewSettingsPanel final : public QScrollArea
 
 public:
     explicit ForceViewSettingsPanel(ThemeService &themeService, QWidget *parent = nullptr);
+    void bindGraph(graph_view::GraphViewWidget *graph);
     [[nodiscard]] int preferredHeight() const;
     void setGraphNeighborDepthVisible(bool visible);
 

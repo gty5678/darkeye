@@ -7,6 +7,7 @@ layout(std140, binding = 0) uniform Parameters {
     vec4 forces; // many-body, center, link, link distance
     vec4 collision; // alpha, radius, strength, Barnes-Hut theta
     vec4 integration; // dt, velocity decay, max displacement, cutoff squared
+    vec4 motion; // exact displacement weights: incoming velocity, force
 } p;
 layout(std430, binding = 1) buffer InputState { float state[]; };
 layout(std430, binding = 2) readonly buffer Controls { vec4 control[]; };
@@ -216,12 +217,19 @@ void main()
             force += d * ((length - p.forces.w) / length * p.forces.z * p.collision.x);
         }
         vec2 velocity = (current.zw + force) * p.integration.y;
+        vec2 displacement = current.zw * p.motion.x + force * p.motion.y;
         float absoluteSpeed = abs(velocity.x) + abs(velocity.y);
-        float speed = length(velocity);
-        if (control[i].z <= 0.5 && speed * p.integration.x > p.integration.z && speed > 1e-8)
-            velocity *= p.integration.z / (speed * p.integration.x);
-        vec2 position = x + velocity * p.integration.x;
-        if (control[i].z > 0.5) position = control[i].xy;
+        float travel2 = max(dot(displacement, displacement),
+                            dot(velocity, velocity) * p.integration.x * p.integration.x);
+        float scale = p.integration.z > 0.0
+            ? inversesqrt(1.0 + travel2 / (p.integration.z * p.integration.z)) : 0.0;
+        velocity *= scale;
+        vec2 position = x + displacement * scale;
+        if (control[i].z > 0.5) {
+            position = control[i].xy;
+            velocity = vec2(0.0);
+            absoluteSpeed = 0.0;
+        }
         nextState[5u * i] = position.x;
         nextState[5u * i + 1u] = position.y;
         nextState[5u * i + 2u] = velocity.x;

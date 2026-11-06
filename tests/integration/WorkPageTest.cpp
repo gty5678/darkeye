@@ -157,8 +157,6 @@ void WorkPageTest::matchesPythonWorkListSqlContract()
     const qint64 makerId = seed.lastInsertId().toLongLong();
     QVERIFY(seed.exec(QStringLiteral("INSERT INTO maker(cn_name) VALUES('片商乙')")));
     const qint64 otherMakerId = seed.lastInsertId().toLongLong();
-    QVERIFY(seed.exec(QStringLiteral("INSERT INTO tag(tag_id,tag_name) VALUES(1,'蓝色')")));
-    QVERIFY(seed.exec(QStringLiteral("INSERT INTO tag(tag_id,tag_name) VALUES(2,'橙色')")));
 
     darkeye::WorkRepository repository(connection.database());
     darkeye::Work highlighted;
@@ -187,6 +185,10 @@ void WorkPageTest::matchesPythonWorkListSqlContract()
     QVERIFY(settingsDirectory.isValid());
     darkeye::WorkPage page(connection.database(), themes);
     page.initialize();
+    auto *tags = page.findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    page.refresh();
     auto *maker = findWorkControl<QComboBox>(&page, QStringLiteral("WorkMakerFilter"));
     auto *sort = findWorkControl<QComboBox>(&page, QStringLiteral("WorkSortSelector"));
     auto *count = findWorkControl<QLabel>(&page, QStringLiteral("WorkCountLabel"));
@@ -303,6 +305,10 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     QVERIFY(settingsDirectory.isValid());
     darkeye::WorkPage page(connection.database(), themeService);
     page.initialize();
+    auto *tags = page.findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    page.refresh();
     auto *sortSelector = findWorkControl<QComboBox>(&page, QStringLiteral("WorkSortSelector"));
     auto *tagList = page.findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
     auto *notesFilter = findWorkControl<QLineEdit>(&page, QStringLiteral("WorkNotesFilter"));
@@ -374,6 +380,10 @@ void WorkPageTest::loadsOneDatabasePageAtATime()
     darkeye::WorkPage page(connection.database(), themeService);
     QVERIFY(!page.isInitialized());
     page.initialize();
+    auto *tags = page.findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    page.refresh();
     QVERIFY(page.isInitialized());
     auto *scrollArea = page.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
     auto *lazyArea = dynamic_cast<darkeye::LazyScrollArea *>(scrollArea);
@@ -426,6 +436,10 @@ void WorkPageTest::filtersByPrivateScope()
     darkeye::WorkPage page(publicConnection.database(), themeService, {},
                            privateConnection.database());
     page.initialize();
+    auto *tags = page.findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    page.refresh();
     auto *scope = findWorkControl<QComboBox>(&page, QStringLiteral("WorkScopeSelector"));
     QVERIFY(scope != nullptr);
     QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 2);
@@ -476,6 +490,10 @@ void WorkPageTest::filtersByLocalVideoScope()
     darkeye::ThemeService themeService(*application);
     darkeye::WorkPage page(connection.database(), themeService);
     page.initialize();
+    auto *tags = page.findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    page.refresh();
     auto *scope = findWorkControl<QComboBox>(&page, QStringLiteral("WorkScopeSelector"));
     QVERIFY(scope != nullptr);
     QCOMPARE(scope->findText(QStringLiteral("本地有视频")), 4);
@@ -1323,6 +1341,7 @@ void WorkPageTest::addWorkBasicInfoKeepsRowsHorizontalWhenNarrow()
         QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
     darkeye::AddWorkTabPage3 editor(connection.database(), themeService, crawlerScheduler);
 
+    editor.initialize();
     QWidget *basicPane = nullptr;
     for (QWidget *widget : editor.findChildren<QWidget *>())
     {

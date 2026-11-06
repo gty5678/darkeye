@@ -69,8 +69,9 @@ QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath 
 } // namespace
 
 OctImage::OctImage(const QString &imagePath, const QString &basePath, int diameter,
-                   bool shadow, QWidget *parent)
-    : QLabel(parent), m_diameter(qMax(16, diameter)), m_basePath(basePath), m_shadow(shadow)
+                   bool shadow, QWidget *parent, bool deferImage)
+    : QLabel(parent), m_diameter(qMax(16, diameter)), m_basePath(basePath), m_shadow(shadow),
+      m_imageActive(!deferImage)
 {
     setObjectName(QStringLiteral("DesignOctImage"));
     setFixedSize(m_diameter, m_diameter
@@ -83,6 +84,20 @@ OctImage::OctImage(const QString &imagePath, const QString &basePath, int diamet
 }
 
 QString OctImage::source() const { return m_source; }
+
+void OctImage::setImageActive(bool active)
+{
+    if (m_imageActive == active) return;
+    m_imageActive = active;
+    ++m_request;
+    if (active) {
+        startLoad();
+    } else {
+        clear();
+        m_renderCache = {};
+        update();
+    }
+}
 
 void OctImage::updateImage(const QString &imagePath)
 {
@@ -106,6 +121,8 @@ QString OctImage::resolvedPath(const QString &imagePath) const
 
 void OctImage::startLoad()
 {
+    if (!m_imageActive || m_loading) return;
+    m_loading = true;
     const quint64 request = m_request;
     const QString path = m_source;
     const qreal dpr = devicePixelRatioF();
@@ -135,7 +152,11 @@ void OctImage::startLoad()
 void OctImage::applyImage(quint64 request, const QString &path, const QImage &image,
                           const QImage &rendered)
 {
-    if (request != m_request || path != m_source) return;
+    m_loading = false;
+    if (request != m_request || path != m_source) {
+        startLoad();
+        return;
+    }
     if (image.isNull()) {
         setText(QStringLiteral("无图片"));
         return;

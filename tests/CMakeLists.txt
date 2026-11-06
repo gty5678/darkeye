@@ -109,10 +109,11 @@ set_tests_properties(darkeye_myads_demo_smoke PROPERTIES
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
 )
 add_test(NAME darkeye_graph_view_demo_smoke
-    COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --smoke-test)
+    COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 127 --seed 42 --smoke-test)
 add_test(NAME darkeye_graph_view_demo_motion_smoke
     COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 400 --text-motion-smoke)
-foreach(scenario IN ITEMS baseline communities hubs lattice star islands overlap)
+# The default demo smoke already exercises the baseline preset.
+foreach(scenario IN ITEMS communities hubs lattice star islands overlap)
     add_test(NAME darkeye_graph_view_demo_scenario_${scenario}
         COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 127 --preset ${scenario} --seed 42 --smoke-test)
     set_tests_properties(darkeye_graph_view_demo_scenario_${scenario} PROPERTIES
@@ -143,11 +144,21 @@ set_tests_properties(darkeye_component_gallery_smoke PROPERTIES
 )
 darkeye_add_qt_test(darkeye_database_tests unit/SqliteConnectionTest.cpp)
 darkeye_add_qt_test(darkeye_schema_tests integration/SchemaManagerTest.cpp)
-target_compile_definitions(darkeye_schema_tests PRIVATE
-    DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-)
 darkeye_add_qt_test(darkeye_schema_snapshot_tests integration/SchemaSnapshotTest.cpp)
 darkeye_add_qt_test(darkeye_database_fixture_tests compatibility/DatabaseFixtureTest.cpp)
+set(DARKEYE_TEST_DATABASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures/databases")
+add_test(NAME darkeye_prepare_database_fixtures
+    COMMAND darkeye_fixture_database_builder "${DARKEYE_TEST_DATABASE_DIR}")
+set_tests_properties(darkeye_prepare_database_fixtures PROPERTIES
+    FIXTURES_SETUP database_fixtures
+    TIMEOUT 30
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
+set_tests_properties(darkeye_schema_tests darkeye_database_fixture_tests PROPERTIES
+    FIXTURES_REQUIRED database_fixtures)
+foreach(target IN ITEMS darkeye_schema_tests darkeye_database_fixture_tests)
+    target_compile_definitions(${target} PRIVATE
+        DARKEYE_TEST_DATABASE_DIR="${DARKEYE_TEST_DATABASE_DIR}")
+endforeach()
 darkeye_add_qt_test(darkeye_serial_number_tests compatibility/SerialNumberCompatibilityTest.cpp)
 darkeye_add_qt_test(darkeye_database_backup_tests integration/DatabaseBackupServiceTest.cpp)
 darkeye_add_qt_test(darkeye_database_operations_tests integration/DatabaseOperationsTest.cpp)

@@ -363,6 +363,7 @@ void AddWorkTabPage3::lazyLoad()
         });
     connect(m_actresses, &PersonTransferSelector::addRequested, this, [this] {
         auto *dialog = new AddActressDialog(m_database, this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
         connect(dialog, &AddActressDialog::personAdded, this, [this](qint64 id) {
             m_associationsLoaded = false;
             refreshAssociations();
@@ -372,6 +373,7 @@ void AddWorkTabPage3::lazyLoad()
     });
     connect(m_actors, &PersonTransferSelector::addRequested, this, [this] {
         auto *dialog = new AddActorDialog(m_database, this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
         connect(dialog, &AddActorDialog::personAdded, this, [this](qint64 id) {
             m_associationsLoaded = false;
             refreshAssociations();

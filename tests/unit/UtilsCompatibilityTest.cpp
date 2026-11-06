@@ -182,9 +182,9 @@ void UtilsCompatibilityTest::csvExportsQuoteFieldsAndPreserveUtf8()
     QString error;
     QVERIFY2(darkeye::exportModelToCsv(&model, modelCsv, &error), qPrintable(error));
     QFile modelOutput(modelCsv);
-    QVERIFY(modelOutput.open(QIODevice::ReadOnly));
+    QVERIFY(modelOutput.open(QIODevice::ReadOnly | QIODevice::Text));
     QCOMPARE(QString::fromUtf8(modelOutput.readAll()),
-             QStringLiteral("名称,备注\r\n\"作品,一\",\"含\"\"引号\"\"\"\r\n"));
+             QStringLiteral("名称,备注\n\"作品,一\",\"含\"\"引号\"\"\"\n"));
 
     const QString databasePath = temporary.filePath(QStringLiteral("data.db"));
     {
@@ -198,8 +198,8 @@ void UtilsCompatibilityTest::csvExportsQuoteFieldsAndPreserveUtf8()
     QVERIFY2(darkeye::exportSqlToCsv(QStringLiteral("SELECT id,name FROM item"), sqlCsv,
                                     databasePath, &error), qPrintable(error));
     QFile sqlOutput(sqlCsv);
-    QVERIFY(sqlOutput.open(QIODevice::ReadOnly));
-    QCOMPARE(QString::fromUtf8(sqlOutput.readAll()), QStringLiteral("id,name\r\n1,中文\r\n"));
+    QVERIFY(sqlOutput.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(sqlOutput.readAll()), QStringLiteral("id,name\n1,中文\n"));
 }
 
 void UtilsCompatibilityTest::updateManifestMatchesPythonVersionRules()

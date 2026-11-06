@@ -1,4 +1,6 @@
 #include "ui/components/DvdShelfView.h"
+#include "darkeye_ui/components/StateToggleButton.h"
+#include "ui/pages/ForceViewSettingsPanel.h"
 
 #include "app/Resources.h"
 #include "database/SqliteConnection.h"
@@ -804,6 +806,44 @@ void DvdShelfView::set_force_view_overlay(qreal centerX, qreal centerY)
         updateRelationGraphGeometry(centerX, centerY);
 }
 
+void DvdShelfView::enableGraphSettings(ThemeService &themes)
+{
+    if (!m_relationGraph || m_relationGraphSettingsPanel) return;
+    m_relationGraphSettingsButton = new StateToggleButton(
+        QStringLiteral("settings"), QStringLiteral("x"), 24, 32, &themes, m_relationGraphContainer);
+    m_relationGraphSettingsButton->setObjectName(QStringLiteral("ShelfRelationGraphSettingsButton"));
+    m_relationGraphSettingsButton->setToolTip(QStringLiteral("关系图设置"));
+    m_relationGraphSettingsPanel = new ForceViewSettingsPanel(themes, m_relationGraphContainer);
+    m_relationGraphSettingsPanel->bindGraph(m_relationGraph);
+    m_relationGraphSettingsPanel->setGraphNeighborDepthVisible(true);
+    m_relationGraphSettingsPanel->hide();
+    connect(m_relationGraphSettingsButton, &StateToggleButton::stateChanged, this, [this](bool visible) {
+        m_relationGraphSettingsPanel->setVisible(visible);
+        updateRelationGraphControls();
+    });
+    connect(m_relationGraphSettingsPanel, &ForceViewSettingsPanel::contentSizeChanged,
+            this, &DvdShelfView::updateRelationGraphControls);
+    updateRelationGraphControls();
+}
+
+void DvdShelfView::updateRelationGraphControls()
+{
+    if (!m_relationGraphSettingsButton) return;
+    constexpr int margin = 10;
+    const int width = m_relationGraphContainer->width();
+    const int height = m_relationGraphContainer->height();
+    m_relationGraphSettingsButton->move(qMax(0, width - m_relationGraphSettingsButton->width() - margin), margin);
+    if (!m_relationGraphSettingsPanel->isHidden()) {
+        const int panelWidth = qMax(1, qMin(250, width - margin * 2));
+        m_relationGraphSettingsPanel->setFixedWidth(panelWidth);
+        m_relationGraphSettingsPanel->resize(panelWidth,
+            qMax(1, qMin(m_relationGraphSettingsPanel->preferredHeight(), height - margin * 2)));
+        m_relationGraphSettingsPanel->move(qMax(0, width - panelWidth - margin), margin);
+        m_relationGraphSettingsPanel->raise();
+    }
+    m_relationGraphSettingsButton->raise();
+}
+
 void DvdShelfView::updateRelationGraphGeometry(qreal centerX, qreal centerY)
 {
     if (m_relationGraphContainer == nullptr || m_scene == nullptr ||
@@ -822,6 +862,7 @@ void DvdShelfView::updateRelationGraphGeometry(qreal centerX, qreal centerY)
     const int top=std::clamp(qRound(centerY-graphHeight*0.5),0,std::max(0,viewHeight-graphHeight));
     const auto offset=m_scene->renderWidget()->mapTo(this,QPoint());
     m_relationGraphContainer->setGeometry(left+offset.x(), top+offset.y(), graphWidth, graphHeight);
+    updateRelationGraphControls();
     m_relationGraphContainer->raise();
 }
 

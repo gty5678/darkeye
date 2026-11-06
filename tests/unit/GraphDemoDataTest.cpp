@@ -28,6 +28,7 @@ private slots:
         QCOMPARE(graph.ids.size(), count); QCOMPARE(graph.labels.size(), count);
         QCOMPARE(graph.radii.size(), count); QCOMPARE(graph.colors.size(), count);
         for (float value : graph.positions) QVERIFY(std::isfinite(value));
+        QCOMPARE(graph.edges.size() % 2, 0);
         QSet<quint64> unique;
         for (int i = 0; i < graph.edges.size(); i += 2) {
             const int a = graph.edges[i], b = graph.edges[i + 1];

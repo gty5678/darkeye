@@ -21,7 +21,7 @@ public:
                       bool deferCoverLoad = false);
 
     [[nodiscard]] qint64 workId() const noexcept;
-    void startCoverLoad(int priority = 0);
+    void setCoverActive(bool active);
 
 signals:
     void activated(qint64 workId);

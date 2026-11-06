@@ -1,4 +1,6 @@
 #include "ui/pages/ForceViewSettingsPanel.h"
+#include "graph_view/GraphViewWidget.h"
+#include "graph_view/ForceViewRhiWidget.h"
 
 #include "darkeye_ui/components/CollapsibleSection.h"
 #include "darkeye_ui/components/ColorPicker.h"
@@ -30,6 +32,37 @@ ColorPicker *makeColorPicker(const QString &group, const QColor &initial,
 }
 
 } // namespace
+
+void ForceViewSettingsPanel::bindGraph(graph_view::GraphViewWidget *graph)
+{
+    auto *view = graph->view();
+    connect(this, &ForceViewSettingsPanel::manyBodyStrengthChanged,
+            view, &ForceViewRhiWidget::setManyBodyStrength);
+    connect(this, &ForceViewSettingsPanel::centerStrengthChanged,
+            view, &ForceViewRhiWidget::setCenterStrength);
+    connect(this, &ForceViewSettingsPanel::linkStrengthChanged,
+            view, &ForceViewRhiWidget::setLinkStrength);
+    connect(this, &ForceViewSettingsPanel::linkDistanceChanged,
+            view, &ForceViewRhiWidget::setLinkDistance);
+    connect(this, &ForceViewSettingsPanel::radiusFactorChanged,
+            view, &ForceViewRhiWidget::setRadiusFactor);
+    connect(this, &ForceViewSettingsPanel::textThresholdFactorChanged,
+            view, &ForceViewRhiWidget::setTextThresholdFactor);
+    connect(this, &ForceViewSettingsPanel::linkWidthFactorChanged,
+            view, &ForceViewRhiWidget::setSideWidthFactor);
+    connect(this, &ForceViewSettingsPanel::neighborDepthChanged,
+            view, &ForceViewRhiWidget::setNeighborDepth);
+    connect(this, &ForceViewSettingsPanel::graphNeighborDepthChanged,
+            graph, &graph_view::GraphViewWidget::setEgoRadius);
+    connect(this, &ForceViewSettingsPanel::arrowEnabledChanged,
+            view, &ForceViewRhiWidget::setArrowEnabled);
+    connect(this, &ForceViewSettingsPanel::imageOverlayEnabledChanged,
+            graph, &graph_view::GraphViewWidget::setImageOverlayEnabled);
+    connect(this, &ForceViewSettingsPanel::arrowScaleChanged,
+            view, &ForceViewRhiWidget::setArrowScale);
+    connect(this, &ForceViewSettingsPanel::nodeColorChanged,
+            graph, &graph_view::GraphViewWidget::setNodeColor);
+}
 
 ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidget *parent)
     : QScrollArea(parent)

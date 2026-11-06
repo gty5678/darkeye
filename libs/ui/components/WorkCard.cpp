@@ -139,13 +139,9 @@ qint64 WorkCard::workId() const noexcept
     return m_workId;
 }
 
-void WorkCard::startCoverLoad(int priority)
+void WorkCard::setCoverActive(bool active)
 {
-    if (m_cover->source().isEmpty()) {
-        emit coverLoadFinished();
-        return;
-    }
-    m_cover->startDeferredLoad(priority);
+    m_cover->setDeferredLoading(!active);
 }
 
 bool WorkCard::eventFilter(QObject *watched, QEvent *event)

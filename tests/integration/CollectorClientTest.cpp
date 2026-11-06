@@ -1,4 +1,5 @@
 #include "crawler/CollectorClient.h"
+#include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PersonRepository.h"
 #include "services/TopActressSyncService.h"
@@ -10,6 +11,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QUrlQuery>
 #include <QtTest>
 
 namespace
@@ -98,7 +100,9 @@ void CollectorClientTest::encodesActressPathAndQuery()
     QVERIFY(finished.first().at(2).toBool());
     const QByteArray requestLine = server.requestLine();
     QVERIFY(requestLine.startsWith("GET /api/v1/actress/%E8%91%B5%20%E3%81%A4"));
-    QVERIFY(requestLine.contains("minnano_url=%2Fdetail%3Fid%3D12"));
+    const QUrl requestUrl = QUrl::fromEncoded(requestLine.split(' ').value(1));
+    QCOMPARE(QUrlQuery(requestUrl).queryItemValue(QStringLiteral("minnano_url"), QUrl::FullyDecoded),
+             QStringLiteral("/detail?id=12"));
 }
 
 void CollectorClientTest::exposesHttpDetailError()
@@ -125,8 +129,10 @@ void CollectorClientTest::syncsOnlyFirstFiftyPopularActresses()
     QVERIFY(directory.isValid());
     darkeye::SqliteConnection connection;
     QString errorMessage;
-    QVERIFY2(connection.open(directory.filePath(QStringLiteral("public.db")), true, &errorMessage),
+    QVERIFY2(connection.open(directory.filePath(QStringLiteral("public.db")), false, &errorMessage),
              qPrintable(errorMessage));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 connection, darkeye::DatabaseKind::Public, &errorMessage), qPrintable(errorMessage));
     darkeye::PersonRepository people(connection.database());
     QVERIFY(people
                 .create(darkeye::PersonKind::Actress, QStringLiteral("已存在"),

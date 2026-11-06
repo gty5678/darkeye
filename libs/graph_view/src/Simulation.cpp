@@ -1,19 +1,7 @@
 #include "Simulation.h"
+#include "DampedIntegration.h"
 #include <cmath>
 #include <algorithm>
-
-/*
-方法	精度	稳定性	计算量	适用场景
-显式欧拉	一阶	一般	最低	快速原型、简单布局
-半隐式欧拉	一阶	较好	低	大多数力导向图
-Verlet	二阶	较好	低	粒子/节点系统
-Velocity Verlet	二阶	较好	低	需要速度信息的模拟
-RK4	四阶	好	高	高精度、时间步较大
-隐式欧拉	一阶	最好	高	易发散、刚性系统
-
-*/
-
-
 
 // =====================================================================
 // Construction
@@ -78,6 +66,10 @@ void Simulation::tick()
         }
     }
 
+    // Preserve incoming velocity; force kernels accumulate impulses into vel.
+    m_previousVelocity = m_state->vel;
+    std::fill(m_state->vel.begin(), m_state->vel.end(), 0.0f);
+
     // Apply each force (modifies vel)
     for (auto& [name, force] : m_forces) {
         force->apply(m_alpha);
@@ -140,7 +132,7 @@ void Simulation::considerGpuConvergence(float totalSpeed)
 }
 
 // =====================================================================
-// Integrate — velocity decay, max displacement clamp, position update
+// Integrate — exact damped displacement and smooth displacement saturation
 // =====================================================================
 float Simulation::integrate()
 {
@@ -152,34 +144,30 @@ float Simulation::integrate()
     const float dt      = m_dt;
     const float maxDisp = m_maxDisp;
 
-
-    // Velocity decay (all nodes)
-    for (int i = 0; i < 2 * N; ++i) {
-        vel[i] *= decay;
-    }
-
+    const auto weights = DampedIntegration::coefficients(dt, decay);
     float totalSpeed = 0.0f;
-
     for (int i = 0; i < N; ++i) {
-        float vxi = vel[2 * i];
-        float vyi = vel[2 * i + 1];
-
-        totalSpeed += std::fabs(vxi) + std::fabs(vyi);
-
-        // Skip dragged nodes
-        if (drag[i]) continue;
-
-        float speed = std::sqrt(vxi * vxi + vyi * vyi);
-        if (speed * dt > maxDisp && speed > 1e-8f) {
-            float scale = maxDisp / (speed * dt);
-            vxi *= scale;
-            vyi *= scale;
-            vel[2 * i]     = vxi;
-            vel[2 * i + 1] = vyi;
+        if (drag[i]) {
+            vel[2 * i] = vel[2 * i + 1] = 0.0f;
+            continue;
         }
+        const float fx = vel[2 * i], fy = vel[2 * i + 1];
+        const float oldX = m_previousVelocity[2 * i];
+        const float oldY = m_previousVelocity[2 * i + 1];
+        const float vx = (oldX + fx) * decay;
+        const float vy = (oldY + fy) * decay;
+        const float dx = oldX * weights.velocityWeight + fx * weights.forceWeight;
+        const float dy = oldY * weights.velocityWeight + fy * weights.forceWeight;
+        totalSpeed += std::fabs(vx) + std::fabs(vy);
 
-        pos[2 * i]     += vxi * dt;
-        pos[2 * i + 1] += vyi * dt;
+        // Smooth saturation has no abrupt transition at the displacement cap.
+        const float travel2 = std::max(dx * dx + dy * dy, (vx * vx + vy * vy) * dt * dt);
+        const float scale = maxDisp > 0.0f
+            ? 1.0f / std::sqrt(1.0f + travel2 / (maxDisp * maxDisp)) : 0.0f;
+        vel[2 * i] = vx * scale;
+        vel[2 * i + 1] = vy * scale;
+        pos[2 * i] += dx * scale;
+        pos[2 * i + 1] += dy * scale;
     }
 
     return totalSpeed;

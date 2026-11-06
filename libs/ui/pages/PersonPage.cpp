@@ -5,6 +5,7 @@
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/InteractionEffects.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
+#include "darkeye_ui/components/OctImage.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "ui/components/PersonCard.h"
 
@@ -32,6 +33,9 @@ void PersonPage::lazyLoad()
     m_randomSeed = QRandomGenerator::global()->generate();
     m_randomSeed2 = QRandomGenerator::global()->generate();
     buildUi();
+    m_lazyArea->setViewportItemHandler([](QWidget *widget, bool active) {
+        static_cast<PersonCard *>(widget)->avatar()->setImageActive(active);
+    });
     m_lazyArea->setLoader([this](int pageIndex, int pageSize)
                           { return loadCardPage(pageIndex, pageSize); });
     updateCount();
@@ -265,7 +269,7 @@ QList<QWidget *> PersonPage::loadCardPage(int pageIndex, int pageSize)
     cards.reserve(people.size());
     for (const PersonSummary &person : people)
     {
-        auto *card = new PersonCard(person.id, person.name, person.imagePath, m_imageDirectory);
+        auto *card = new PersonCard(person.id, person.name, person.imagePath, m_imageDirectory, nullptr, true);
         connect(card, &PersonCard::activated, this,
                 [this](qint64 personId) { emit detailRequested(m_kind, personId); });
         connect(card, &PersonCard::editRequested, this,

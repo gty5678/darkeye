@@ -28,7 +28,8 @@ private:
 void WebDavTimeoutTest::initTestCase()
 {
 #ifndef Q_OS_WIN
-    QSKIP("WebDAV credentials are currently implemented only on Windows.");
+    if (!qEnvironmentVariableIsSet("DARKEYE_TEST_SYSTEM_KEYRING"))
+        QSKIP("Set DARKEYE_TEST_SYSTEM_KEYRING=1 in a desktop session to test WebDAV timeouts.");
 #endif
     m_profile = QStringLiteral("timeout-test-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
     QString error;

@@ -130,7 +130,7 @@ void NfoImportTest::relativeImagesUseWorkingDirectory()
     QVERIFY(parsed);
     QVERIFY(nfo::pickCover(*parsed).isEmpty()); // Only NFO-adjacent image exists.
     QVERIFY(image(temp.filePath(QStringLiteral("cover.jpg"))));
-    QCOMPARE(nfo::pickCover(*parsed), temp.filePath(QStringLiteral("cover.jpg")));
+    QCOMPARE(nfo::pickCover(*parsed), QDir::current().filePath(QStringLiteral("cover.jpg")));
     QCOMPARE(nfo::resolveLocalImage(temp.filePath(QStringLiteral("nfo/cover.jpg"))), temp.filePath(QStringLiteral("nfo/cover.jpg")));
 }
 void NfoImportTest::blockedImages_data()

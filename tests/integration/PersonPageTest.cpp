@@ -385,10 +385,17 @@ void PersonPageTest::filtersActressesAndRespectsFavoriteScope()
     darkeye::ThemeService themes(*application);
     darkeye::PersonPage page(darkeye::PersonKind::Actress, publicConnection.database(),
                              privateConnection.database(), themes);
-    auto *area = static_cast<darkeye::LazyScrollArea *>(
-        page.findChild<QWidget *>(QStringLiteral("PersonLazyScrollArea")));
-    auto *name = page.findChild<darkeye::CompleterLineEdit *>(QStringLiteral("PersonNameFilter"));
-    auto *scope = page.findChild<QComboBox *>(QStringLiteral("PersonScopeSelector"));
+    page.initialize();
+    auto *area = dynamic_cast<darkeye::LazyScrollArea *>(
+        page.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea")));
+    auto *name = page.findChild<darkeye::CompleterLineEdit *>();
+    QComboBox *scope = nullptr;
+    for (auto *combo : page.findChildren<QComboBox *>()) {
+        if (combo->findText(QStringLiteral("收藏库范围")) >= 0) {
+            scope = combo;
+            break;
+        }
+    }
     QVERIFY(area != nullptr);
     QVERIFY(name != nullptr);
     QVERIFY(scope != nullptr);
@@ -452,8 +459,6 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     QVERIFY(updateBody(*actressId, 162, 88, 58, 87, QStringLiteral("F")));
     QVERIFY(updateBody(*referenceActressId, 168, 90, 60, 89, QStringLiteral("G")));
     QVERIFY(updateBody(*zeroActressId, 0, 0, 0, 0, QStringLiteral("A")));
-    QVERIFY(fixture.exec(QStringLiteral("INSERT INTO tag(tag_id,tag_name) VALUES(1,'蓝色')")));
-    QVERIFY(fixture.exec(QStringLiteral("INSERT INTO tag(tag_id,tag_name) VALUES(2,'橙色')")));
     darkeye::WorkRepository works(publicConnection.database());
     darkeye::Work work;
     work.serialNumber = QStringLiteral("PERSON-001");

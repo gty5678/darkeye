@@ -54,15 +54,20 @@ class ImageLoadTask final : public QObject, public QRunnable
     Q_OBJECT
 
 public:
-    ImageLoadTask(QString path, QSize target, ImageFitMode fitMode, quint64 requestId)
+    ImageLoadTask(QString path, QSize target, ImageFitMode fitMode, quint64 requestId,
+                  std::shared_ptr<std::atomic_bool> cancelled)
         : m_path(std::move(path)), m_target(target), m_fitMode(fitMode),
-          m_requestId(requestId)
+          m_requestId(requestId), m_cancelled(std::move(cancelled))
     {
         setAutoDelete(true);
     }
 
     void run() override
     {
+        if (m_cancelled->load()) {
+            emit completed(m_requestId, m_path, {});
+            return;
+        }
         QImageReader reader(m_path);
         const QSize sourceSize = reader.size();
         if (sourceSize.isValid() && m_target.isValid() && !m_target.isEmpty()) {
@@ -100,7 +105,7 @@ public:
                                      Qt::SmoothTransformation);
             }
         }
-        emit completed(m_requestId, m_path, image);
+        emit completed(m_requestId, m_path, m_cancelled->load() ? QImage() : image);
     }
 
 signals:
@@ -111,6 +116,7 @@ private:
     QSize m_target;
     ImageFitMode m_fitMode;
     quint64 m_requestId;
+    std::shared_ptr<std::atomic_bool> m_cancelled;
 };
 
 } // namespace
@@ -122,6 +128,11 @@ AsyncImageLabel::AsyncImageLabel(QWidget *parent) : QLabel(parent)
     setStyleSheet(QStringLiteral("background-color: transparent;"));
     setAttribute(Qt::WA_TranslucentBackground);
     setText(m_placeholder);
+}
+
+AsyncImageLabel::~AsyncImageLabel()
+{
+    if (m_cancelLoad) m_cancelLoad->store(true);
 }
 
 QString AsyncImageLabel::source() const { return m_source; }
@@ -137,6 +148,8 @@ void AsyncImageLabel::setSource(const QString &path)
 void AsyncImageLabel::clearSource()
 {
     m_source.clear();
+    m_loadPending = false;
+    if (m_cancelLoad) m_cancelLoad->store(true);
     ++m_requestId;
     clear();
     setText(m_placeholder);
@@ -163,9 +176,17 @@ void AsyncImageLabel::setPlaceholderText(const QString &text)
 
 void AsyncImageLabel::setDeferredLoading(bool deferred)
 {
+    if (m_deferredLoading == deferred) return;
     m_deferredLoading = deferred;
-    if (!deferred && m_loadPending)
+    if (deferred) {
+        ++m_requestId;
+        if (m_cancelLoad) m_cancelLoad->store(true);
+        m_loadPending = !m_source.isEmpty();
+        clear();
+        setText(m_placeholder);
+    } else if (m_loadPending) {
         startLoad();
+    }
 }
 
 void AsyncImageLabel::startDeferredLoad(int priority)
@@ -207,6 +228,7 @@ void AsyncImageLabel::startLoad()
     }
     m_loadPending = false;
     const quint64 requestId = ++m_requestId;
+    if (m_cancelLoad) m_cancelLoad->store(true);
     if (m_source.isEmpty() || size().isEmpty()) {
         clear();
         setText(m_placeholder);
@@ -222,7 +244,12 @@ void AsyncImageLabel::startLoad()
     // 尺寸调整和 Dock 布局重排会连续触发加载。保留已经显示的图像直到新结果
     // 准备好，避免封面栏在每次重排时退回“加载中”。
     if (pixmap().isNull()) setText(QStringLiteral("加载中…"));
-    auto *task = new ImageLoadTask(m_source, size(), m_fitMode, requestId);
+    if (m_cancelLoad) {
+        m_loadPending = true;
+        return;
+    }
+    m_cancelLoad = std::make_shared<std::atomic_bool>(false);
+    auto *task = new ImageLoadTask(m_source, size(), m_fitMode, requestId, m_cancelLoad);
     connect(task, &ImageLoadTask::completed, this,
             [this](quint64 id, const QString &path, const QImage &image) {
                 applyResult(id, path, image);
@@ -233,7 +260,12 @@ void AsyncImageLabel::startLoad()
 void AsyncImageLabel::applyResult(quint64 requestId, const QString &path,
                                   const QImage &image)
 {
-    if (requestId != m_requestId || path != m_source) return;
+    m_cancelLoad.reset();
+    if (requestId != m_requestId || path != m_source) {
+        if (!m_deferredLoading && m_loadPending)
+            startLoad();
+        return;
+    }
     if (image.isNull()) {
         clear();
         setText(m_placeholder);

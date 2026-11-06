@@ -95,7 +95,9 @@ inline void manyBodyAccumulate(
     const float farY = std::max(std::abs(yi - nd.minY), std::abs(yi - nd.maxY));
     const bool fullyInsideCutoff = farX * farX + farY * farY + 1e-6f < cutoff2;
 
-    if (s_over_d < theta && fullyInsideCutoff) {
+    const bool containsSelf = xi >= nd.minX && xi <= nd.maxX
+                           && yi >= nd.minY && yi <= nd.maxY;
+    if (!containsSelf && s_over_d < theta && fullyInsideCutoff) {
         // Cell is far enough: use cutoff on center-of-mass distance
         if (dist2_com >= cutoff2) return;
 

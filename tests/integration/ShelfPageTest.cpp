@@ -8,6 +8,8 @@
 #include "ui/components/FanartStripWidget.h"
 #include "ui/components/WorkTagSelector.h"
 #include "ui/pages/ShelfPage.h"
+#include "ui/pages/ForceViewSettingsPanel.h"
+#include "darkeye_ui/components/StateToggleButton.h"
 
 #include <QAbstractButton>
 #include <QComboBox>
@@ -197,7 +199,7 @@ void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
     page.refresh();
     auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
     auto *view = page.findChild<darkeye::DvdShelfView *>(QStringLiteral("DvdShelfView"));
-    auto *serial = page.findChild<QLineEdit *>(QStringLiteral("ShelfSerialFilter"));
+    auto *serial = page.findChild<QLineEdit *>();
     QVERIFY(count != nullptr);
     QVERIFY(view != nullptr);
     QVERIFY(serial != nullptr);
@@ -342,7 +344,8 @@ void ShelfPageTest::nativeRenderingAndActions()
     const auto lighting=scene->renderWidget()->lighting();
     QVERIFY(lighting.imageBasedLighting && lighting.ambientOcclusion && lighting.shadows && lighting.toneMapping);
     QCOMPARE(lighting.environmentRotation,155.0f);
-    QVERIFY(lighting.exposure>1 && lighting.environmentIntensity>1);
+    QCOMPARE(lighting.exposure,0.95f);
+    QCOMPARE(lighting.environmentIntensity,1.0f);
     QVERIFY(!lighting.keyLightCameraRelative);
     QVERIFY(lighting.keyLightDirection.x()<0 && lighting.keyLightDirection.y()>0 && lighting.keyLightDirection.z()>0);
     bool coverLoaded=false;
@@ -517,6 +520,17 @@ void ShelfPageTest::nativeRenderingAndActions()
     QVERIFY(relationGraph->view()->getNodeIds().contains(QStringLiteral("w%1").arg(*id)));
     QTRY_COMPARE(scene->state(),darkeye::dvd_scene::DvdInteractionController::State::Focused);
     QVERIFY(relation->isVisible());
+    auto *graphSettingsButton = relation->findChild<darkeye::StateToggleButton *>("ShelfRelationGraphSettingsButton");
+    auto *graphSettingsPanel = relation->findChild<darkeye::ForceViewSettingsPanel *>();
+    QVERIFY(graphSettingsButton && graphSettingsPanel);
+    QVERIFY(graphSettingsButton->isVisible());
+    QVERIFY(graphSettingsPanel->isHidden());
+    QTest::mouseClick(graphSettingsButton, Qt::LeftButton);
+    QVERIFY(graphSettingsPanel->isVisible());
+    QVERIFY(relation->rect().contains(graphSettingsPanel->geometry()));
+    QVERIFY(relation->rect().contains(graphSettingsButton->geometry()));
+    QTest::mouseClick(graphSettingsButton, Qt::LeftButton);
+    QVERIFY(graphSettingsPanel->isHidden());
     QTest::qWait(100);
     const auto box=scene->selectedCaseRect();
     QVERIFY(box);
@@ -1005,7 +1019,7 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     page.initialize();
     page.resize(1280,800);
     page.show();
-    auto *serial = page.findChild<QLineEdit *>(QStringLiteral("ShelfSerialFilter"));
+    auto *serial = page.findChild<QLineEdit *>();
     auto *scope = page.findChild<QComboBox *>(QStringLiteral("ShelfScopeSelector"));
     auto *sort = page.findChild<QComboBox *>(QStringLiteral("ShelfSortSelector"));
     auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));

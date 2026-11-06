@@ -463,6 +463,23 @@ private slots:
         delete pending; // queued completion cannot use the destroyed cache
     }
 
+    void coverCacheDiscardsObsoleteRequests()
+    {
+        QTemporaryDir temporary;
+        QVERIFY(temporary.isValid());
+        CoverTextureCache cache;
+        QSignalSpy ready(&cache, &CoverTextureCache::textureReady);
+        for (int index = 0; index < 8; ++index)
+            cache.request(temporary.filePath(QString::number(index)));
+        const auto wanted = cache.request(temporary.filePath("wanted.png"));
+        cache.retainRequests({wanted.key});
+
+        QVERIFY(cache.pendingCount() <= 3);
+        QTRY_COMPARE(cache.pendingCount(), 0);
+        QCOMPARE(ready.size(), 1);
+        QCOMPARE(ready.first().first().toString(), wanted.key);
+    }
+
     void focusedCoversKeepResolutionWithoutUpscaling()
     {
         QTemporaryDir temporary;

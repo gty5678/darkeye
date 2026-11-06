@@ -1238,7 +1238,6 @@ QStringList TranslationSettingsPage::llamaArguments() const
 
 void TranslationSettingsPage::updateCommandPreview()
 {
-    if (!m_commandPreview) return;
     const QString executable = m_serverExecutable->text().trimmed();
     m_commandPreview->setPlainText(executable.isEmpty()
         ? QStringLiteral("请先选择 llama-server 路径。")
@@ -1247,12 +1246,11 @@ void TranslationSettingsPage::updateCommandPreview()
 
 void TranslationSettingsPage::setLlamaStatus(const QString &status)
 {
-    if (m_llamaStatus) m_llamaStatus->setText(QStringLiteral("状态：") + status);
+    m_llamaStatus->setText(QStringLiteral("状态：") + status);
 }
 
 void TranslationSettingsPage::appendLlamaLog(const QString &text)
 {
-    if (!m_llamaLog) return;
     QStringList lines = m_llamaLog->toPlainText().split(u'\n', Qt::SkipEmptyParts);
     for (const QString &line : text.split(u'\n', Qt::SkipEmptyParts)) {
         const QString trimmed = line.trimmed();
@@ -1267,7 +1265,6 @@ void TranslationSettingsPage::appendLlamaLog(const QString &text)
 
 void TranslationSettingsPage::applyLlamaPreset()
 {
-    if (!m_llamaPreset) return;
     const QString preset = m_llamaPreset->currentData().toString();
     if (preset == QStringLiteral("gpu_8g")) {
         m_mode->setCurrentIndex(m_mode->findData(QStringLiteral("gpu")));
@@ -1294,8 +1291,8 @@ void TranslationSettingsPage::applyLlamaPreset()
 void TranslationSettingsPage::updateLlamaRunButtons()
 {
     const bool running = get_llama_runtime().isRunning();
-    if (m_startLlamaButton) m_startLlamaButton->setEnabled(!running);
-    if (m_stopLlamaButton) m_stopLlamaButton->setEnabled(running);
+    m_startLlamaButton->setEnabled(!running);
+    m_stopLlamaButton->setEnabled(running);
 }
 
 void TranslationSettingsPage::startLlamaServer()

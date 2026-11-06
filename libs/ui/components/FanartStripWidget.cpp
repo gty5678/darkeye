@@ -144,6 +144,28 @@ protected:
     }
 };
 
+class FanartRemoveButton final : public QToolButton
+{
+public:
+    using QToolButton::QToolButton;
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QToolButton::paintEvent(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QColor ink(255, 255, 255, underMouse() || hasFocus() ? 255 : 225);
+        painter.setPen(QPen(ink, 1.25, Qt::SolidLine, Qt::RoundCap));
+        const QPointF center = QRectF(rect()).center();
+        const QPointF down(3.0, 3.0);
+        const QPointF up(3.0, -3.0);
+        painter.drawLine(center - down, center + down);
+        painter.drawLine(center - up, center + up);
+    }
+};
+
 class FanartThumbCell final : public QFrame
 {
 public:
@@ -165,15 +187,16 @@ public:
         m_label->setFixedSize(fanartThumbSide, fanartThumbSide);
         m_label->setAttribute(Qt::WA_TransparentForMouseEvents);
         layout->addWidget(m_label, 0, Qt::AlignCenter);
-        m_close = new QToolButton(this);
-        m_close->setText(QStringLiteral("×"));
+        m_close = new FanartRemoveButton(this);
         m_close->setFixedSize(20, 20);
         m_close->setAutoRaise(true);
         m_close->setToolTip(QStringLiteral("删除"));
+        m_close->setAccessibleName(QStringLiteral("删除剧照"));
         m_close->setStyleSheet(QStringLiteral(
-            "QToolButton { background: rgba(0,0,0,0.55); color: #fff; border: none;"
-            " border-radius: 10px; font-weight: bold; font-size: 14px; }"
-            "QToolButton:hover { background: rgba(200,60,60,0.9); }"));
+            "QToolButton { background: rgba(0,0,0,0.34); border: none;"
+            " border-radius: 10px; }"
+            "QToolButton:hover, QToolButton:focus { background: rgba(0,0,0,0.65); }"
+            "QToolButton:pressed { background: rgba(0,0,0,0.8); }"));
         connect(m_close, &QToolButton::clicked, this, [this] {
             if (m_removeRequested) m_removeRequested();
         });

@@ -219,11 +219,14 @@ struct DvdSceneWidget::Impl {
             cameraChanged=true;
         }
         const auto previousSelection=interaction.selectedId();
+        const bool wasAnimating=interaction.active();
         interaction.advance(camera,time);
         interaction.followCamera(camera);
         refreshVisible();
         if(cameraChanged) canvas->setCamera(camera);
-        if(cameraChanged || previousSelection!=interaction.selectedId()) refreshHover();
+        if(cameraChanged || previousSelection!=interaction.selectedId()
+            || (owner->isExpanded() ? wasAnimating : canvas->cursor().shape()==Qt::PointingHandCursor))
+            refreshHover();
         if(scene->revision()!=before) canvas->update();
         notify();
         updateTimer();
@@ -244,12 +247,21 @@ struct DvdSceneWidget::Impl {
         return result?primitiveIds.value(result->node):QString();
     }
 
+    bool isDiscHit(const std::optional<RayHit> &hit,const QString &id) const
+    {
+        if(!hit || !owner->isExpanded()) return false;
+        const auto instance=cases.find(id);
+        const auto *node=scene->node(hit->node);
+        return instance!=cases.end() && node && node->parent==instance->second.disc;
+    }
+
     void refreshHover()
     {
         if(!hoverPositionValid || dragButton!=Qt::NoButton) return;
-        const auto id=hit(hoverPosition);
+        const auto result=pick(hoverPosition);
+        const auto id=result?primitiveIds.value(result->node):QString();
         interaction.hover(id,now());
-        canvas->setCursor(id.isEmpty()?Qt::ArrowCursor:Qt::PointingHandCursor);
+        canvas->setCursor(isDiscHit(result,id)?Qt::PointingHandCursor:Qt::ArrowCursor);
     }
 
     void cameraChanged()
@@ -540,14 +552,10 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
             const auto id=hit?d->primitiveIds.value(hit->node):QString();
             if(id.isEmpty()) returnToShelf();
             else {
-                const auto instance=d->cases.find(id);
-                if(hit && instance!=d->cases.end() && isExpanded()) {
-                    const auto *node=d->scene->node(hit->node);
-                    if(node && node->parent==instance->second.disc) {
-                        emit discClicked(id);
-                        d->dragButton=Qt::NoButton;
-                        return true;
-                    }
+                if(d->isDiscHit(hit,id)) {
+                    emit discClicked(id);
+                    d->dragButton=Qt::NoButton;
+                    return true;
                 }
                 if(id==selectedId() && state()==DvdInteractionController::State::Focused) toggleOpen();
                 else focusItem(id);

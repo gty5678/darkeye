@@ -1,4 +1,5 @@
 #include "ui/pages/SettingsPage.h"
+#include "utils/Documentation.h"
 #include "ui/pages/NfoImport.h"
 
 #include "darkeye_ui/components/AnimatedIndicators.h"
@@ -350,9 +351,9 @@ void AboutSettingsPage::lazyLoad()
         versionRow->addWidget(button);
     };
     addExternalButton(QStringLiteral("意见反馈"),
-                      QStringLiteral("https://github.com/de4321/darkeye/issues"));
+                      QStringLiteral("https://github.com/gty5678/darkeye/issues"));
     addExternalButton(QStringLiteral("版本记录"),
-                      QStringLiteral("https://de4321.github.io/darkeye/CHANGELOG/"));
+                      utils::documentationUrl(QStringLiteral("CHANGELOG/")).toString());
     versionRow->addStretch();
     layout->addLayout(versionRow);
 
@@ -400,22 +401,6 @@ void AboutSettingsPage::lazyLoad()
     layout->addSpacing(12);
     layout->addLayout(runtimePaths);
 
-    auto *downloadRow = new QHBoxLayout;
-    downloadRow->addWidget(new DesignLabel(QStringLiteral("下载浏览器插件"), this));
-    const auto addDownloadButton = [this, downloadRow](const QString &text)
-    {
-        auto *button = new DesignButton(text, this);
-        connect(button, &QPushButton::clicked, this, [] {
-            QDesktopServices::openUrl(
-                QUrl(QStringLiteral("https://github.com/de4321/darkeye/releases")));
-        });
-        downloadRow->addWidget(button);
-    };
-    addDownloadButton(QStringLiteral("Firefox 插件"));
-    addDownloadButton(QStringLiteral("Chrome/Edge 插件"));
-    downloadRow->addStretch();
-    layout->addLayout(downloadRow);
-
     auto *links = new QHBoxLayout;
     links->setSpacing(16);
     const auto addLink = [this](QVBoxLayout *column, const QString &title,
@@ -433,13 +418,13 @@ void AboutSettingsPage::lazyLoad()
     projectLinks->addWidget(new DesignLabel(QStringLiteral("项目链接"), this));
     const QList<std::tuple<QString, QString, QString>> projects = {
         {QStringLiteral("GitHub"), QStringLiteral("源代码仓库与问题反馈"),
-         QStringLiteral("https://github.com/de4321/darkeye")},
+         QStringLiteral("https://github.com/gty5678/darkeye")},
         {QStringLiteral("Discord"), QStringLiteral("社区讨论与支持频道"),
          QStringLiteral("https://discord.gg/N7wJVNVA")},
         {QStringLiteral("官网"), QStringLiteral("产品介绍与主页"),
-         QStringLiteral("https://de4321.github.io/darkeye-webpage/")},
-        {QStringLiteral("文档"), QStringLiteral("使用说明与开发文档"),
-         QStringLiteral("https://de4321.github.io/darkeye/")},
+         QStringLiteral("https://gty5678.github.io/darkeye-webpage/")},
+        {QStringLiteral("Mosaic 桥接器"), QStringLiteral("信息获取服务与桥接器"),
+         QStringLiteral("https://github.com/gty5678/mosaic.git")},
     };
     for (const auto &[title, description, url] : projects)
     {
@@ -1048,7 +1033,7 @@ void TranslationSettingsPage::lazyLoad()
     addLlamaLink(QStringLiteral("打开 14B 模型页"),
                  QStringLiteral("https://huggingface.co/SakuraLLM/Sakura-14B-Qwen3-v1.5-GGUF/tree/main"));
     addLlamaLink(QStringLiteral("打开教程"),
-                 QStringLiteral("https://de4321.github.io/darkeye/usage/#llamacpp"));
+                 utils::documentationUrl(QStringLiteral("usage/#llamacpp")).toString());
     llamaLinksLayout->addStretch();
     llamaForm->addRow(new DesignLabel(QStringLiteral("快速下载"), this), llamaLinks);
     m_serverExecutable = new DesignLineEdit(this);

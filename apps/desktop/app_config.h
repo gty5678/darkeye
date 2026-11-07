@@ -7,6 +7,5 @@ namespace darkeye {
 
 	//下面是默认的更新的地址
 	inline constexpr char kDefaultLatestJsonUrl[] ="https://darkeye.win/latest.json";
-	inline constexpr char kDefaultAvwikiLatestJsonUrl[] ="https://darkeye.win/avwiki/avwiki_latest.json";
 
 }

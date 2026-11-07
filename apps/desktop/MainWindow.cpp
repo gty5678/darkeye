@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "settings/SettingsStore.h"
+#include "utils/Documentation.h"
 
 #include "ui/pages/DashboardPage.h"
 #include "ui/pages/ActorDetailPage.h"
@@ -419,6 +420,11 @@ void MainWindow::buildUi()
     connect(m_sidebar, &Sidebar::itemClicked, this,
             [this, menuRoutes](const QString &menuId)
             {
+                if (menuId == QStringLiteral("help"))
+                {
+                    QDesktopServices::openUrl(utils::documentationUrl());
+                    return;
+                }
                 const QString route = menuRoutes.value(menuId);
                 if (m_routeIndexes.contains(route))
                     navigateTo(route);
@@ -494,7 +500,7 @@ void MainWindow::registerApplicationActions()
                   dialog.exec();
               });
     addAction(QStringLiteral("open_help"), QStringLiteral("打开文档"), QStringLiteral("H"),
-              [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://de4321.github.io/darkeye/"))); });
+              [] { QDesktopServices::openUrl(utils::documentationUrl()); });
     addAction(QStringLiteral("search"), QStringLiteral("搜索"), QStringLiteral("Ctrl+F"), [this] {
         focusWorkSearch();
     });

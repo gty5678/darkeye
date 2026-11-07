@@ -14,7 +14,7 @@ class QTimer;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QUrl;
-namespace darkeye { class AvwikiUpdateService; class DesignButton; }
+namespace darkeye { class DesignButton; }
 
 namespace darkeye
 {
@@ -42,7 +42,6 @@ private:
     void switchToPreview();
     void switchToEdit();
     void watchDirectory();
-    [[nodiscard]] QUrl updateManifestUrl() const;
     void handleLink(const QUrl &url);
 
     QString m_requestedWikiDirectory;
@@ -54,10 +53,8 @@ private:
     QStackedWidget *m_contentStack = nullptr;
     DesignButton *m_previewButton = nullptr;
     DesignButton *m_editButton = nullptr;
-    DesignButton *m_updateButton = nullptr;
     QFileSystemWatcher *m_watcher = nullptr;
     QTimer *m_saveTimer = nullptr;
-    AvwikiUpdateService *m_updateService = nullptr;
     QHash<QString, QString> m_stemToPath;
     QHash<QString, QTreeWidgetItem *> m_pathToItem;
     bool m_editDirty = false;

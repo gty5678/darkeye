@@ -3,7 +3,6 @@ file(GLOB_RECURSE DARKEYE_SERVICE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 set(DARKEYE_SERVICE_QOBJECT_HEADERS
     include/services/ActressSyncService.h
-    include/services/AvwikiUpdateService.h
     include/services/BatchTranslationService.h
     include/services/LlamaRuntime.h
     include/services/UpdateService.h

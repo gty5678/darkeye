@@ -70,24 +70,13 @@
 - **Windows x64**：运行 `.exe` 安装包，或完整解压 `.7z` 便携包后运行 `app-<版本>/Darkeye.exe`。
 - **macOS ARM64（Apple Silicon）**：运行 `.pkg` 安装包，安装后打开 `/Applications/Darkeye.app`；或完整解压 `.zip` 便携包，将整个 `DarkEye` 文件夹放在可写位置，再打开其中的 `Darkeye.app`。
 
-安装与数据迁移详情见 [Windows 发布说明](docs/windows-packaging.md) 和 [macOS 使用与打包说明](docs/macos-packaging.md)。
+安装与数据迁移详情见 [Windows 打包说明](docs/windows-packaging.md) 和 [macOS 打包说明](docs/macos-packaging.md)。
 
-浏览器扩展请按下方文档安装**对应浏览器的一种**；若发布包中附带 `extensions` 目录，可直接使用其中的扩展，否则从下方入口单独下载。
-
-### 浏览器扩展安装
+### 桥接器与浏览器扩展安装
 
 👉 [在线文档：浏览器扩展安装](https://gty5678.github.io/darkeye/usage/#_2)
 
-若发布包已附带浏览器扩展，且扩展没有单独更新，一般**不需要**重复下载。
-<div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/chrome_capture.zip">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Chrome%2FEdge%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下载 Chrome/Edge 扩展" />
-  </a>
-  　　
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/firefox_capture.zip">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Firefox%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下载 Firefox 扩展" />
-  </a>
-</div>
+项目采用分离设计，信息获取服务完全拆分到[mosaic](https://github.com/gty5678/mosaic.git)项目中
 
 ### 使用说明
 

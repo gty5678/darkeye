@@ -3,7 +3,6 @@
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "settings/Paths.h"
-#include "services/AvwikiUpdateService.h"
 
 #include <QDesktopServices>
 #include <QDir>
@@ -15,7 +14,6 @@
 #include <QHBoxLayout>
 #include <QRegularExpression>
 #include <QPlainTextEdit>
-#include <QSettings>
 #include <QShowEvent>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -84,11 +82,8 @@ void AvPage::lazyLoad()
     m_editButton = new Button(QStringLiteral("编辑"), content);
     m_editButton->setObjectName(QStringLiteral("AvWikiEditButton"));
     m_editButton->setCheckable(true);
-    m_updateButton = new Button(QStringLiteral("更新知识库"), content);
-    m_updateButton->setObjectName(QStringLiteral("AvWikiUpdateButton"));
     toolbar->addWidget(m_previewButton);
     toolbar->addWidget(m_editButton);
-    toolbar->addWidget(m_updateButton);
     toolbar->addStretch();
     contentLayout->addLayout(toolbar);
 
@@ -128,27 +123,6 @@ void AvPage::lazyLoad()
     m_saveTimer = new QTimer(this);
     m_saveTimer->setSingleShot(true);
     connect(m_saveTimer, &QTimer::timeout, this, &AvPage::autoSave);
-
-    m_updateService = new AvwikiUpdateService(this);
-    connect(m_updateButton, &Button::clicked, this, [this] {
-        autoSave();
-        m_updateButton->setEnabled(false);
-        m_updateButton->setText(QStringLiteral("更新中..."));
-        m_updateService->update(updateManifestUrl(), m_wikiDirectory);
-    });
-    connect(m_updateService, &AvwikiUpdateService::finished, this,
-            [this](const AvwikiUpdateResult &result) {
-                m_updateButton->setEnabled(true);
-                m_updateButton->setText(QStringLiteral("更新知识库"));
-                if (result.success) {
-                    rebuildTree();
-                    restoreSelection();
-                    watchDirectory();
-                    Toast::showSuccess(window(), result.message);
-                } else {
-                    Toast::showError(window(), result.message);
-                }
-            });
 
     m_wikiDirectory = resolveWikiDirectory();
     m_watcher = new QFileSystemWatcher(this);
@@ -342,15 +316,6 @@ void AvPage::watchDirectory()
 {
     if (m_watcher == nullptr || !QFileInfo(m_wikiDirectory).isDir()) return;
     if (!m_watcher->directories().contains(m_wikiDirectory)) m_watcher->addPath(m_wikiDirectory);
-}
-
-QUrl AvPage::updateManifestUrl() const
-{
-    const QString configPath = QDir(settings::Paths().configDirectory())
-                                   .filePath(QStringLiteral("update.ini"));
-    QSettings config(configPath, QSettings::IniFormat);
-    const QString configured = config.value(QStringLiteral("Update/AvwikiLatestJsonUrl")).toString().trimmed();
-    return QUrl(configured.isEmpty() ? QStringLiteral("https://darkeye.win/avwiki/avwiki_latest.json") : configured);
 }
 
 void AvPage::handleLink(const QUrl &url)

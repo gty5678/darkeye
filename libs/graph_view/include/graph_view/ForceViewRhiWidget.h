@@ -11,6 +11,7 @@
 #include <QVariant>
 #include <QVector>
 #include <QWidget>
+#include "GpuSimulationSchedule.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -289,8 +290,8 @@ private:
         int buildId = 0;
     };
 
-    static constexpr int kSimTickIntervalMs = 16;
-    static constexpr int kGpuQueueStepLimit = 8;
+    static constexpr int kSimTickIntervalMs = GpuSimulationSchedule::normalIntervalMs;
+    static constexpr int kGpuQueueStepLimit = GpuSimulationSchedule::maxBatchSteps;
     static constexpr float kGpuMaxStepDisplacement = 15.0f;
     static constexpr int kFitViewDelayMs = 100;
     static constexpr int kCircleSegments = 24;
@@ -421,6 +422,7 @@ private:
     std::condition_variable m_simCv;
     std::atomic<bool> m_simActive{false};
     std::atomic<bool> m_allowWarmup{false};
+    bool m_initialGpuLayout = false;
     std::unique_ptr<GpuSimulation> m_gpuSimulation;
     std::unique_ptr<GpuGraphGeometry> m_gpuGeometry;
     std::vector<GpuGraphGeometry::Instance> m_gpuDescriptions;
@@ -430,7 +432,10 @@ private:
     quint64 m_gpuDescriptionRevision = 0;
     bool m_gpuDescriptionHoverActive = false;
     bool m_gpuProfiling = false;
-    double m_lastGpuSnapshot = 0, m_lastPerformanceReport = 0;
+    GpuSimulationSchedule m_gpuSchedule;
+    int m_lastGpuMotionStep = 0;
+    double m_lastGpuDraw = 0, m_lastGpuSubmit = 0;
+    double m_lastPerformanceReport = 0;
     QTimer m_gpuTimer;
     QString m_simulationBackendMode = QStringLiteral("auto");
     QString m_activeSimulationBackend = QStringLiteral("cpu");

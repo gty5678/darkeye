@@ -181,7 +181,7 @@ bool GpuSimulation::initialize(QRhi* rhi, const PhysicsState& state, QString* er
     d->tree = d->buffer(QRhiBuffer::Static, QRhiBuffer::StorageBuffer, (2 * d->padded - 1) * 32);
     d->neighbors = d->buffer(QRhiBuffer::Static, QRhiBuffer::StorageBuffer, static_cast<quint32>(d->adjacency.size()));
     // <= 2*20 reductions + 210 bitonic stages + four other stages.
-    d->uniforms = d->buffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, d->stride * 256 * 4);
+    d->uniforms = d->buffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, d->stride * 256 * maxBatchSteps);
     if (!d->states[0] || !d->states[1] || !d->controls || !d->keys[0] || !d->keys[1] || !d->histogram || !d->tree || !d->neighbors || !d->uniforms)
         return d->fail(QStringLiteral("Could not allocate GPU layout buffers"), error);
     for (int i = 0; i < 2; ++i) for (int k = 0; k < 2; ++k) {
@@ -220,7 +220,7 @@ bool GpuSimulation::recordStep(QRhiCommandBuffer* cb, const PhysicsState& state,
 bool GpuSimulation::recordSteps(QRhiCommandBuffer* cb, const PhysicsState& state,
                                 const std::vector<Parameters>& steps, bool readback)
 {
-    if (d->failed || !d->pipeline || (readback && d->readback) || steps.empty() || steps.size() > 4
+    if (d->failed || !d->pipeline || (readback && d->readback) || steps.empty() || steps.size() > maxBatchSteps
         || state.nNodes != static_cast<int>(d->count)) return false;
     d->pollQueries();
     QElapsedTimer recordTimer;
@@ -387,7 +387,7 @@ GpuSimulation::Timings GpuSimulation::timings() const {
     return result;
 }
 
-bool GpuSimulation::takeResult(std::vector<float>& state, double* latencyMs, float* totalSpeed)
+bool GpuSimulation::takeResult(std::vector<float>& state, double* latencyMs, float* totalSpeed, float* peakSpeed)
 {
     d->pollQueries();
     if (!d->readback || !d->readback->ready) return false;
@@ -398,15 +398,17 @@ bool GpuSimulation::takeResult(std::vector<float>& state, double* latencyMs, flo
         return false;
     }
     state.resize(4 * d->count);
-    float speed = 0.0f;
+    float speed = 0.0f, peak = 0.0f;
     for (quint32 i = 0; i < d->count; ++i) {
         const char* source = result->result.data.constData() + i * 20;
         std::memcpy(state.data() + 4 * i, source, 16);
         float nodeSpeed;
         std::memcpy(&nodeSpeed, source + 16, sizeof(float));
         speed += nodeSpeed;
+        peak = std::max(peak, nodeSpeed);
     }
     if (totalSpeed) *totalSpeed = speed;
+    if (peakSpeed) *peakSpeed = peak;
     if (latencyMs) *latencyMs = result->latencyMs;
     d->timings.readbackLatencyMs = result->latencyMs;
     if (!std::isfinite(speed) || !std::all_of(state.begin(), state.end(), [](float v) { return std::isfinite(v); })) {

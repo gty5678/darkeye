@@ -30,8 +30,8 @@ public:
     // GPU execution shares the same cooling/lifecycle without running CPU forces.
     bool prepareGpuTick();
     std::vector<float> gpuTickAlphas(int maximumTicks) const;
-    void completeGpuTick(float totalSpeed);
-    void considerGpuConvergence(float totalSpeed);
+    void completeGpuTick(float totalSpeed, float peakSpeed = -1.0f);
+    void considerGpuConvergence(float totalSpeed, int elapsedSteps = 1, float peakSpeed = -1.0f);
 
     // Lifecycle
     void start();
@@ -55,7 +55,11 @@ private:
 
     // Alpha (cooling)
     float m_alpha        = 1.0f;
-    float m_alphaDecay   = 0.01f;
+    float m_alphaDecay   = 0.02f;
+    float m_motionSpeed = -1.0f;
+    float m_peakSpeed = 0.0f;
+    int m_settledSteps = 0;
+    int m_settledSamples = 0;
     float m_alphaMin     = 0.001f;
 
     // Exact exponential damping with smooth displacement saturation.
@@ -70,7 +74,7 @@ private:
     bool  m_active         = false;
     bool  m_firstStarted   = false;
     int   m_tickCount      = 0;
-    int   m_cooldownDelay  = 150;
+    int   m_cooldownDelay  = 32;
 };
 
 #endif // SIMULATION_H

@@ -45,10 +45,7 @@ void Simulation::tick()
         m_alpha = 1.0f;
         m_active = true;
     }
-    if (m_alpha <= m_alphaMin) {
-        m_active = false;
-        return;
-    }
+    if (!m_active) return;
 
     if (!m_state->dragPos.empty()) {
         const int N = m_state->nNodes;
@@ -78,7 +75,7 @@ void Simulation::tick()
     // Integrate velocities -> positions
     float totalSpeed = integrate();
 
-    completeGpuTick(totalSpeed);
+    completeGpuTick(totalSpeed, m_peakSpeed);
 }
 
 bool Simulation::prepareGpuTick()
@@ -89,7 +86,6 @@ bool Simulation::prepareGpuTick()
         m_alpha = 1.0f;
         m_active = true;
     }
-    if (m_alpha <= m_alphaMin) m_active = false;
     return m_active;
 }
 
@@ -99,35 +95,60 @@ std::vector<float> Simulation::gpuTickAlphas(int maximumTicks) const
     const bool dragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
                                       [](uint8_t d) { return d != 0; });
     float alpha = dragging ? 1.0f : m_alpha;
-    for (int step = 0; step < maximumTicks && alpha > m_alphaMin; ++step) {
+    for (int step = 0; step < maximumTicks && (m_active || dragging); ++step) {
         alphas.push_back(alpha);
         if (!dragging && m_firstStarted && m_tickCount + step + 1 >= m_cooldownDelay)
-            alpha *= 1.0f - m_alphaDecay;
+            alpha = std::max(m_alphaMin, alpha * (1.0f - m_alphaDecay));
     }
     return alphas;
 }
 
-void Simulation::completeGpuTick(float totalSpeed)
+void Simulation::completeGpuTick(float totalSpeed, float peakSpeed)
 {
-    const bool anyDragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
-                                         [](uint8_t d) { return d != 0; });
-    // Cooling
+    const bool dragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
+                                     [](uint8_t d) { return d != 0; });
     ++m_tickCount;
-    if (!anyDragging && m_firstStarted && m_tickCount >= m_cooldownDelay) {
-        m_alpha *= (1.0f - m_alphaDecay);
-    }
-
-    considerGpuConvergence(totalSpeed);
+    if (!dragging && m_firstStarted && m_tickCount >= m_cooldownDelay)
+        m_alpha = std::max(m_alphaMin, m_alpha * (1.0f - m_alphaDecay));
+    // GPU batches advance the clock without inventing a motion observation.
+    if (std::isfinite(totalSpeed)) considerGpuConvergence(totalSpeed, 1, peakSpeed);
 }
 
-void Simulation::considerGpuConvergence(float totalSpeed)
+void Simulation::considerGpuConvergence(float totalSpeed, int elapsedSteps, float peakSpeed)
 {
-    const bool anyDragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
-                                         [](uint8_t d) { return d != 0; });
-    // Early stop when almost settled
-    float avgSpeed = totalSpeed / std::max(1, m_state->nNodes);
-    if (!anyDragging && avgSpeed < 0.01f && m_alpha < 0.01f) {
-        m_active = false;
+    if (!std::isfinite(totalSpeed) || totalSpeed < 0.0f || elapsedSteps <= 0) return;
+    const bool dragging = std::any_of(m_state->dragging.begin(), m_state->dragging.end(),
+                                     [](uint8_t d) { return d != 0; });
+    if (dragging) {
+        m_motionSpeed = -1.0f;
+        m_settledSteps = m_settledSamples = 0;
+        m_alphaDecay = 0.005f;
+        return;
+    }
+    const float average = totalSpeed / std::max(1, m_state->nNodes);
+    // Observations can span batches. Bound the filter update to avoid treating
+    // one quiet final sample as proof that every preceding step was quiet.
+    const float previous = m_motionSpeed;
+    const float retention = std::pow(0.75f, float(std::min(elapsedSteps, 8)));
+    m_motionSpeed = m_motionSpeed < 0.0f ? average
+        : retention * m_motionSpeed + (1.0f - retention) * average;
+    const float movement = m_motionSpeed * m_dt;
+    // While motion is already decaying, let the forces finish the relaxation.
+    // Cooling during that phase would make a distant node creep toward its
+    // equilibrium at minimum heat. Cool on plateaus/oscillation and when quiet.
+    const bool relaxing = previous > 0.01f && average > 0.01f
+        && average < previous * std::pow(0.998f, float(elapsedSteps));
+    m_alphaDecay = relaxing ? 0.0f : 0.005f + 0.015f / (1.0f + movement / 0.1f);
+    const float peak = peakSpeed >= 0.0f ? peakSpeed : average;
+    // Reaching the alpha floor never freezes a moving graph. Check the peak
+    // too, so a few moving nodes cannot disappear into a large graph's mean.
+    if (m_tickCount >= m_cooldownDelay && m_alpha < 0.01f
+        && m_motionSpeed < 0.01f && peak < 0.1f) {
+        m_settledSteps += elapsedSteps;
+        ++m_settledSamples;
+        if (m_settledSteps >= 32 && m_settledSamples >= 3) m_active = false;
+    } else {
+        m_settledSteps = m_settledSamples = 0;
     }
 }
 
@@ -146,6 +167,7 @@ float Simulation::integrate()
 
     const auto weights = DampedIntegration::coefficients(dt, decay);
     float totalSpeed = 0.0f;
+    m_peakSpeed = 0.0f;
     for (int i = 0; i < N; ++i) {
         if (drag[i]) {
             vel[2 * i] = vel[2 * i + 1] = 0.0f;
@@ -158,7 +180,9 @@ float Simulation::integrate()
         const float vy = (oldY + fy) * decay;
         const float dx = oldX * weights.velocityWeight + fx * weights.forceWeight;
         const float dy = oldY * weights.velocityWeight + fy * weights.forceWeight;
-        totalSpeed += std::fabs(vx) + std::fabs(vy);
+        const float speed = std::fabs(vx) + std::fabs(vy);
+        totalSpeed += speed;
+        m_peakSpeed = std::max(m_peakSpeed, speed);
 
         // Smooth saturation has no abrupt transition at the displacement cap.
         const float travel2 = std::max(dx * dx + dy * dy, (vx * vx + vy * vy) * dt * dt);
@@ -196,8 +220,9 @@ void Simulation::pause()
 
 void Simulation::resume()
 {
-    if (m_alpha > m_alphaMin) {
+    if (m_firstStarted) {
         m_active = true;
+        m_settledSteps = m_settledSamples = 0;
     }
 }
 
@@ -206,6 +231,9 @@ void Simulation::restart()
     m_firstStarted = true;
     m_alpha     = 1.0f;
     m_tickCount = 0;
+    m_motionSpeed = -1.0f;
+    m_alphaDecay = 0.02f;
+    m_settledSteps = m_settledSamples = 0;
     m_active    = true;
 }
 

@@ -169,6 +169,7 @@ ForceViewRhiWidget::ForceViewRhiWidget(QWidget* parent)
     updateFactor();
     connect(m_canvas, &QRhiWidget::frameSubmitted,
             this, &ForceViewRhiWidget::onFrameSubmitted);
+    m_gpuTimer.setTimerType(Qt::PreciseTimer);
     m_gpuTimer.setInterval(kSimTickIntervalMs);
     connect(&m_gpuTimer, &QTimer::timeout, this, &ForceViewRhiWidget::tickGpuSimulation);
     m_gpuTimer.start();
@@ -815,12 +816,17 @@ void ForceViewRhiWidget::renderRhi(QRhiCommandBuffer* cb)
     }
     cb->endPass();
 
-    if (nowSec() - m_lastPerformanceReport >= 0.25) {
+    if (nowSec() - m_lastPerformanceReport >= 0.25
+        || wasGpuGeometry != m_usingGpuGeometry || (m_simulation && !m_simulation->isActive())) {
         QVariantMap details{{"geometryCpuMs", geometryMs}, {"textCpuMs", textMs}, {"gpuInstances", m_usingGpuGeometry}, {"gpuText", m_usingGpuText},
                             {"textVertices", int(m_textVertices.size())}, {"instances", int(m_gpuDescriptions.size())}};
         if (m_gpuSimulation) {
             const auto t = m_gpuSimulation->timings();
             details.insert("recordCpuMs", t.cpuRecordMs);
+            details.insert("batchSteps", t.steps);
+            details.insert("simulationSteps", m_gpuSimulation->submittedSteps());
+            details.insert("initialLayout", m_initialGpuLayout);
+            details.insert("estimatedStepMs", m_gpuSchedule.stepMs());
             details.insert("gpuBoundsMs", t.gpuBoundsMs); details.insert("gpuSortMs", t.gpuSortMs);
             details.insert("gpuTreeMs", t.gpuTreeMs); details.insert("gpuForceMs", t.gpuForceMs);
             details.insert("readbackMs", t.readbackLatencyMs); details.insert("dispatches", t.dispatches);
@@ -887,6 +893,7 @@ void ForceViewRhiWidget::setGraph(int nNodes,
         m_lastHoverIndex = -1;
         m_hoverGlobal = 0.0f;
         m_allowWarmup.store(false, std::memory_order_release);
+        m_initialGpuLayout = false;
         m_neighborMask.clear();
         m_lastNeighborMask.clear();
         m_lastDimEdges.clear();
@@ -983,6 +990,7 @@ void ForceViewRhiWidget::setGraph(int nNodes,
     m_lastDimEdges.clear();
     m_lastHighlightEdges.clear();
     m_allowWarmup.store(true, std::memory_order_release);
+    m_initialGpuLayout = true;
     rebuildSimulation();
     m_simulation->start();
     applySimulationBackendPreference();
@@ -1136,6 +1144,7 @@ void ForceViewRhiWidget::simLoop()
 void ForceViewRhiWidget::applySimulationBackendPreference()
 {
     stopSimThread();
+    m_gpuTimer.setInterval(kSimTickIntervalMs);
     m_gpuSimulation.reset();
     const bool gpu = m_simulationBackendMode != QStringLiteral("cpu") && m_rhi
         && m_rhi->isFeatureSupported(QRhi::Compute)
@@ -1157,12 +1166,17 @@ void ForceViewRhiWidget::tickGpuSimulation()
     if (m_activeSimulationBackend != QStringLiteral("gpu") || !m_rhi
         || !m_physicsState || !m_simulation || m_rhi->isRecordingFrame())
         return;
-    // Initialize resident state even when paused so GPU rendering can use it.
-    // Once settled, only drain outstanding steps/readbacks; do no further work.
+    const bool dragging = std::any_of(m_physicsState->dragging.begin(), m_physicsState->dragging.end(),
+                                      [](uint8_t d) { return d != 0; });
+    if (!m_simulation->isActive()) m_initialGpuLayout = false;
+    const bool initialLayout = m_initialGpuLayout;
+    const int interval = GpuSimulationSchedule::timerInterval(dragging, initialLayout);
+    if (m_gpuTimer.interval() != interval) m_gpuTimer.setInterval(interval);
     if (m_gpuSimulation && !m_simulation->isActive()
         && !m_gpuSimulation->hasPendingStep()
         && m_gpuSimulation->submittedSteps() == m_gpuSimulation->snapshotSteps())
         return;
+    if (!initialLayout && nowSec() - m_lastGpuSubmit < kSimTickIntervalMs / 1000.0) return;
 
     // All QRhi access remains on the GUI thread. Offscreen submission does not
     // depend on QRhiWidget receiving paint events (hidden/minimized windows).
@@ -1173,8 +1187,12 @@ void ForceViewRhiWidget::tickGpuSimulation()
     const auto result = m_rhi->endOffscreenFrame();
     if (result != QRhi::FrameOpSuccess)
         qWarning("GPU layout: offscreen frame submission failed");
-    if (isVisible() && !window()->isMinimized())
+    const double now = nowSec();
+    if (isVisible() && !window()->isMinimized()
+        && (!m_simulation->isActive() || now - m_lastGpuDraw >= kSimTickIntervalMs / 1000.0)) {
         m_canvas->update();
+        m_lastGpuDraw = now;
+    }
 }
 
 void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)
@@ -1196,6 +1214,8 @@ void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)
             return;
         }
         m_gpuSimulation = std::move(engine);
+        m_gpuSchedule.reset();
+        m_lastGpuMotionStep = 0;
         if (!m_simulation->isActive()) {
             m_gpuSimulation->recordInitialState(cb);
             return;
@@ -1203,8 +1223,12 @@ void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)
     }
     std::vector<float> result;
     double latency = 0.0;
-    float speed = 0.0f;
-    if (m_gpuSimulation->takeResult(result, &latency, &speed)) {
+    const double consumeStart = nowSec();
+    float speed = 0.0f, peakSpeed = 0.0f;
+    if (m_gpuSimulation->takeResult(result, &latency, &speed, &peakSpeed)) {
+        const int steps = m_gpuSimulation->snapshotSteps() - m_lastGpuMotionStep;
+        const auto timings = m_gpuSimulation->timings();
+        m_lastGpuMotionStep = m_gpuSimulation->snapshotSteps();
         for (int i = 0; i < m_physicsState->nNodes; ++i) {
             // A newer pointer target takes precedence over an in-flight result.
             const bool dragging = m_physicsState->dragging[i] != 0;
@@ -1214,10 +1238,13 @@ void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)
             m_physicsState->vel[2 * i + 1] = result[4 * i + 3];
         }
         m_physicsState->publishRenderPos();
-        m_simulation->considerGpuConvergence(speed);
+        m_gpuSchedule.observe(latency + timings.cpuRecordMs * steps + (nowSec() - consumeStart) * 1000.0, steps);
+        m_simulation->considerGpuConvergence(speed, steps, peakSpeed);
         emit tickTimeUpdated(static_cast<float>(latency));
         emit alphaUpdated(m_simulation->alpha());
         if (!m_simulation->isActive()) {
+            m_initialGpuLayout = false;
+            m_gpuTimer.setInterval(kSimTickIntervalMs);
             m_simActive.store(false, std::memory_order_release);
             emit simulationStopped();
         }
@@ -1232,50 +1259,34 @@ void ForceViewRhiWidget::advanceGpuSimulation(QRhiCommandBuffer* cb)
         }
         return;
     }
-    const int outstanding = m_gpuSimulation->submittedSteps() - m_gpuSimulation->snapshotSteps();
-    const bool dragging = std::any_of(m_physicsState->dragging.begin(), m_physicsState->dragging.end(), [](uint8_t v) { return v != 0; });
-    const int queueLimit = dragging ? 2 : kGpuQueueStepLimit;
-    if (outstanding < queueLimit && m_simulation->prepareGpuTick()) {
+    // Exactly one bounded batch can be in flight. A completed readback provides
+    // motion feedback and a submit-to-completion sample on every backend,
+    // including Metal where native stage timestamps are not available.
+    if (m_gpuSimulation->hasPendingStep() || !m_simulation->prepareGpuTick()) return;
+    const bool dragging = std::any_of(m_physicsState->dragging.begin(), m_physicsState->dragging.end(),
+                                      [](uint8_t d) { return d != 0; });
+    GpuSimulation::Parameters parameters;
+    parameters.manyBody = m_manyBodyStrength;
+    parameters.center = m_centerStrength;
+    parameters.link = m_linkStrength;
+    parameters.linkDistance = m_linkDistance;
+    parameters.collisionRadius = m_collisionRadius;
+    parameters.collisionStrength = m_collisionStrength;
+    parameters.maxDisplacement = kGpuMaxStepDisplacement;
+    std::vector<GpuSimulation::Parameters> batch;
+    const bool initialLayout = m_initialGpuLayout;
+    for (float alpha : m_simulation->gpuTickAlphas(m_gpuSchedule.batchSize(dragging, initialLayout))) {
+        parameters.alpha = alpha;
+        batch.push_back(parameters);
+    }
+    m_gpuSimulation->setProfilingEnabled(m_gpuProfiling);
+    if (m_gpuSimulation->recordSteps(cb, *m_physicsState, batch, true)) {
         m_simActive.store(true, std::memory_order_release);
-        GpuSimulation::Parameters parameters;
-        parameters.alpha = m_simulation->alpha();
-        parameters.manyBody = m_manyBodyStrength;
-        parameters.center = m_centerStrength;
-        parameters.link = m_linkStrength;
-        parameters.linkDistance = m_linkDistance;
-        parameters.collisionRadius = m_collisionRadius;
-        parameters.collisionStrength = m_collisionStrength;
-        parameters.maxDisplacement = kGpuMaxStepDisplacement;
-        const int n = m_physicsState->nNodes;
-        const int warmupTicks = static_cast<int>(n * std::log(float(std::max(2, n))) * 0.2f + 10.0f);
-        const bool warmup = m_allowWarmup.load(std::memory_order_acquire)
-            && m_simulation->tickCount() < warmupTicks;
-        if (!warmup) m_allowWarmup.store(false, std::memory_order_release);
-        const auto alphas = m_simulation->gpuTickAlphas(std::min(warmup && !dragging ? 4 : 1, queueLimit - outstanding));
-        std::vector<GpuSimulation::Parameters> steps;
-        for (float alpha : alphas) {
-            parameters.alpha = alpha;
-            steps.push_back(parameters);
-        }
-        const bool snapshot = !m_gpuSimulation->hasPendingStep()
-            && (dragging || nowSec() - m_lastGpuSnapshot >= 0.033);
-        m_gpuSimulation->setProfilingEnabled(m_gpuProfiling);
-        if (m_gpuSimulation->recordSteps(cb, *m_physicsState, steps, snapshot)) {
-            for (size_t i = 0; i < steps.size(); ++i) m_simulation->completeGpuTick(std::numeric_limits<float>::max());
-            if (snapshot) {
-                m_lastGpuSnapshot = nowSec();
-            }
-        }
-    } else if (!m_simulation->isActive() && m_simActive.exchange(false, std::memory_order_acq_rel)) {
-        emit simulationStopped();
+        m_lastGpuSubmit = nowSec();
+        for (size_t i = 0; i < batch.size(); ++i)
+            m_simulation->completeGpuTick(std::numeric_limits<float>::infinity());
     }
-    // Drain the final resident state, or unblock the bounded queue when the
-    // preceding frame intentionally skipped a snapshot.
-    if (!m_gpuSimulation->hasPendingStep() && m_gpuSimulation->submittedSteps() > m_gpuSimulation->snapshotSteps()
-        && (!m_simulation->isActive() || outstanding >= queueLimit)) {
-        m_gpuSimulation->recordSnapshot(cb);
-        m_lastGpuSnapshot = nowSec();
-    }
+
 }
 
 void ForceViewRhiWidget::setGpuProfilingEnabled(bool enabled)
@@ -1296,6 +1307,9 @@ void ForceViewRhiWidget::requestCanvasUpdate()
 
 void ForceViewRhiWidget::pauseSimulation()
 {
+    m_initialGpuLayout = false;
+    m_allowWarmup.store(false, std::memory_order_release);
+    m_gpuTimer.setInterval(kSimTickIntervalMs);
     m_gpuSimulation.reset(); // discard the in-flight generation
     {
         std::lock_guard<std::mutex> lock(m_simMutex);
@@ -1310,6 +1324,7 @@ void ForceViewRhiWidget::pauseSimulation()
 
 void ForceViewRhiWidget::resumeSimulation()
 {
+    m_initialGpuLayout = false;
     bool active = false;
     {
         std::lock_guard<std::mutex> lock(m_simMutex);
@@ -1328,8 +1343,10 @@ void ForceViewRhiWidget::resumeSimulation()
 
 void ForceViewRhiWidget::restartSimulation()
 {
+    m_initialGpuLayout = false;
     m_gpuSimulation.reset();
     m_allowWarmup.store(false, std::memory_order_release);
+    m_gpuTimer.setInterval(kSimTickIntervalMs);
     {
         std::lock_guard<std::mutex> lock(m_simMutex);
         if (m_simulation) {

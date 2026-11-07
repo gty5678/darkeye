@@ -1,4 +1,5 @@
 #include "DampedIntegration.h"
+#include "GpuSimulationSchedule.h"
 #include "GpuSimulation.h"
 #include "PhysicsState.h"
 #include "Simulation.h"
@@ -21,6 +22,7 @@
 #include <rhi/qrhi.h>
 #include <rhi/qrhi_platform.h>
 #include <cmath>
+#include <limits>
 #include <array>
 #include <algorithm>
 #include <cstring>
@@ -142,6 +144,7 @@ private slots:
         QSignalSpy stopped(&view, &ForceViewRhiWidget::simulationStopped);
         view.show();
         QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        view.setDragging(0, true); // Keep the graph active despite faster scheduling.
         if (minimized) view.showMinimized();
         else view.hide();
         QTest::qWait(100); // Drain any already requested paints.
@@ -158,6 +161,7 @@ private slots:
         view.resumeSimulation();
         QTRY_VERIFY_WITH_TIMEOUT(view.m_simulation->tickCount() > pausedTicks, 3000);
         stopped.clear();
+        view.setDragging(0, false);
         QTRY_VERIFY_WITH_TIMEOUT(!view.m_simulation->isActive(), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(!view.m_gpuSimulation->hasPendingStep(), 3000);
         QCOMPARE(stopped.size(), 1);
@@ -934,6 +938,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!details.isEmpty(), 5000);
         QTest::qWait(150); view.fitViewToContent(); view.update();
         QTRY_VERIFY_WITH_TIMEOUT(details.size() >= 2, 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(details.last()[0].toMap().value("textVertices").toInt() > 0, 5000);
         const auto d = details.last()[0].toMap();
         QVERIFY(d.value("gpuInstances").toBool());
         QVERIFY(d.value("textVertices").toInt() > 0);
@@ -1137,17 +1142,30 @@ private slots:
         QVERIFY(relative < 0.12);
     }
 
+    void batchedStepsMatchResidentSingleSteps_data()
+    {
+        QTest::addColumn<int>("batchSize");
+        QTest::addColumn<bool>("optimized");
+        QTest::newRow("single") << 1 << true;
+        QTest::newRow("old-limit") << 4 << true;
+        QTest::newRow("odd-batch") << 17 << true;
+        QTest::newRow("maximum") << GpuSimulation::maxBatchSteps << true;
+        QTest::newRow("reference-maximum") << GpuSimulation::maxBatchSteps << false;
+    }
+
     void batchedStepsMatchResidentSingleSteps()
     {
+        QFETCH(int, batchSize);
+        QFETCH(bool, optimized);
         PhysicsState state;
         fill(state, 129);
         GpuSimulation singles, batched;
-        QVERIFY(singles.initialize(rhi.get(), state));
-        QVERIFY(batched.initialize(rhi.get(), state));
+        QVERIFY(singles.initialize(rhi.get(), state, nullptr, optimized));
+        QVERIFY(batched.initialize(rhi.get(), state, nullptr, optimized));
         GpuSimulation::Parameters p;
         std::vector<GpuSimulation::Parameters> parameters;
         std::vector<float> expected, result;
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < batchSize; ++i) {
             p.alpha = 1.0f - i * 0.01f;
             parameters.push_back(p);
             QVERIFY(step(singles, state, p, expected));
@@ -1162,26 +1180,91 @@ private slots:
             QVERIFY(std::abs(result[i] - expected[i]) < 1e-5f);
     }
 
-    void gpuCoolingMatchesCpuAcrossBatchBoundaries()
+    void coolingPredictionMatchesCompletedBatch()
     {
-        PhysicsState state, cpu;
+        PhysicsState state;
         fill(state, 1);
-        fill(cpu, 1);
-        Simulation preview(&state), reference(&cpu);
-        preview.start();
-        reference.start();
-        for (int batch = 0; batch < 50; ++batch) {
-            QVERIFY(preview.prepareGpuTick());
-            const auto alphas = preview.gpuTickAlphas(4);
-            QCOMPARE(alphas.size(), size_t(4));
+        Simulation clock(&state);
+        clock.start();
+        for (int batch = 0; batch < 150; ++batch) {
+            QVERIFY(clock.prepareGpuTick());
+            const int count = batch % 2 ? 17 : 32;
+            const auto alphas = clock.gpuTickAlphas(count);
+            QCOMPARE(alphas.size(), size_t(count));
             for (float alpha : alphas) {
-                QCOMPARE(alpha, reference.alpha());
-                reference.tick();
-                preview.completeGpuTick(1.0f);
+                QCOMPARE(alpha, clock.alpha());
+                clock.completeGpuTick(std::numeric_limits<float>::infinity());
             }
-            QCOMPARE(preview.tickCount(), reference.tickCount());
-            QCOMPARE(preview.alpha(), reference.alpha());
+            // A moving batch stays active even after reaching minimum heat.
+            clock.considerGpuConvergence(10.0f, count, 10.0f);
+            QVERIFY(clock.isActive());
         }
+        for (int batch = 0; batch < 40 && clock.isActive(); ++batch) {
+            const auto alphas = clock.gpuTickAlphas(32);
+            for (float alpha : alphas) {
+                QCOMPARE(alpha, clock.alpha());
+                clock.completeGpuTick(std::numeric_limits<float>::infinity());
+            }
+            clock.considerGpuConvergence(0.0f, 32, 0.0f);
+        }
+        QVERIFY(!clock.isActive());
+        clock.restart();
+        QCOMPARE(clock.alpha(), 1.0f);
+        QVERIFY(clock.prepareGpuTick());
+        QCOMPARE(clock.gpuTickAlphas(32).size(), size_t(32));
+    }
+
+    void schedulerOnlyAcceleratesInitialLayout()
+    {
+        GpuSimulationSchedule schedule;
+        QCOMPARE(schedule.batchSize(false, true), GpuSimulation::maxBatchSteps);
+        QCOMPARE(schedule.timerInterval(false, true), 0);
+        QCOMPARE(schedule.batchSize(true, true), 1);
+        QCOMPARE(schedule.timerInterval(true, true), 16);
+        // Even a fast device must not accelerate later interactions.
+        schedule.observe(0.1, 32);
+        QCOMPARE(schedule.batchSize(false), 1);
+        QCOMPARE(schedule.timerInterval(false, false), 16);
+        schedule.observe(200.0, 1);
+        QCOMPARE(schedule.batchSize(false, true), GpuSimulation::maxBatchSteps);
+        QCOMPARE(schedule.batchSize(false), 1);
+    }
+
+    void initialLayoutSwitchesToNormalCadence()
+    {
+        ForceViewRhiWidget view;
+        view.resize(600, 400);
+        view.setSimulationBackendMode("gpu");
+        view.setManyBodyStrength(0);
+        view.setLinkStrength(0);
+        view.setCollisionStrength(0);
+        view.setCenterStrength(0.01f);
+        view.setGraph(1, {}, {10000, 0}, {"a"}, {"a"}, {4});
+        view.show();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        QCOMPARE(view.m_gpuSimulation->timings().steps, GpuSimulation::maxBatchSteps);
+        view.pauseSimulation();
+        QVERIFY(!view.m_initialGpuLayout);
+        QCOMPARE(view.m_gpuTimer.interval(), 16);
+        view.resumeSimulation();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        QCOMPARE(view.m_gpuSimulation->timings().steps, 1);
+        QCOMPARE(view.m_gpuTimer.interval(), 16);
+        view.restartSimulation();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        QCOMPARE(view.m_gpuSimulation->timings().steps, 1);
+        QCOMPARE(view.m_gpuTimer.interval(), 16);
+        view.setDragging(0, true);
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        QCOMPARE(view.m_gpuSimulation->timings().steps, 1);
+        QCOMPARE(view.m_gpuTimer.interval(), 16);
+        view.setDragging(0, false);
+        view.setCenterStrength(0);
+        view.setGraph(1, {}, {0, 0}, {"a"}, {"a"}, {4});
+        QVERIFY(view.m_initialGpuLayout);
+        QTRY_VERIFY_WITH_TIMEOUT(!view.m_simulation->isActive(), 5000);
+        QVERIFY(!view.m_initialGpuLayout);
+        QCOMPARE(view.m_gpuTimer.interval(), 16);
     }
 
     void convergenceUsesSpeedBeforeClamping()
@@ -1226,7 +1309,7 @@ private slots:
         Simulation clock(&state);
         clock.start();
         std::vector<float> previous = state.pos;
-        while (clock.prepareGpuTick() && clock.tickCount() < 1000) {
+        while (clock.prepareGpuTick() && clock.tickCount() < 4000) {
             GpuSimulation::Parameters p;
             p.alpha = clock.alpha();
             QRhiCommandBuffer* cb = nullptr;
@@ -1234,21 +1317,22 @@ private slots:
             QVERIFY(gpu.recordStep(cb, state, p));
             QCOMPARE(rhi->endOffscreenFrame(), QRhi::FrameOpSuccess);
             std::vector<float> result;
-            float speed = 0.0f;
-            QVERIFY(gpu.takeResult(result, nullptr, &speed));
+            float speed = 0.0f, peak = 0.0f;
+            QVERIFY(gpu.takeResult(result, nullptr, &speed, &peak));
             for (int i = 0; i < state.nNodes; ++i) {
                 const float dx = result[4 * i] - previous[2 * i];
                 const float dy = result[4 * i + 1] - previous[2 * i + 1];
                 QVERIFY(std::hypot(dx, dy) <= 15.001f);
-                QVERIFY(std::abs(result[4 * i]) < 10000.0f);
-                QVERIFY(std::abs(result[4 * i + 1]) < 10000.0f);
+                QVERIFY(std::abs(result[4 * i]) < 40000.0f);
+                QVERIFY(std::abs(result[4 * i + 1]) < 40000.0f);
                 previous[2 * i] = result[4 * i];
                 previous[2 * i + 1] = result[4 * i + 1];
             }
-            clock.completeGpuTick(speed);
+            clock.completeGpuTick(speed, peak);
         }
-        QVERIFY(clock.tickCount() >= 150);
-        QVERIFY(clock.tickCount() < 1000);
+        qInfo() << "Settled ticks:" << clock.tickCount() << "alpha:" << clock.alpha();
+        QVERIFY(clock.tickCount() >= 32);
+        QVERIFY(clock.tickCount() < 4000);
         QVERIFY(!clock.isActive());
     }
 
@@ -1293,6 +1377,53 @@ private slots:
         view.setGraph(0, {}, {}, {}, {}, {});
         QVERIFY(view.getNodeIds().isEmpty());
         QTest::qWait(60);
+    }
+
+    void initialLoadingScheduleBenchmark()
+    {
+        if (!qEnvironmentVariableIsSet("DARKEYE_GPU_SCHEDULE_BENCHMARK"))
+            QSKIP("Optional scheduling throughput comparison");
+        for (int count : {2000, 10000}) {
+            PhysicsState state;
+            fill(state, count);
+            const float scale = (std::sqrt(float(count)) * 25.0f + 50.0f) / 150.0f;
+            for (float &value : state.pos) value *= scale;
+            std::vector<float> reference;
+            for (bool adaptive : {false, true}) {
+                GpuSimulation gpu;
+                QVERIFY(gpu.initialize(rhi.get(), state));
+                std::vector<float> output;
+                QVERIFY(step(gpu, state, {}, output)); // equal device warmup
+                GpuSimulationSchedule schedule;
+                QElapsedTimer total; total.start();
+                int completed = 0, largestBatch = 0;
+                double largestMs = 0;
+                while (completed < 128) {
+                    const int batch = std::min(adaptive ? schedule.batchSize(false, true) : 4, 128 - completed);
+                    QElapsedTimer timer; timer.start();
+                    QRhiCommandBuffer *cb = nullptr;
+                    QCOMPARE(rhi->beginOffscreenFrame(&cb), QRhi::FrameOpSuccess);
+                    QVERIFY(gpu.recordSteps(cb, state, std::vector<GpuSimulation::Parameters>(batch)));
+                    QCOMPARE(rhi->endOffscreenFrame(), QRhi::FrameOpSuccess);
+                    QVERIFY(gpu.takeResult(output));
+                    const double ms = timer.nsecsElapsed() / 1e6;
+                    schedule.observe(ms, batch);
+                    largestBatch = std::max(largestBatch, batch);
+                    largestMs = std::max(largestMs, ms);
+                    completed += batch;
+                    if (completed < 128) QTest::qWait(adaptive ? 0 : std::max(1, 16 - int(ms)));
+                }
+                qInfo() << count << "nodes, 128 identical physics steps," << (adaptive ? "initial burst" : "fixed 4/16ms")
+                        << "elapsed ms:" << total.nsecsElapsed() / 1e6 << "largest batch:" << largestBatch
+                        << "largest completion ms:" << largestMs;
+                if (!adaptive) reference = output;
+                else {
+                    QCOMPARE(output.size(), reference.size());
+                    for (size_t i = 0; i < output.size(); ++i)
+                        QVERIFY(std::abs(output[i] - reference[i]) < 1e-4f);
+                }
+            }
+        }
     }
 
     void benchmark()

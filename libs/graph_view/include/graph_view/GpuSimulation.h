@@ -28,6 +28,7 @@ public:
         float maxDisplacement = 15.0f;
         float cutoffSquared = 40000.0f;
     };
+    static constexpr int maxBatchSteps = 32;
     GpuSimulation();
     ~GpuSimulation();
     GpuSimulation(const GpuSimulation&) = delete;
@@ -43,7 +44,7 @@ public:
     void setProfilingEnabled(bool enabled);
     Timings timings() const;
     bool recordStep(QRhiCommandBuffer* cb, const PhysicsState& controls, const Parameters& parameters);
-    // Warmup may advance up to four resident steps with a single readback.
+    // Up to maxBatchSteps resident steps share one upload and readback.
     bool recordSteps(QRhiCommandBuffer* cb, const PhysicsState& controls,
                      const std::vector<Parameters>& steps, bool readback = true);
     bool recordSnapshot(QRhiCommandBuffer* cb);
@@ -53,7 +54,8 @@ public:
     QRhiBuffer* stateBuffer() const;
     bool hasPendingStep() const;
     // Returns interleaved x,y,vx,vy for one completed step; never blocks.
-    bool takeResult(std::vector<float>& state, double* latencyMs = nullptr, float* totalSpeed = nullptr);
+    bool takeResult(std::vector<float>& state, double* latencyMs = nullptr, float* totalSpeed = nullptr,
+                    float* peakSpeed = nullptr);
     bool failed() const;
     QString errorString() const;
 

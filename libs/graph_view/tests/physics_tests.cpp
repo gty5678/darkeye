@@ -88,6 +88,30 @@ bool testBarnesHutDoesNotIncludeSelf()
     return true;
 }
 
+bool testMotionControlsCoolingAndStopping()
+{
+    PhysicsState movingState, quietState;
+    movingState.init(10000, {});
+    quietState.init(10000, {});
+    Simulation moving(&movingState), quiet(&quietState);
+    moving.start(); quiet.start();
+    for (int i = 0; i < 200; ++i) {
+        moving.completeGpuTick(1000000.0f, 100.0f);
+        quiet.completeGpuTick(0.0f, 0.0f);
+    }
+    if (!(moving.alpha() > quiet.alpha())) return false;
+    for (int i = 0; i < 2000; ++i) moving.completeGpuTick(1000000.0f, 100.0f);
+    if (!moving.isActive()) return false; // heat alone must not freeze motion
+    moving.pause();
+    moving.resume();
+    if (!moving.isActive()) return false; // minimum heat must still be resumable
+    // One moving node must not be hidden by the other 9999 stationary nodes.
+    for (int i = 0; i < 100; ++i) moving.completeGpuTick(1.0f, 1.0f);
+    if (!moving.isActive()) return false;
+    for (int i = 0; i < 200 && moving.isActive(); ++i) moving.completeGpuTick(0.0f, 0.0f);
+    return !moving.isActive();
+}
+
 bool testInvalidEdgesAreRejected()
 {
     PhysicsState state;
@@ -182,6 +206,8 @@ bool testBarnesHutCutoffBoundary()
 
 int main()
 {
+    if (!testMotionControlsCoolingAndStopping())
+        return 1;
     if (!testSmoothDampedMotion() || !testPinnedNodesHaveNoResidualVelocity()
         || !testBarnesHutDoesNotIncludeSelf())
         return 1;

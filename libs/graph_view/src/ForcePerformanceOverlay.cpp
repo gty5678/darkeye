@@ -91,6 +91,9 @@ ForcePerformanceOverlay::ForcePerformanceOverlay(QWidget* parent) : QFrame(paren
     row(QStringLiteral("GPU 力计算"), QStringLiteral("gpuForceMs"));
     row(QStringLiteral("读回批次"), QStringLiteral("readbackMs"));
     row(QStringLiteral("dispatch/步"), QStringLiteral("dispatches"));
+    row(QStringLiteral("模拟步/批次"), QStringLiteral("batchSteps"));
+    row(QStringLiteral("已提交模拟步"), QStringLiteral("simulationSteps"));
+    row(QStringLiteral("估计完成耗时/步"), QStringLiteral("estimatedStepMs"));
     row(QStringLiteral("绘制路径"), QStringLiteral("drawing"));
     scroll->setWidget(body);
     layout->addWidget(scroll);
@@ -130,9 +133,10 @@ void ForcePerformanceOverlay::refresh()
     m_values["paint"]->setText(number(m_paint, QStringLiteral(" ms")));
     m_values["scale"]->setText(number(m_scale));
     m_values["alpha"]->setText(number(m_alpha));
-    const QStringList keys{"recordCpuMs", "geometryCpuMs", "textCpuMs", "gpuBoundsMs", "gpuSortMs", "gpuTreeMs", "gpuForceMs", "readbackMs"};
+    const QStringList keys{"recordCpuMs", "geometryCpuMs", "textCpuMs", "gpuBoundsMs", "gpuSortMs", "gpuTreeMs", "gpuForceMs", "readbackMs", "estimatedStepMs"};
     for (const auto& key : keys) m_values[key]->setText(number(m_details.value(key, -1).toDouble(), QStringLiteral(" ms")));
-    m_values["dispatches"]->setText(m_details.contains("dispatches") ? m_details.value("dispatches").toString() : QStringLiteral("--"));
+    for (const auto &key : {QStringLiteral("dispatches"), QStringLiteral("batchSteps"), QStringLiteral("simulationSteps")})
+        m_values[key]->setText(m_details.contains(key) ? m_details.value(key).toString() : QStringLiteral("--"));
     m_values["drawing"]->setText(m_details.isEmpty() ? QStringLiteral("--") :
         m_details.value("gpuInstances").toBool() ? QStringLiteral("GPU 实例化") : QStringLiteral("CPU 顶点准备"));
 }

@@ -17,6 +17,8 @@ struct UpdateCheckResult
     QString packageUrl;
 };
 
+[[nodiscard]] QString updateTarget();
+
 [[nodiscard]] std::optional<QList<int>> parseVersion(const QString &version);
 [[nodiscard]] bool isNewerVersion(const QString &remoteVersion,
                                   const QString &localVersion);

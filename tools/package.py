@@ -3,8 +3,9 @@
 
 import argparse
 import hashlib
+import json
 import os
-import plistlib
+from contextlib import nullcontext
 import tarfile
 import zipfile
 from pathlib import Path
@@ -14,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
 
 from build import PROJECT_ROOT, build_project, run
 
@@ -145,7 +147,6 @@ def main():
     parser.add_argument("--build-dir", type=Path, help="Use a specific native build directory")
     parser.add_argument("--test", action="store_true", help="Build and run tests before packaging")
     parser.add_argument("--mac-sign-identity", help="Developer ID Application identity (otherwise ad-hoc)")
-    parser.add_argument("--mac-installer-identity", help="Developer ID Installer identity for pkg")
     parser.add_argument("--skip-build", action="store_true", help="Use the existing Release build")
     parser.add_argument("--clean", action="store_true", help="Rebuild Release from scratch")
     args = parser.parse_args()
@@ -197,7 +198,7 @@ def package_windows(args):
          "--prefix", str(destination)], env, args.dry_run)
     remove_unused_runtime(destination, dry_run=args.dry_run)
     if not args.dry_run:
-        for relative in ("Darkeye.exe", "Qt6Core.dll", "Qt6Gui.dll",
+        for relative in ("Darkeye.exe", "updater.exe", "Qt6Core.dll", "Qt6Gui.dll",
                          "Qt6Widgets.dll", "plugins/platforms/qwindows.dll",
                          "plugins/sqldrivers/qsqlite.dll", "LICENSE", "config/update.ini"):
             if not (destination / relative).is_file():
@@ -289,7 +290,8 @@ def validate_payload(destination, system):
         resources = destination / "share/darkeye"
         executable = destination / "bin/Darkeye"
         plugin = destination / "plugins/platforms/libqxcb.so"
-    for required in (executable, plugin, resources / "config/update.ini", resources / "LICENSE"):
+    for required in (executable, executable.parent / "updater", plugin,
+                     resources / "config/update.ini", resources / "LICENSE"):
         if not required.is_file():
             raise RuntimeError(f"Missing deployed file: {required}")
     if not (resources / "avwiki").is_dir():
@@ -355,26 +357,19 @@ def package_macos(args, destination, portable, base, version, cmake, env):
                     raise RuntimeError("Portable ZIP integrity check failed")
         outputs.append(archive)
     if args.format != "portable":
-        pkgbuild = require_tool("pkgbuild", args.dry_run)
-        installer = safe_output(base.with_name(base.name + "-setup.pkg"))
+        hdiutil = require_tool("hdiutil", args.dry_run)
+        installer = safe_output(base.with_name(base.name + "-setup.dmg"))
         reset_output(installer, args.dry_run)
-        components = destination.parent / (destination.name + "-components.plist")
-        safe_output(components)
-        run([pkgbuild, "--analyze", "--root", str(destination), str(components)], env, args.dry_run)
-        if not args.dry_run:
-            with components.open("rb") as source:
-                bundles = plistlib.load(source)
-            for bundle in bundles:
-                bundle["BundleIsRelocatable"] = False
-                bundle["BundleOverwriteAction"] = "upgrade"
-            with components.open("wb") as target:
-                plistlib.dump(bundles, target)
-        command = [pkgbuild, "--root", str(destination), "--component-plist", str(components),
-                   "--identifier", "win.darkeye.desktop", "--version", version,
-                   "--install-location", "/Applications"]
-        if args.mac_installer_identity:
-            command += ["--sign", args.mac_installer_identity]
-        run([*command, str(installer)], env, args.dry_run)
+        staging = (nullcontext(str(base.with_name(base.name + "-dmg-root"))) if args.dry_run
+                   else tempfile.TemporaryDirectory(prefix="dmg-", dir=base.parent))
+        with staging as temporary:
+            root = Path(temporary)
+            run([ditto, str(app), str(root / "Darkeye.app")], env, args.dry_run)
+            if not args.dry_run:
+                (root / "Applications").symlink_to("/Applications", target_is_directory=True)
+            run([hdiutil, "create", "-volname", "Darkeye", "-srcfolder", str(root),
+                 "-format", "UDZO", "-ov", str(installer)], env, args.dry_run)
+        run([hdiutil, "verify", str(installer)], env, args.dry_run)
         outputs.append(installer)
     return outputs
 
@@ -460,19 +455,119 @@ def package_linux(args, destination, portable, base, version, env):
     return outputs
 
 
+def write_update_package(destination, archive, system, arch, version, dry_run=False):
+    """A common program-only tar.zst for both standard and portable installs."""
+    archive = safe_output(archive)
+    target = f"{system}-{arch}"
+    manifest_path = safe_output(archive.with_name("latest.json"))
+    if dry_run:
+        print(f"Update package: {archive}")
+        print(f"Update manifest: {manifest_path}")
+        return archive
+    payload = destination / "Darkeye.app" if system == "macos" else destination
+    if not payload.is_dir() or payload.is_symlink():
+        raise RuntimeError(f"Missing or linked update payload: {payload}")
+    root = payload.resolve()
+
+    def entries(directory):
+        for path in sorted(directory.iterdir()):
+            relative = path.relative_to(destination if system == "macos" else payload)
+            if relative.parts[0] == "data" or path.name == "portable.ini":
+                raise RuntimeError(f"User data in update payload: {path}")
+            if path.is_symlink():
+                target = Path(os.readlink(path))
+                try:
+                    resolved = path.resolve(strict=True)
+                except (OSError, RuntimeError) as error:
+                    raise RuntimeError(f"Broken or cyclic update link: {path}") from error
+                if target.is_absolute() or not resolved.is_relative_to(root):
+                    raise RuntimeError(f"External link in update payload: {path}")
+                yield path, relative.as_posix()
+            elif path.is_dir():
+                yield path, relative.as_posix()
+                yield from entries(path)
+            elif path.is_file():
+                yield path, relative.as_posix()
+            else:
+                raise RuntimeError(f"Unsupported file in update payload: {path}")
+
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    # Preserve the original app layout, including relative framework links.
+    with tempfile.TemporaryDirectory(prefix="update-", dir=archive.parent) as temporary:
+        staged = Path(temporary) / archive.name
+        try:
+            import zstandard
+        except ImportError as error:
+            raise RuntimeError(
+                "生成 .tar.zst 更新包需要 zstandard，请运行："
+                "python -m pip install -r tools/requirements-packaging.txt") from error
+        count = 0
+        with staged.open("wb") as output:
+            with zstandard.ZstdCompressor(level=10, write_checksum=True).stream_writer(output) as compressed:
+                # PAX preserves long names, Unix permissions and link targets.
+                with tarfile.open(fileobj=compressed, mode="w|", format=tarfile.PAX_FORMAT,
+                                  dereference=False) as package:
+                    if system == "macos":
+                        package.add(payload, arcname="Darkeye.app", recursive=False)
+                    for path, relative in entries(payload):
+                        package.inodes.clear()  # Store hard-linked files as ordinary files.
+                        info = package.gettarinfo(str(path), arcname=relative)
+                        if info.isreg():
+                            with path.open("rb") as data:
+                                package.addfile(info, data)
+                        else:
+                            package.addfile(info)
+                        count += 1
+        if not count:
+            raise RuntimeError("Empty update payload")
+        # Read the complete stream back to verify the zstd checksum and TAR data.
+        with staged.open("rb") as source:
+            with zstandard.ZstdDecompressor().stream_reader(source) as decompressed:
+                with tarfile.open(fileobj=decompressed, mode="r|") as package:
+                    for member in package:
+                        if member.isdir() or member.issym():
+                            continue
+                        if not member.isfile():
+                            raise RuntimeError(f"Unsupported update archive entry: {member.name}")
+                        with package.extractfile(member) as data:
+                            for chunk in iter(lambda: data.read(1024 * 1024), b""):
+                                pass
+                while decompressed.read(1024 * 1024):
+                    pass
+        digest = file_sha256(staged)
+        manifest = {"latestVersion": version, "releaseNotes": "",
+                    "packages": {target: {
+                        "url": f"https://darkeye.win/releases/{archive.name}",
+                        "sha256": digest}}}
+        staged_manifest = Path(temporary) / manifest_path.name
+        staged_manifest.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        staged.replace(archive)
+        staged_manifest.replace(manifest_path)
+    print(f"Update package: {archive}")
+    print(f"Update manifest: {manifest_path}")
+    return archive
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def write_checksums(outputs, dry_run=False):
     for artifact in outputs:
+        if not artifact.name.endswith("-update.tar.zst"):
+            continue
         sidecar = safe_output(Path(str(artifact) + ".sha256"))
         if dry_run:
             print(f"SHA-256: {sidecar}")
             continue
         if not artifact.is_file():
             raise RuntimeError(f"Packaging did not produce {artifact}")
-        digest = hashlib.sha256()
-        with artifact.open("rb") as source:
-            for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                digest.update(chunk)
-        sidecar.write_text(f"{digest.hexdigest()}  {artifact.name}\n", encoding="utf-8")
+        sidecar.write_text(f"{file_sha256(artifact)}  {artifact.name}\n", encoding="utf-8")
         print(f"Artifact: {artifact}")
 
 
@@ -500,7 +595,31 @@ def package_project(args):
             outputs = package_macos(args, destination, portable, base, version, cmake, env)
         else:
             outputs = package_linux(args, destination, portable, base, version, env)
+    version = project_version()
+    base = safe_output((args.destination or PROJECT_ROOT / "out" / f"Darkeye-{version}-{system}-{arch}").absolute())
+    destination = base.with_name(base.name + "-install")
+    outputs.append(write_update_package(destination, base.with_name(base.name + "-update.tar.zst"),
+                                        system, arch, version, args.dry_run))
     write_checksums(outputs, args.dry_run)
+    # Cleanup only this release's known staging and obsolete artifacts, after
+    # every requested artifact has been generated successfully.
+    for artifact in outputs:
+        if not args.dry_run and not artifact.is_file():
+            raise RuntimeError(f"Packaging did not produce {artifact}")
+    obsolete = [destination, base.with_name(base.name + "-portable"),
+                base.with_name(base.name + "-deb-root"),
+                destination.with_name(destination.name + "-components.plist"),
+                base.parent / f"latest-{system}-{arch}.json",
+                base.with_name(base.name + "-update.zip"),
+                base.with_name(base.name + "-update.zip.sha256")]
+    # Remove old distribution checksums, including formats no longer generated.
+    for suffix in ("-portable.zip", "-portable.7z", "-portable.tar.gz",
+                   "-setup.exe", "-setup.pkg", "-setup.dmg", "-setup.deb"):
+        obsolete.append(base.with_name(base.name + suffix + ".sha256"))
+    if system == "macos":
+        obsolete.append(base.with_name(base.name + "-setup.pkg"))
+    for path in obsolete:
+        reset_output(path, args.dry_run)
     return 0
 
 

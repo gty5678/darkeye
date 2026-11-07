@@ -1,10 +1,10 @@
 # macOS arm64 安装依赖、编译、运行与打包
 
-本文从一台 Apple Silicon Mac 的环境准备开始，说明如何编译 Darkeye、运行测试，并生成便携 ZIP 与安装 PKG。命令在终端中执行；进入源码目录后，后续命令均以仓库根目录为工作目录。
+本文从一台 Apple Silicon Mac 的环境准备开始，说明如何编译 Darkeye、运行测试，并生成便携 ZIP 与安装 DMG。命令在终端中执行；进入源码目录后，后续命令均以仓库根目录为工作目录。
 
 主程序及演示程序已在 Apple Silicon、Apple Clang 21、macOS SDK 27、Qt 6.12.0 和 CMake 3.30.5 下完成 Release 原生编译。仓库中的 vcpkg overlay 修复了固定 baseline 内 zlib/libpng 对现代 macOS SDK 的兼容问题；Windows 保留原有编译分支。最低系统版本和干净机器运行仍需进行本文末尾的验收。
 
-`python3 tools/package.py` 的完整编译、部署、打包流程以及 `--skip-build --build-dir build/macos-arm64-release` 均已实测成功，生成便携 ZIP 和安装 PKG。验证包括 ZIP 完整性、便携标记与外部 data 目录、应用 ad-hoc 签名、PKG 内容清单和两份 SHA-256 校验；未执行系统安装或 Developer ID 公证。运行前需按下文设置 Qt、vcpkg 和 CMake 3.x 环境。
+`python3 tools/package.py` 的完整编译、部署、打包流程以及 `--skip-build --build-dir build/macos-arm64-release` 均已实测成功，生成便携 ZIP 和安装 DMG。验证包括 ZIP 完整性、便携标记与外部 data 目录、应用 ad-hoc 签名、DMG 内容清单；该验证针对旧版 PKG 流程，当前 DMG 流程需重新验收；未执行系统安装或 Developer ID 公证。运行前需按下文设置 Qt、vcpkg 和 CMake 3.x 环境。
 
 该环境下全部测试目标可编译；原生 CTest 为 58/70 通过（含启动、UI 冒烟、3D/DVD 演示冒烟），12 项失败涉及数据库夹具、路径/界面断言及 GPU/DPR 检查，尚未全部通过。发布工具的 4 项测试通过。此次验证的依赖在本机默认系统部署目标下构建，因此不构成对 macOS 14.4 运行兼容性的验证。
 
@@ -33,9 +33,9 @@ cmake --version
 | 编译并同时打包便携版、安装版 | `python3 tools/package.py` |
 | 直接复用现有 Release 结果打包 | `python3 tools/package.py --skip-build --build-dir build/macos-arm64-release` |
 | 只生成便携 ZIP | `python3 tools/package.py --format portable` |
-| 只生成安装 PKG | `python3 tools/package.py --format installer` |
+| 只生成安装 DMG | `python3 tools/package.py --format installer` |
 
-当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.pkg`，对应的 `.sha256` 文件也在 `out/`。便携版需完整解压后运行，见第 6 节。
+当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.dmg`，同时生成 `.tar.zst` 更新包、该更新包的 `.sha256` 和 `latest.json`。便携版需完整解压后运行，见第 6 节。
 
 这台电脑因 GitHub 连接问题使用了固定版本的 vcpkg 源码归档，在其 `installed/` 中安装依赖。脚本只有在识别到本机 `build/vcpkg` 无 Git 元数据、且 FreeType/msdfgen 已安装时，才自动设置 `VCPKG_MANIFEST_MODE=OFF`，因此重新配置也能复用依赖。正常 Git 版 vcpkg 保留 manifest 模式。新电脑仍应按第 3 节准备完整 Git 版 vcpkg。无需把这个本机设置提交进公共预设。
 
@@ -49,7 +49,7 @@ cmake --version
 | Qt | 6.12.0 或更新的 Qt 6，macOS Desktop kit 必须含 arm64 |
 | 构建工具 | CMake 3.25–3.x、Ninja、Python 3.9+、Git |
 | 依赖管理 | vcpkg，目标 triplet 为 arm64-osx |
-| 打包工具 | ditto、codesign、lipo、pkgbuild，由系统及开发工具提供 |
+| 打包工具 | ditto、codesign、lipo、hdiutil，由系统及开发工具提供 |
 
 先检查架构：
 
@@ -228,34 +228,41 @@ cmake --build --preset macos-arm64-debug --target Darkeye --parallel 8
 
 上述 `OFF` 仅适用于第 0 节已安装好依赖的本机环境。新电脑按第 3 节使用完整 vcpkg Git 仓库后，可直接用 `python3 tools/build.py --config Debug`，保留 manifest 自动安装依赖。
 
-调试对象应使用 Debug 构建；Release 优化可能导致变量无法查看、断点行跳动。无需先打包 ZIP/PKG 才能调试。若系统首次提示允许开发者工具调试，请按系统提示授权。
+调试对象应使用 Debug 构建；Release 优化可能导致变量无法查看、断点行跳动。无需先打包 ZIP/DMG 才能调试。若系统首次提示允许开发者工具调试，请按系统提示授权。
 
 配置参考：[VS Code 的 macOS C++ 开发说明](https://code.visualstudio.com/docs/cpp/config-clang-mac)、[CodeLLDB 启动配置](https://github.com/vadimcn/codelldb/blob/master/MANUAL.md)。
 
 ## 5. 生成便携版和安装版
 
-环境配置完成后，一条命令构建并打包两种格式：
+环境配置完成后，在项目根目录使用 `uv` 安装打包依赖（需已安装 `uv`）：
 
 ```sh
-python3 tools/package.py
+uv venv
+uv pip install -r tools/requirements-packaging.txt
+```
+
+依赖只需首次打包或变更后安装，无需手动激活 `.venv`。然后构建并打包：
+
+```sh
+uv run --no-project python tools/package.py
 ```
 
 该命令默认不运行测试。希望测试通过后才打包，执行：
 
 ```sh
-python3 tools/package.py --test
+uv run --no-project python tools/package.py --test
 ```
 
 代码未变化、只希望重新打包现有 Release 构建时：
 
 ```sh
-python3 tools/package.py --skip-build --build-dir build/macos-arm64-release
+uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release
 ```
 
 如果第 4 节的 Release 测试构建已经通过，也可复用测试构建目录：
 
 ```sh
-python3 tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
+uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
 ```
 
 `--skip-build` 不会重新运行测试；不要用它把测试失败的构建标记为合格发布。它不能与 `--test` 或 `--clean` 同时使用。
@@ -264,17 +271,18 @@ python3 tools/package.py --skip-build --build-dir build/macos-arm64-release-test
 
 ```text
 out/Darkeye-<版本>-macos-arm64-portable.zip
-out/Darkeye-<版本>-macos-arm64-portable.zip.sha256
-out/Darkeye-<版本>-macos-arm64-setup.pkg
-out/Darkeye-<版本>-macos-arm64-setup.pkg.sha256
+out/Darkeye-<版本>-macos-arm64-setup.dmg
+out/Darkeye-<版本>-macos-arm64-update.tar.zst
+out/Darkeye-<版本>-macos-arm64-update.tar.zst.sha256
+out/latest.json
 ```
 
 版本自动读取顶层 `CMakeLists.txt`。仅生成一种格式，或先预览命令：
 
 ```sh
-python3 tools/package.py --format portable
-python3 tools/package.py --format installer
-python3 tools/package.py --dry-run
+uv run --no-project python tools/package.py --format portable
+uv run --no-project python tools/package.py --format installer
+uv run --no-project python tools/package.py --dry-run
 ```
 
 重复执行会替换同名暂存目录和产物。若暂存的便携目录已经含有用户数据，脚本会拒绝删除；此时可通过 `--destination out/new-release/Darkeye-<版本>-macos-arm64` 使用新位置，`<版本>` 需替换为实际版本。
@@ -306,12 +314,12 @@ ditto -x -k out/Darkeye-1.2.5-macos-arm64-portable.zip out/portable-run
 open out/portable-run/DarkEye/Darkeye.app
 ```
 
-安装版双击 `.pkg`，将应用安装到 `/Applications/Darkeye.app`。它不带便携标记，使用 Qt 的系统用户数据目录；实际位置可在软件设置的运行路径中查看。初始知识库从 `.app/Contents/Resources/avwiki` 复制到数据目录后才编辑和更新，安装资源保持只读。
+打开 `.dmg`，将 `Darkeye.app` 拖入 `Applications` 快捷方式，安装到 `/Applications/Darkeye.app`。它不带便携标记，使用 Qt 的系统用户数据目录；实际位置可在软件设置的运行路径中查看。初始知识库从 `.app/Contents/Resources/avwiki` 复制到数据目录后才编辑和更新，安装资源保持只读。
 
 也可从终端打开安装向导，完成安装后启动应用：
 
 ```sh
-open out/Darkeye-1.2.5-macos-arm64-setup.pkg
+open out/Darkeye-1.2.5-macos-arm64-setup.dmg
 # 在安装向导中完成安装后再执行：
 open /Applications/Darkeye.app
 ```
@@ -330,12 +338,12 @@ lipo -archs /Applications/Darkeye.app/Contents/MacOS/Darkeye
 默认打包使用 **ad-hoc 签名**，方便开发验证，不等于 Developer ID 签名或公证。已在钥匙串中安装相应证书时，可执行：
 
 ```sh
-python3 tools/package.py \
+uv run --no-project python tools/package.py \
   --mac-sign-identity "Developer ID Application: 你的开发者名称 (TEAMID)" \
   --mac-installer-identity "Developer ID Installer: 你的开发者名称 (TEAMID)"
 ```
 
-脚本会先部署依赖，再签名内部代码和 `.app`，并使用 Installer 身份签名 PKG。**当前脚本不自动提交公证、不自动 stapling**；正式公开分发需完成 Apple 的公证流程，再重新生成最终分发文件的校验和。不要把本地签名校验成功当作已完成公证。[Apple 公证说明](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
+脚本会先部署依赖，再签名内部代码和 `.app`，并使用 Installer 身份签名 DMG。**当前脚本不自动提交公证、不自动 stapling**；正式公开分发需完成 Apple 的公证流程，再重新生成最终分发文件的校验和。不要把本地签名校验成功当作已完成公证。[Apple 公证说明](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
 
 ## 8. 常见问题与验收
 
@@ -346,12 +354,12 @@ python3 tools/package.py \
 | 找不到 Qt6/GuiPrivate/ShaderTools | 修正 Qt6_DIR，补齐同版本 kit 的模块和私有头文件 |
 | vcpkg toolchain 不存在 | 检查 VCPKG_ROOT 指向 vcpkg 仓库根目录，执行 bootstrap |
 | 更换 Qt 后链接或运行异常 | 用新的构建目录，或清理对应构建目录后重建 |
-| 缺少 codesign/pkgbuild 或 SDK | 检查 Xcode 安装、初始化和 xcode-select 指向 |
+| 缺少 codesign/hdiutil 或 SDK | 检查 Xcode 安装、初始化和 xcode-select 指向 |
 | 找不到签名身份 | 检查证书及私钥已导入当前用户钥匙串；本地验证可先用默认签名 |
 | 无法打开、系统提示开发者未验证 | 检查分发签名和公证状态；ad-hoc 包不是正式公证包 |
 | 数据目录不可写 | 移动整个便携目录到可写位置，检查 portable.ini 和数据目录权限 |
 | 测试失败 | 保留 Testing/Temporary/LastTest.log 与具体断言，修复或明确诊断后再发布 |
 
-在未安装 Qt、vcpkg 的另一台兼容 Mac 上分别验证 ZIP 和 PKG：启动、首次建库、知识库编辑、网络访问、凭据读写、图形渲染、中文路径、退出后重启。便携目录移动后应继续读取原数据；安装升级应保留用户数据库和知识库。系统钥匙串密码不会随便携目录自动迁移到另一台机器。
+在未安装 Qt、vcpkg 的另一台兼容 Mac 上分别验证 ZIP 和 DMG：启动、首次建库、知识库编辑、网络访问、凭据读写、图形渲染、中文路径、退出后重启。便携目录移动后应继续读取原数据；安装升级应保留用户数据库和知识库。系统钥匙串密码不会随便携目录自动迁移到另一台机器。
 
 通用规则见[三平台构建与发布](cross-platform-packaging.md)，Linux 流程见[Linux 编译与打包](linux-packaging.md)。

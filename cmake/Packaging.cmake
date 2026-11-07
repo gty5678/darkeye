@@ -61,6 +61,33 @@ function(darkeye_configure_packaging target)
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 
+    # Each platform supplies one native executable in resources.
+    # macOS and Linux use the same filename, but different native binaries.
+    if(WIN32)
+        set(updater_name "updater.exe")
+    else()
+        set(updater_name "updater")
+    endif()
+    if(EXISTS "${PROJECT_SOURCE_DIR}/resources/${updater_name}")
+        set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS
+            "${PROJECT_SOURCE_DIR}/resources/${updater_name}")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${PROJECT_SOURCE_DIR}/resources/${updater_name}"
+                "$<TARGET_FILE_DIR:${target}>/${updater_name}"
+            VERBATIM)
+    endif()
+    if(APPLE AND is_bundle)
+        set(updater_install_dir "${target}.app/Contents/MacOS")
+    else()
+        set(updater_install_dir "${CMAKE_INSTALL_BINDIR}")
+    endif()
+    # Missing artifacts intentionally fail at install time, not during normal
+    # development builds. PROGRAMS also sets executable permissions on Unix.
+    install(PROGRAMS
+        "${PROJECT_SOURCE_DIR}/resources/${updater_name}"
+        DESTINATION "${updater_install_dir}")
+
     # Qt's deployment script only installs Qt runtime files. msdfgen is a
     # shared vcpkg dependency, so install both imported DLLs and recursively
     # collect their non-system dependencies (FreeType, PNG, zlib, and so on).

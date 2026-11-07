@@ -7,6 +7,7 @@
 #include <QPointer>
 #include <QTimer>
 #include <QUrl>
+#include <QStringList>
 
 class QNetworkReply;
 
@@ -26,6 +27,10 @@ public:
                int timeoutMilliseconds = 8000, int maximumAttempts = 3);
 
     void cancel();
+
+    static QUrl manifestUrl();
+    // Stages the native updater outside the installation before launching it.
+    static bool launchUpdater(QString *error, const QStringList &extraArguments = {});
 
 signals:
     void finished(const darkeye::utils::UpdateCheckResult &result);

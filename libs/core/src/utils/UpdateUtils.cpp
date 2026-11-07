@@ -2,8 +2,29 @@
 
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUrl>
 
 namespace darkeye::utils {
+
+QString updateTarget()
+{
+#if defined(Q_OS_WIN)
+    const QString system = QStringLiteral("windows");
+#elif defined(Q_OS_MACOS)
+    const QString system = QStringLiteral("macos");
+#elif defined(Q_OS_LINUX)
+    const QString system = QStringLiteral("linux");
+#else
+    const QString system = QStringLiteral("unsupported");
+#endif
+#if defined(Q_PROCESSOR_ARM_64)
+    return system + QStringLiteral("-arm64");
+#elif defined(Q_PROCESSOR_X86_64)
+    return system + QStringLiteral("-x64");
+#else
+    return system + QStringLiteral("-unsupported");
+#endif
+}
 
 std::optional<QList<int>> parseVersion(const QString &version)
 {
@@ -46,11 +67,23 @@ UpdateCheckResult evaluateUpdateManifest(const QString &localVersion,
     const QJsonObject root = document.object();
     const QString latest = root.value(QStringLiteral("latestVersion")).toVariant().toString().trimmed();
     const QString notes = root.value(QStringLiteral("releaseNotes")).toVariant().toString().trimmed();
-    const QString packageUrl = root.value(QStringLiteral("package")).toObject()
-        .value(QStringLiteral("url")).toVariant().toString().trimmed();
+    const QJsonObject package = root.value(QStringLiteral("packages")).toObject()
+        .value(updateTarget()).toObject();
+    const QString packageUrl = package.value(QStringLiteral("url")).toString().trimmed();
+    const QString hash = package.value(QStringLiteral("sha256")).toString().trimmed();
     if (latest.isEmpty()) {
         return {false, QStringLiteral("更新检查结果"),
                 QStringLiteral("latest.json 缺少 latestVersion 字段。")};
+    }
+    const QUrl url(packageUrl);
+    bool validHash = hash.size() == 64 && hash != QString(64, u'0');
+    for (const QChar c : hash)
+        validHash = validHash && ((c >= u'0' && c <= u'9') ||
+            (c.toLower() >= u'a' && c.toLower() <= u'f'));
+    if (package.isEmpty() || !url.isValid() || url.scheme() != QStringLiteral("https") ||
+        url.host().isEmpty() || !validHash) {
+        return {false, QStringLiteral("更新检查失败"),
+            QStringLiteral("更新清单缺少 %1 的有效 HTTPS 更新包或 SHA-256。").arg(updateTarget())};
     }
     const bool available = isNewerVersion(latest, localVersion);
     UpdateCheckResult result;

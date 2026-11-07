@@ -10,7 +10,7 @@
 
 - Qt **6.12.0 或更新的 Qt 6**；C++20、CMake 3.25+、Ninja、Python 3.9+。
 - Windows x64：MSVC 2022；便携 `.7z` 和 Inno Setup `.exe`。
-- macOS **arm64**：Xcode 16+，macOS 14.4+；便携 `.zip` 和安装 `.pkg`。不生成 Intel 版本。
+- macOS **arm64**：Xcode 16+，macOS 14.4+；便携 `.zip` 和安装 `.dmg`。不生成 Intel 版本。
 - Linux x86_64：官方 Qt 6.12 二进制以 Ubuntu 24.04 / glibc 2.39 为基线；便携 `.tar.gz` 和 Debian/Ubuntu 安装 `.deb`。不宣称覆盖全部发行版。
 
 Qt 的最低运行系统随实际使用的 Qt kit 确定。使用更新版本时需重新核对其系统要求。
@@ -37,7 +37,41 @@ Qt 的最低运行系统随实际使用的 Qt kit 确定。使用更新版本时
 
 Linux 保存 WebDAV 密码需要运行中的 Secret Service。知识库 ZIP 更新在 Windows/macOS 使用系统 `tar`，在 Linux 使用 `unzip`，缺少工具会明确报错。打开文件位置在 macOS 使用 `open -R`，Linux 使用系统文件管理器。
 
-macOS/Linux 更新检查提供发布页入口，由用户选择本平台发布包；不调用 Windows 更新器，也不会为打开发布页而退出程序。Windows 保留原更新器流程，更新器本身需另外交付。
+三平台的每周自动检查和设置页手动检查均使用独立更新器。用户确认后退出主程序，由更新器下载、校验 SHA-256、覆盖程序文件并重启；失败时回滚。不兼容旧的 `DarkEyeUpdater.exe` 和顶层 `package` 清单。
+
+### 自动更新发布
+
+- 更新包统一直接上传到 `https://darkeye.win/releases/`，不创建版本号子目录；文件名保留版本号，例如 `https://darkeye.win/releases/Darkeye-1.2.5-macos-arm64-update.tar.zst`。
+
+- 各原生平台构建独立更新器，将本平台产物放入 `resources/updater.exe`（Windows）或 `resources/updater`（macOS/Linux），不能混用同名的 Mac/Linux 二进制。构建和安装会将它部署到主程序旁。
+- 打包前按下文使用 `uv` 安装压缩依赖 `zstandard`。
+- `tools/package.py` 额外生成 `Darkeye-版本-平台-架构-update.tar.zst`、SHA-256 文件和 `latest.json`。Windows/Linux 更新 tar.zst 无包装目录；macOS 更新包只包含顶层 `Darkeye.app/`，整份替换应用并清理旧文件。更新包只包含程序，不包含数据或便携配置；包内保留原有相对符号链接和可执行权限，不重复存储链接目标；更新器在解包完成后恢复安全的内部链接；外部链接、循环链接和空包会拒绝生成。tar.zst 通过完整性校验后才替换正式产物，JSON 中的 SHA-256 自动从最终包体计算；安装和便携模式共用它。不要将首次分发的便携包、系统安装包用作更新包。
+- 默认更新地址为 `https://darkeye.win/updates/stable/{target}/latest.json`，`{target}` 根据当前应用构建目标替换为 `windows-x64`、`macos-arm64` 或 `linux-x64`。可以在随包发布的 `config/update.ini` 修改地址模板。
+- 每个平台的清单独立发布，结构为 `latestVersion`、`releaseNotes`、`packages`；`packages` 以目标名为键，每个条目必须有 HTTPS `url` 和真实 `sha256`。发布前填写更新说明，并核对生成的下载地址。
+- 先上传版本化更新 tar.zst，确认可下载后，再将生成的 `latest.json` 上传到对应目标目录（不同平台的本地产物也应分目录保存）。不同平台可停留在不同版本。
+- Windows 更新根目录为 exe 所在目录，Mac 为 `.app` 根目录（从包内 `Darkeye.app/` 取出完整应用内容替换），Linux 为包含 `bin`、`lib`、`share` 的安装根目录；更新器先复制到系统临时目录运行，日志为该临时目录内的 `update.log`。
+- 包内文件递归覆盖，包外已有文件保留，`data` 和顶层 `portable.ini` 显式保护。重启时带回原来的数据、配置和知识库路径。Linux 的 `bin/portable.ini` 由程序更新包排除，因此也会保留。
+- 程序目录必须可写；系统管理的只读安装位置需通过系统安装程序或包管理器更新。应用不自动提权。
+
+## 使用 uv 安装打包依赖
+
+以下命令均在项目根目录执行，需先安装 `uv`。Windows、macOS 和 Linux 使用相同命令：
+
+```sh
+uv venv
+uv pip install -r tools/requirements-packaging.txt
+uv run --no-project python tools/package.py
+```
+
+`uv venv` 创建项目内的 `.venv`；依赖只需在首次打包或依赖变更后安装。`uv run --no-project` 使用该虚拟环境运行脚本，无需手动激活环境。
+
+复用已有 Release 构建时：
+
+```sh
+uv run --no-project python tools/package.py --skip-build
+```
+
+也可追加 `--build-dir` 指定构建目录，或用 `--test` 在构建并测试后打包。`zstandard` 用于生成各平台的 `.tar.zst` 更新包，JSON 和 SHA-256 随包自动生成。
 
 ## 准备构建环境
 
@@ -61,7 +95,7 @@ export Qt6_DIR="$HOME/Qt/6.12.0/macos/lib/cmake/Qt6"
 python3 tools/build.py --config Release --test
 ```
 
-预设强制 `CMAKE_OSX_ARCHITECTURES=arm64` 和部署目标 14.4。打包会用 `lipo` 再次核对主程序仅包含 arm64。需要 Xcode Command Line Tools、Ninja、`ditto`、`codesign`、`pkgbuild`。
+预设强制 `CMAKE_OSX_ARCHITECTURES=arm64` 和部署目标 14.4。打包会用 `lipo` 再次核对主程序仅包含 arm64。需要 Xcode Command Line Tools、Ninja、`ditto`、`codesign`、`hdiutil`。
 
 Linux（Ubuntu 24.04）：
 
@@ -81,16 +115,16 @@ dbus-run-session -- xvfb-run -a python3 tools/build.py --config Release --test
 在各自原生系统执行：
 
 ```sh
-python tools/package.py
+uv run --no-project python tools/package.py
 ```
 
 或先构建并测试，再复用已完成的 Release 测试构建：
 
 ```sh
 # 根据平台选择对应目录：
-python tools/package.py --skip-build --build-dir build/windows-msvc-release-tests
-python3 tools/package.py --skip-build --build-dir build/linux-x64-release-tests
-python3 tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
+uv run --no-project python tools/package.py --skip-build --build-dir build/windows-msvc-release-tests
+uv run --no-project python tools/package.py --skip-build --build-dir build/linux-x64-release-tests
+uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
 ```
 
 `--test` 会在打包前构建和运行全套测试，失败时停止打包。`--skip-build` 明确跳过构建和测试，适合在独立验证通过后使用。两者不能同时使用。
@@ -98,7 +132,7 @@ python3 tools/package.py --skip-build --build-dir build/macos-arm64-release-test
 - `--format portable|installer|both`：默认 both。
 - `--destination out/某目录/Darkeye-版本-平台-架构`：隔离发布暂存目录与产物。
 - 所有清理和输出限制在项目 `out/` 内；带有用户数据的暂存目录以及指向外部的链接不会被自动删除。
-- 版本号取自顶层 CMake `project(VERSION)`；每个产物旁生成 `.sha256` 文件。
+- 版本号取自顶层 CMake `project(VERSION)`；仅 `.tar.zst` 更新包旁生成 `.sha256` 文件；成功后清理安装、便携暂存目录及中间文件。
 - 安装资源包含项目 LICENSE、cgltf LICENSE、vcpkg 依赖 copyright，以及能从 Qt 安装目录找到的许可证。可通过 CMake `DARKEYE_QT_LICENSE_DIR` 指定 Qt 许可证目录；正式分发前应核对实际使用模块的完整第三方声明。
 
 每个版本产生六个主文件：
@@ -107,14 +141,14 @@ python3 tools/package.py --skip-build --build-dir build/macos-arm64-release-test
 Darkeye-版本-windows-x64-portable.7z
 Darkeye-版本-windows-x64-setup.exe
 Darkeye-版本-macos-arm64-portable.zip
-Darkeye-版本-macos-arm64-setup.pkg
+Darkeye-版本-macos-arm64-setup.dmg
 Darkeye-版本-linux-x64-portable.tar.gz
 Darkeye-版本-linux-x64-setup.deb
 ```
 
 Linux `.deb` 把应用及其私有运行库安装到 `/opt/darkeye`，注册 `darkeye` 命令和桌面入口；系统依赖由 `dpkg-shlibdeps` 分析 ELF 文件产生，并补充 unzip、libsecret、字体等运行条件。它不会安装或删除用户数据。
 
-macOS 默认进行 ad-hoc 签名，适用于构建验证，不等于面向公众的 Developer ID 签名和公证。可通过 `--mac-sign-identity`、`--mac-installer-identity` 指定已在本机钥匙串准备好的 Developer ID 身份。正式发布还需对分发包进行公证和 stapling；本入口不会自动上传或公证。参见 [Apple 分发说明](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)。
+macOS 默认进行 ad-hoc 签名，适用于构建验证，不等于面向公众的 Developer ID 签名和公证。可通过 `--mac-sign-identity` 指定已在本机钥匙串准备好的 Developer ID 身份。正式发布还需对分发包进行公证和 stapling；本入口不会自动上传或公证。参见 [Apple 分发说明](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)。
 
 ## 原生验证工作流
 

@@ -36,15 +36,6 @@ namespace darkeye {
 namespace
 {
 
-QString latestManifestUrl()
-{
-    const QString configPath = QDir(settings::Paths().configDirectory())
-                                   .filePath(QStringLiteral("update.ini"));
-    QSettings config(configPath, QSettings::IniFormat);
-    const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
-    return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
-}
-
 QString currentIsoWeek()
 {
     int year = 0;
@@ -52,23 +43,7 @@ QString currentIsoWeek()
     return QStringLiteral("%1-%2").arg(year).arg(week, 2, 10, QLatin1Char('0'));
 }
 
-#ifdef Q_OS_WIN
-bool startUpdater()
-{
-    const QString updater = QDir(QCoreApplication::applicationDirPath())
-                                .filePath(QStringLiteral("DarkEyeUpdater.exe"));
-    if (!QFileInfo::exists(updater))
-        return false;
-    const QStringList arguments = {
-        QStringLiteral("--install-dir"), QCoreApplication::applicationDirPath(),
-        QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
-        QStringLiteral("--main-exe"), QFileInfo(QCoreApplication::applicationFilePath()).fileName(),
-        QStringLiteral("--latest-json-url"), latestManifestUrl(),
-        QStringLiteral("--keep"), QStringLiteral("data"),
-        QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid())};
-    return QProcess::startDetached(updater, arguments, QCoreApplication::applicationDirPath());
-}
-#endif
+
 
 } // namespace
 
@@ -323,26 +298,21 @@ void Application::checkForUpdatesAutomatically()
                 if (!result.updateAvailable || !showNotification || m_mainWindow == nullptr)
                     return;
 
-#ifndef Q_OS_WIN
-                if (QMessageBox::question(m_mainWindow.get(), QStringLiteral("发现新版本"),
-                        result.message + QStringLiteral("\n\n打开发布页下载适合本系统的版本？")) == QMessageBox::Yes)
-                    QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/gty5678/darkeye-cpp/releases")));
-#else
                 const QString prompt = result.message
                     + QStringLiteral("\n\n是否立即更新？软件将退出以完成更新。");
                 if (QMessageBox::question(m_mainWindow.get(), QStringLiteral("发现新版本"), prompt,
                                           QMessageBox::Yes | QMessageBox::No,
                                           QMessageBox::Yes) != QMessageBox::Yes)
                     return;
-                if (!startUpdater()) {
+                QString error;
+                if (!UpdateService::launchUpdater(&error)) {
                     QMessageBox::critical(m_mainWindow.get(), QStringLiteral("更新失败"),
-                                          QStringLiteral("无法启动更新程序。"));
+                                          error);
                     return;
                 }
                 QCoreApplication::quit();
-#endif
                      });
-    service->check(QUrl::fromUserInput(latestManifestUrl()), QStringLiteral(DARKEYE_VERSION));
+    service->check(UpdateService::manifestUrl(), QStringLiteral(DARKEYE_VERSION));
 }
 
 void Application::stopLlamaServer()

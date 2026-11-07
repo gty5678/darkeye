@@ -212,22 +212,30 @@ void UtilsCompatibilityTest::updateManifestMatchesPythonVersionRules()
     QVERIFY(darkeye::utils::isNewerVersion(QStringLiteral("1.0.0"), QStringLiteral("1.0")));
     QVERIFY(darkeye::utils::isNewerVersion(QStringLiteral("nightly"), QStringLiteral("stable")));
 
-    const auto available = darkeye::utils::evaluateUpdateManifest(
-        QStringLiteral("1.0.0"),
-        R"({"latestVersion":"1.1.0","releaseNotes":"修复问题","package":{"url":"https://example.test/app.zip"}})");
+    const QByteArray manifest = QString::fromUtf8(
+        R"({"latestVersion":"1.1.0","releaseNotes":"修复问题","packages":{"%1":{"url":"https://example.test/app.zip","sha256":"%2"}}})")
+        .arg(darkeye::utils::updateTarget(), QString(64, u'a')).toUtf8();
+    const auto available = darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.0.0"), manifest);
     QVERIFY(available.success);
     QVERIFY(available.updateAvailable);
     QCOMPARE(available.latestVersion, QStringLiteral("1.1.0"));
     QCOMPARE(available.packageUrl, QStringLiteral("https://example.test/app.zip"));
     QVERIFY(available.message.contains(QStringLiteral("修复问题")));
-
-    const auto current = darkeye::utils::evaluateUpdateManifest(
-        QStringLiteral("1.1.0"), R"({"latestVersion":"1.1.0"})");
+    const auto current = darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.1.0"), manifest);
     QVERIFY(current.success);
     QVERIFY(!current.updateAvailable);
-    const auto missing = darkeye::utils::evaluateUpdateManifest(
-        QStringLiteral("1.0.0"), R"({"releaseNotes":"none"})");
-    QVERIFY(!missing.success);
+    for (const QByteArray &invalid : {
+            QByteArray(R"({"latestVersion":"1.1.0","package":{"url":"https://example.test/old.zip"}})"),
+            QByteArray(R"({"latestVersion":"1.1.0","packages":{"other-target":{}}})"),
+            QByteArray(R"({"releaseNotes":"none"})")}) {
+        QVERIFY(!darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.0.0"), invalid).success);
+    }
+    QByteArray badHash = manifest;
+    badHash.replace(QByteArray(64, 'a'), QByteArray(64, '0'));
+    QVERIFY(!darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.0.0"), badHash).success);
+    QByteArray insecure = manifest;
+    insecure.replace("https://", "http://");
+    QVERIFY(!darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.0.0"), insecure).success);
 }
 
 QTEST_MAIN(UtilsCompatibilityTest)

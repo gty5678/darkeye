@@ -90,15 +90,6 @@ QString detectedDatabaseVersion(const QString &path)
     return version.isEmpty() ? QStringLiteral("无版本") : version;
 }
 
-QString latestManifestUrl()
-{
-    const QString configPath = QDir(settings::Paths().configDirectory())
-                                   .filePath(QStringLiteral("update.ini"));
-    QSettings config(configPath, QSettings::IniFormat);
-    const QString configured = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
-    return configured.isEmpty() ? QStringLiteral("https://darkeye.win/latest.json") : configured;
-}
-
 QString executableFileFilter()
 {
 #ifdef Q_OS_WIN
@@ -106,12 +97,6 @@ QString executableFileFilter()
 #else
     return QStringLiteral("可执行文件 (*)");
 #endif
-}
-
-QString updaterExecutablePath()
-{
-    return QDir(QCoreApplication::applicationDirPath())
-        .filePath(QStringLiteral("DarkEyeUpdater.exe"));
 }
 
 QString collectorBridgeUrl(const QUrl &workApi)
@@ -129,31 +114,12 @@ QString collectorBridgeUrl(const QUrl &workApi)
     return url;
 }
 
-QStringList updaterArguments()
-{
-    return {QStringLiteral("--install-dir"), QCoreApplication::applicationDirPath(),
-            QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
-            QStringLiteral("--main-exe"), QFileInfo(QCoreApplication::applicationFilePath()).fileName(),
-            QStringLiteral("--latest-json-url"), latestManifestUrl(),
-            QStringLiteral("--keep"), QStringLiteral("data"),
-            QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid())};
-}
-
 bool startUpdater(QWidget *parent, const QStringList &additionalArguments)
 {
-    const QString updater = updaterExecutablePath();
-    if (!QFileInfo::exists(updater)) {
-        QMessageBox::critical(parent, QStringLiteral("更新失败"),
-                              QStringLiteral("未找到更新程序：%1").arg(updater));
-        return false;
-    }
-    QStringList arguments = updaterArguments();
-    arguments.append(additionalArguments);
-    if (!QProcess::startDetached(updater, arguments, QCoreApplication::applicationDirPath())) {
-        QMessageBox::critical(parent, QStringLiteral("更新失败"), QStringLiteral("无法启动更新程序。"));
-        return false;
-    }
-    return true;
+    QString error;
+    if (UpdateService::launchUpdater(&error, additionalArguments)) return true;
+    QMessageBox::critical(parent, QStringLiteral("更新失败"), error);
+    return false;
 }
 
 } // namespace
@@ -279,12 +245,7 @@ void AboutSettingsPage::lazyLoad()
                 QMessageBox::information(this, result.title, result.message);
                 return;
             }
-#ifndef Q_OS_WIN
-            if (QMessageBox::question(this, result.title,
-                    result.message + QStringLiteral("\n\n打开发布页下载适合本系统的版本？")) == QMessageBox::Yes)
-                QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/gty5678/darkeye-cpp/releases")));
-            return;
-#endif
+
             const QString prompt = result.message
                 + QStringLiteral("\n\n已检测到新版本。软件将退出以完成更新，是否立即更新？");
             if (QMessageBox::question(this, result.title, prompt,
@@ -299,7 +260,7 @@ void AboutSettingsPage::lazyLoad()
                                      result.message + QStringLiteral("\n\n已启动更新程序，软件即将退出完成更新。"));
             QTimer::singleShot(200, qApp, &QCoreApplication::quit);
         });
-        service->check(QUrl::fromUserInput(latestManifestUrl()),
+        service->check(UpdateService::manifestUrl(),
                        QStringLiteral(DARKEYE_VERSION));
     });
     versionRow->addWidget(checkUpdate);
@@ -309,9 +270,8 @@ void AboutSettingsPage::lazyLoad()
         QStringLiteral("选择从 GitHub Release 下载的 zip 或 tar.zst，由更新程序离线安装。"));
     connect(localUpdate, &QPushButton::clicked, this, [this] {
         const QString explanation = QStringLiteral(
-            "本地安装将无视版本号，直接覆盖安装目录下的文件。只能升级不能降级。"
-            "跨最小版本可随意升降，中版本、大版本只能升级。\n\n"
-            "覆盖安装时仅保留目录下的 data 文件夹内数据；其余文件将被新版本覆盖。\n\n确定继续？");
+            "本地更新不会校验版本号，请确认所选程序更新包适用于当前系统和架构。\n\n"
+            "更新包中的程序文件将被覆盖，原有数据、便携配置及包外文件会保留。\n\n确定继续？");
         if (QMessageBox::question(this, QStringLiteral("覆盖安装说明"), explanation,
                                   QMessageBox::Yes | QMessageBox::No,
                                   QMessageBox::No) != QMessageBox::Yes)
@@ -337,10 +297,7 @@ void AboutSettingsPage::lazyLoad()
                                  QStringLiteral("已启动更新程序，软件即将退出完成更新。"));
         QTimer::singleShot(200, qApp, &QCoreApplication::quit);
     });
-#ifndef Q_OS_WIN
-    // Native installers / package managers perform upgrades on these platforms.
-    localUpdate->hide();
-#endif
+
     versionRow->addWidget(localUpdate);
 
     const auto addExternalButton = [this, versionRow](const QString &text, const QString &url)

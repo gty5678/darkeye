@@ -59,7 +59,7 @@ DataDirectory=../data
 
 不要同时启动两个版本访问同一数据目录。程序目录可回退并不代表数据库可以降级；新版本迁移数据库前应备份，旧版是否能读取新数据库取决于数据库兼容性。
 
-标准模式升级仅替换程序，保留系统用户数据目录。当前仓库仅生成主程序和发布包，外部 `DarkEyeUpdater.exe` 不在本仓库。外部自动更新器接入新布局时，应区分标准安装程序与便携完整包：便携更新只安装新版本子目录，保留已有版本配置与共享数据，不能把整个 `DarkEye` 包展开到旧版本程序目录。
+标准模式和便携模式共用 `-update.tar.zst` 程序更新包，原目录递归覆盖，包外文件保留；不修改已有 `portable.ini` 或用户数据。自动更新使用随包部署的 `updater.exe`，从系统临时目录启动，不再调用旧的 `DarkEyeUpdater.exe`。首次分发的便携完整包和安装程序不作为自动更新包。发布步骤见[自动更新发布](cross-platform-packaging.md#自动更新发布)。
 
 ## 数据内部路径规则
 
@@ -77,7 +77,7 @@ DataDirectory=../data
 
 | 工具 | 用途 | 当前脚本要求 |
 | --- | --- | --- |
-| Python 3.9+ | 执行 `tools/package.py`、`tools/build.py` | 可以执行 `python`，不需要额外 Python 包 |
+| Python 3.9+ | 执行 `tools/package.py`、`tools/build.py` | 通过 `uv` 创建虚拟环境，并安装 `tools/requirements-packaging.txt` 中的压缩依赖 |
 | Visual Studio C++ 工具链 | 编译主程序 | MSVC x64 和 Windows SDK；脚本自动加载开发环境 |
 | CMake、Ninja、Qt、vcpkg 依赖 | 配置、构建与运行库部署 | CMake 3.25+；当前预设使用 Qt 6.12.0 MSVC 2022 64-bit kit |
 | 7-Zip | 生成并校验便携压缩包 | PATH 中的 `7zz` / `7z` / `7za`，或常见 Program Files 下的 `7-Zip/7z.exe` |
@@ -97,9 +97,18 @@ Inno Setup 编译器按以下顺序查找：命令行 `--iscc` 指定路径、PA
 
 打开 PowerShell，切换到包含根 `CMakeLists.txt` 和 `tools` 的仓库目录，执行：
 
+先在项目根目录安装打包依赖（需已安装 `uv`）：
+
+```powershell
+uv venv
+uv pip install -r tools/requirements-packaging.txt
+```
+
+使用虚拟环境运行打包脚本，无需手动激活。后续示例同样使用 `uv run --no-project`，详见[跨平台依赖安装说明](cross-platform-packaging.md#使用-uv-安装打包依赖)。
+
 ```powershell
 # 默认：编译 Release，生成便携包和安装包
-python tools/package.py
+uv run --no-project python tools/package.py
 ```
 
 脚本自动使用 `windows-msvc-release` 配置预设和 `release` 构建预设，构建目录为 `build/windows-msvc-release`。默认增量编译，不会每次清空整个构建目录。
@@ -108,26 +117,26 @@ python tools/package.py
 
 ```powershell
 # 便携版：只需要 7-Zip，不需要 Inno Setup
-python tools/package.py --format portable
+uv run --no-project python tools/package.py --format portable
 
 # 安装版：只需要 Inno Setup，不需要 7-Zip
-python tools/package.py --format installer
+uv run --no-project python tools/package.py --format installer
 
 # 指定 Inno Setup 编译器位置
-python tools/package.py --format installer --iscc "C:/path/to/ISCC.exe"
+uv run --no-project python tools/package.py --format installer --iscc "C:/path/to/ISCC.exe"
 ```
 
 其他常用方式：
 
 ```powershell
 # 已完成当前源码的 release 构建，只重新暂存、部署依赖和打包
-python tools/package.py --skip-build
+uv run --no-project python tools/package.py --skip-build
 
 # 清除发布构建目录并全量编译，再生成两个包
-python tools/package.py --clean
+uv run --no-project python tools/package.py --clean
 
 # 只显示步骤，不执行构建、覆盖或打包
-python tools/package.py --dry-run
+uv run --no-project python tools/package.py --dry-run
 ```
 
 `--skip-build` 固定读取 `build/windows-msvc-release`。源码或版本号修改后，应先正常构建再打包，避免使用旧程序。
@@ -162,7 +171,7 @@ DarkEye/
 └── data/              # 发布包中为空，运行后保存用户数据
 ```
 
-两种正式发布包均不包含开发机的数据库、图片、个人配置或 `seed-data`。标准安装包也不含便携配置或标记。当前流程不包含外部 `DarkEyeUpdater.exe`，自动更新器的接入范围见上文“升级与版本切换”。
+两种正式发布包均不包含开发机的数据库、图片、个人配置或 `seed-data`。标准安装包也不含便携配置或标记。发布前须提供本平台的 `resources/updater.exe`；打包同时生成用于自动更新的程序 ZIP 和平台清单。
 
 ### 4. 脚本实际执行的步骤
 

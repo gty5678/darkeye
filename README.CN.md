@@ -15,6 +15,7 @@
 ![C++][badge-cpp]
 ![CMake 3.25+][badge-cmake]
 ![MSVC 2022][badge-msvc]
+![Apple Clang][badge-clang]
 [![SQLite][badge-sqlite]](https://sqlite.org/)
 ![Platform][badge-platform]
 ![License][badge-license]
@@ -55,23 +56,29 @@
 
 ## 下载与使用
 
-<div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows-blue?style=for-the-badge&logo=windows" alt="下载 Windows 版本" />
-  </a>
+支持 **Windows x64** 和 **macOS ARM64（Apple Silicon）**。请在 [Releases][link-releases] 中选择对应平台的安装版或便携版。
 
-  <a href="https://darkeye.win/DarkEye-v1.2.5.zip">
-    <img src="https://img.shields.io/badge/%E5%A4%87%E7%94%A8%E4%B8%8B%E8%BD%BD-WINDOWS-green?style=for-the-badge&logo=windows" alt="备用下载 Windows" />
+<div align="center">
+  <a href="https://github.com/gty5678/darkeye/releases">
+    <img src="https://img.shields.io/badge/Download-Windows%20x64-blue?style=for-the-badge&logo=windows" alt="下载 Windows x64 版本" />
+  </a>
+  <a href="https://github.com/gty5678/darkeye/releases">
+    <img src="https://img.shields.io/badge/Download-macOS%20ARM64-black?style=for-the-badge&logo=apple" alt="下载 macOS ARM64 版本" />
   </a>
 </div>
 
-下载程序并解压，运行 exe 即可；浏览器扩展随软件附带在 `extensions` 目录内。请按下方文档安装**对应浏览器的一种**扩展。
+- **Windows x64**：运行 `.exe` 安装包，或完整解压 `.7z` 便携包后运行 `app-<版本>/Darkeye.exe`。
+- **macOS ARM64（Apple Silicon）**：运行 `.pkg` 安装包，安装后打开 `/Applications/Darkeye.app`；或完整解压 `.zip` 便携包，将整个 `DarkEye` 文件夹放在可写位置，再打开其中的 `Darkeye.app`。
+
+安装与数据迁移详情见 [Windows 发布说明](docs/windows-packaging.md) 和 [macOS 使用与打包说明](docs/macos-packaging.md)。
+
+浏览器扩展请按下方文档安装**对应浏览器的一种**；若发布包中附带 `extensions` 目录，可直接使用其中的扩展，否则从下方入口单独下载。
 
 ### 浏览器扩展安装
 
 👉 [在线文档：浏览器扩展安装](https://gty5678.github.io/darkeye/usage/#_2)
 
-除非浏览器扩展单独更新，一般**不需要**单独下载浏览器扩展。
+若发布包已附带浏览器扩展，且扩展没有单独更新，一般**不需要**重复下载。
 <div align="center">
   <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/chrome_capture.zip">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Chrome%2FEdge%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下载 Chrome/Edge 扩展" />
@@ -168,7 +175,7 @@
 
 ## 隐私与数据
 
-- **数据与联网**：便携模式数据由 `portable.ini` 明确指定，版本化便携包默认使用根目录共享的 `data/`；标准模式数据在 `%LOCALAPPDATA%\Darkeye\Darkeye`（数据库、配置、封面与头像等）。打包与迁移方式见 [Windows 发布说明](docs/windows-packaging.md)。不会主动向第三方上传你的本地资料；联网主要来自刮削与资源拉取，以及可选的更新下载（Cloudflare R2）、翻译（Google 或你自配的 LLM API）等。第三方服务由用户自主启用并自行承担合规责任。
+- **数据与联网**：便携模式数据由 `portable.ini` 指定：Windows 便携包使用根目录共享的 `data/`，macOS 便携包使用 `.app` 外的 `data/`。安装版使用系统用户数据目录，实际路径可在软件设置中查看。迁移便携版时请保留数据目录与 `portable.ini`；详情见 [Windows 发布说明](docs/windows-packaging.md) 和 [macOS 使用与打包说明](docs/macos-packaging.md)。不会主动向第三方上传你的本地资料；联网主要来自刮削与资源拉取，以及可选的更新下载（Cloudflare R2）、翻译（Google 或你自配的 LLM API）等。第三方服务由用户自主启用并自行承担合规责任。
 
 
 ---
@@ -231,7 +238,7 @@
 若想开发，请先阅读下面的文档将软件运行起来。
 👉 [开发文档](https://gty5678.github.io/darkeye/development/)
 
-Windows 安装版与便携版的生成步骤见 [Windows 打包与发布](docs/windows-packaging.md)。
+Windows x64 安装版与便携版的生成步骤见 [Windows 打包与发布](docs/windows-packaging.md)。
 
 macOS（Apple Silicon）需要安装的工具、Qt/vcpkg 配置、编译与启动命令，以及便携 ZIP 和安装 PKG 的生成步骤见 [macOS 安装依赖、编译、运行与打包](docs/macos-packaging.md)。已有本机环境可直接使用文档第 0 节的命令。
 
@@ -291,7 +298,7 @@ macOS（Apple Silicon）需要安装的工具、Qt/vcpkg 配置、编译与启�
 [badge-cmake]: https://img.shields.io/badge/CMake-3.25%2B-064F8C?logo=cmake&logoColor=white
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHBhdGggZmlsbD0iI0YyNTAyMiIgZD0iTTEgMWgxMHYxMEgxeiIvPjxwYXRoIGZpbGw9IiM3RkJBMDAiIGQ9Ik0xMyAxaDEwdjEwSDEzeiIvPjxwYXRoIGZpbGw9IiMwMEE0RUYiIGQ9Ik0xIDEzaDEwdjEwSDF6Ii8%2BPHBhdGggZmlsbD0iI0ZGQjkwMCIgZD0iTTEzIDEzaDEwdjEwSDEzeiIvPjwvc3ZnPg%3D%3D
 [badge-sqlite]: https://img.shields.io/badge/SQLite-local%20storage-003B57?logo=sqlite&logoColor=white
-[badge-platform]: https://img.shields.io/badge/Platform-Windows-0078D4?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BV2luZG93czwvdGl0bGU%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4%3D
+[badge-platform]: https://img.shields.io/badge/Platform-Windows%20x64%20%7C%20macOS%20ARM64-0078D4
 [badge-license]: https://img.shields.io/github/license/gty5678/darkeye
 [badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye
 [badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye
@@ -305,3 +312,5 @@ macOS（Apple Silicon）需要安装的工具、Qt/vcpkg 配置、编译与启�
 [link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
 [link-releases]: https://github.com/gty5678/darkeye/releases
+
+[badge-clang]: https://img.shields.io/badge/Apple%20Clang-arm64-black?logo=apple

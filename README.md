@@ -16,6 +16,7 @@
 ![C++][badge-cpp]
 ![CMake 3.25+][badge-cmake]
 ![MSVC 2022][badge-msvc]
+![Apple Clang][badge-clang]
 [![SQLite][badge-sqlite]](https://sqlite.org/)
 ![Platform][badge-platform]
 ![License][badge-license]
@@ -59,23 +60,29 @@
 
 ## ダウンロードと利用
 
+**Windows x64** と **macOS ARM64（Apple Silicon）** に対応しています。[Releases][link-releases] から、お使いのプラットフォーム用のインストーラー版またはポータブル版を選んでください。
+
 <div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
-    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Windows-blue?style=for-the-badge&logo=windows" alt="Windows 版をダウンロード" />
+  <a href="https://github.com/gty5678/darkeye/releases">
+    <img src="https://img.shields.io/badge/Download-Windows%20x64-blue?style=for-the-badge&logo=windows" alt="Windows x64 版をダウンロード" />
   </a>
-  　　
-  <a href="https://darkeye.win/DarkEye-v1.2.5.zip">
-    <img src="https://img.shields.io/badge/%E4%BB%A3%E6%9B%BF%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-WINDOWS-green?style=for-the-badge&logo=windows" alt="代替ダウンロード Windows" />
+  <a href="https://github.com/gty5678/darkeye/releases">
+    <img src="https://img.shields.io/badge/Download-macOS%20ARM64-black?style=for-the-badge&logo=apple" alt="macOS ARM64 版をダウンロード" />
   </a>
 </div>
 
-ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡張機能はソフトの `extensions` フォルダに同梱されており、通常は拡張を別途ダウンロードする必要はありません。スクレイピングを使う場合は、**お使いのブラウザ用を 1 つ**選び、下のドキュメントに従って拡張をインストールしてください。
+- **Windows x64**：`.exe` インストーラーを実行するか、`.7z` ポータブルパッケージ全体を展開して `app-<バージョン>/Darkeye.exe` を実行してください。
+- **macOS ARM64（Apple Silicon）**：`.pkg` インストーラーでインストール後、`/Applications/Darkeye.app` を開いてください。ポータブル版は `.zip` 全体を展開し、`DarkEye` フォルダ全体を書き込み可能な場所に置いてから、中の `Darkeye.app` を開いてください。
+
+インストールとデータ移行の詳細は [Windows リリースガイド（中国語）](docs/windows-packaging.md) と [macOS 利用・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
+
+ブラウザ拡張は、**お使いのブラウザ用を 1 つ**選び、下のドキュメントに従ってインストールしてください。配布パッケージに `extensions` フォルダがある場合は同梱の拡張を使用でき、ない場合は以下から別途ダウンロードしてください。
 
 ### 拡張機能のインストール
 
 👉 [オンラインドキュメント：インストール](https://gty5678.github.io/darkeye/usage/#_2)
 
-拡張単体の更新がない限り、通常は**拡張だけを別途ダウンロードする必要はありません**。
+ブラウザ拡張が同梱されており、拡張単体の更新がない場合は、通常**別途ダウンロードする必要はありません**。
 <div align="center">
   <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/chrome_capture.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Chrome%2FEdge%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Chrome / Edge 拡張をダウンロード" />
@@ -171,7 +178,7 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 ## プライバシーとデータ
 
-- **データと通信**：既定では実行ファイル近くの `data/` に保存（DB・設定・カバー・ポートレートなど）。ローカル資料を第三者へ自動送信することはありません。通信は主にスクレイピングとリソース取得、任意の更新ダウンロード（Cloudflare R2）、翻訳（Google または設定した LLM API）などで発生します。サードパーティサービスは利用者が任意で有効化し、適法性の確認責任を負います。
+- **データと通信**：ポータブルモードのデータ保存先は `portable.ini` で指定します。Windows 版はルートの共有 `data/`、macOS 版は `.app` の外の `data/` を使用します。インストーラー版は OS のユーザーデータフォルダを使用し、実際のパスはソフトの設定で確認できます。ポータブル版の移行時はデータフォルダと `portable.ini` を保持してください。詳細は [Windows リリースガイド（中国語）](docs/windows-packaging.md) と [macOS 利用・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。ローカル資料を第三者へ自動送信することはありません。通信は主にスクレイピングとリソース取得、任意の更新ダウンロード（Cloudflare R2）、翻訳（Google または設定した LLM API）などで発生します。サードパーティサービスは利用者が任意で有効化し、適法性の確認責任を負います。
 
 
 ---
@@ -236,6 +243,8 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 👉 [開発ドキュメント](https://gty5678.github.io/darkeye/development/)
 
+Windows x64 のインストーラー版とポータブル版の作成手順は [Windows パッケージガイド（中国語）](docs/windows-packaging.md) を参照してください。
+
 macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起動コマンド、ポータブル ZIP とインストーラー PKG の作成手順は [macOS ビルド・実行・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
 
 ---
@@ -295,7 +304,7 @@ macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起�
 [badge-cmake]: https://img.shields.io/badge/CMake-3.25%2B-064F8C?logo=cmake&logoColor=white
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHBhdGggZmlsbD0iI0YyNTAyMiIgZD0iTTEgMWgxMHYxMEgxeiIvPjxwYXRoIGZpbGw9IiM3RkJBMDAiIGQ9Ik0xMyAxaDEwdjEwSDEzeiIvPjxwYXRoIGZpbGw9IiMwMEE0RUYiIGQ9Ik0xIDEzaDEwdjEwSDF6Ii8%2BPHBhdGggZmlsbD0iI0ZGQjkwMCIgZD0iTTEzIDEzaDEwdjEwSDEzeiIvPjwvc3ZnPg%3D%3D
 [badge-sqlite]: https://img.shields.io/badge/SQLite-local%20storage-003B57?logo=sqlite&logoColor=white
-[badge-platform]: https://img.shields.io/badge/Platform-Windows-0078D4?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BV2luZG93czwvdGl0bGU%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4%3D
+[badge-platform]: https://img.shields.io/badge/Platform-Windows%20x64%20%7C%20macOS%20ARM64-0078D4
 [badge-license]: https://img.shields.io/github/license/gty5678/darkeye
 [badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye
 [badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye
@@ -309,3 +318,5 @@ macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起�
 [link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
 [link-releases]: https://github.com/gty5678/darkeye/releases
+
+[badge-clang]: https://img.shields.io/badge/Apple%20Clang-arm64-black?logo=apple

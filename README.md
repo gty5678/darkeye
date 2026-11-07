@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://gty5678.github.io/darkeye-webpage/" target="_blank">
-    <img src="https://raw.githubusercontent.com/gty5678/darkeye-cpp/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
+    <img src="https://raw.githubusercontent.com/gty5678/darkeye/main/resources/icons/logo.svg" alt="DarkEye" width="128" />
   </a>
   <h1>DarkEye</h1>
   <p><strong>洞察と秩序</strong></p>
@@ -47,7 +47,7 @@
 </p>
 
 <div align="center">
-  <a href="https://github.com/gty5678/darkeye-cpp/releases" target="_blank">
+  <a href="https://github.com/gty5678/darkeye/releases" target="_blank">
     <img src="./docs/assets/show.jpg" alt="DarkEye 実物風 DVD の展示" width="100%" />
   </a>
 </div>
@@ -60,7 +60,7 @@
 ## ダウンロードと利用
 
 <div align="center">
-  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/DarkEye-v1.2.5.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Windows-blue?style=for-the-badge&logo=windows" alt="Windows 版をダウンロード" />
   </a>
   　　
@@ -77,11 +77,11 @@ ZIP を展開し、`exe` を実行すれば利用できます。ブラウザ拡�
 
 拡張単体の更新がない限り、通常は**拡張だけを別途ダウンロードする必要はありません**。
 <div align="center">
-  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/chrome_capture.zip">
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/chrome_capture.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Chrome%2FEdge%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Chrome / Edge 拡張をダウンロード" />
   </a>
   　　
-  <a href="https://github.com/gty5678/darkeye-cpp/releases/download/v1.2.5/firefox_capture.zip">
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/firefox_capture.zip">
     <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Firefox%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Firefox 拡張をダウンロード" />
   </a>
 </div>
@@ -277,8 +277,8 @@ macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起�
 
 ## コントリビューター
 
-<a href="https://github.com/gty5678/darkeye-cpp/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=gty5678/darkeye-cpp" alt="Contributors" width="500" />
+<a href="https://github.com/gty5678/darkeye/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gty5678/darkeye" alt="Contributors" width="500" />
 </a>
 
 ---
@@ -296,16 +296,16 @@ macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起�
 [badge-msvc]: https://img.shields.io/badge/MSVC-2022-5C2D91?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHBhdGggZmlsbD0iI0YyNTAyMiIgZD0iTTEgMWgxMHYxMEgxeiIvPjxwYXRoIGZpbGw9IiM3RkJBMDAiIGQ9Ik0xMyAxaDEwdjEwSDEzeiIvPjxwYXRoIGZpbGw9IiMwMEE0RUYiIGQ9Ik0xIDEzaDEwdjEwSDF6Ii8%2BPHBhdGggZmlsbD0iI0ZGQjkwMCIgZD0iTTEzIDEzaDEwdjEwSDEzeiIvPjwvc3ZnPg%3D%3D
 [badge-sqlite]: https://img.shields.io/badge/SQLite-local%20storage-003B57?logo=sqlite&logoColor=white
 [badge-platform]: https://img.shields.io/badge/Platform-Windows-0078D4?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BV2luZG93czwvdGl0bGU%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4%3D
-[badge-license]: https://img.shields.io/github/license/gty5678/darkeye-cpp
-[badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye-cpp
-[badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye-cpp
-[badge-stars]: https://img.shields.io/github/stars/gty5678/darkeye-cpp?style=social
-[badge-downloads]: https://img.shields.io/github/downloads/gty5678/darkeye-cpp/total
+[badge-license]: https://img.shields.io/github/license/gty5678/darkeye
+[badge-last-commit]: https://img.shields.io/github/last-commit/gty5678/darkeye
+[badge-release]: https://img.shields.io/github/v/release/gty5678/darkeye
+[badge-stars]: https://img.shields.io/github/stars/gty5678/darkeye?style=social
+[badge-downloads]: https://img.shields.io/github/downloads/gty5678/darkeye/total
 
 <!-- Links -->
 
-[link-docs]: https://gty5678.github.io/darkeye-cpp/
+[link-docs]: https://gty5678.github.io/darkeye/
 [link-video]: https://youtu.be/VCsw1D0ccgY?si=e9typx4kPnzaVFZq
 [link-website]: https://gty5678.github.io/darkeye-webpage/
 [link-discord]: https://discord.gg/3thnEguWUk
-[link-releases]: https://github.com/gty5678/darkeye-cpp/releases
+[link-releases]: https://github.com/gty5678/darkeye/releases

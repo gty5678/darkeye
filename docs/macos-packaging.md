@@ -302,7 +302,6 @@ DarkEye/
   Darkeye.app/
   portable.ini
   data/
-  README.txt
 ```
 
 把整个 `DarkEye` 文件夹放在可写位置，再打开 `Darkeye.app`。`portable.ini` 的 `DataDirectory=data` 以标记文件所在目录为基准，因此数据在 `.app` 外。迁移时携带整个文件夹；升级时退出程序，替换 `.app` 并保留 `portable.ini`、`data/`。不要在已签名的 `.app` 内创建数据文件。

@@ -216,7 +216,6 @@ def package_windows(args):
             (portable_root / f"app-{version}" / "portable.ini").write_text(
                 "[Portable]\nDataDirectory=../data\n", encoding="utf-8")
             (portable_root / "data").mkdir()
-            write_portable_readme(portable_root, "windows")
             archive_install(portable_root, archive, seven_zip)
             print(f"便携包：{archive}")
     if args.format != "portable":
@@ -302,17 +301,6 @@ def validate_payload(destination, system):
     return executable, resources
 
 
-def write_portable_readme(root, system):
-    text = ("Darkeye portable\n\nMove the complete DarkEye folder, including data. "
-            "Keep data when replacing the application for upgrades.\n"
-            "Passwords in the system credential store must be entered again on a new computer.\n")
-    if system == "linux":
-        text += "Run ./Darkeye.sh. Requires a compatible desktop Linux (Ubuntu 24.04 baseline), unzip and a Secret Service for saved credentials.\n"
-    elif system == "macos":
-        text += "Move the entire folder to a writable location before opening Darkeye.app. macOS 14.4+; Apple Silicon only.\n"
-    (root / "README.txt").write_text(text, encoding="utf-8")
-
-
 def package_macos(args, destination, portable, base, version, cmake, env):
     ditto = require_tool("ditto", args.dry_run)
     codesign = require_tool("codesign", args.dry_run)
@@ -349,7 +337,6 @@ def package_macos(args, destination, portable, base, version, cmake, env):
         if not args.dry_run:
             (root / "portable.ini").write_text("[Portable]\nDataDirectory=data\n", encoding="utf-8")
             (root / "data").mkdir()
-            write_portable_readme(root, "macos")
         run([ditto, "-c", "-k", "--sequesterRsrc", "--keepParent", str(root), str(archive)], env, args.dry_run)
         if not args.dry_run:
             with zipfile.ZipFile(archive) as package:
@@ -397,7 +384,6 @@ def package_linux(args, destination, portable, base, version, env):
             launcher.write_text('#!/bin/sh\nset -eu\nHERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\n'
                                 f'exec "$HERE/app-{version}/bin/Darkeye" "$@"\n', encoding="utf-8")
             launcher.chmod(0o755)
-            write_portable_readme(root, "linux")
             def archive_permissions(info):
                 if info.name == "DarkEye/Darkeye.sh":
                     info.mode = 0o755

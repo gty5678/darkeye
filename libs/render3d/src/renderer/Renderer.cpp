@@ -868,8 +868,8 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
             const auto drawn=bounds(item,0).adjusted(-1,-1,1,1);
             const float roughness=std::clamp(material.roughness,0.045f,1.0f);
             const float ior=material.ior==0?10000.0f:std::max(1.0f,material.ior);
-            const float radius=1+12*roughness*roughness*std::clamp(ior-1,0.0f,1.0f);
-            const auto sampled=bounds(item,std::max(0.0f,material.thickness)).adjusted(-radius,-radius,radius,radius);
+            const float samplingRadius=1+12*roughness*roughness*std::clamp(ior-1,0.0f,1.0f);
+            const auto sampled=bounds(item,std::max(0.0f,material.thickness)).adjusted(-samplingRadius,-samplingRadius,samplingRadius,samplingRadius);
             if(transmissive(material) && std::any_of(written.begin(),written.end(),[&](const QRectF &rect) { return sampled.intersects(rect); })) {
                 batches.emplace_back(); written.clear();
             }

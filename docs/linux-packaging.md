@@ -212,7 +212,6 @@ DarkEye/
     plugins/
     share/darkeye/
   data/
-  README.txt
 ```
 
 以下以版本 `1.2.5` 为例；构建其他版本时修改 `VERSION`。在希望保存便携数据的可写目录中解压，`tar -xzf` 后填写归档的实际路径：

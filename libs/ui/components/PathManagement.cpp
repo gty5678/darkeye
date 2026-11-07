@@ -42,7 +42,7 @@ public:
     }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
-               const QModelIndex &index) const override
+               const QModelIndex &) const override
     {
         QStyleOptionButton button;
         button.rect = option.rect;

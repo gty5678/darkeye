@@ -60,10 +60,10 @@
 
 <div align="center">
   <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-windows-x64-setup.exe">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20x64%20%E5%AE%89%E8%A3%85%E7%89%88-blue?style=for-the-badge&logo=windows" alt="下载 Windows x64 安装版" />
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20x64%20%E5%AE%89%E8%A3%85%E7%89%88-blue?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTF2MTFIMHptMTMgMGgxMXYxMUgxM3pNMCAxM2gxMXYxMUgwem0xMyAwaDExdjExSDEzeiIvPjwvc3ZnPg%3D%3D" alt="下载 Windows x64 安装版" />
   </a>
   <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-windows-x64-portable.7z">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20x64%20%E4%BE%BF%E6%90%BA%E7%89%88-blue?style=for-the-badge&logo=windows" alt="下载 Windows x64 便携版" />
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20x64%20%E4%BE%BF%E6%90%BA%E7%89%88-blue?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTF2MTFIMHptMTMgMGgxMXYxMUgxM3pNMCAxM2gxMXYxMUgwem0xMyAwaDExdjExSDEzeiIvPjwvc3ZnPg%3D%3D" alt="下载 Windows x64 便携版" />
   </a>
   <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-macos-arm64-setup.dmg">
     <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-macOS%20ARM64%20%E5%AE%89%E8%A3%85%E7%89%88-black?style=for-the-badge&logo=apple" alt="下载 macOS ARM64 安装版" />

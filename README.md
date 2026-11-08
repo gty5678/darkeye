@@ -53,9 +53,6 @@
   </a>
 </div>
 
-
----
-
 <a id="download"></a>
 
 ## ダウンロードと利用
@@ -82,24 +79,13 @@
 - **macOS ARM64 インストーラー版（Apple Silicon）**：`.dmg` を開き、`Darkeye.app` を `Applications` にドラッグしてから、`/Applications/Darkeye.app` を開いてください。
 - **macOS ARM64 ポータブル版（Apple Silicon）**：`.zip` 全体を展開し、`DarkEye` フォルダ全体を書き込み可能な場所に置いてから、中の `Darkeye.app` を開いてください。
 
-インストールとデータ移行の詳細は [Windows リリースガイド（中国語）](docs/windows-packaging.md) と [macOS 利用・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
+インストールとデータ移行の詳細は [Windows パッケージガイド（中国語）](docs/windows-packaging.md) と [macOS パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
 
-ブラウザ拡張は、**お使いのブラウザ用を 1 つ**選び、下のドキュメントに従ってインストールしてください。配布パッケージに `extensions` フォルダがある場合は同梱の拡張を使用でき、ない場合は以下から別途ダウンロードしてください。
+### ブリッジとブラウザ拡張のインストール
 
-### 拡張機能のインストール
+👉 [オンラインドキュメント：ブラウザ拡張のインストール](https://gty5678.github.io/darkeye/usage/#_2)
 
-👉 [オンラインドキュメント：インストール](https://gty5678.github.io/darkeye/usage/#_2)
-
-ブラウザ拡張が同梱されており、拡張単体の更新がない場合は、通常**別途ダウンロードする必要はありません**。
-<div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/chrome_capture.zip">
-    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Chrome%2FEdge%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Chrome / Edge 拡張をダウンロード" />
-  </a>
-  　　
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/firefox_capture.zip">
-    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Firefox%20%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge" alt="Firefox 拡張をダウンロード" />
-  </a>
-</div>
+本プロジェクトは機能を分離する設計を採用しており、情報取得サービスはすべて [mosaic](https://github.com/gty5678/mosaic.git) プロジェクトに切り出されています。
 
 ### 使い方
 
@@ -119,7 +105,7 @@
 
 ## 適法利用に関する声明
 
-- 本ツールは、利用者が法令に基づき保有または適法に処理可能なデータおよびメタ情報の管理にのみ使用してください。
+- 本ツールは、利用者が法令に基づき保有している、利用許諾を得ている、または適法に処理可能なデータおよびメタ情報の管理にのみ使用してください。
 - 利用にあたっては、各国の現行法令および関連規定を遵守してください。
 - 違法な取得、権利侵害となる配布、サイトのアクセス制御回避、無断での他者データ処理などへの利用を禁止します。
 - サードパーティサイトのコンテンツ、API、アクセスルールは各プラットフォームの利用規約に従い、利用者自身で権限範囲を確認のうえ責任を負ってください。
@@ -134,7 +120,7 @@
 
 | **機能** | **説明** | **状態** |
 | -------- | -------- | -------- |
-| **データ管理** | メディア項目・人物・タグの手動追加と CRUD | ✅ |
+| **データ管理** | メディア項目・人物・タグなどの基本データの追加・削除・検索・編集 | ✅ |
 | **個人記録** | カスタム記録項目の手動追加と CRUD | ✅ |
 | **分析・チャート** | 分析チャート・データ表示（一部未完了） | ✅ |
 | **実物風 DVD ボックス陳列** | 実物風 DVD の陳列とコレクション体験 | ✅ |
@@ -158,10 +144,10 @@
 | -------- | -------- | -------- |
 | **NFO エクスポート** | 仕様の合意後に実装。ツールごとに実装差があり、データ項目も未整備 | 🔄 |
 
-長期ロードマップや細目は [**更新履歴**](docs/CHANGELOG.md) を参照（開発に合わせて更新され、確定スケジュールではありません）。方向の抜粋：
+長期ロードマップや細目は [**更新履歴とロードマップ**](docs/CHANGELOG.md) を参照（開発に合わせて更新され、確定スケジュールではありません）。
 
 - **AI / ツール連携**：CLI や対話などの検討（CHANGELOG の `3.x` ロードマップ）。
-- **同期・共有**：WebDAV、多端バックアップ、UGC 的な情報連携など（`2.x`）。
+- **同期・共有**：WebDAV、複数端末のバックアップ、UGC 的な情報連携など（`2.x`）。
 - **体験と基盤**：タグやグラフ、UI・エクスポート、クローラーと DB などの継続改善（`1.x`）。
 
 ---
@@ -170,15 +156,15 @@
 
 ## 移行とインポート
 
-### mdcz プロジェクトの NFO
+### mdcz プロジェクトの NFO インポート
 
 [mdcz](https://github.com/ShotHeadman/mdcz) が出力した NFO のインポートに対応しています。
 
-👉 [ドキュメント：mdcz NFO](https://gty5678.github.io/darkeye/usage/#mdcz-nfo)
+👉 [オンラインドキュメント：mdcz NFO](https://gty5678.github.io/darkeye/usage/#mdcz-nfo)
 
 ### Jvedio からのデータ移行
 
-👉 [ドキュメント：Jvedio](https://gty5678.github.io/darkeye/usage/#jvedio)
+👉 [オンラインドキュメント：Jvedio](https://gty5678.github.io/darkeye/usage/#jvedio)
 
 ---
 
@@ -253,7 +239,7 @@
 
 Windows x64 のインストーラー版とポータブル版の作成手順は [Windows パッケージガイド（中国語）](docs/windows-packaging.md) を参照してください。
 
-macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起動コマンド、ポータブル ZIP とインストーラー PKG の作成手順は [macOS ビルド・実行・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
+macOS（Apple Silicon）の依存ツール、Qt/vcpkg 設定、ビルド・起動コマンド、ポータブル ZIP とインストーラー PKG の作成手順は [macOS ビルド・実行・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。ローカル環境を構築済みの場合は、ドキュメントの第 0 節のコマンドをそのまま使用できます。
 
 ---
 

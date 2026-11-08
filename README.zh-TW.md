@@ -78,24 +78,13 @@
 - **macOS ARM64 安裝版（Apple Silicon）**：開啟 `.dmg`，將 `Darkeye.app` 拖入 `Applications`，然後開啟 `/Applications/Darkeye.app`。
 - **macOS ARM64 便攜版（Apple Silicon）**：完整解壓縮 `.zip` 便攜包，將整個 `DarkEye` 資料夾放在可寫入的位置，再開啟其中的 `Darkeye.app`。
 
-安裝與資料遷移詳情見 [Windows 發布說明](docs/windows-packaging.md) 和 [macOS 使用與打包說明](docs/macos-packaging.md)。
+安裝與資料遷移詳情見 [Windows 打包說明](docs/windows-packaging.md) 和 [macOS 打包說明](docs/macos-packaging.md)。
 
-瀏覽器擴充功能請依下方文件安裝**對應瀏覽器的一種**；若發布包附帶 `extensions` 目錄，可直接使用其中的擴充功能，否則從下方入口單獨下載。
-
-### 瀏覽器擴充功能安裝
+### 橋接器與瀏覽器擴充功能安裝
 
 👉 [線上文件：瀏覽器擴充功能安裝](https://gty5678.github.io/darkeye/usage/#_2)
 
-若發布包已附帶瀏覽器擴充功能，且擴充功能沒有單獨更新，一般**不需要**重複下載。
-<div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/chrome_capture.zip">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Chrome%2FEdge%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下載 Chrome/Edge 擴充功能" />
-  </a>
-  　　
-  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/firefox_capture.zip">
-    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Firefox%20%E6%8F%92%E4%BB%B6-blue?style=for-the-badge" alt="下載 Firefox 擴充功能" />
-  </a>
-</div>
+專案採用分離設計，資訊取得服務已完全拆分至 [mosaic](https://github.com/gty5678/mosaic.git) 專案中。
 
 ### 使用說明
 
@@ -250,7 +239,7 @@
 
 Windows x64 安裝版與便攜版的產生步驟，請參閱 [Windows 打包與發布](docs/windows-packaging.md)。
 
-macOS（Apple Silicon）所需工具、Qt/vcpkg 設定、編譯與啟動命令，以及便攜 ZIP 與安裝 PKG 的產生步驟，請參閱 [macOS 安裝依賴、編譯、執行與打包](docs/macos-packaging.md)。
+macOS（Apple Silicon）所需工具、Qt/vcpkg 設定、編譯與啟動命令，以及便攜 ZIP 與安裝 PKG 的產生步驟，請參閱 [macOS 安裝依賴、編譯、執行與打包](docs/macos-packaging.md)。已有本機環境可直接使用文件第 0 節的命令。
 
 ---
 

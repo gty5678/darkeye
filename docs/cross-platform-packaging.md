@@ -132,7 +132,7 @@ uv run --no-project python tools/package.py --skip-build --build-dir build/macos
 - `--format portable|installer|both`：默认 both。
 - `--destination out/某目录/Darkeye-版本-平台-架构`：隔离发布暂存目录与产物。
 - 所有清理和输出限制在项目 `out/` 内；带有用户数据的暂存目录以及指向外部的链接不会被自动删除。
-- 版本号取自顶层 CMake `project(VERSION)`；仅 `.tar.zst` 更新包旁生成 `.sha256` 文件；成功后清理安装、便携暂存目录及中间文件。
+- 版本号取自顶层 CMake `project(VERSION)`；更新包 SHA256 写入 `latest.json`，不生成单独的 `.sha256` 文件；成功后清理安装、便携暂存目录及中间文件。
 - 安装资源包含项目 LICENSE、cgltf LICENSE、vcpkg 依赖 copyright，以及能从 Qt 安装目录找到的许可证。可通过 CMake `DARKEYE_QT_LICENSE_DIR` 指定 Qt 许可证目录；正式分发前应核对实际使用模块的完整第三方声明。
 
 每个版本产生六个主文件：

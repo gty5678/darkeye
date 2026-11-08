@@ -1343,10 +1343,20 @@ void ForceViewRhiWidget::resumeSimulation()
 
 void ForceViewRhiWidget::restartSimulation()
 {
-    m_initialGpuLayout = false;
     m_gpuSimulation.reset();
+    reheatSimulation();
+}
+
+void ForceViewRhiWidget::reheatSimulation()
+{
+    // Parameter edits keep resident positions, velocities, and any pending
+    // readback. The next batch reads the updated force parameters.
+    m_initialGpuLayout = false;
     m_allowWarmup.store(false, std::memory_order_release);
-    m_gpuTimer.setInterval(kSimTickIntervalMs);
+    // Setting an active timer interval restarts its countdown, even when
+    // unchanged. Frequent slider events must not postpone the next tick.
+    if (m_gpuTimer.interval() != kSimTickIntervalMs)
+        m_gpuTimer.setInterval(kSimTickIntervalMs);
     {
         std::lock_guard<std::mutex> lock(m_simMutex);
         if (m_simulation) {
@@ -1407,7 +1417,7 @@ void ForceViewRhiWidget::setManyBodyStrength(float value)
             }
         }
     }
-    restartSimulation();
+    reheatSimulation();
 }
 
 void ForceViewRhiWidget::setCenterStrength(float value)
@@ -1421,7 +1431,7 @@ void ForceViewRhiWidget::setCenterStrength(float value)
             }
         }
     }
-    restartSimulation();
+    reheatSimulation();
 }
 
 void ForceViewRhiWidget::setLinkStrength(float value)
@@ -1435,7 +1445,7 @@ void ForceViewRhiWidget::setLinkStrength(float value)
             }
         }
     }
-    restartSimulation();
+    reheatSimulation();
 }
 
 void ForceViewRhiWidget::setLinkDistance(float value)
@@ -1449,7 +1459,7 @@ void ForceViewRhiWidget::setLinkDistance(float value)
             }
         }
     }
-    restartSimulation();
+    reheatSimulation();
 }
 
 void ForceViewRhiWidget::setCollisionRadius(float value)
@@ -1463,7 +1473,7 @@ void ForceViewRhiWidget::setCollisionRadius(float value)
             }
         }
     }
-    restartSimulation();
+    reheatSimulation();
 }
 
 void ForceViewRhiWidget::setCollisionStrength(float value)
@@ -1477,7 +1487,7 @@ void ForceViewRhiWidget::setCollisionStrength(float value)
             }
         }
     }
-    restartSimulation();
+    reheatSimulation();
 }
 
 void ForceViewRhiWidget::updateFactor()

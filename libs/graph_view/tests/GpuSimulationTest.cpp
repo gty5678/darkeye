@@ -1230,6 +1230,66 @@ private slots:
         QCOMPARE(schedule.batchSize(false), 1);
     }
 
+    void forceParameterEditsPreserveGpuState()
+    {
+        ForceViewRhiWidget view;
+        view.resize(600, 400);
+        view.setSimulationBackendMode("gpu");
+        view.setGraph(2, {0, 1}, {100, 0, -100, 0}, {"a", "b"}, {"a", "b"}, {4, 4});
+        view.show();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        auto* engine = view.m_gpuSimulation.get();
+        auto* positionBuffer = engine->stateBuffer();
+        const int steps = engine->submittedSteps();
+        const auto positions = view.m_physicsState->pos;
+        const auto velocities = view.m_physicsState->vel;
+        for (int i = 0; i < 20; ++i) {
+            view.setManyBodyStrength(10000 + i * 100);
+            view.setCenterStrength(0.01f + i * 0.001f);
+            view.setLinkStrength(0.3f + i * 0.01f);
+            view.setLinkDistance(40 + i);
+            view.setCollisionRadius(10 + i);
+            view.setCollisionStrength(50 + i);
+            QVERIFY(view.m_gpuSimulation.get() == engine);
+            QCOMPARE(engine->stateBuffer(), positionBuffer);
+            QCOMPARE(engine->submittedSteps(), steps);
+        }
+        QVERIFY(view.m_physicsState->pos == positions);
+        QVERIFY(view.m_physicsState->vel == velocities);
+        QVERIFY(view.m_simulation->isActive());
+        QCOMPARE(view.m_simulation->alpha(), 1.0f);
+        QVERIFY(!view.m_initialGpuLayout);
+        QCOMPARE(view.m_gpuTimer.interval(), 16);
+        QTRY_VERIFY_WITH_TIMEOUT(engine->submittedSteps() > steps, 5000);
+        QCOMPARE(engine->timings().steps, 1);
+    }
+
+    void continuousParameterEditsDoNotStarveGpuTimer()
+    {
+        ForceViewRhiWidget view;
+        view.resize(600, 400);
+        view.setSimulationBackendMode("gpu");
+        view.setGraph(2, {0, 1}, {100, 0, -100, 0}, {"a", "b"}, {"a", "b"}, {4, 4});
+        view.show();
+        QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        view.setManyBodyStrength(10000);
+        auto* engine = view.m_gpuSimulation.get();
+        const int steps = engine->submittedSteps();
+        QSignalSpy ticks(&view.m_gpuTimer, &QTimer::timeout);
+        QTimer edits;
+        edits.setTimerType(Qt::PreciseTimer);
+        int changes = 0;
+        connect(&edits, &QTimer::timeout, &view, [&] {
+            view.setManyBodyStrength(10000 + (++changes % 100) * 100);
+        });
+        edits.start(1);
+        QTest::qWait(250);
+        edits.stop();
+        QVERIFY(changes > 10);
+        QVERIFY2(ticks.count() >= 3, "Continuous parameter edits postponed simulation timer ticks");
+        QVERIFY(engine->submittedSteps() > steps);
+    }
+
     void initialLayoutSwitchesToNormalCadence()
     {
         ForceViewRhiWidget view;

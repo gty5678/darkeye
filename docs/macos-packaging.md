@@ -35,7 +35,7 @@ cmake --version
 | 只生成便携 ZIP | `python3 tools/package.py --format portable` |
 | 只生成安装 DMG | `python3 tools/package.py --format installer` |
 
-当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.dmg`，同时生成 `.tar.zst` 更新包、该更新包的 `.sha256` 和 `latest.json`。便携版需完整解压后运行，见第 6 节。
+当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.dmg`，同时生成 `.tar.zst` 更新包、`latest.json`（内含更新包 SHA256）。便携版需完整解压后运行，见第 6 节。
 
 这台电脑因 GitHub 连接问题使用了固定版本的 vcpkg 源码归档，在其 `installed/` 中安装依赖。脚本只有在识别到本机 `build/vcpkg` 无 Git 元数据、且 FreeType/msdfgen 已安装时，才自动设置 `VCPKG_MANIFEST_MODE=OFF`，因此重新配置也能复用依赖。正常 Git 版 vcpkg 保留 manifest 模式。新电脑仍应按第 3 节准备完整 Git 版 vcpkg。无需把这个本机设置提交进公共预设。
 
@@ -273,7 +273,6 @@ uv run --no-project python tools/package.py --skip-build --build-dir build/macos
 out/Darkeye-<版本>-macos-arm64-portable.zip
 out/Darkeye-<版本>-macos-arm64-setup.dmg
 out/Darkeye-<版本>-macos-arm64-update.tar.zst
-out/Darkeye-<版本>-macos-arm64-update.tar.zst.sha256
 out/latest.json
 ```
 
@@ -292,7 +291,8 @@ uv run --no-project python tools/package.py --dry-run
 验证校验和：
 
 ```sh
-shasum -a 256 -c out/*-macos-arm64-*.sha256
+shasum -a 256 out/*-macos-arm64-update.tar.zst
+# 与 out/latest.json 中 packages.macos-arm64.sha256 比对
 ```
 
 便携 ZIP 解压后为：
@@ -331,6 +331,8 @@ lipo -archs /Applications/Darkeye.app/Contents/MacOS/Darkeye
 ```
 
 架构应仅显示 `arm64`。这些检查不等于 Gatekeeper 公证通过。
+
+打包脚本在签名前会遍历 `.app` 内所有 Mach-O 文件，将 Qt 框架、插件等通用二进制裁剪为仅含 `arm64`，保留框架符号链接和文件权限。不含 `arm64` 的依赖会导致打包失败。裁剪后重新签名，再生成 ZIP、DMG 和更新包。
 
 ## 7. 正式签名与公证
 

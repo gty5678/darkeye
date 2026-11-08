@@ -30,8 +30,6 @@ namespace darkeye {
 namespace {
 
 constexpr auto kAnonymousImagePath = ":/icons/anonymous.jpg";
-constexpr int kShadowExtension = 4;
-constexpr int kShadowBlurPadding = 3;
 
 QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath &path,
                     bool shadow, qreal dpr)
@@ -39,7 +37,7 @@ QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath 
     const QSize pixels(qCeil(size.width() * dpr), qCeil(size.height() * dpr));
     QImage composite;
     if (shadow) {
-        composite = renderSoftShadow(pixels, path, dpr, 2.0 + kShadowExtension, 3.0);
+        composite = renderSoftShadow(pixels, path, dpr, 2.0, 2.0);
     } else {
         composite = QImage(pixels, QImage::Format_ARGB32_Premultiplied);
         composite.setDevicePixelRatio(dpr);
@@ -74,8 +72,9 @@ OctImage::OctImage(const QString &imagePath, const QString &basePath, int diamet
       m_imageActive(!deferImage)
 {
     setObjectName(QStringLiteral("DesignOctImage"));
-    setFixedSize(m_diameter, m_diameter
-                               + (m_shadow ? kShadowExtension + kShadowBlurPadding : 0));
+    // The compact shadow fits within avatarPath()'s inset; extra bottom padding
+    // would leave an unnecessary gap before the person's name.
+    setFixedSize(m_diameter, m_diameter);
     setAlignment(Qt::AlignCenter);
     setCursor(Qt::ArrowCursor);
     setMouseTracking(true);

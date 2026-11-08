@@ -14,10 +14,9 @@ struct AppSettings final
     struct Update final
     {
         QString lastAutoCheckWeek;
-        // These default to the Python release behavior: check once per ISO week
-        // and show a prompt when a newer version is found.
-        bool automaticCheck = true;
-        bool updateNotification = true;
+        // Automatic checks and new-version notifications are opt-in.
+        bool automaticCheck = false;
+        bool updateNotification = false;
     };
 
     QString themeId = QStringLiteral("LIGHT");

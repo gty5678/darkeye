@@ -301,6 +301,42 @@ def validate_payload(destination, system):
     return executable, resources
 
 
+def thin_macos_arm64(app, env, dry_run=False):
+    """Thin every Mach-O before signing, including frameworks and plugins."""
+    if dry_run:
+        print(f"裁剪（预览）：{app} 内所有 Mach-O 仅保留 arm64，随后重新签名")
+        return
+    lipo = require_tool("lipo")
+    macho_magic = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",
+                   b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",
+                   b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca",
+                   b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"}
+    binaries = []
+    for path in sorted(app.rglob("*")):
+        # Framework aliases must remain links; process their real file once.
+        if path.is_symlink() or not path.is_file():
+            continue
+        with path.open("rb") as source:
+            if source.read(4) not in macho_magic:
+                continue
+        archs = subprocess.check_output([lipo, "-archs", str(path)], text=True).split()
+        if "arm64" not in archs:
+            raise RuntimeError(f"Missing arm64 slice: {path} ({archs})")
+        binaries.append((path, archs))
+    for path, archs in binaries:
+        if archs == ["arm64"]:
+            continue
+        # Keep the original intact if lipo or architecture validation fails.
+        with tempfile.TemporaryDirectory(prefix=".arm64-", dir=path.parent) as temporary:
+            thinned = Path(temporary) / path.name
+            run([lipo, str(path), "-thin", "arm64", "-output", str(thinned)], env, False)
+            actual = subprocess.check_output([lipo, "-archs", str(thinned)], text=True).split()
+            if actual != ["arm64"]:
+                raise RuntimeError(f"Expected arm64-only binary: {path} ({actual})")
+            shutil.copystat(path, thinned)
+            thinned.replace(path)
+
+
 def package_macos(args, destination, portable, base, version, cmake, env):
     ditto = require_tool("ditto", args.dry_run)
     codesign = require_tool("codesign", args.dry_run)
@@ -311,6 +347,7 @@ def package_macos(args, destination, portable, base, version, cmake, env):
         if archs != ["arm64"]:
             raise RuntimeError(f"Expected an arm64-only application, got {archs}")
     identity = args.mac_sign_identity or "-"
+    thin_macos_arm64(app, env, args.dry_run)
     # Deployment has finished: seal nested code first, then the outer app.
     if not args.dry_run:
         nested = sorted((p for p in app.rglob("*") if not p.is_symlink() and
@@ -543,20 +580,6 @@ def file_sha256(path):
     return digest.hexdigest()
 
 
-def write_checksums(outputs, dry_run=False):
-    for artifact in outputs:
-        if not artifact.name.endswith("-update.tar.zst"):
-            continue
-        sidecar = safe_output(Path(str(artifact) + ".sha256"))
-        if dry_run:
-            print(f"SHA-256: {sidecar}")
-            continue
-        if not artifact.is_file():
-            raise RuntimeError(f"Packaging did not produce {artifact}")
-        sidecar.write_text(f"{file_sha256(artifact)}  {artifact.name}\n", encoding="utf-8")
-        print(f"Artifact: {artifact}")
-
-
 def package_project(args):
     system, arch = release_platform()
     if args.clean and args.skip_build:
@@ -586,7 +609,6 @@ def package_project(args):
     destination = base.with_name(base.name + "-install")
     outputs.append(write_update_package(destination, base.with_name(base.name + "-update.tar.zst"),
                                         system, arch, version, args.dry_run))
-    write_checksums(outputs, args.dry_run)
     # Cleanup only this release's known staging and obsolete artifacts, after
     # every requested artifact has been generated successfully.
     for artifact in outputs:
@@ -597,7 +619,8 @@ def package_project(args):
                 destination.with_name(destination.name + "-components.plist"),
                 base.parent / f"latest-{system}-{arch}.json",
                 base.with_name(base.name + "-update.zip"),
-                base.with_name(base.name + "-update.zip.sha256")]
+                base.with_name(base.name + "-update.zip.sha256"),
+                base.with_name(base.name + "-update.tar.zst.sha256")]
     # Remove old distribution checksums, including formats no longer generated.
     for suffix in ("-portable.zip", "-portable.7z", "-portable.tar.gz",
                    "-setup.exe", "-setup.pkg", "-setup.dmg", "-setup.deb"):

@@ -241,6 +241,8 @@ private:
     friend class ForceRhiCanvas;
     friend class GpuSimulationTest;
 
+    void reheatSimulation();
+
     struct Vertex {
         float x = 0.0f;
         float y = 0.0f;

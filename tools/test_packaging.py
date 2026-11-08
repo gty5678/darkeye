@@ -124,18 +124,7 @@ class PackagingTest(unittest.TestCase):
             self.assertEqual(launcher.mode & 0o111, 0o111)
             self.assertIn(b'app-1.2.5/bin/Darkeye', archive.extractfile(launcher).read())
         self.assertFalse((destination / "bin/portable.ini").exists())
-        package.write_checksums(outputs)
         self.assertFalse(Path(str(outputs[0]) + ".sha256").exists())
-
-    def test_only_update_package_has_checksum(self):
-        update = self.root / "out/Darkeye-1.2.5-linux-x64-update.tar.zst"
-        update.write_bytes(b"compressed update")
-        portable = self.root / "out/portable.zip"
-        portable.write_bytes(b"portable")
-        package.write_checksums([portable, update])
-        self.assertFalse(Path(str(portable) + ".sha256").exists())
-        self.assertEqual(Path(str(update) + ".sha256").read_text().split()[0],
-                         hashlib.sha256(update.read_bytes()).hexdigest())
 
     def test_successful_release_keeps_only_requested_artifacts(self):
         base = self.root / "out/Darkeye-1.2.5-macos-arm64"
@@ -144,7 +133,7 @@ class PackagingTest(unittest.TestCase):
         outputs = [base.with_name(base.name + suffix) for suffix in
                    ("-portable.zip", "-setup.dmg")]
         for suffix in ("-setup.pkg", "-setup.pkg.sha256", "-portable.zip.sha256",
-                       "-install-components.plist"):
+                       "-install-components.plist", "-update.tar.zst.sha256"):
             base.with_name(base.name + suffix).write_bytes(b"old")
         (base.parent / "latest-macos-arm64.json").write_text("old")
 
@@ -169,7 +158,7 @@ class PackagingTest(unittest.TestCase):
             self.assertEqual(package.package_project(args), 0)
         self.assertEqual({p.name for p in base.parent.iterdir()}, {
             base.name + "-portable.zip", base.name + "-setup.dmg",
-            base.name + "-update.tar.zst", base.name + "-update.tar.zst.sha256", "latest.json"})
+            base.name + "-update.tar.zst", "latest.json"})
 
     def test_native_installer_recipes_in_dry_run(self):
         args = SimpleNamespace(dry_run=True, format="both", mac_sign_identity=None, mac_installer_identity=None)
@@ -188,6 +177,37 @@ class PackagingTest(unittest.TestCase):
         self.assertTrue(str(outputs[0]).endswith("-portable.tar.gz"))
         self.assertTrue(str(outputs[1]).endswith("-setup.deb"))
         self.assertIn("--root-owner-group", run.call_args.args[0])
+
+    def test_macos_thinning_rejects_missing_arm64_before_changes(self):
+        app = self.root / "Darkeye.app"
+        app.mkdir()
+        (app / "a-universal").write_bytes(b"\xca\xfe\xba\xbe")
+        (app / "b-intel").write_bytes(b"\xcf\xfa\xed\xfe")
+        with patch.object(package, "require_tool", return_value="lipo"), \
+             patch.object(package.subprocess, "check_output", side_effect=["x86_64 arm64", "x86_64"]), \
+             patch.object(package, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "Missing arm64 slice"):
+                package.thin_macos_arm64(app, os.environ.copy())
+        run.assert_not_called()
+
+    def test_macos_thinning_preserves_links_resources_and_permissions(self):
+        app = self.root / "Darkeye.app"
+        app.mkdir()
+        binary = app / "QtCore"
+        binary.write_bytes(b"\xca\xfe\xba\xbeoriginal")
+        binary.chmod(0o755)
+        (app / "alias").symlink_to("QtCore")
+        (app / "resource").write_text("keep")
+        def thin(command, env, dry_run):
+            Path(command[-1]).write_bytes(b"\xcf\xfa\xed\xfethinned")
+        with patch.object(package, "require_tool", return_value="lipo"), \
+             patch.object(package.subprocess, "check_output", side_effect=["x86_64 arm64", "arm64"]), \
+             patch.object(package, "run", side_effect=thin):
+            package.thin_macos_arm64(app, os.environ.copy())
+        self.assertEqual(binary.read_bytes(), b"\xcf\xfa\xed\xfethinned")
+        self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
+        self.assertTrue((app / "alias").is_symlink())
+        self.assertEqual((app / "resource").read_text(), "keep")
 
 
 if __name__ == "__main__":

@@ -106,6 +106,7 @@ bool UpdateService::launchUpdater(QString *error, const QStringList &extraArgume
         QStringLiteral("--current-version"), QStringLiteral(DARKEYE_VERSION),
         QStringLiteral("--main-exe"), mainExe,
         QStringLiteral("--latest-json-url"), manifestUrl().toString(),
+        QStringLiteral("--package-timeout-seconds"), QStringLiteral("1800"),
         QStringLiteral("--payload-root"), payloadRoot,
         QStringLiteral("--keep"), QStringLiteral("data,portable.ini"),
         QStringLiteral("--main-args"), quoted.join(u' '),

@@ -6,20 +6,22 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
+        <meta name="description" content="DarkEye C++ documentation">
+      
       
       
       
         <link rel="prev" href="../settings/">
       
       
-        <link rel="next" href="../security/">
+        <link rel="next" href="../windows-packaging/">
       
       
         
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -27,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -48,8 +50,6 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
-    
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#_1" class="md-skip">
+        <a href="#c-qt" class="md-skip">
           跳转至
         </a>
       
@@ -205,13 +205,13 @@
   
   
     <li class="md-tabs__item">
-      <a href="../develop/" class="md-tabs__link">
+      <a href="../develop.md" class="md-tabs__link">
         
   
   
     
   
-  开发白皮书
+  C++ 版本概览
 
       </a>
     </li>
@@ -321,6 +321,101 @@
   
   
     <li class="md-tabs__item">
+      <a href="../windows-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Windows 打包与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cross-platform-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  三平台构建与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../macos-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  macOS 安装、编译、运行与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../linux-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Linux 编译与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../shelf-page-performance.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  书架页性能优化
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
       <a href="../security/" class="md-tabs__link">
         
   
@@ -393,14 +488,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../develop/" class="md-nav__link">
+      <a href="../develop.md" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    开发白皮书
+    C++ 版本概览
   
 
     
@@ -534,6 +629,8 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
@@ -576,6 +673,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -587,19 +686,19 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发环境准备
+        前置条件
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="开发环境准备">
+    <nav class="md-nav" aria-label="前置条件">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#python" class="md-nav__link">
+  <a href="#git" class="md-nav__link">
     <span class="md-ellipsis">
       
-        python环境
+        安装Git
       
     </span>
   </a>
@@ -607,10 +706,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#c-qt" class="md-nav__link">
+  <a href="#visual-studio-2022" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C++ qt环境(如果要修改绑定项目)
+        安装 Visual Studio 2022
       
     </span>
   </a>
@@ -618,10 +717,44 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#cmake-ninja" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发前准备
+        安装 CMake 和 Ninja
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装Qt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vcpkg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装vcpkg
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="安装vcpkg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vcpkg_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vcpkg换源
       
     </span>
   </a>
@@ -630,6 +763,55 @@
         
       </ul>
     </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMake 预设
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令行构建与运行
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visual-studio-2022_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual Studio 2022 调试
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VS Code 调试
+      
+    </span>
+  </a>
   
 </li>
       
@@ -637,19 +819,52 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        运行
+        安装目录与发布构建
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="运行">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        代码规范
+        常见问题
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="常见问题">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cmake-qt6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMake 找不到 Qt6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vcpkg_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vcpkg 工具链或依赖找不到
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qt-dll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        程序启动时缺少 Qt DLL 或插件
       
     </span>
   </a>
@@ -661,21 +876,145 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        打包发布
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../windows-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 打包与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-platform-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    三平台构建与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../macos-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS 安装、编译、运行与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux 编译与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shelf-page-performance.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    书架页性能优化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -751,6 +1090,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -762,19 +1103,19 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发环境准备
+        前置条件
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="开发环境准备">
+    <nav class="md-nav" aria-label="前置条件">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#python" class="md-nav__link">
+  <a href="#git" class="md-nav__link">
     <span class="md-ellipsis">
       
-        python环境
+        安装Git
       
     </span>
   </a>
@@ -782,10 +1123,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#c-qt" class="md-nav__link">
+  <a href="#visual-studio-2022" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C++ qt环境(如果要修改绑定项目)
+        安装 Visual Studio 2022
       
     </span>
   </a>
@@ -793,10 +1134,44 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#cmake-ninja" class="md-nav__link">
     <span class="md-ellipsis">
       
-        开发前准备
+        安装 CMake 和 Ninja
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装Qt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vcpkg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装vcpkg
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="安装vcpkg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vcpkg_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vcpkg换源
       
     </span>
   </a>
@@ -805,6 +1180,55 @@
         
       </ul>
     </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMake 预设
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令行构建与运行
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visual-studio-2022_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual Studio 2022 调试
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VS Code 调试
+      
+    </span>
+  </a>
   
 </li>
       
@@ -812,19 +1236,52 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        运行
+        安装目录与发布构建
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="运行">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        代码规范
+        常见问题
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="常见问题">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cmake-qt6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CMake 找不到 Qt6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vcpkg_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vcpkg 工具链或依赖找不到
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qt-dll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        程序启动时缺少 Qt DLL 或插件
       
     </span>
   </a>
@@ -833,17 +1290,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        打包发布
-      
-    </span>
-  </a>
   
 </li>
       
@@ -864,55 +1310,173 @@
 
 
 
-  <h1>开发准备</h1>
-
-<h2 id="_1">开发环境准备<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<h3 id="python">python环境<a class="headerlink" href="#python" title="Permanent link">&para;</a></h3>
-<ol>
-<li>用conda的输入下面指令</li>
-</ol>
-<pre><code>conda create -n venv python=3.13
-conda activate venv
-pip install -e &quot;.[docs]&quot;
+<h1 id="c-qt">C++ / Qt 开发、构建与调试<a class="headerlink" href="#c-qt" title="Permanent link">&para;</a></h1>
+<p>本仓库使用 C++ / Qt、CMake、Ninja 和 vcpkg manifest 模式。本文主要介绍 Windows / MSVC 的本地开发流程；其他平台见 <a href="../macos-packaging/">macOS arm64 编译与打包</a>和 <a href="../linux-packaging/">Linux x86_64 编译与打包</a>，发布规则见<a href="../cross-platform-packaging/">三平台构建与发布</a>。</p>
+<h2 id="_1">前置条件<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>在 Windows 上准备以下工具：
+- Git
+- <a href="https://aka.ms/vs/17/release/vs_community.exe">Visual Studio 2022</a>，
+- CMake 3.25 或更高版本、Ninja。
+- Qt 6.12.0 ，并且安装的 <strong>MSVC 2022 64-bit</strong> kit。
+- vcpkg。项目的 C++ 第三方依赖由根目录的 <code>vcpkg.json</code> 自动解析，不要手动复制第三方库目录。</p>
+<h3 id="git">安装Git<a class="headerlink" href="#git" title="Permanent link">&para;</a></h3>
+<h3 id="visual-studio-2022">安装 Visual Studio 2022<a class="headerlink" href="#visual-studio-2022" title="Permanent link">&para;</a></h3>
+<p>安装“使用 C++ 的桌面开发”工作负载（MSVC x64 工具链和 Windows SDK）。</p>
+<h3 id="cmake-ninja">安装 CMake 和 Ninja<a class="headerlink" href="#cmake-ninja" title="Permanent link">&para;</a></h3>
+<p>这个一般随着vs C++桌面开发会同时安装上去</p>
+<h3 id="qt">安装Qt<a class="headerlink" href="#qt" title="Permanent link">&para;</a></h3>
+<p>使用在线安装的方式，需要注册登陆账号，只安装Qt 6.12.0的MSVC依赖即可，大概5G不到</p>
+<p>Windows 构建预设默认使用 <code>C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6</code>，不再读取可能指向旧版本的 <code>Qt6_DIR</code> 环境变量。使用其他安装位置时，在配置命令中覆盖路径：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-release -DQt6_DIR=D:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6
 </code></pre>
-<ol>
-<li>复制resources/develop_resources 复制到data下面</li>
-</ol>
-<p>简单来说就是运行脚本scripts/develop_pre.ps1</p>
-<h3 id="c-qt">C++ qt环境(如果要修改绑定项目)<a class="headerlink" href="#c-qt" title="Permanent link">&para;</a></h3>
-<p>安装qt6.10.1</p>
-<p>vs2022，选择C++桌面开发</p>
-<p>下载第三方C++包</p>
-<h3 id="_2">开发前准备<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
-<p>下载后请运行<code>scripts/develop_pre.ps1</code></p>
-<p>插件加载，需要手动的按照上面去浏览器临时加载选择extensions/firefox_capture里的manifest.json</p>
-<h2 id="_3">运行<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<p>vscode解释器选择
-Ctrl + Shift + P</p>
-<pre><code>Python: Select Interpreter
+<p>非预设构建仍可设置以下环境变量供 <code>tools/build.py</code> 使用：</p>
+<pre><code class="language-powershell">$env:Qt6_DIR = &quot;C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6&quot;
 </code></pre>
-<p>venv
-python main.py</p>
-<p>或者直接按F5</p>
-<h3 id="_4">代码规范<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<p>官方样式指南，约定包括：
-缩进：4 个空格，不用 Tab 混用。
-行长：常见约定每行 ≤79（文档/注释）或 ≤88/100（很多项目用工具放宽）。
-命名：模块/包 lowercase；类 CapWords；函数/方法/变量 lower_with_underscores；常量 ALL_CAPS；私有约定 _leading_underscore。
-qt信号，小驼峰</p>
-<p>导入：标准库 → 第三方 → 本地，各组空一行；尽量不用 import *。
-空格：运算符两侧、逗号后等留白习惯；不在括号里无故加空格。
-字符串：与同文件已有风格一致；无特殊理由可优先双引号或统一用一种。
-PEP 257
-docstring 的写法和格式约定。</p>
-<p>类型注解
-PEP 484 及后续（typing / | 联合类型等），是否强制由项目决定。</p>
-<p>使用black作为代码的风格的整理</p>
-<h2 id="_5">打包发布<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
-<p>在powershell里，刚刚创建的conda 虚拟环境中，运行build-pyinstaller.ps1，这个是快速打包，大概打包时间200s，
-确定无问题后，可以用build-nuitka.ps1打包，这个打包后提升速度，但是包体大一点，打包时间3000s
-打包后的结构，一个绿色的可移动的文件夹，运行main.exe就能运行，这个pyinstaller是高度精简后的，如果要多加库，需要改里面的文件</p>
-<p>现在的打包属于激进排除，几乎把不需要的dll文件全删除了，所以当需要用到新的东西时很可能少dll。需要重新修改打包的配置</p>
+<h3 id="vcpkg">安装vcpkg<a class="headerlink" href="#vcpkg" title="Permanent link">&para;</a></h3>
+<p>实际上vcpkg会随着vs C++工作负载安装，但是最好自己装一个新的</p>
+<p>若尚未安装 vcpkg，可执行：</p>
+<pre><code class="language-powershell">git clone https://github.com/microsoft/vcpkg C:/src/vcpkg
+C:/src/vcpkg/bootstrap-vcpkg.bat
+</code></pre>
+<p>添加VCPKG_ROOT的环境变量，这个很重要</p>
+<pre><code>$env:VCPKG_ROOT = &quot;C:/src/vcpkg&quot;
+</code></pre>
+<h4 id="vcpkg_1">vcpkg换源<a class="headerlink" href="#vcpkg_1" title="Permanent link">&para;</a></h4>
+<p>首先先去安装<a href="https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/PowerShell-7.5.3-win-x64.msi">powershell 7.5.3</a> 这个后面编译的时候会用到，需要安装</p>
+<p>Git URL重定向</p>
+<pre><code>git config --global url.&quot;https://gitee.com/mirrors/vcpkg&quot;.insteadOf &quot;https://github.com/microsoft/vcpkg&quot;
+</code></pre>
+<pre><code>git config --global url.&quot;https://mirrors.tuna.tsinghua.edu.cn/git/vcpkg/&quot;.insteadOf &quot;https://github.com/microsoft/vcpkg&quot;
+</code></pre>
+<p>设置环境变量</p>
+<pre><code>$env:VCPKG_DOWNLOAD_MIRROR=&quot;https://mirrors.ustc.edu.cn/github-release/ninja-build/ninja/&quot;
+$env:X_VCPKG_ASSET_SOURCES=&quot;x-azurl,https://mirrors.ustc.edu.cn/vcpkg/assets/&quot;
+</code></pre>
+<h2 id="cmake">CMake 预设<a class="headerlink" href="#cmake" title="Permanent link">&para;</a></h2>
+<p>根目录的 <code>CMakePresets.json</code> 已定义下列预设：</p>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>配置预设</th>
+<th>构建预设</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日常 Debug 构建</td>
+<td><code>windows-msvc-debug</code></td>
+<td><code>debug</code></td>
+</tr>
+<tr>
+<td>Debug 构建并启用测试</td>
+<td><code>windows-msvc-debug-tests</code></td>
+<td><code>debug-tests</code></td>
+</tr>
+<tr>
+<td>Release 构建</td>
+<td><code>windows-msvc-release</code></td>
+<td><code>release</code></td>
+</tr>
+<tr>
+<td>Release 构建并启用测试</td>
+<td><code>windows-msvc-release-tests</code></td>
+<td><code>release-tests</code></td>
+</tr>
+</tbody>
+</table>
+<p>首次配置时，vcpkg 会下载并构建 <code>vcpkg.json</code> 中锁定的依赖，耗时会比后续配置更长。
+如果 vcpkg 使用浅克隆，缺少锁定基线时先补取该提交（无需切换分支）：</p>
+<pre><code class="language-powershell">$VcpkgBaseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+git -C $env:VCPKG_ROOT fetch --depth=1 origin $VcpkgBaseline
+</code></pre>
+<p>若 vcpkg 的构建工具下载失败，可在当前终端临时使用已经安装的系统工具：</p>
+<pre><code class="language-powershell">$env:VCPKG_FORCE_SYSTEM_BINARIES = &quot;1&quot;
+python tools/package.py
+</code></pre>
+<p>此方式需要系统已有可用的 CMake、Ninja、Git 等工具；Windows 构建脚本会把 VS 自带工具加入环境。</p>
+<p>构建目录位于 <code>build/windows-msvc-*</code>；不要把生成文件提交到 Git。</p>
+<h2 id="_2">命令行构建与运行<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>安装 Python 3.9 或更高版本后，可使用统一构建入口（不需要额外 Python 包）：</p>
+<pre><code class="language-powershell">python tools/build.py                       # 默认 Release，不含 data
+python tools/build.py --config Debug        # Debug
+python tools/build.py --config Debug --test # 编译并运行测试
+python tools/build.py --dry-run             # 查看将执行的命令
+</code></pre>
+<p>Windows 下脚本自动查找 Visual Studio、加载 x64 MSVC / Windows SDK 环境，
+并使用上面的 CMake 预设。Linux / macOS 下使用 PATH 中的 CMake，构建目录为
+<code>build/&lt;系统&gt;-&lt;配置&gt;</code>；需自行安装相应编译器、Qt 和依赖。macOS arm64 已完成本机编译与 ZIP/PKG 打包验证，依赖清单、环境配置、编译运行命令和本机快捷操作见 <a href="../macos-packaging/">macOS 安装依赖、编译、运行与打包</a>。Linux 的验证范围见其平台文档。</p>
+<p>Windows 安装版和便携版统一通过打包脚本生成：</p>
+<pre><code class="language-powershell">python tools/package.py                       # 构建并生成安装 exe 和便携 7z
+python tools/package.py --format portable     # 仅便携版
+python tools/package.py --format installer    # 仅安装版
+python tools/package.py --skip-build          # 使用现有 Release 构建重新打包
+</code></pre>
+<p>打包额外需要 7-Zip 和 Inno Setup（只生成一种时只需对应工具）。默认使用 <code>release</code> 增量构建，
+输出 <code>out/Darkeye-&lt;版本&gt;-windows-x64-portable.7z</code> 和 <code>out/Darkeye-&lt;版本&gt;-windows-x64-setup.exe</code>。
+全量重建使用 <code>--clean</code>。环境配置、完整操作步骤、目录布局和安装规则见
+<a href="../windows-packaging/#windows-packaging">Windows 安装版与便携版生成方法</a>。</p>
+<p>在仓库根目录执行日常 Debug 构建：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-debug
+cmake --build --preset debug
+</code></pre>
+<p>生成的可执行文件为：</p>
+<pre><code class="language-text">build/windows-msvc-debug/apps/desktop/Darkeye.exe
+</code></pre>
+<p>构建完成后，CMake 会自动调用 Qt 的 <code>windeployqt</code>，因此可以直接运行该文件：</p>
+<pre><code class="language-powershell">&amp; .\build\windows-msvc-debug\apps\desktop\Darkeye.exe
+</code></pre>
+<p>如需构建和运行测试，改用测试预设：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-debug-tests
+cmake --build --preset debug-tests
+ctest --preset debug-tests
+</code></pre>
+<p><code>ctest --preset debug-tests</code> 会在测试失败时输出失败信息。也可用 <code>ctest --test-dir build/windows-msvc-debug-tests --output-on-failure</code>
+运行同一套测试。</p>
+<h2 id="visual-studio-2022_1">Visual Studio 2022 调试<a class="headerlink" href="#visual-studio-2022_1" title="Permanent link">&para;</a></h2>
+<ol>
+<li>使用 <strong>File → Open → Folder</strong> 打开仓库根目录；Visual Studio 会读取 <code>CMakePresets.json</code>。</li>
+<li>在工具栏的配置下拉框选择 <code>windows-msvc-debug</code>；若要调试测试，选择 <code>windows-msvc-debug-tests</code>。</li>
+<li>在 CMake Targets View 中将 <code>Darkeye</code> 设为启动项，等待首次 CMake 配置和构建完成。</li>
+<li>在 C++ 源文件中设置断点，按 <code>F5</code> 开始调试；使用 <code>Ctrl+F5</code> 直接运行而不附加调试器。</li>
+</ol>
+<p>普通 <code>Darkeye.exe</code> 调试目标传入 <code>--config-dir &lt;项目根&gt;/config --avwiki-dir &lt;项目根&gt;/avwiki --data-dir &lt;项目根&gt;/data</code>，直接使用开发目录，不在 exe 同级生成 data。新电脑检出项目后，Windows MSVC 首次 CMake 配置会自动从 <code>tools/launch.vs.json</code> 生成 <code>.vs/launch.vs.json</code>，无需手动复制；已有本地配置不会被覆盖。该配置只匹配普通目标；Install 目标不传路径参数，按安装目录中的资源与便携标记选择路径。使用 Visual Studio 工程生成器时，CMake 同样设置了构建目标的调试参数。</p>
+<p>若 Visual Studio 提示找不到 Qt 或 vcpkg，请检查预设中的 <code>Qt6_DIR</code> 路径，并在启动 Visual Studio 前设置 <code>VCPKG_ROOT</code>，然后执行
+<strong>Project → Delete Cache and Reconfigure</strong>。切换 Debug/Release 或切换依赖配置后，也应重新配置。</p>
+<h2 id="vs-code">VS Code 调试<a class="headerlink" href="#vs-code" title="Permanent link">&para;</a></h2>
+<p>安装 Microsoft 的 C/C++ 与 CMake Tools 扩展后，打开仓库根目录：</p>
+<ol>
+<li>在 CMake Tools 的配置预设中选择 <code>windows-msvc-debug</code>。</li>
+<li>执行 <strong>CMake: Configure</strong>，再执行 <strong>CMake: Build</strong>。</li>
+<li>选择 <code>Darkeye</code> 作为启动目标；在源文件添加断点后按 <code>F5</code>。</li>
+</ol>
+<p>VS Code 必须从已设置 <code>VCPKG_ROOT</code> 的 Developer PowerShell 启动，或在系统环境变量中配置它；Qt 使用预设中的 6.12.0 kit 路径。</p>
+<h2 id="_3">安装目录与发布构建<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>Release 构建不等同于安装包。构建完成后执行 <code>cmake --install</code>，才能得到可分发目录：</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-release
+cmake --build --preset release
+cmake --install build/windows-msvc-release --config Release
+</code></pre>
+<p>四个预设的安装目录分别为 <code>out/install/debug</code>、<code>out/install/debug-tests</code>、<code>out/install/release</code>、<code>out/install/release-tests</code>。Install 只部署程序、运行依赖以及必要的 <code>config/</code> 和 <code>avwiki/</code>，不复制开发数据，也不生成 <code>data</code>、<code>seed-data</code> 或 <code>portable.ini</code>。对外发布安装包或便携包使用 <code>tools/package.py</code>。</p>
+<p>安装步骤会复制程序、只读 <code>config/</code>、初始 <code>avwiki/</code>、Qt 运行时和所需的 vcpkg DLL。交付前请在未安装开发环境的 Windows
+机器上验证 <code>Darkeye.exe</code> 能否直接启动。</p>
+<h2 id="_4">常见问题<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h3 id="cmake-qt6">CMake 找不到 Qt6<a class="headerlink" href="#cmake-qt6" title="Permanent link">&para;</a></h3>
+<p>确认 <code>Qt6_DIR</code> 指向类似
+<code>C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6</code> 的目录，而不是 Qt 安装根目录；然后删除 CMake 缓存并重新配置。</p>
+<h3 id="vcpkg_2">vcpkg 工具链或依赖找不到<a class="headerlink" href="#vcpkg_2" title="Permanent link">&para;</a></h3>
+<p>确认 <code>VCPKG_ROOT</code> 是 vcpkg 根目录，其中包含 <code>scripts/buildsystems/vcpkg.cmake</code>。不要用全局安装的包替代 manifest
+依赖；<code>vcpkg.json</code> 的 baseline 应随依赖更新一并提交。</p>
+<h3 id="qt-dll">程序启动时缺少 Qt DLL 或插件<a class="headerlink" href="#qt-dll" title="Permanent link">&para;</a></h3>
+<p>先重新执行对应的 <code>cmake --build --preset ...</code>。默认构建会在可执行文件旁运行 <code>windeployqt</code>；如果关闭了
+<code>DARKEYE_DEPLOY_QT_RUNTIME</code>，需自行部署 Qt runtime，或改用 <code>cmake --install</code> 生成安装目录。</p>
+<h1 id="webdav">webdav测试<a class="headerlink" href="#webdav" title="Permanent link">&para;</a></h1>
+<pre><code>winget install Rclone.Rclone
+</code></pre>
+<pre><code>mkdir D:\webdav-test
+</code></pre>
+<pre><code>rclone serve webdav D:\webdav-test --addr 127.0.0.1:8090 --user test --pass 123456
+</code></pre>
 
 
 
@@ -962,10 +1526,10 @@ PEP 484 及后续（typing / | 联合类型等），是否强制由项目决定�
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

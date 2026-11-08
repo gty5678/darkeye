@@ -1,0 +1,1530 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+        <link rel="prev" href="../cross-platform-packaging/">
+      
+      
+        <link rel="next" href="../linux-packaging/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>macOS 安装、编译、运行与打包 - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#macos-arm64" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              macOS 安装、编译、运行与打包
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  C++ 版本概览
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../windows-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Windows 打包与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cross-platform-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  三平台构建与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  macOS 安装、编译、运行与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../linux-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Linux 编译与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../shelf-page-performance.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  书架页性能优化
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ 版本概览
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../windows-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 打包与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-platform-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    三平台构建与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS 安装、编译、运行与打包
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS 安装、编译、运行与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. 当前电脑直接使用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 确认系统和工具链
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-qt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 安装 Qt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-vcpkg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 获取源码和配置 vcpkg
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 编译 Release 并运行测试
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 编译 Release 并运行测试">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 VS Code 中断点调试
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 生成便携版和安装版
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 使用与校验产物
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 正式签名与公证
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 常见问题与验收
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux 编译与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shelf-page-performance.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    书架页性能优化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. 当前电脑直接使用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 确认系统和工具链
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-qt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 安装 Qt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-vcpkg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 获取源码和配置 vcpkg
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 编译 Release 并运行测试
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 编译 Release 并运行测试">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 VS Code 中断点调试
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 生成便携版和安装版
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 使用与校验产物
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 正式签名与公证
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 常见问题与验收
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="macos-arm64">macOS arm64 安装依赖、编译、运行与打包<a class="headerlink" href="#macos-arm64" title="Permanent link">&para;</a></h1>
+<p>本文从一台 Apple Silicon Mac 的环境准备开始，说明如何编译 Darkeye、运行测试，并生成便携 ZIP 与安装 DMG。命令在终端中执行；进入源码目录后，后续命令均以仓库根目录为工作目录。</p>
+<p>主程序及演示程序已在 Apple Silicon、Apple Clang 21、macOS SDK 27、Qt 6.12.0 和 CMake 3.30.5 下完成 Release 原生编译。仓库中的 vcpkg overlay 修复了固定 baseline 内 zlib/libpng 对现代 macOS SDK 的兼容问题；Windows 保留原有编译分支。最低系统版本和干净机器运行仍需进行本文末尾的验收。</p>
+<p><code>python3 tools/package.py</code> 的完整编译、部署、打包流程以及 <code>--skip-build --build-dir build/macos-arm64-release</code> 均已实测成功，生成便携 ZIP 和安装 DMG。验证包括 ZIP 完整性、便携标记与外部 data 目录、应用 ad-hoc 签名、DMG 内容清单；该验证针对旧版 PKG 流程，当前 DMG 流程需重新验收；未执行系统安装或 Developer ID 公证。运行前需按下文设置 Qt、vcpkg 和 CMake 3.x 环境。</p>
+<p>该环境下全部测试目标可编译；原生 CTest 为 58/70 通过（含启动、UI 冒烟、3D/DVD 演示冒烟），12 项失败涉及数据库夹具、路径/界面断言及 GPU/DPR 检查，尚未全部通过。发布工具的 4 项测试通过。此次验证的依赖在本机默认系统部署目标下构建，因此不构成对 macOS 14.4 运行兼容性的验证。</p>
+<h2 id="0">0. 当前电脑直接使用<a class="headerlink" href="#0" title="Permanent link">&para;</a></h2>
+<p>本节适用于已经完成依赖准备的这台电脑。新电脑请从第 1 节开始安装，不要直接复制本节的 vcpkg 路径。</p>
+<p>构建脚本现在会自动识别默认的 <code>$HOME/Qt/6.12.0/macos</code> 和项目 <code>build/vcpkg</code>；如果 PATH 中选中 CMake 4，会优先使用 Qt 附带的 CMake 3.x。已有本机依赖时，无需设置环境变量即可执行 <code>python3 tools/package.py</code>。显式设置的 Qt/vcpkg/toolchain 路径仍优先使用。下面的环境变量命令也适用于直接运行 CMake。</p>
+<p>每次新开终端，先执行：</p>
+<pre><code class="language-sh">cd /Users/yin/Desktop/darkeye
+export PATH=&quot;$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH&quot;
+export Qt6_DIR=&quot;$HOME/Qt/6.12.0/macos/lib/cmake/Qt6&quot;
+export VCPKG_ROOT=&quot;$PWD/build/vcpkg&quot;
+cmake --version
+</code></pre>
+<p>确认输出为 CMake 3.x。按需要选择下面的命令：</p>
+<table>
+<thead>
+<tr>
+<th>目的</th>
+<th>命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>编译 Release</td>
+<td><code>python3 tools/build.py --config Release</code></td>
+</tr>
+<tr>
+<td>运行编译后的应用</td>
+<td><code>open build/macos-arm64-release/apps/desktop/Darkeye.app</code></td>
+</tr>
+<tr>
+<td>编译并同时打包便携版、安装版</td>
+<td><code>python3 tools/package.py</code></td>
+</tr>
+<tr>
+<td>直接复用现有 Release 结果打包</td>
+<td><code>python3 tools/package.py --skip-build --build-dir build/macos-arm64-release</code></td>
+</tr>
+<tr>
+<td>只生成便携 ZIP</td>
+<td><code>python3 tools/package.py --format portable</code></td>
+</tr>
+<tr>
+<td>只生成安装 DMG</td>
+<td><code>python3 tools/package.py --format installer</code></td>
+</tr>
+</tbody>
+</table>
+<p>当前版本 1.2.5 的产物为 <code>out/Darkeye-1.2.5-macos-arm64-portable.zip</code> 和 <code>out/Darkeye-1.2.5-macos-arm64-setup.dmg</code>，同时生成 <code>.tar.zst</code> 更新包、<code>latest.json</code>（内含更新包 SHA256）。便携版需完整解压后运行，见第 6 节。</p>
+<p>这台电脑因 GitHub 连接问题使用了固定版本的 vcpkg 源码归档，在其 <code>installed/</code> 中安装依赖。脚本只有在识别到本机 <code>build/vcpkg</code> 无 Git 元数据、且 FreeType/msdfgen 已安装时，才自动设置 <code>VCPKG_MANIFEST_MODE=OFF</code>，因此重新配置也能复用依赖。正常 Git 版 vcpkg 保留 manifest 模式。新电脑仍应按第 3 节准备完整 Git 版 vcpkg。无需把这个本机设置提交进公共预设。</p>
+<h2 id="1">1. 确认系统和工具链<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td>Apple Silicon，终端和 Python 均原生运行于 arm64</td>
+</tr>
+<tr>
+<td>应用最低运行系统</td>
+<td>当前预设为 macOS 14.4</td>
+</tr>
+<tr>
+<td>构建工具链</td>
+<td>Apple Clang 和 macOS SDK（本次使用 Command Line Tools）；也可使用完整 Xcode</td>
+</tr>
+<tr>
+<td>Qt</td>
+<td>6.12.0 或更新的 Qt 6，macOS Desktop kit 必须含 arm64</td>
+</tr>
+<tr>
+<td>构建工具</td>
+<td>CMake 3.25–3.x、Ninja、Python 3.9+、Git</td>
+</tr>
+<tr>
+<td>依赖管理</td>
+<td>vcpkg，目标 triplet 为 arm64-osx</td>
+</tr>
+<tr>
+<td>打包工具</td>
+<td>ditto、codesign、lipo、hdiutil，由系统及开发工具提供</td>
+</tr>
+</tbody>
+</table>
+<p>先检查架构：</p>
+<pre><code class="language-sh">uname -m
+python3 -c 'import platform; print(platform.machine())'
+</code></pre>
+<p>两条命令均应显示 <code>arm64</code>。不要使用 Rosetta 下的 x86_64 终端或 Python；本项目不生成 Intel 包。</p>
+<p>先安装 Apple Command Line Tools，弹窗中完成安装后检查：</p>
+<pre><code class="language-sh">xcode-select --install
+xcode-select -p
+xcrun clang++ --version
+xcrun --show-sdk-path
+</code></pre>
+<p>已经安装时，无需重复安装。此次原生编译使用 <code>/Library/Developer/CommandLineTools</code> 工具链。若选择安装完整 Xcode，完成首次启动初始化，并选择其工具链：</p>
+<pre><code class="language-sh">sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -runFirstLaunch
+xcode-select -p
+xcrun clang++ --version
+</code></pre>
+<p>如果 Xcode 安装在别处，替换第一条命令的路径。构建机系统要求与应用最低运行系统是两回事，部署目标 14.4 不代表所有版本的 Xcode 都能安装在 14.4 上。<a href="https://doc.qt.io/qt-6/supported-platforms.html">Qt 支持平台</a></p>
+<p>已安装 Homebrew 时，可以用它准备通用工具：</p>
+<pre><code class="language-sh">brew install ninja python git pkg-config
+ninja --version
+python3 --version
+git --version
+pkg-config --version
+</code></pre>
+<p>Homebrew 安装与支持系统要求见<a href="https://docs.brew.sh/Installation">官方说明</a>。若当前系统不在其支持范围内，可分别从 CMake、Python 等工具的官方渠道安装。无需通过 Homebrew 安装 Qt；以下步骤使用明确版本的 Qt kit。</p>
+<p>另需安装 CMake 3.25–3.x：可在 Qt 安装器的 Tools 中选择 CMake（本次使用 3.30.5），或自行安装 CMake 3.x。当前 vcpkg baseline 包含旧版 Brotli，其 CMake 最低版本声明不兼容 CMake 4，因此不要直接使用 Homebrew 默认安装的 CMake 4。Qt 附带的 CMake 安装在默认位置时，先将它加入 PATH，再执行依赖安装和后续构建：</p>
+<pre><code class="language-sh">export PATH=&quot;$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH&quot;
+cmake --version
+</code></pre>
+<h2 id="2-qt">2. 安装 Qt<a class="headerlink" href="#2-qt" title="Permanent link">&para;</a></h2>
+<p>通过 <a href="https://www.qt.io/download-qt-installer-oss">Qt Online Installer</a> 安装 <strong>Qt 6.12.0 的 macOS Desktop kit</strong>，或更新的兼容 Qt 6 版本。应包含：</p>
+<ul>
+<li>Qt Core、Gui、Widgets、Network、Sql、Test 等基础模块。</li>
+<li>Qt Gui/Core 对应版本的私有开发头文件；项目使用 Qt 私有 API。</li>
+<li>Qt HttpServer、WebSockets、Svg、ShaderTools 模块及构建工具。</li>
+</ul>
+<p>这些模块必须来自同一套 Qt 安装。当前项目不要求为了编译主程序而额外安装 Quick3D。若使用官方通用 macOS kit，库同时包含 Intel/arm64 切片也可以；本项目只编译 arm64 主程序。</p>
+<p>假设安装目录为 <code>$HOME/Qt/6.12.0/macos</code>：</p>
+<pre><code class="language-sh">export Qt6_DIR=&quot;$HOME/Qt/6.12.0/macos/lib/cmake/Qt6&quot;
+test -f &quot;$Qt6_DIR/Qt6Config.cmake&quot;
+</code></pre>
+<p>最后一条命令应成功退出。安装位置可能不同，请根据实际存在的 <code>Qt6Config.cmake</code> 设置变量，不要照搬 Windows 的 Qt 路径。</p>
+<h2 id="3-vcpkg">3. 获取源码和配置 vcpkg<a class="headerlink" href="#3-vcpkg" title="Permanent link">&para;</a></h2>
+<p>如果已有源码，进入现有仓库即可。新机器可以执行：</p>
+<pre><code class="language-sh">mkdir -p &quot;$HOME/src&quot;
+cd &quot;$HOME/src&quot;
+git clone https://github.com/gty5678/darkeye-cpp.git
+cd darkeye-cpp
+</code></pre>
+<p>源码需要包含最新的 macOS 预设与打包脚本。已有仓库请确认自己正在使用包含这些改动的版本。</p>
+<p>单独安装 vcpkg，不要复制 Windows 的 <code>vcpkg_installed</code>：</p>
+<pre><code class="language-sh">git clone https://github.com/microsoft/vcpkg.git &quot;$HOME/src/vcpkg&quot;
+&quot;$HOME/src/vcpkg/bootstrap-vcpkg.sh&quot;
+export VCPKG_ROOT=&quot;$HOME/src/vcpkg&quot;
+test -f &quot;$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake&quot;
+</code></pre>
+<p>首次配置时，CMake 根据 <code>vcpkg.json</code> 自动构建 FreeType、msdfgen 及其依赖，使用仓库固定的 baseline。无需手动执行 <code>vcpkg install</code>，也不需要用 vcpkg 再安装一套 Qt。首次构建需联网。<a href="https://learn.microsoft.com/vcpkg/get_started/get-started?pivots=shell-bash">vcpkg 配置说明</a></p>
+<p><code>export</code> 只影响当前终端。若需要每次打开终端自动生效，将以下三行加入自己的 <code>~/.zshrc</code>，路径按实际情况填写：</p>
+<pre><code class="language-sh">export VCPKG_ROOT=&quot;$HOME/src/vcpkg&quot;
+export Qt6_DIR=&quot;$HOME/Qt/6.12.0/macos/lib/cmake/Qt6&quot;
+export PATH=&quot;$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH&quot;
+</code></pre>
+<h2 id="4-release">4. 编译 Release 并运行测试<a class="headerlink" href="#4-release" title="Permanent link">&para;</a></h2>
+<p>先确认位于包含 <code>CMakeLists.txt</code> 的项目根目录。仅编译：</p>
+<pre><code class="language-sh">python3 tools/build.py --config Release
+</code></pre>
+<p>脚本自动选择 <code>macos-arm64-release</code> 预设，使用 Ninja 调用 Apple Clang。构建目录为 <code>build/macos-arm64-release/</code>，主程序目标是 <code>Darkeye.app</code>。可查找构建出的应用：</p>
+<pre><code class="language-sh">find build/macos-arm64-release -name Darkeye.app -type d
+</code></pre>
+<p>构建目录中的应用用于开发，尚未经过完整发布依赖部署。分发与干净机器验证请使用打包产物。</p>
+<p>从终端打开开发构建：</p>
+<pre><code class="language-sh">open build/macos-arm64-release/apps/desktop/Darkeye.app
+</code></pre>
+<p>希望在终端中看到输出，或指定独立的开发数据目录时，直接运行内部可执行文件：</p>
+<pre><code class="language-sh">./build/macos-arm64-release/apps/desktop/Darkeye.app/Contents/MacOS/Darkeye \
+  --config-dir &quot;$PWD/config&quot; \
+  --avwiki-dir &quot;$PWD/avwiki&quot; \
+  --data-dir &quot;$PWD/data&quot;
+</code></pre>
+<p>该命令使用源码中的配置与知识库，并将数据库等用户数据写入项目 <code>data/</code>。不传参数时按应用正常路径规则选择资源和用户数据目录。Debug 构建使用 <code>python3 tools/build.py --config Debug</code>，运行路径相应替换为 <code>build/macos-arm64-debug/apps/desktop/Darkeye.app</code>。</p>
+<p>编译测试并运行全部 CTest：</p>
+<pre><code class="language-sh">python3 tools/build.py --config Release --test
+</code></pre>
+<p>测试使用独立目录 <code>build/macos-arm64-release-tests/</code>。界面和 Metal 渲染测试需要正常图形登录会话，不能用纯 SSH/headless 环境的结果替代桌面验收。系统钥匙串测试默认会跳过需要显式启用的用例；在可使用测试钥匙串的桌面会话中，可设置 <code>DARKEYE_TEST_SYSTEM_KEYRING=1</code> 后单独验证。</p>
+<p>查看失败测试详情：</p>
+<pre><code class="language-sh">ctest --test-dir build/macos-arm64-release-tests -C Release --output-on-failure
+</code></pre>
+<p>也可直接使用 CMake：</p>
+<pre><code class="language-sh">cmake --preset macos-arm64-release -DQt6_DIR=&quot;$Qt6_DIR&quot;
+cmake --build --preset macos-arm64-release
+</code></pre>
+<p>这里生成的是 Ninja 构建目录，不是 <code>.xcodeproj</code>；Xcode 提供编译工具链。更换 Qt 或编译器后可使用 <code>python3 tools/build.py --config Release --clean</code> 重建；此操作会清理该预设的构建目录，用户数据不应放在那里。</p>
+<h3 id="vs-code">在 VS Code 中断点调试<a class="headerlink" href="#vs-code" title="Permanent link">&para;</a></h3>
+<p>不必安装完整 Xcode：本机已有的 Command Line Tools 提供 Apple Clang、SDK 和 LLDB。完整 Xcode 只在需要其 IDE 或额外工具时安装。当前 CMake 预设使用 Ninja，不生成 Xcode 工程。</p>
+<p>VS Code 中安装 CodeLLDB（<code>vadimcn.vscode-lldb</code>）用于断点调试；可另外安装 CMake Tools（<code>ms-vscode.cmake-tools</code>）管理构建，以及 C/C++（<code>ms-vscode.cpptools</code>）提供代码导航。</p>
+<p>本机工作区已准备 <code>.vscode/launch.json</code>、<code>tasks.json</code> 和 <code>extensions.json</code>。在 VS Code 中打开整个项目目录 <code>/Users/yin/Desktop/darkeye</code>，在 <code>apps/desktop/main.cpp</code> 的 <code>main()</code> 内设置断点，进入“运行和调试”，选择 <strong>Darkeye macOS Debug</strong>，按 F5。首次会自动配置、编译 Debug 主程序，后续为增量构建；然后启动 <code>.app/Contents/MacOS/Darkeye</code> 内部可执行文件。F10 单步跳过，F11 单步进入，Shift+F5 停止。</p>
+<p>该本机配置使用 Qt 6.12.0、Qt 附带的 CMake 3.x，以及第 0 节的本机 vcpkg 已安装依赖（<code>VCPKG_MANIFEST_MODE=OFF</code>）。调试时显式使用项目 <code>config/</code>、<code>avwiki/</code> 和 <code>data/</code>。<code>.vscode/</code> 被 Git 忽略，不会改变 Windows 开发配置；新电脑需自行创建配置，并按实际 Qt、vcpkg 路径调整。</p>
+<p>手动构建本机 Debug 版本可执行：</p>
+<pre><code class="language-sh">cmake --preset macos-arm64-debug \
+  -DQt6_DIR=&quot;$Qt6_DIR&quot; \
+  -DCMAKE_TOOLCHAIN_FILE=&quot;$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake&quot; \
+  -DVCPKG_MANIFEST_MODE=OFF
+cmake --build --preset macos-arm64-debug --target Darkeye --parallel 8
+</code></pre>
+<p>上述 <code>OFF</code> 仅适用于第 0 节已安装好依赖的本机环境。新电脑按第 3 节使用完整 vcpkg Git 仓库后，可直接用 <code>python3 tools/build.py --config Debug</code>，保留 manifest 自动安装依赖。</p>
+<p>调试对象应使用 Debug 构建；Release 优化可能导致变量无法查看、断点行跳动。无需先打包 ZIP/DMG 才能调试。若系统首次提示允许开发者工具调试，请按系统提示授权。</p>
+<p>配置参考：<a href="https://code.visualstudio.com/docs/cpp/config-clang-mac">VS Code 的 macOS C++ 开发说明</a>、<a href="https://github.com/vadimcn/codelldb/blob/master/MANUAL.md">CodeLLDB 启动配置</a>。</p>
+<h2 id="5">5. 生成便携版和安装版<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>环境配置完成后，在项目根目录使用 <code>uv</code> 安装打包依赖（需已安装 <code>uv</code>）：</p>
+<pre><code class="language-sh">uv venv
+uv pip install -r tools/requirements-packaging.txt
+</code></pre>
+<p>依赖只需首次打包或变更后安装，无需手动激活 <code>.venv</code>。然后构建并打包：</p>
+<pre><code class="language-sh">uv run --no-project python tools/package.py
+</code></pre>
+<p>该命令默认不运行测试。希望测试通过后才打包，执行：</p>
+<pre><code class="language-sh">uv run --no-project python tools/package.py --test
+</code></pre>
+<p>代码未变化、只希望重新打包现有 Release 构建时：</p>
+<pre><code class="language-sh">uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release
+</code></pre>
+<p>如果第 4 节的 Release 测试构建已经通过，也可复用测试构建目录：</p>
+<pre><code class="language-sh">uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
+</code></pre>
+<p><code>--skip-build</code> 不会重新运行测试；不要用它把测试失败的构建标记为合格发布。它不能与 <code>--test</code> 或 <code>--clean</code> 同时使用。</p>
+<p>默认输出：</p>
+<pre><code class="language-text">out/Darkeye-&lt;版本&gt;-macos-arm64-portable.zip
+out/Darkeye-&lt;版本&gt;-macos-arm64-setup.dmg
+out/Darkeye-&lt;版本&gt;-macos-arm64-update.tar.zst
+out/latest.json
+</code></pre>
+<p>版本自动读取顶层 <code>CMakeLists.txt</code>。仅生成一种格式，或先预览命令：</p>
+<pre><code class="language-sh">uv run --no-project python tools/package.py --format portable
+uv run --no-project python tools/package.py --format installer
+uv run --no-project python tools/package.py --dry-run
+</code></pre>
+<p>重复执行会替换同名暂存目录和产物。若暂存的便携目录已经含有用户数据，脚本会拒绝删除；此时可通过 <code>--destination out/new-release/Darkeye-&lt;版本&gt;-macos-arm64</code> 使用新位置，<code>&lt;版本&gt;</code> 需替换为实际版本。</p>
+<h2 id="6">6. 使用与校验产物<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<p>验证校验和：</p>
+<pre><code class="language-sh">shasum -a 256 out/*-macos-arm64-update.tar.zst
+# 与 out/latest.json 中 packages.macos-arm64.sha256 比对
+</code></pre>
+<p>便携 ZIP 解压后为：</p>
+<pre><code class="language-text">DarkEye/
+  Darkeye.app/
+  portable.ini
+  data/
+</code></pre>
+<p>把整个 <code>DarkEye</code> 文件夹放在可写位置，再打开 <code>Darkeye.app</code>。<code>portable.ini</code> 的 <code>DataDirectory=data</code> 以标记文件所在目录为基准，因此数据在 <code>.app</code> 外。迁移时携带整个文件夹；升级时退出程序，替换 <code>.app</code> 并保留 <code>portable.ini</code>、<code>data/</code>。不要在已签名的 <code>.app</code> 内创建数据文件。</p>
+<p>例如将 ZIP 解压到一个新目录后启动（版本号按实际产物修改）：</p>
+<pre><code class="language-sh">ditto -x -k out/Darkeye-1.2.5-macos-arm64-portable.zip out/portable-run
+open out/portable-run/DarkEye/Darkeye.app
+</code></pre>
+<p>打开 <code>.dmg</code>，将 <code>Darkeye.app</code> 拖入 <code>Applications</code> 快捷方式，安装到 <code>/Applications/Darkeye.app</code>。它不带便携标记，使用 Qt 的系统用户数据目录；实际位置可在软件设置的运行路径中查看。初始知识库从 <code>.app/Contents/Resources/avwiki</code> 复制到数据目录后才编辑和更新，安装资源保持只读。</p>
+<p>也可从终端打开安装向导，完成安装后启动应用：</p>
+<pre><code class="language-sh">open out/Darkeye-1.2.5-macos-arm64-setup.dmg
+# 在安装向导中完成安装后再执行：
+open /Applications/Darkeye.app
+</code></pre>
+<p>可检查签名和架构；下面路径需按实际暂存目录替换：</p>
+<pre><code class="language-sh">codesign --verify --deep --strict /Applications/Darkeye.app
+lipo -archs /Applications/Darkeye.app/Contents/MacOS/Darkeye
+</code></pre>
+<p>架构应仅显示 <code>arm64</code>。这些检查不等于 Gatekeeper 公证通过。</p>
+<p>打包脚本在签名前会遍历 <code>.app</code> 内所有 Mach-O 文件，将 Qt 框架、插件等通用二进制裁剪为仅含 <code>arm64</code>，保留框架符号链接和文件权限。不含 <code>arm64</code> 的依赖会导致打包失败。裁剪后重新签名，再生成 ZIP、DMG 和更新包。</p>
+<h2 id="7">7. 正式签名与公证<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<p>默认打包使用 <strong>ad-hoc 签名</strong>，方便开发验证，不等于 Developer ID 签名或公证。已在钥匙串中安装相应证书时，可执行：</p>
+<pre><code class="language-sh">uv run --no-project python tools/package.py \
+  --mac-sign-identity &quot;Developer ID Application: 你的开发者名称 (TEAMID)&quot; \
+  --mac-installer-identity &quot;Developer ID Installer: 你的开发者名称 (TEAMID)&quot;
+</code></pre>
+<p>脚本会先部署依赖，再签名内部代码和 <code>.app</code>，并使用 Installer 身份签名 DMG。<strong>当前脚本不自动提交公证、不自动 stapling</strong>；正式公开分发需完成 Apple 的公证流程，再重新生成最终分发文件的校验和。不要把本地签名校验成功当作已完成公证。<a href="https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution">Apple 公证说明</a></p>
+<h2 id="8">8. 常见问题与验收<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>提示要求 arm64 host</td>
+<td>检查 <code>uname -m</code> 和 Python 架构，退出 Rosetta 终端</td>
+</tr>
+<tr>
+<td>找不到 Ninja/CMake</td>
+<td>安装工具并确认它们位于 PATH</td>
+</tr>
+<tr>
+<td>找不到 Qt6/GuiPrivate/ShaderTools</td>
+<td>修正 Qt6_DIR，补齐同版本 kit 的模块和私有头文件</td>
+</tr>
+<tr>
+<td>vcpkg toolchain 不存在</td>
+<td>检查 VCPKG_ROOT 指向 vcpkg 仓库根目录，执行 bootstrap</td>
+</tr>
+<tr>
+<td>更换 Qt 后链接或运行异常</td>
+<td>用新的构建目录，或清理对应构建目录后重建</td>
+</tr>
+<tr>
+<td>缺少 codesign/hdiutil 或 SDK</td>
+<td>检查 Xcode 安装、初始化和 xcode-select 指向</td>
+</tr>
+<tr>
+<td>找不到签名身份</td>
+<td>检查证书及私钥已导入当前用户钥匙串；本地验证可先用默认签名</td>
+</tr>
+<tr>
+<td>无法打开、系统提示开发者未验证</td>
+<td>检查分发签名和公证状态；ad-hoc 包不是正式公证包</td>
+</tr>
+<tr>
+<td>数据目录不可写</td>
+<td>移动整个便携目录到可写位置，检查 portable.ini 和数据目录权限</td>
+</tr>
+<tr>
+<td>测试失败</td>
+<td>保留 Testing/Temporary/LastTest.log 与具体断言，修复或明确诊断后再发布</td>
+</tr>
+</tbody>
+</table>
+<p>在未安装 Qt、vcpkg 的另一台兼容 Mac 上分别验证 ZIP 和 DMG：启动、首次建库、知识库编辑、网络访问、凭据读写、图形渲染、中文路径、退出后重启。便携目录移动后应继续读取原数据；安装升级应保留用户数据库和知识库。系统钥匙串密码不会随便携目录自动迁移到另一台机器。</p>
+<p>通用规则见<a href="../cross-platform-packaging/">三平台构建与发布</a>，Linux 流程见<a href="../linux-packaging/">Linux 编译与打包</a>。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

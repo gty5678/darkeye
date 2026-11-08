@@ -6,10 +6,10 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
+        <meta name="description" content="DarkEye C++ documentation">
       
       
       
-        <link rel="prev" href="../develop/">
       
       
         <link rel="next" href="../CHANGELOG/">
@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -27,10 +27,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -48,8 +48,6 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
-    
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -205,13 +203,13 @@
   
   
     <li class="md-tabs__item">
-      <a href="../develop/" class="md-tabs__link">
+      <a href="../develop.md" class="md-tabs__link">
         
   
   
     
   
-  开发白皮书
+  C++ 版本概览
 
       </a>
     </li>
@@ -321,6 +319,101 @@
   
   
     <li class="md-tabs__item">
+      <a href="../windows-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Windows 打包与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cross-platform-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  三平台构建与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../macos-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  macOS 安装、编译、运行与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../linux-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Linux 编译与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../shelf-page-performance.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  书架页性能优化
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
       <a href="../security/" class="md-tabs__link">
         
   
@@ -393,14 +486,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../develop/" class="md-nav__link">
+      <a href="../develop.md" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    开发白皮书
+    C++ 版本概览
   
 
     
@@ -490,13 +583,24 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        安装浏览器插件
+        安装桥接器与浏览器插件
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="安装浏览器插件">
+    <nav class="md-nav" aria-label="安装桥接器与浏览器插件">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动桥接器
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#firefox" class="md-nav__link">
@@ -537,7 +641,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何添加新作品信息
@@ -549,7 +653,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         方式一：用浏览器插件采集（推荐）
@@ -560,7 +664,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         方式二：从本地视频反向识别
@@ -571,7 +675,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         方式三：纯手动添加番号
@@ -620,7 +724,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#_8" class="md-nav__link">
     <span class="md-ellipsis">
       
         作品信息不完整？
@@ -631,7 +735,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#_9" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何补充快速缺失的信息？
@@ -642,7 +746,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
+  <a href="#_10" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何修改作品信息？
@@ -653,7 +757,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
+  <a href="#_11" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何修改女优信息？
@@ -664,7 +768,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
+  <a href="#_12" class="md-nav__link">
     <span class="md-ellipsis">
       
         女优爬虫后还是灰色的？
@@ -675,7 +779,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
+  <a href="#_13" class="md-nav__link">
     <span class="md-ellipsis">
       
         男优是灰的？
@@ -686,7 +790,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
+  <a href="#_14" class="md-nav__link">
     <span class="md-ellipsis">
       
         自定义外部链接
@@ -720,7 +824,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
+  <a href="#_15" class="md-nav__link">
     <span class="md-ellipsis">
       
         本地搭建（推荐）
@@ -744,6 +848,34 @@
         
       </ul>
     </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据备份
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="数据备份">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webdav-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebDAV 云备份（Windows）
+      
+    </span>
+  </a>
   
 </li>
         
@@ -875,6 +1007,141 @@
   
   
     <li class="md-nav__item">
+      <a href="../windows-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 打包与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-platform-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    三平台构建与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../macos-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS 安装、编译、运行与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux 编译与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shelf-page-performance.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    书架页性能优化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../security/" class="md-nav__link">
         
   
@@ -961,13 +1228,24 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        安装浏览器插件
+        安装桥接器与浏览器插件
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="安装浏览器插件">
+    <nav class="md-nav" aria-label="安装桥接器与浏览器插件">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动桥接器
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#firefox" class="md-nav__link">
@@ -1008,7 +1286,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何添加新作品信息
@@ -1020,7 +1298,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         方式一：用浏览器插件采集（推荐）
@@ -1031,7 +1309,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         方式二：从本地视频反向识别
@@ -1042,7 +1320,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         方式三：纯手动添加番号
@@ -1091,7 +1369,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#_8" class="md-nav__link">
     <span class="md-ellipsis">
       
         作品信息不完整？
@@ -1102,7 +1380,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#_9" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何补充快速缺失的信息？
@@ -1113,7 +1391,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
+  <a href="#_10" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何修改作品信息？
@@ -1124,7 +1402,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
+  <a href="#_11" class="md-nav__link">
     <span class="md-ellipsis">
       
         如何修改女优信息？
@@ -1135,7 +1413,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
+  <a href="#_12" class="md-nav__link">
     <span class="md-ellipsis">
       
         女优爬虫后还是灰色的？
@@ -1146,7 +1424,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
+  <a href="#_13" class="md-nav__link">
     <span class="md-ellipsis">
       
         男优是灰的？
@@ -1157,7 +1435,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
+  <a href="#_14" class="md-nav__link">
     <span class="md-ellipsis">
       
         自定义外部链接
@@ -1191,7 +1469,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
+  <a href="#_15" class="md-nav__link">
     <span class="md-ellipsis">
       
         本地搭建（推荐）
@@ -1223,6 +1501,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据备份
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="数据备份">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#webdav-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebDAV 云备份（Windows）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1244,7 +1550,10 @@
 
 <h2 id="_1">下载软件<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p><img alt="下载软件" src="../assets/%E4%B8%8B%E8%BD%BD%E8%BD%AF%E4%BB%B6.JPG" /> 把下面的插件也下载了。</p>
-<h2 id="_2">安装浏览器插件<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="_2">安装桥接器与浏览器插件<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="_3">启动桥接器<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<p><img alt="" src="../assets/mosic.png" />
+上面指定好下载的桥接器，然后点击自启就可以了。</p>
 <p>这里以「本地加载已解压扩展」为主，不需要商店账号。三种浏览器可以同时安装，但<strong>建议只启用一种进行自动采集</strong>，避免重复打开页面。</p>
 <h3 id="firefox">Firefox 插件<a class="headerlink" href="#firefox" title="Permanent link">&para;</a></h3>
 <ol>
@@ -1289,9 +1598,9 @@
 </blockquote>
 <p><img alt="" src="../assets/edge.JPG" />
 <img alt="" src="../assets/choosefile.JPG" /></p>
-<h2 id="_3">如何添加新作品信息<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="_4">如何添加新作品信息<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <p>目前有 三种主要方式，普通用户推荐第 1 种。</p>
-<h3 id="_4">方式一：用浏览器插件采集（推荐）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<h3 id="_5">方式一：用浏览器插件采集（推荐）<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <p>适合：你平时在 javdb / javlibrary / javtxt 上逛片子。</p>
 <p>步骤：</p>
 <p>确保：
@@ -1303,7 +1612,7 @@ Firefox 插件已加载（上一节的步骤）
 <p><img alt="" src="../assets/javdb_detail.JPG" />
 如果插件与软件都正常启动，软件有收藏按钮悬浮于作品上，点击收藏开始开始爬取该作品的信息，写入本地数据库。</p>
 <p>现在爬虫采用浏览器爬虫，会弹出javlib，需要先手动过反爬。第一次访问 javlibrary 时，可能会被 Cloudflare 挡一下，手动点一次通过即可，之后约 20 分钟内都不需要再过盾。采集的内容包括：发布时间、导演、中/日文标题、剧情简介、女优、男优、标签、封面等。</p>
-<h3 id="_5">方式二：从本地视频反向识别<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<h3 id="_6">方式二：从本地视频反向识别<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
 <p>适合：你本地已经有大量视频，希望让软件尽量自动识别番号并入库。</p>
 <p>在软件中打开：设置 -&gt; 视频
 添加你存放影片的文件夹路径（可以多个）
@@ -1317,7 +1626,7 @@ Firefox 插件已加载（上一节的步骤）
 <p>测试下来大概连续100次爬虫会触发javdb的反爬，然后就不行了。如果有上千部片子，挂半小时休息半小时，然后慢慢爬。</p>
 <p>这一步的识别准确度目前不高，只是帮你省一点力气。</p>
 <p>建议在「管理 -&gt; 添加/修改作品」里，后面手动检查和修正关键信息。</p>
-<h3 id="_6">方式三：纯手动添加番号<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<h3 id="_7">方式三：纯手动添加番号<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
 <p>适合：看到一个想记下来的番号，或者需要补录特别的作品。</p>
 <p>在软件任何地方按下快捷键：W
 会弹出「快速添加作品」窗口
@@ -1391,19 +1700,19 @@ Firefox 插件已加载（上一节的步骤）
 <img alt="" src="../assets/jvedio2nfo.jpg" /></p>
 <p>使用Python运行脚本，产生一个包含nfo的闻文件夹</p>
 <p>然后通过方式四导入本软件就行了。</p>
-<h2 id="_7">作品信息不完整？<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<h2 id="_8">作品信息不完整？<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
 <p>比如没有封面的，没有标题的，还有fc2那种啥都没有的，因为爬虫的网站没有对应的信息。此时可以右键点击进入编辑区
 <img alt="" src="../assets/%E4%BD%9C%E5%93%81%E4%BF%A1%E6%81%AF%E4%B8%8D%E5%AE%8C%E6%95%B4.JPG" /></p>
 <p>点击下面的四个链接看看有没有信息，如果没有就代表爬虫无这部作品的信息源，如果有代表爬虫有问题或者是网络问题，此时可以在左边的爬虫区补数据。
 <img alt="" src="../assets/%E5%A4%96%E9%83%A8%E9%93%BE%E6%8E%A5%E5%8C%BA.JPG" /></p>
-<h2 id="_8">如何补充快速缺失的信息？<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<h2 id="_9">如何补充快速缺失的信息？<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
 <p>这里缺失的信息是目标网站有的，但是因为网络问题没有爬到，然后可以补充，网站上没有的东西只能手动修改。</p>
 <p>按W键，弹出下面的界面
 <img alt="" src="../assets/%E8%A1%A5%E5%85%85%E7%BC%BA%E5%A4%B1%E4%BF%A1%E6%81%AF.jpg" /></p>
 <p>在右侧选择要补充的信息，然后点击漏斗就行了，注意建议左侧排除那些没有信息的，比如FC2等等。</p>
 <p>会判断哪个字段是缺少的，然后爬虫爬好后只覆盖缺少的字段。字段之间的关系是或。比如影片A只缺少了时长，影片B只缺少了片商，如果此时选了时长和片商，则会把A和B都添加到爬虫里面去，然后最后只更新A的时长和B的片商，其他原本有的不会被覆盖。</p>
 <p>如果要覆盖原来的，那么就只能点击到作品编辑页，通过这个爬虫去爬取，会覆盖，供你确认。</p>
-<h2 id="_9">如何修改作品信息？<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<h2 id="_10">如何修改作品信息？<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
 <p><img alt="" src="../assets/%E4%BD%9C%E5%93%81%E9%A1%B5.jpg" />
 - 点击番号可复制</p>
 <ul>
@@ -1451,7 +1760,7 @@ Firefox 插件已加载（上一节的步骤）
 <p>修改可以自由的编辑，主要是这个爬虫区</p>
 <p><img alt="" src="../assets/%E7%88%AC%E8%99%AB%E5%8C%BA.JPG" />
 这个爬虫区可以补充信息，如果这个信息是网上有的只是因为网络问题没下来，选合适的，然后点击下载。更新后会有橙色的提示。然后可以提交并修改。</p>
-<h2 id="_10">如何修改女优信息？<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<h2 id="_11">如何修改女优信息？<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
 <p>当你看见大量的灰色按钮时？不要慌，点击<code>管理-&gt;批量操作-&gt;更新标记需要更新的女优</code>。爬虫会自动处理，但是爬虫不是万能的会有问题，比如遇到下面的奇怪的情况。左键进入
 <img alt="" src="../assets/%E5%A5%B3%E4%BC%98%E5%8C%BA.jpg" /></p>
 <p>右键进入作品编辑区
@@ -1462,7 +1771,7 @@ Firefox 插件已加载（上一节的步骤）
 <img alt="" src="../assets/%E6%9B%B4%E6%96%B0%E5%A5%B3%E4%BC%984.jpg" /></p>
 <p>点击删除按钮，把女优删除
 <img alt="" src="../assets/%E6%9B%B4%E6%96%B0%E5%A5%B3%E4%BC%985.jpg" /></p>
-<h2 id="_11">女优爬虫后还是灰色的？<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<h2 id="_12">女优爬虫后还是灰色的？<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
 <p>说明要么是错误爬虫，要么是遇到搜索结果很多的情况了，右键点击编辑
 <img alt="" src="../assets/%E7%88%AC%E8%99%AB%E5%90%8E%E7%81%B0%E8%89%B2%E5%A5%B3%E4%BC%98.jpg" /></p>
 <p>点击跳转
@@ -1473,9 +1782,9 @@ Firefox 插件已加载（上一节的步骤）
 <img alt="" src="../assets/%E6%89%8B%E5%8A%A8%E9%80%89%E6%8B%A9%E5%A5%B3%E4%BC%983.jpg" /></p>
 <p>采集后信息会更新到面板上，然后点击提交就行，右边的中文需要自己慢慢编辑，最顶上的就是有优先显示的。现在默认显示的名字是cn最上面一栏，现在就是白石もも
 <img alt="" src="../assets/%E6%89%8B%E5%8A%A8%E9%80%89%E6%8B%A9%E5%A5%B3%E4%BC%984.jpg" /></p>
-<h2 id="_12">男优是灰的？<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<h2 id="_13">男优是灰的？<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
 <p>这个没有办法，只能手动收集信息。</p>
-<h2 id="_13">自定义外部链接<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<h2 id="_14">自定义外部链接<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h2>
 <p>现在的外部链接是json驱动的</p>
 <p><img alt="" src="../assets/%E8%87%AA%E5%AE%9A%E4%B9%89%E7%BC%96%E8%BE%91%E5%A4%96%E9%93%BE1.JPG" /></p>
 <p>要自定义，就打开<code>data/crawler_nav_buttons.json</code>这个json文件
@@ -1507,13 +1816,33 @@ Firefox 插件已加载（上一节的步骤）
 <p>当选择LLM翻译时，爬虫会自动抛弃中文标题与故事，根据日文标题与故事自动翻译，而且不会降级成Google，失败就是空的，这一点后面补充就行了。</p>
 <h3 id="api">外购API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
 <p>这个有钱就可以现在是兼容OpenAi的</p>
-<h3 id="_14">本地搭建（推荐）<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<h3 id="_15">本地搭建（推荐）<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
 <p>以本地有张5060(8G)为例。
-使用llama.cpp或者ollama</p>
-<p>下载</p>
-<p>https://huggingface.co/SakuraLLM/Sakura-7B-Qwen2.5-v1.0-GGUF/tree/main</p>
+使用llama.cpp或者ollama
+下载已经编译好的版本，没有显卡的选择纯cpu推理，有显卡的选择对应cuda版本或者vulkan</p>
+<p>https://github.com/ggml-org/llama.cpp/releases</p>
+<p>下载gguf模型</p>
+<p>https://huggingface.co/SakuraLLM/Sakura-7B-Qwen2.5-v1.0-GGUF/tree/main
+或者下面的这个，下面的模型更大更新，效果更好。
+https://huggingface.co/SakuraLLM/Sakura-14B-Qwen3-v1.5-GGUF</p>
 <p>下载q4量化的gguf文件，或者其他的LLM大模型，现在更强可以下载更大的。小的下载更好的</p>
 <h4 id="llamacpp">llama.cpp<a class="headerlink" href="#llamacpp" title="Permanent link">&para;</a></h4>
+<p>先打开软件中的 <code>设置 -&gt; 翻译</code>，使用 <strong>llama.cpp 辅助启动</strong>：</p>
+<ol>
+<li>点击 <code>打开 llama.cpp Releases</code> 下载对应平台的 <code>llama-server.exe</code></li>
+<li>填写 <code>llama-server.exe</code> 与 <code>GGUF 模型</code> 路径</li>
+<li>选择模式与预设（推荐先用 <code>自动(推荐)</code> 或 <code>8G 显卡预设</code>）</li>
+<li>点击 <code>启动 llama-server</code></li>
+<li>点击 <code>测试 /v1/models</code>，确认服务可用后会自动回填翻译配置</li>
+<li>回到上方点 <code>测试翻译</code> 验证效果</li>
+</ol>
+<p>排障建议：</p>
+<ul>
+<li>显存不足：先降低 <code>gpu-layers</code>，或改用 <code>低显存预设/CPU 预设</code></li>
+<li>端口占用：改 <code>port</code> 或关闭占用程序</li>
+<li>本地模式 <code>API Key</code> 可以随便填（例如 <code>local</code>）</li>
+</ul>
+<p>如果你习惯命令行，继续看下面的手动命令方式。</p>
 <p>运行参数</p>
 <p>在powershell中，定位到编译好的llama-server.exe的位置，修改下面<code>E:\LLM\sakura-7b-qwen2.5-v1.0-iq4xs.gguf</code>这个具体模型的位置，然后运行</p>
 <pre><code>llama-server.exe --host 0.0.0.0 --port 8080 --model E:\LLM\sakura-7b-qwen2.5-v1.0-iq4xs.gguf -c 2048  -n 512 --gpu-layers 99 --batch-size 512 --ubatch-size 256 --threads 6 --cache-type-k q8_0  --cache-type-v q8_0  --no-mmap --mlock --flash-attn 'on' 
@@ -1527,6 +1856,19 @@ Firefox 插件已加载（上一节的步骤）
 <p><img alt="" src="../assets/LLM%E8%AE%BE%E7%BD%AE.jpg" /></p>
 <p>其中本地运行时没密码，随便输入一个，然后测试一下翻译的好坏。</p>
 <p>在<code>管理</code>-&gt;<code>批量操作</code>-&gt;<code>一键翻译标题/简介</code>或者<code>覆盖翻译标题/简介</code></p>
+<h2 id="_16">数据备份<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h2>
+<p>数据备份分全量数据与精简备份</p>
+<h3 id="webdav-windows">WebDAV 云备份（Windows）<a class="headerlink" href="#webdav-windows" title="Permanent link">&para;</a></h3>
+<p>在 <code>设置 -&gt; 数据库</code> 页面新增了 WebDAV 云备份配置区。</p>
+<ul>
+<li>先配置 <code>Base URL</code>、<code>Remote Root</code>、<code>Profile</code>、<code>超时秒数</code> 并保存。</li>
+<li>点击 <code>保存凭据</code>，输入 WebDAV 用户名和密码。</li>
+<li>凭据不会写入 <code>settings.ini</code>，而是写入 Windows Credential Manager。</li>
+<li>可通过 <code>测试连接</code> 验证可用性。</li>
+<li>勾选 <code>备份后自动上传</code> 后，本地备份成功会自动尝试上传到 WebDAV。</li>
+<li>上传失败不会影响本地备份文件的成功生成。</li>
+<li>可使用 <code>浏览云端备份</code> 查看远端备份，或通过 <code>从云端下载并恢复</code> 执行恢复。</li>
+</ul>
 
 
 
@@ -1576,10 +1918,10 @@ Firefox 插件已加载（上一节的步骤）
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

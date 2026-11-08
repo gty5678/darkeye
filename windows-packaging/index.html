@@ -1,0 +1,1437 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+        <link rel="prev" href="../development/">
+      
+      
+        <link rel="next" href="../cross-platform-packaging/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Windows 打包与发布 - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#windows" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Windows 打包与发布
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  C++ 版本概览
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Windows 打包与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cross-platform-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  三平台构建与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../macos-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  macOS 安装、编译、运行与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../linux-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Linux 编译与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../shelf-page-performance.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  书架页性能优化
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ 版本概览
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 打包与发布
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 打包与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        标准模式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        便携模式：版本程序与数据解耦
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        升级与版本切换
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据内部路径规则
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#windows_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Windows 安装版与便携版的生成方法
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Windows 安装版与便携版的生成方法">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 准备环境
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 在仓库根目录执行打包
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 获取生成的文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 脚本实际执行的步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-cmake-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. CMake Install 与正式发布打包
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从旧便携目录迁移
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        后续平台移植
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-platform-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    三平台构建与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../macos-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS 安装、编译、运行与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux 编译与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shelf-page-performance.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    书架页性能优化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        标准模式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        便携模式：版本程序与数据解耦
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        升级与版本切换
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据内部路径规则
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#windows_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Windows 安装版与便携版的生成方法
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Windows 安装版与便携版的生成方法">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 准备环境
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 在仓库根目录执行打包
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 获取生成的文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 脚本实际执行的步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-cmake-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. CMake Install 与正式发布打包
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从旧便携目录迁移
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        后续平台移植
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="windows">Windows 运行模式与发布包<a class="headerlink" href="#windows" title="Permanent link">&para;</a></h1>
+<p>运行模式与安装方式分别处理。同一个 <code>Darkeye.exe</code> 可以在任意目录运行：标准模式使用系统用户数据目录，便携模式使用明确指定的数据目录。安装程序只负责部署程序、快捷方式和卸载入口。</p>
+<h2 id="_1">标准模式<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>没有 <code>portable.ini</code> 或显式数据目录覆盖时，使用 Qt <code>AppLocalDataLocation</code>。当前应用标识下，Windows 路径为 <code>%LOCALAPPDATA%\Darkeye\Darkeye</code>。移动程序文件不会改变数据库和用户设置的位置。config 和 avwiki 默认从 exe 同级读取。</p>
+<p>安装版默认部署到 <code>%LOCALAPPDATA%\Programs\Darkeye</code>，当前用户安装无需管理员权限，提供开始菜单、可选桌面快捷方式和“已安装的应用”卸载入口。用户可以更改程序安装目录；卸载保留用户数据。</p>
+<p>不经过安装程序、直接把标准程序目录复制到其他位置，也仍然是标准模式。</p>
+<h2 id="_2">便携模式：版本程序与数据解耦<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>便携发布包解压后的结构如下。示例版本号用于说明，实际版本号来自 CMake。</p>
+<pre><code class="language-text">DarkEye/
+├── app-1.5.0/
+│   ├── Darkeye.exe
+│   ├── portable.ini        # DataDirectory=../data
+│   ├── config/             # 随版本发布的只读配置
+│   ├── avwiki/             # 当前版本使用的知识库
+│   └── ...依赖文件
+├── app-1.6.0/              # 同样包含 exe 同级 portable.ini
+└── data/
+    ├── settings.ini
+    ├── public/
+    ├── private/
+    ├── cache/
+    ├── temp/
+    └── logs/
+</code></pre>
+<p><code>portable.ini</code> 明确指定数据目录：</p>
+<pre><code class="language-ini">[Portable]
+DataDirectory=../data
+</code></pre>
+<p>相对路径以 <strong>portable.ini 所在目录</strong> 为根，与当前工作目录和版本目录名无关。也可以填写 <code>profiles/user-a</code>、<code>../shared-data</code> 或用户指定的绝对路径。需要整个目录可搬迁时应使用相对路径。</p>
+<p>只检查 exe 同级的 <code>portable.ini</code>，不检查父目录。各 <code>app-&lt;版本&gt;</code> 分别包含标记，默认通过 <code>../data</code> 共用上级数据目录；只有标记而未指定 DataDirectory 时也默认使用 <code>../data</code>。</p>
+<p>显式配置损坏、<code>Portable/DataDirectory</code> 显式为空，或目标目录不可写时，启动失败并提示；不能悄悄退回系统目录或创建另一套数据库。标准安装程序也拒绝安装到会被识别为便携模式的位置。</p>
+<p>路径选择优先级：<code>--data-dir</code>（或测试/工具的构造参数） → 兼容的 <code>DARKEYE_DATA_DIR</code> 环境变量 → exe 同级 <code>portable.ini</code> → 系统用户数据目录。环境变量相对值以程序目录解析；正常发布不设置环境变量。便携模式由 exe 同级标记判断，路径覆盖本身不作为便携标记。</p>
+<p>启动参数为 <code>--config-dir &lt;目录&gt;</code>、<code>--avwiki-dir &lt;目录&gt;</code>、<code>--data-dir &lt;目录&gt;</code>，可分别指定，支持 <code>--参数=目录</code>。参数中的相对路径在启动时以工作目录转换成绝对路径；缺少参数值或空值会终止启动。未指定的 config 和 avwiki 分别为 <code>&lt;exe目录&gt;/config</code>、<code>&lt;exe目录&gt;/avwiki</code>。config 是资源配置目录，用户 <code>settings.ini</code> 仍位于 data。</p>
+<p>应用管理的数据库、配置、图片、备份、JSON、日志、缓存及临时下载目录均基于选定的数据目录。系统网络缓存、操作系统临时文件和安全凭据存储不保证完全没有系统痕迹；WebDAV 凭据目前仍由系统凭据管理器保存，移动设备后可能需要重新登录。</p>
+<h2 id="_3">升级与版本切换<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>新便携版本只增加包含 <code>portable.ini</code> 的 <code>app-&lt;新版本&gt;</code>，保留整个上级 <code>data</code>。从新发布包中只复制新版本的程序目录；已有版本的标记不覆盖。直接运行对应版本目录中的 <code>Darkeye.exe</code> 即可。</p>
+<p>删除不再使用的版本时只删除对应 <code>app-&lt;版本&gt;</code>；备份时复制 <code>data</code>、知识库以及各版本的 <code>portable.ini</code>，完整离线备份可复制整个 <code>DarkEye</code> 目录。</p>
+<p>不要同时启动两个版本访问同一数据目录。程序目录可回退并不代表数据库可以降级；新版本迁移数据库前应备份，旧版是否能读取新数据库取决于数据库兼容性。</p>
+<p>标准模式和便携模式共用 <code>-update.tar.zst</code> 程序更新包，原目录递归覆盖，包外文件保留；不修改已有 <code>portable.ini</code> 或用户数据。自动更新使用随包部署的 <code>updater.exe</code>，从系统临时目录启动，不再调用旧的 <code>DarkEyeUpdater.exe</code>。首次分发的便携完整包和安装程序不作为自动更新包。发布步骤见<a href="../cross-platform-packaging/#自动更新发布">自动更新发布</a>。</p>
+<h2 id="_4">数据内部路径规则<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>新配置包含 <code>Paths/Version=2</code>。<code>Paths/Database=public/public.db</code> 等相对路径从数据目录解析；绝对路径保持原样。旧配置第一次启动时去掉旧的 <code>data/</code> 前缀，其他自定义相对路径转换成原程序目录下的绝对路径。迁移只调整配置，不移动外部文件。</p>
+<p>知识库直接使用 <code>--avwiki-dir</code> 指定的目录，未指定时使用 exe 同级 <code>avwiki</code>，不复制到 data。编辑、保存和知识库更新都操作该目录；更换版本前需要自行保留知识库修改。</p>
+<p><a id="windows-packaging"></a></p>
+<h2 id="windows_1">Windows 安装版与便携版的生成方法<a class="headerlink" href="#windows_1" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 准备环境<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>在 Windows x64 上准备以下工具，具体编译环境配置见 <a href="../development/">开发准备</a>：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+<th>当前脚本要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python 3.9+</td>
+<td>执行 <code>tools/package.py</code>、<code>tools/build.py</code></td>
+<td>通过 <code>uv</code> 创建虚拟环境，并安装 <code>tools/requirements-packaging.txt</code> 中的压缩依赖</td>
+</tr>
+<tr>
+<td>Visual Studio C++ 工具链</td>
+<td>编译主程序</td>
+<td>MSVC x64 和 Windows SDK；脚本自动加载开发环境</td>
+</tr>
+<tr>
+<td>CMake、Ninja、Qt、vcpkg 依赖</td>
+<td>配置、构建与运行库部署</td>
+<td>CMake 3.25+；当前预设使用 Qt 6.12.0 MSVC 2022 64-bit kit</td>
+</tr>
+<tr>
+<td>7-Zip</td>
+<td>生成并校验便携压缩包</td>
+<td>PATH 中的 <code>7zz</code> / <code>7z</code> / <code>7za</code>，或常见 Program Files 下的 <code>7-Zip/7z.exe</code></td>
+</tr>
+<tr>
+<td>Inno Setup</td>
+<td>编译 Windows 安装程序</td>
+<td><code>ISCC.exe</code>，安装脚本为 <code>tools/installer.iss</code></td>
+</tr>
+</tbody>
+</table>
+<p>Windows 预设固定使用 <code>C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6</code>；Qt 安装在其他位置时请修改预设或通过 CMake 的 <code>-DQt6_DIR=...</code> 覆盖。先在终端设置 <code>VCPKG_ROOT</code>，例如：</p>
+<pre><code class="language-powershell">$env:VCPKG_ROOT = &quot;C:/src/vcpkg&quot;
+</code></pre>
+<p>本机已安装 Inno Setup 6.7.3，安装目录为 <code>C:/Program Files (x86)/Inno Setup 6/</code>，编译器完整路径为 <code>C:/Program Files (x86)/Inno Setup 6/ISCC.exe</code>。当前打包脚本可以自动找到该路径，无需额外配置。建议将 Inno Setup 安装在项目外的固定目录，避免清理 <code>out/</code> 时一并删除编译器及其配套文件。</p>
+<p>Inno Setup 编译器按以下顺序查找：命令行 <code>--iscc</code> 指定路径、PATH 中的 <code>ISCC</code>、项目内 <code>out/tooling/inno/ISCC.exe</code>、<code>C:/Program Files (x86)/Inno Setup 6/ISCC.exe</code>、<code>C:/Program Files/Inno Setup 7/ISCC.exe</code>。编译器装在其他位置时使用 <code>--iscc</code> 指定。</p>
+<h3 id="2">2. 在仓库根目录执行打包<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>打开 PowerShell，切换到包含根 <code>CMakeLists.txt</code> 和 <code>tools</code> 的仓库目录，执行：</p>
+<p>先在项目根目录安装打包依赖（需已安装 <code>uv</code>）：</p>
+<pre><code class="language-powershell">uv venv
+uv pip install -r tools/requirements-packaging.txt
+</code></pre>
+<p>使用虚拟环境运行打包脚本，无需手动激活。后续示例同样使用 <code>uv run --no-project</code>，详见<a href="../cross-platform-packaging/#使用-uv-安装打包依赖">跨平台依赖安装说明</a>。</p>
+<pre><code class="language-powershell"># 默认：编译 Release，生成便携包和安装包
+uv run --no-project python tools/package.py
+</code></pre>
+<p>脚本自动使用 <code>windows-msvc-release</code> 配置预设和 <code>release</code> 构建预设，构建目录为 <code>build/windows-msvc-release</code>。默认增量编译，不会每次清空整个构建目录。</p>
+<p>只生成其中一种：</p>
+<pre><code class="language-powershell"># 便携版：只需要 7-Zip，不需要 Inno Setup
+uv run --no-project python tools/package.py --format portable
+
+# 安装版：只需要 Inno Setup，不需要 7-Zip
+uv run --no-project python tools/package.py --format installer
+
+# 指定 Inno Setup 编译器位置
+uv run --no-project python tools/package.py --format installer --iscc &quot;C:/path/to/ISCC.exe&quot;
+</code></pre>
+<p>其他常用方式：</p>
+<pre><code class="language-powershell"># 已完成当前源码的 release 构建，只重新暂存、部署依赖和打包
+uv run --no-project python tools/package.py --skip-build
+
+# 清除发布构建目录并全量编译，再生成两个包
+uv run --no-project python tools/package.py --clean
+
+# 只显示步骤，不执行构建、覆盖或打包
+uv run --no-project python tools/package.py --dry-run
+</code></pre>
+<p><code>--skip-build</code> 固定读取 <code>build/windows-msvc-release</code>。源码或版本号修改后，应先正常构建再打包，避免使用旧程序。</p>
+<h3 id="3">3. 获取生成的文件<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p>版本号自动读取根 <code>CMakeLists.txt</code> 中的 <code>project(Darkeye VERSION ...)</code>，不需要单独修改打包脚本。</p>
+<table>
+<thead>
+<tr>
+<th>产物</th>
+<th>默认输出位置</th>
+<th>生成工具</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>便携版</td>
+<td><code>out/Darkeye-&lt;版本&gt;-windows-x64-portable.7z</code></td>
+<td>7-Zip</td>
+</tr>
+<tr>
+<td>安装版</td>
+<td><code>out/Darkeye-&lt;版本&gt;-windows-x64-setup.exe</code></td>
+<td>Inno Setup</td>
+</tr>
+</tbody>
+</table>
+<p>例如当前版本 <code>1.2.5</code>：</p>
+<pre><code class="language-text">out/
+├── Darkeye-1.2.5-windows-x64-portable.7z
+└── Darkeye-1.2.5-windows-x64-setup.exe
+</code></pre>
+<p><strong>目前便携版格式为 <code>.7z</code>，不是 <code>.zip</code>。</strong> 安装包生成后不会自动在本机安装；运行 <code>setup.exe</code> 才会创建快捷方式和卸载注册项。</p>
+<p>便携包解压后顶层为 <code>DarkEye</code>：</p>
+<pre><code class="language-text">DarkEye/
+├── app-1.2.5/
+│   ├── portable.ini    # [Portable] DataDirectory=../data
+│   ├── Darkeye.exe
+│   └── ...依赖、只读配置和初始知识库
+└── data/              # 发布包中为空，运行后保存用户数据
+</code></pre>
+<p>两种正式发布包均不包含开发机的数据库、图片、个人配置或 <code>seed-data</code>。标准安装包也不含便携配置或标记。发布前须提供本平台的 <code>resources/updater.exe</code>；打包同时生成用于自动更新的程序 ZIP 和平台清单。</p>
+<h3 id="4">4. 脚本实际执行的步骤<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<ol>
+<li>用 CMake 配置、编译 Release 主程序。</li>
+<li>执行 <code>cmake --install</code>，将程序及 Qt、第三方 DLL 暂存到 <code>out/Darkeye-&lt;版本&gt;-windows-x64-install</code>。</li>
+<li>检查必要文件，拒绝把便携配置或开发机数据混入标准程序目录，并清理不用的运行库和工具元数据。</li>
+<li>生成便携版时，将同一份程序复制到 <code>out/Darkeye-&lt;版本&gt;-windows-x64-portable/DarkEye/app-&lt;版本&gt;</code>，创建 exe 同级 <code>portable.ini</code>（<code>DataDirectory=../data</code>）和上级空 <code>data</code>，调用 7-Zip 压缩，再用 <code>7z t</code> 校验完整性。</li>
+<li>生成安装版时，调用 <code>ISCC.exe</code> 编译 <code>tools/installer.iss</code>，把标准程序暂存目录封装为安装 exe。</li>
+</ol>
+<p>运行库清理规则位于 <code>tools/package.py</code>：剔除 VC 安装程序、软件 OpenGL 库、非 SQLite 的 SQL 驱动、QML 调试插件和 <code>.qmltypes</code> 工具元数据。当前 Windows 渲染使用 Direct3D 11，还会剔除 Direct3D 12 Shader Model 6 使用的 <code>dxcompiler.dll</code>、<code>dxil.dll</code>，以及未启用的 TUIO 触摸输入插件 <code>plugins/generic/qtuiotouchplugin.dll</code>。保留 Direct3D 11 编译着色器需要的 <code>d3dcompiler_47.dll</code>，以及图片格式、SVG 图标、TLS、网络状态、Windows 平台和样式插件。如果以后启用 Direct3D 12 Shader Model 6 或 TUIO，需要同步调整剔除规则。</p>
+<p>重新打包会覆盖相应的发布暂存目录和同名产物。便携暂存目录若已含用户数据，脚本会拒绝清理；日常使用应解压到单独位置，不要直接长期运行暂存目录中的程序。</p>
+<h3 id="5-cmake-install">5. CMake Install 与正式发布打包<a class="headerlink" href="#5-cmake-install" title="Permanent link">&para;</a></h3>
+<p>CMake 配置预设为 <code>windows-msvc-debug</code>、<code>windows-msvc-debug-tests</code>、<code>windows-msvc-release</code>、<code>windows-msvc-release-tests</code>，对应的构建预设为 <code>debug</code>、<code>debug-tests</code>、<code>release</code>、<code>release-tests</code>。四个预设的 Install 都只部署程序、运行依赖、config 和 avwiki，不携带开发数据，也不生成便携标记。</p>
+<pre><code class="language-powershell">cmake --preset windows-msvc-release
+cmake --build --preset release --target Darkeye
+cmake --install build/windows-msvc-release --config Release
+</code></pre>
+<p>默认输出到 <code>out/install/release</code>，程序同级包含 <code>config/</code> 和 <code>avwiki/</code>。<code>tools/package.py</code> 在此标准程序布局上封装安装包；生成便携包时再增加 exe 同级的 <code>portable.ini</code> 和上级空 data，均不复制开发数据。</p>
+<p>普通开发构建不生成 <code>portable.ini</code>，也不在 exe 同级创建 <code>data</code>。Visual Studio 的普通调试目标通过三个启动参数使用项目根目录的 config、avwiki、data；Install 目标不传参数。直接双击无标记的 build 目录 exe 时使用系统用户数据目录。<code>tools/run.ps1</code> 也默认通过三个参数使用项目目录，支持 <code>-ConfigDirectory</code>、<code>-AvwikiDirectory</code>、<code>-DataDirectory</code> 单独覆盖。</p>
+<h2 id="_5">从旧便携目录迁移<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>退出旧程序并备份数据，把旧 <code>&lt;exe目录&gt;/data</code> 整体复制到新 <code>DarkEye/data</code>。若旧版知识库尚在 exe 同级 <code>avwiki</code> 且含有修改，把它复制到 <code>DarkEye/app-&lt;版本&gt;/avwiki</code>，或通过 <code>--avwiki-dir</code> 指定保留目录。确认 exe 同级 <code>portable.ini</code> 指向 <code>../data</code>，再启动 <code>app-&lt;版本&gt;/Darkeye.exe</code>。</p>
+<p>如果旧配置包含依赖旧程序目录的自定义相对路径，应在迁移前改为绝对路径，或迁移后重新配置。新版本的相对路径都应基于共享数据目录。</p>
+<h2 id="_6">后续平台移植<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>标准模式数据位置通过 Qt <code>AppLocalDataLocation</code> 获取；便携配置与版本目录规则不依赖 Windows API。Linux 的共享资源布局、macOS 的 <code>.app/Contents/Resources</code> 布局，以及对应平台的包、依赖部署和签名，仍需在目标系统验证。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

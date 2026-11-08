@@ -1,0 +1,1193 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="DarkEye C++ documentation">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>GPU 力导向图第二轮性能优化 - DarkEye</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gpu" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="DarkEye" class="md-header__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DarkEye
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              GPU 力导向图第二轮性能优化
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="lime"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../develop.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  C++ 版本概览
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  入门指南
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  版本更新记录
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  常见问题
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../settings/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  软件设置
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  开发准备
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../windows-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Windows 打包与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cross-platform-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  三平台构建与发布
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../macos-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  macOS 安装、编译、运行与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../linux-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Linux 编译与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../shelf-page-performance.md" class="md-tabs__link">
+        
+  
+  
+    
+  
+  书架页性能优化
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  数据安全说明
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  整体架构
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DarkEye" class="md-nav__button md-logo" aria-label="DarkEye" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DarkEye
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ 版本概览
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本更新记录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    软件设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开发准备
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../windows-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 打包与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-platform-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    三平台构建与发布
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../macos-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS 安装、编译、运行与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux 编译与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shelf-page-performance.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    书架页性能优化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据安全说明
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        顺序与实现
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        性能测量方法
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        最近结果
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验证和复现
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文字稳定性修复
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="文字稳定性修复">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运动中的可见性误剔除
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        图内性能悬浮表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        悬浮高亮在 GPU 上混色
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU 模拟独立于绘制推进
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        柔和积分与拖拽速度修复
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-11-07" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        按完成耗时调度与运动反馈冷却（2026-11-07）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2026-11-07_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        首次布局突发推进，后续恢复正常节奏（2026-11-07）
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="gpu">GPU 力导向图第二轮性能优化<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h1>
+<h2 id="_1">顺序与实现<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>计时</strong>：CPU 命令记录、几何准备、文字准备、读回批次延迟分别统计。GPU 后端原先的 Tick 改标为“快照延迟”，显示请求到读回回调的完整延迟，不再把它当作物理单步耗时。D3D11 提供边界、排序、建树、力计算四段 GPU 时间戳，面板按需开启。其他后端显示不可用，不把 CPU 延迟伪装成 GPU 执行时间。查询不阻塞等待结果，开启时间戳会增加 CPU 提交开销。</li>
+<li><strong>排序和聚合</strong>：默认采用稳定的四位 radix sort（八轮），重复 Morton 编码保留原节点顺序；每个工作组直接聚合树底部七层。十万节点每步由 191 次 dispatch 降至 48 次。保留旧 bitonic/逐层聚合路径，供数值对照及同机比较。</li>
+<li><strong>计算与快照解耦</strong>：读回未完成时仍可继续提交计算，常规快照间隔约 33 ms；拖拽优先读回。常规队列最多领先已消费快照八步，拖拽时最多两步，避免无限排队。冷却按已提交的物理步推进，近似收敛判定消费最近完成的速度统计；停止时补读最终状态。</li>
+<li><strong>实例化绘制</strong>：GPU 从常驻仿真位置生成节点/边实例，顶点着色器展开圆、线段和箭头。CPU 缓存半径、颜色和高亮分组，只在拓扑/样式/高亮变化时更新描述，平移缩放不重新生成全部顶点。保持原先的 dim/highlight/rest 与文字穿插顺序。暂停时上传冻结快照，继续使用实例化路径。</li>
+<li><strong>文字预算</strong>：两千节点以上启用屏幕密度限制（80×24 物理像素单元）、六像素最小字号和最多约两千个标签；当前 hover 标签优先保留。文字顶点通过 compute 跟随最新 GPU 节点位置，CPU 低频快照不再造成标签落后。小图保留原有标签展示。</li>
+</ol>
+<h2 id="_2">性能测量方法<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>环境与首版相同：Ryzen 5 7500F、Quadro P600、Windows/D3D11、Qt 6.12.0、MSVC Release。合成图使用种子 42、N−1 条链式边，位置范围为 ±(25√N+50)。</p>
+<p>物理计算比较保留旧路径和新路径，每轮重新初始化并预热，五轮测量取中位数。时间含 CPU 命令记录、GPU 执行与状态读回；关闭阶段时间戳后测总时间，再额外采集阶段样本。阶段样本不是五轮中位数，且包含 GPU 时间线中阶段间的空档。</p>
+<p>绘制准备比较使用静止位置、十万节点、相同视口，关闭力但持续请求绘制，跳过首次准备后取最近样本中位数。该指标只衡量 <strong>CPU 几何准备</strong>，不含 GPU 绘制时间，不能按该比值宣称 FPS 提升。</p>
+<h2 id="_3">最近结果<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>十万节点指标</th>
+<th style="text-align: right;">旧路径</th>
+<th style="text-align: right;">新路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>物理单步 dispatch 数</td>
+<td style="text-align: right;">191</td>
+<td style="text-align: right;">48</td>
+</tr>
+<tr>
+<td>物理单步总时间</td>
+<td style="text-align: right;">17.93 ms</td>
+<td style="text-align: right;">16.61 ms</td>
+</tr>
+<tr>
+<td>CPU 几何准备（缓存命中）</td>
+<td style="text-align: right;">7.54 ms/帧</td>
+<td style="text-align: right;">0.011 ms/帧</td>
+</tr>
+</tbody>
+</table>
+<p>阶段样本中，新路径排序约 4.33 ms、力计算约 9.27 ms。减少提交次数后，力遍历与访存仍占主要成本。更高 GPU 利用率或更低 CPU 准备时间不能直接换算为整页 FPS；图的分布、边数、可见内容和设备都会影响结果。</p>
+<h2 id="_4">验证和复现<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<ul>
+<li>新旧计算路径逐点对照覆盖 1、127、128、129、256、257、10000、100000 节点，检查工作组边界、补齐和 Morton 重复键。</li>
+<li>验证快照未消费时继续计算，旧快照保持原版本、最终快照对应最新 GPU 状态。</li>
+<li>实例化图像与 CPU 绘制逐像素比较，并测试运行时修改节点颜色；文字顶点读回核对最新 GPU 锚点位置。</li>
+<li>覆盖大图标签预算、长期冷却稳定性、拖拽、暂停恢复、后端切换、图增删、既有物理和页面渲染测试。</li>
+<li>性能面板勾选“GPU 阶段计时”可观察 D3D11 最近完成的阶段样本；比较正常性能时关闭该选项。</li>
+<li>每个力导向图自带性能悬浮表，通过图内右键菜单“性能表”开关；主界面与演示程序使用同一实现，演示程序默认关闭逐帧日志。</li>
+<li>最终 Debug 四组图相关回归全部通过；GPU 套件 28 项通过、3 项可选基准跳过。Release 开启可选基准后 31 项通过、0 失败。主程序和演示程序 Debug 构建通过。</li>
+<li>构建与运行命令沿用 <a href="../gpu-force-layout-plan/">迁移计划</a>；设置 <code>DARKEYE_GPU_LAYOUT_BENCHMARK=1</code> 会额外运行计算路径对照和十万节点视图准备基准。详细结果保存在构建目录 <code>tests/gpu-simulation-results.txt</code>。</li>
+</ul>
+<p>空间排序复用、局部布局更新及其他平台的原生 GPU 时间戳没有在这一轮引入；它们需要单独验证布局质量和后端行为。</p>
+<h2 id="_5">文字稳定性修复<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>先按 CPU 快照对标签原点取整、再叠加 GPU 位移，会使字形在 CPU 快照更新时改变亚像素相位。现改为上传与节点位置无关的局部字形坐标和标签偏移，GPU 使用最终节点位置计算标签原点，并在实际帧缓冲的物理像素空间统一取整。CPU 回退采用同一对齐公式，保留字形内部尺寸和相对位置；高 DPI 下使用实际像素宽高分别计算比例。</p>
+<p>大图密度选择优先保留已经显示且仍可见的标签，避免节点跨格子时让两个标签反复交替。相机平移、缩放和视口变化时也保留选择；离开带余量视口的标签会释放名额，新候选使用以场景原点锚定的密度格子补入。仅更换图或标签布局时清空选择。</p>
+<p>修复后 Debug 四组图相关回归全部通过；Debug 与 Release 的 GPU 套件均为 28 项通过、3 项可选基准跳过。新增检查内容包括带文字的 CPU/GPU 画面对照、分数缩放与平移下的物理像素对齐、字形尺寸保持。主程序与演示程序已重新构建。</p>
+<p>400 节点显示约 16 ms 的“快照延迟”仍可能来自按帧交付读回回调。它不是 GPU 物理单步时间，也不能与首版 CPU Tick 或预热批次分摊值直接比较。</p>
+<h3 id="_6">运动中的可见性误剔除<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p>后续复现到另一处独立问题：字形位置使用 GPU 最新状态，而 CPU 仍用旧快照判断标签是否在视口内。队列最多领先八步，每步位移限幅 15 世界单位，位置差可以达到 120；原先 50 世界单位的边缘余量不足，会让实际可见文字被提前删除，快照追上后又出现。</p>
+<p>GPU 小图现在保留全部文字候选，由 GPU 栅格裁剪处理；大图的候选范围增加与队列上限、位移限幅一致的保守余量。CPU 后端保持原可见性逻辑。</p>
+<p>2026-10-29 修复大图相机移动造成的标签替换：原逻辑每次平移或缩放都会清空保留集合，并按相对相机的格子重新竞争，导致两个相邻可见标签在格子边界反复出现/消失。2500 节点回归在修复前明确失败；新增 CPU/GPU 双路径覆盖小幅往返平移、微小缩放，以及大幅移动后旧标签退出、新标签补入。标签预算仍限制为 2000 个普通标签并允许当前悬浮标签。</p>
+<p>新增回归把 GPU 节点保留在画面内、CPU 快照设为画面外：修复前标签顶点为空并导致测试失败，修复后标签实际可见。另增加连续 30 帧运动文字的轮廓/明暗/移动方向检查，归一化字形图像差为 0；实际 400 节点 demo 的文字可见缩放下也验证了视口稳定性。Debug 五组图相关回归通过，Debug/Release GPU 套件均为 30 项通过、3 项可选基准跳过。</p>
+<h2 id="_7">图内性能悬浮表<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<p><code>ForceViewRhiWidget</code> 内置独立的 <code>ForcePerformanceOverlay</code>，默认隐藏。图内右键勾选“性能表”后显示在左上角，再次取消勾选或点击表头关闭按钮隐藏。计算后端切换、GPU 阶段计时开关与所有指标都属于当前图，不依赖主界面的设置面板或 demo 侧栏。</p>
+<p>性能表不加入画布布局，显示、隐藏和指标文本变化不会改变视口尺寸或缩放。窗口变小时表格限制在图内并提供滚动条；表内鼠标操作不会传递为图的平移或缩放。指标每 250 ms 刷新可见表格，隐藏时只保存最新数据。</p>
+<p>显示性能表时自动开启 GPU 阶段计时，隐藏、关闭表格或隐藏所在页面/窗口时自动关闭；重新显示会再次开启。表内复选框保留，可在表格显示期间手动关闭计时，观察不含阶段计时开销的性能。自动开关仅影响当前图的计时采样，不改变 GPU/CPU 计算后端。</p>
+<p>Windows 下性能表统一使用已安装的 Microsoft YaHei UI，不再为数值行单独指定 Consolas 等系统等宽字体，减少中英文混排的字体回退。2026-10-29 的原生首次异常堆栈采集复现了打开性能表时 6 次 DirectWrite (<code>DWrite.dll</code>) 内部异常；修复后相同测试为 0 次，D3D11 调试层计时检查也通过。测试使用 <code>DARKEYE_TRACE_OVERLAY_EXCEPTIONS=1</code> 和 <code>tracePerformanceOverlayExceptions</code> 可复查；异常处理器仅观察并继续系统正常处理，不吞掉异常或改变 VS 异常设置。</p>
+<p>原生 Qt/QRhi 回归覆盖右键菜单、关闭与重新显示、两个图的可见性/后端/计时/数据独立、尺寸限制以及鼠标事件隔离，并检查悬浮表截图。Debug 五组图相关回归全部通过，GPU 套件 31 项通过、3 项可选基准跳过；主程序和 demo 已重新构建。</p>
+<h2 id="gpu_1">悬浮高亮在 GPU 上混色<a class="headerlink" href="#gpu_1" title="Permanent link">&para;</a></h2>
+<p>节点、边与箭头的实例描述保存基础颜色和高亮标记，已有的几何计算着色器根据悬浮强度混合颜色，并放大悬浮节点。淡入、淡出期间复用实例描述，只更新 96 字节的几何参数，不再随动画进度遍历全部节点和边、重算颜色并上传整批实例数据。修改高亮色、暗化节点色和暗化边色也只更新参数；没有新增计算 pass、CPU 等待或读回。</p>
+<p>CPU 仍负责鼠标命中、邻居搜索和绘制分组。悬浮目标或邻居深度变化、图结构/基础样式变化、淡入淡出的起止边界会重建分组，以维持暗化文字、高亮边和节点的原有遮挡顺序。文字的标签筛选、排版和颜色准备保持既有路径。</p>
+<p>Release 原生 D3D11，在同一台 Ryzen 7500F / Quadro P600 机器上，固定十万节点、99999 条链式边、关闭物理力与文字，预热后改变悬浮强度，采集 32 帧 <code>prepareGpuGeometry</code> 的 CPU 耗时取中位数：优化前 <strong>11.6393 ms</strong>，优化后 <strong>0.005 ms</strong>。首帧分组与实例上传不计入这组动画缓存命中数据；结果不包含 GPU 执行、文字准备或整帧时间，不能据此推算 FPS。</p>
+<p>复现：设置 <code>DARKEYE_GPU_HOVER_BENCHMARK=1</code>，运行 GPU 测试程序的 <code>hoverGeometryPreparationBenchmark</code>。本轮 Debug 五组图相关回归全部通过；Release GPU 套件包含新基准时 33 项通过、3 项其他可选基准跳过。着色器缓冲区读回测试核对混色、透明度、半径与实例缓存，CPU/GPU 画面对照覆盖悬浮淡入淡出、邻居高亮及文字层级。</p>
+<h2 id="gpu_2">GPU 模拟独立于绘制推进<a class="headerlink" href="#gpu_2" title="Permanent link">&para;</a></h2>
+<p>GPU 模拟由 GUI 线程上的定时器提交 QRhi 离屏计算，绘制回调只读取当前 GPU 状态。页面隐藏或窗口最小化后继续计算，收敛并排空最终快照后不再提交计算；暂停、继续、重启和后端切换仍沿用既有生命周期。QRhi 尚未初始化或已有帧正在录制时跳过本次定时器，避免嵌套帧。</p>
+<p>此实现复用画布的 QRhi 设备，不新增计算线程，也不主动调用 finish()。Qt 的 endOffscreenFrame() 在存在读回时会等待 GPU 完成，因此快照提交仍可能占用 GUI 线程时间；不能把独立于绘制等同于完全异步计算。首次 GPU 初始化仍需要画布曾经显示并获得设备。</p>
+<p>回归覆盖隐藏页面、最小化窗口时无绘制仍推进 GPU、后台暂停/继续与收敛、恢复显示，以及停止计算定时器后单独绘制不推进物理步数。</p>
+<h2 id="_8">柔和积分与拖拽速度修复<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<p>CPU 和 GPU 使用同一组指数阻尼积分系数，每步仍只计算一次力。设原每步累积的力冲量为 <code>F</code>、速度保留率为 <code>r</code>、步长为 <code>h</code>，速度仍为 <code>v1 = r * (v0 + F)</code>；位置改为按步内恒定驱动力与连续阻尼的解析解推进：</p>
+<ul>
+<li><code>w = (1-r) / (-log(r))</code></li>
+<li><code>dx = h*w*v0 + h*r/(1-r)*(1-w)*F</code></li>
+</ul>
+<p>这保持原有恒力终端速度，减轻从静止开始或受力突变时的位移。无阻尼极限采用 <code>dx = h*v0 + h*F/2</code>；完全阻尼时不移动。它对步内恒定力的阻尼运动精确，整个非线性受力系统仍每步采样一次力，不保证任意刚性参数下无振荡。</p>
+<p>位移与速度按 <code>1/sqrt(1+(travel/maxDisplacement)^2)</code> 同比平滑限幅；<code>travel</code> 取实际位移长度和末速度乘步长的较大者，维持每步位移上限。收敛统计保留自由节点限幅前速度。拖拽节点固定在目标位置，末速度与收敛贡献均为零，避免释放时带入约束期间累积的速度。</p>
+<p>CPU Barnes–Hut 仅近似不包含当前节点的子树，避免将自身质量计入斥力。回归覆盖解析首次位移、长期收敛、拖拽释放、包含自身的聚合单元，以及 CPU/GPU 多步常驻状态对照。</p>
+<p>2026-11-07：macOS Debug 构建通过；CPU 物理套件通过，真实 Metal GPU 套件 41 项通过、0 失败、6 项平台专属或可选测试跳过。渲染回归等待对应性能统计更新，避免读取初始化阶段的旧统计。</p>
+<h2 id="2026-11-07">按完成耗时调度与运动反馈冷却（2026-11-07）<a class="headerlink" href="#2026-11-07" title="Permanent link">&para;</a></h2>
+<p>此节替代早期固定 16ms 提交、预热四步/常规单步、八步队列与约 33ms 快照的调度策略。GPU 模拟活跃且未拖拽时用 1ms 精确定时器让出事件循环后继续提交；模拟不依赖绘制回调。画布更新请求仍以约 16ms 节流，收敛时请求最后一帧。隐藏、最小化后继续计算，空闲时定时器恢复 16ms。拖拽维持约 16ms 的单步提交。</p>
+<p><code>GpuSimulationSchedule</code> 根据已完成批次的记录、读回完成和 CPU 消费耗时估计成本，以约 12ms 为软预算，在 1–32 步之间调整批量。从单步起逐步扩批，对慢样本立即收缩；预算内允许小幅探测扩批，避免驱动固定开销把批次锁在单步。每批复用拓扑与常驻位置，只上传一次控制参数并读回一次结果；最多一个批次在途，避免 GUI 被无界 GPU 队列拖住。重启和参数变化重新学习成本，不再关闭批量加速。实例和标签的保守 CPU 可见性余量按最大 32 步的位移差扩大。</p>
+<p>这个预算包含提交与同步开销，不是 GPU 硬件时间戳；原生阶段计时仍仅在支持的后端提供。QRhi 仍由 GUI 线程使用，读回提交可能等待 GPU；12ms 是反馈控制目标，不是硬性时限，单步成本较高或驱动抖动时会超出。更大的 uniform 缓冲覆盖 32 步的完整排序/建树 passes，reference bitonic 和 optimized radix 路径均验证了最大批次。</p>
+<p>冷却改为观察自由节点的平均速度、峰值速度和运动衰减趋势：启动前 32 步保留热度；运动正在自然衰减时保留当前热度，停滞或振荡阶段渐进冷却，安静时更快降温。到达最低热度后继续模拟，不再仅按 alpha 阈值冻结。低热度下，平均速度低于 0.01、峰值低于 0.1，累计至少 32 步且至少三个独立观测均安静才停止，避免大图中的少数移动节点被平均掉。GPU 每批末反馈一次，CPU 每步反馈一次，二者采用同一规则但冷却轨迹不要求逐步相同。暂停后即使已经达到最低热度也可恢复；重启清空运动历史。</p>
+<p>性能表新增模拟步/批次、已提交模拟步和估计完成耗时/步，绘制帧率仍独立显示。收敛、初始化切换绘制路径时立即更新统计，避免快速结束后留下初始化阶段的旧数据。</p>
+<p>真实 Metal（Apple M6）、Debug，同一应用尺度合成图，128 个相同物理步、相同 alpha，比较固定四步/16ms 与自适应调度，含提交和读回、不含整页绘制：</p>
+<table>
+<thead>
+<tr>
+<th>节点数</th>
+<th style="text-align: right;">固定四步/16ms</th>
+<th style="text-align: right;">自适应调度</th>
+<th style="text-align: right;">本次最大批次</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2,000</td>
+<td style="text-align: right;">536.8ms</td>
+<td style="text-align: right;">152.7ms</td>
+<td style="text-align: right;">12 步</td>
+</tr>
+<tr>
+<td>10,000</td>
+<td style="text-align: right;">546.0ms</td>
+<td style="text-align: right;">329.7ms</td>
+<td style="text-align: right;">6 步</td>
+</tr>
+</tbody>
+</table>
+<p>两种调度最终状态逐元素对照通过。该基准隔离调度吞吐，不代表整页 FPS 或所有真实图的最终收敛时间；本次最大批次完成耗时约 11.8ms / 13.1ms。设置 <code>DARKEYE_GPU_SCHEDULE_BENCHMARK=1</code> 运行 GPU 套件的 <code>adaptiveSchedulingBenchmark</code> 可复测。</p>
+<p>CPU 物理套件通过；Metal GPU 套件（含调度基准）47 项通过、0 失败、6 项平台专属或其他可选测试跳过。回归覆盖批次 1/4/17/32、两种排序路径的最大批次、预算缩批、拖拽、后台推进、暂停/恢复、最低热度仍在运动、峰值防误停、稳定状态停止和重启。</p>
+<p>主程序 Debug 重新构建通过；书架页与独立关系图页的原生集成/渲染套件均通过。</p>
+<h2 id="2026-11-07_1">首次布局突发推进，后续恢复正常节奏（2026-11-07）<a class="headerlink" href="#2026-11-07_1" title="Permanent link">&para;</a></h2>
+<p>按实际交互反馈，当前调度替代上一节的持续自适应加速：每次加载一张新图，仅初始布局阶段使用零间隔 Qt 定时器，每批推进最多 32 步、完成后立即继续，不再按 12ms 预算缩批，也不等待 16ms。仍保留一个在途批次和批次之间的事件循环机会；绘制更新请求维持约 16ms 节流。</p>
+<p>初次收敛后关闭加速。拖拽、调参、手动重启或暂停/继续均退出初始阶段，此后固定每 16ms 提交一次、每次一步，即使设备空闲也不自动扩批。重新加载新图才重新开启初始突发阶段。GPU 初始阶段使用独立标记，不受初始化 QRhi 前 CPU 短暂预热的结束时机影响。</p>
+<p>完成耗时统计保留在性能表中供观察，不再决定提交批量。运动反馈冷却、峰值防误停及积分公式保持上一节的实现。<code>initialLoadingScheduleBenchmark</code> 可通过 <code>DARKEYE_GPU_SCHEDULE_BENCHMARK=1</code> 单独测量首次突发提交吞吐；上一节自适应基准数值属于历史策略。</p>
+<p>本次验证：主程序 Debug 构建通过；CPU 物理、书架页与独立关系图页套件通过。Metal GPU 套件 47 项通过、0 失败、7 项平台专属或可选测试跳过，新增真实画布回归确认初始 32 步批次、暂停恢复/重启/拖拽的 16ms 单步，以及重新加载后的首次阶段和收敛退出。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

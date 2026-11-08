@@ -59,16 +59,24 @@
 支持 **Windows x64** 和 **macOS ARM64（Apple Silicon）**。请在 [Releases][link-releases] 中选择对应平台的安装版或便携版。
 
 <div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases">
-    <img src="https://img.shields.io/badge/Download-Windows%20x64-blue?style=for-the-badge&logo=windows" alt="下载 Windows x64 版本" />
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-windows-x64-setup.exe">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20x64%20%E5%AE%89%E8%A3%85%E7%89%88-blue?style=for-the-badge&logo=windows" alt="下载 Windows x64 安装版" />
   </a>
-  <a href="https://github.com/gty5678/darkeye/releases">
-    <img src="https://img.shields.io/badge/Download-macOS%20ARM64-black?style=for-the-badge&logo=apple" alt="下载 macOS ARM64 版本" />
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-windows-x64-portable.7z">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20x64%20%E4%BE%BF%E6%90%BA%E7%89%88-blue?style=for-the-badge&logo=windows" alt="下载 Windows x64 便携版" />
+  </a>
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-macos-arm64-setup.dmg">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-macOS%20ARM64%20%E5%AE%89%E8%A3%85%E7%89%88-black?style=for-the-badge&logo=apple" alt="下载 macOS ARM64 安装版" />
+  </a>
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-macos-arm64-portable.zip">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-macOS%20ARM64%20%E4%BE%BF%E6%90%BA%E7%89%88-black?style=for-the-badge&logo=apple" alt="下载 macOS ARM64 便携版" />
   </a>
 </div>
 
-- **Windows x64**：运行 `.exe` 安装包，或完整解压 `.7z` 便携包后运行 `app-<版本>/Darkeye.exe`。
-- **macOS ARM64（Apple Silicon）**：运行 `.pkg` 安装包，安装后打开 `/Applications/Darkeye.app`；或完整解压 `.zip` 便携包，将整个 `DarkEye` 文件夹放在可写位置，再打开其中的 `Darkeye.app`。
+- **Windows x64 安装版**：运行 `.exe` 安装包。
+- **Windows x64 便携版**：完整解压 `.7z` 便携包后运行 `app-<版本>/Darkeye.exe`。
+- **macOS ARM64 安装版（Apple Silicon）**：打开 `.dmg`，将 `Darkeye.app` 拖入 `Applications`，然后打开 `/Applications/Darkeye.app`。
+- **macOS ARM64 便携版（Apple Silicon）**：完整解压 `.zip` 便携包，将整个 `DarkEye` 文件夹放在可写位置，再打开其中的 `Darkeye.app`。
 
 安装与数据迁移详情见 [Windows 打包说明](docs/windows-packaging.md) 和 [macOS 打包说明](docs/macos-packaging.md)。
 

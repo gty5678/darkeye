@@ -63,16 +63,24 @@
 **Windows x64** と **macOS ARM64（Apple Silicon）** に対応しています。[Releases][link-releases] から、お使いのプラットフォーム用のインストーラー版またはポータブル版を選んでください。
 
 <div align="center">
-  <a href="https://github.com/gty5678/darkeye/releases">
-    <img src="https://img.shields.io/badge/Download-Windows%20x64-blue?style=for-the-badge&logo=windows" alt="Windows x64 版をダウンロード" />
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-windows-x64-setup.exe">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Windows%20x64%20%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%A9%E3%83%BC%E7%89%88-blue?style=for-the-badge&logo=windows" alt="ダウンロード Windows x64 インストーラー版" />
   </a>
-  <a href="https://github.com/gty5678/darkeye/releases">
-    <img src="https://img.shields.io/badge/Download-macOS%20ARM64-black?style=for-the-badge&logo=apple" alt="macOS ARM64 版をダウンロード" />
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-windows-x64-portable.7z">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Windows%20x64%20%E3%83%9D%E3%83%BC%E3%82%BF%E3%83%96%E3%83%AB%E7%89%88-blue?style=for-the-badge&logo=windows" alt="ダウンロード Windows x64 ポータブル版" />
+  </a>
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-macos-arm64-setup.dmg">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-macOS%20ARM64%20%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%A9%E3%83%BC%E7%89%88-black?style=for-the-badge&logo=apple" alt="ダウンロード macOS ARM64 インストーラー版" />
+  </a>
+  <a href="https://github.com/gty5678/darkeye/releases/download/v1.2.5/Darkeye-1.2.5-macos-arm64-portable.zip">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-macOS%20ARM64%20%E3%83%9D%E3%83%BC%E3%82%BF%E3%83%96%E3%83%AB%E7%89%88-black?style=for-the-badge&logo=apple" alt="ダウンロード macOS ARM64 ポータブル版" />
   </a>
 </div>
 
-- **Windows x64**：`.exe` インストーラーを実行するか、`.7z` ポータブルパッケージ全体を展開して `app-<バージョン>/Darkeye.exe` を実行してください。
-- **macOS ARM64（Apple Silicon）**：`.pkg` インストーラーでインストール後、`/Applications/Darkeye.app` を開いてください。ポータブル版は `.zip` 全体を展開し、`DarkEye` フォルダ全体を書き込み可能な場所に置いてから、中の `Darkeye.app` を開いてください。
+- **Windows x64 インストーラー版**：`.exe` インストーラーを実行してください。
+- **Windows x64 ポータブル版**：`.7z` パッケージ全体を展開して `app-<バージョン>/Darkeye.exe` を実行してください。
+- **macOS ARM64 インストーラー版（Apple Silicon）**：`.dmg` を開き、`Darkeye.app` を `Applications` にドラッグしてから、`/Applications/Darkeye.app` を開いてください。
+- **macOS ARM64 ポータブル版（Apple Silicon）**：`.zip` 全体を展開し、`DarkEye` フォルダ全体を書き込み可能な場所に置いてから、中の `Darkeye.app` を開いてください。
 
 インストールとデータ移行の詳細は [Windows リリースガイド（中国語）](docs/windows-packaging.md) と [macOS 利用・パッケージガイド（中国語）](docs/macos-packaging.md) を参照してください。
 

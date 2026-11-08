@@ -87,6 +87,21 @@
 
 本プロジェクトは機能を分離する設計を採用しており、情報取得サービスはすべて [mosaic](https://github.com/gty5678/mosaic.git) プロジェクトに切り出されています。
 
+<div align="center">
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/mosic-win-x64.exe">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Windows%20x64%20%E3%83%96%E3%83%AA%E3%83%83%E3%82%B8-blue?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTF2MTFIMHptMTMgMGgxMXYxMUgxM3pNMCAxM2gxMXYxMUgwem0xMyAwaDExdjExSDEzeiIvPjwvc3ZnPg%3D%3D" alt="ダウンロード Windows x64 ブリッジ" />
+  </a>
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/mosic-macos-arm64">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-macOS%20ARM64%20%E3%83%96%E3%83%AA%E3%83%83%E3%82%B8-black?style=for-the-badge&logo=apple" alt="ダウンロード macOS ARM64 ブリッジ" />
+  </a>
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/firefox.zip">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Firefox%20%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E6%8B%A1%E5%BC%B5-orange?style=for-the-badge&logo=firefoxbrowser" alt="ダウンロード Firefox ブラウザ拡張" />
+  </a>
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/chrome.zip">
+    <img src="https://img.shields.io/badge/%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Chrome%20%2F%20Edge%20%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E6%8B%A1%E5%BC%B5-blue?style=for-the-badge&logo=googlechrome" alt="ダウンロード Chrome / Edge ブラウザ拡張" />
+  </a>
+</div>
+
 ### 使い方
 
 👉 [オンラインドキュメント：使い方](https://gty5678.github.io/darkeye/usage/#_3)

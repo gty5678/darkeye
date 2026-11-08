@@ -86,6 +86,21 @@
 
 專案採用分離設計，資訊取得服務已完全拆分至 [mosaic](https://github.com/gty5678/mosaic.git) 專案中。
 
+<div align="center">
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/mosic-win-x64.exe">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-Windows%20x64%20%E6%A9%8B%E6%8E%A5%E5%99%A8-blue?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTF2MTFIMHptMTMgMGgxMXYxMUgxM3pNMCAxM2gxMXYxMUgwem0xMyAwaDExdjExSDEzeiIvPjwvc3ZnPg%3D%3D" alt="下載 Windows x64 橋接器" />
+  </a>
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/mosic-macos-arm64">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-macOS%20ARM64%20%E6%A9%8B%E6%8E%A5%E5%99%A8-black?style=for-the-badge&logo=apple" alt="下載 macOS ARM64 橋接器" />
+  </a>
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/firefox.zip">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-Firefox%20%E7%80%8F%E8%A6%BD%E5%99%A8%E6%93%B4%E5%85%85%E5%8A%9F%E8%83%BD-orange?style=for-the-badge&logo=firefoxbrowser" alt="下載 Firefox 瀏覽器擴充功能" />
+  </a>
+  <a href="https://github.com/gty5678/mosaic/releases/download/v1.0/chrome.zip">
+    <img src="https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-Chrome%20%2F%20Edge%20%E7%80%8F%E8%A6%BD%E5%99%A8%E6%93%B4%E5%85%85%E5%8A%9F%E8%83%BD-blue?style=for-the-badge&logo=googlechrome" alt="下載 Chrome / Edge 瀏覽器擴充功能" />
+  </a>
+</div>
+
 ### 使用說明
 
 👉 [線上文件：使用](https://gty5678.github.io/darkeye/usage/#_3)

@@ -8,13 +8,13 @@ nav:
   - 常见问题: faq.md
   - 软件设置: settings.md
   - 开发准备: development.md
-  - Windows 打包与发布: windows-packaging.md
-  - 三平台构建与发布: cross-platform-packaging.md
-  - macOS 安装、编译、运行与打包: macos-packaging.md
+  - 三平台编译与打包: cross-platform-packaging.md
+  - Windows 编译与打包: windows-packaging.md
+  - macOS 编译与打包: macos-packaging.md
   - Linux 编译与打包: linux-packaging.md
-  - 书架页性能优化: shelf-page-performance.md
   - 数据安全说明: security.md
   - 整体架构: architecture.md
+  - 文档与网页: doc-webpage.md
 
 theme:
   name: material

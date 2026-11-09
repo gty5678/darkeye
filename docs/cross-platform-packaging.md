@@ -2,16 +2,16 @@
 
 各平台从环境准备到产物验收的独立操作文档：
 
-- [Windows 打包与发布](windows-packaging.md)
-- [macOS arm64 编译与打包](macos-packaging.md)
-- [Linux x86_64 编译与打包](linux-packaging.md)
+- [Windows x64](windows-packaging.md)
+- [macOS arm64](macos-packaging.md)
+- [Linux x64](linux-packaging.md)
 
 ## 支持范围
 
 - Qt **6.12.0 或更新的 Qt 6**；C++20、CMake 3.25+、Ninja、Python 3.9+。
 - Windows x64：MSVC 2022；便携 `.7z` 和 Inno Setup `.exe`。
 - macOS **arm64**：Xcode 16+，macOS 14.4+；便携 `.zip` 和安装 `.dmg`。不生成 Intel 版本。
-- Linux x86_64：官方 Qt 6.12 二进制以 Ubuntu 24.04 / glibc 2.39 为基线；便携 `.tar.gz` 和 Debian/Ubuntu 安装 `.deb`。不宣称覆盖全部发行版。
+- Linux x64：官方 Qt 6.12 二进制以 Ubuntu 24.04 / glibc 2.39 为基线；便携 `.tar.gz` 和 Debian/Ubuntu 安装 `.deb`。不宣称覆盖全部发行版。
 
 Qt 的最低运行系统随实际使用的 Qt kit 确定。使用更新版本时需重新核对其系统要求。
 本项目使用 Qt 私有 API，因此每个发布包必须携带构建时对应的 Qt 运行库，不可混装其他 Qt 版本。

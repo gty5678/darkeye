@@ -196,7 +196,8 @@ bool Renderer::ensureTargets(QRhiRenderTarget *target, QString &error)
     QRhiTextureRenderTargetDescription description(attachment, depth.get());
     auto framebuffer = std::unique_ptr<QRhiTextureRenderTarget>(m_rhi->newTextureRenderTarget(description));
     auto pass = std::unique_ptr<QRhiRenderPassDescriptor>(framebuffer->newCompatibleRenderPassDescriptor());
-    if (!m_scenePass || !m_scenePass->isCompatible(pass.get())) {
+    // Render-pass compatibility alone does not guarantee the pipeline sample count matches.
+    if (!m_scenePass || m_samples != samples || !m_scenePass->isCompatible(pass.get())) {
         m_pipelines.clear();
         m_scenePass = std::move(pass);
     }

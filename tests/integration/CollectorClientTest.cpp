@@ -47,7 +47,8 @@ public:
                                 socket->disconnectFromHost();
                             });
                 });
-        Q_ASSERT(m_server.listen(QHostAddress::LocalHost, 0));
+        if (!m_server.listen(QHostAddress::LocalHost, 0))
+            qFatal("Cannot start fake collector: %s", qPrintable(m_server.errorString()));
     }
 
     [[nodiscard]] QUrl url(const QString &path) const

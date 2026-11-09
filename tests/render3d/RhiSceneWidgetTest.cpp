@@ -7,6 +7,7 @@
 #include <QToolButton>
 #include <QTest>
 #include <QVBoxLayout>
+#include <QWindow>
 #include <cmath>
 #include <limits>
 
@@ -726,6 +727,8 @@ private slots:
         const auto initial = view->statistics();
         first.showMinimized();
         QTRY_VERIFY(first.isMinimized());
+        // Wait for Cocoa's native minimize transition before requesting restoration.
+        QTRY_VERIFY(!first.windowHandle()->isExposed());
         first.showNormal();
         QVERIFY(QTest::qWaitForWindowExposed(&first));
         QVERIFY(!foregroundBounds(view->grabFramebuffer()).isEmpty());
@@ -759,6 +762,10 @@ private slots:
         QVERIFY(view->lastError().isEmpty());
         delete view;
         // A new widget after both windows already exist must still initialize.
+        // Ensure the native window is restored before checking submitted frames.
+        first.showNormal();
+        first.raise();
+        QVERIFY(QTest::qWaitForWindowExposed(&first));
         for (int i = 0; i < 3; ++i) {
             auto *fresh = new RhiSceneWidget(&first);
             firstLayout.addWidget(fresh);

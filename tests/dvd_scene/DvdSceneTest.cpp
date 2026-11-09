@@ -128,7 +128,9 @@ private slots:
         QVERIFY(root);
         QVERIFY(root->id!=originalRoot);
         const auto home=DvdCaseFactory::shelfTransform(root->name.mid(4).toInt());
-        QVERIFY((root->transform.translation-home.translation-QVector3D(0,0,0.03f)).length()<1e-5f);
+        // Wait for the hover animation endpoint, rather than assuming a frame
+        // will be delivered within a fixed delay on the native desktop.
+        QTRY_VERIFY_WITH_TIMEOUT((root->transform.translation-home.translation-QVector3D(0,0,0.03f)).length()<1e-5f,3000);
         QCOMPARE(scene->node(originalRoot)->transform.translation,DvdCaseFactory::shelfTransform(25).translation);
         QCOMPARE(view.renderWidget()->cursor().shape(),Qt::ArrowCursor);
         wheel();
@@ -331,9 +333,8 @@ private slots:
             QApplication::sendEvent(view.renderWidget(),&event);
         };
         move();
-        QTest::qWait(350); // includes the final layout refresh after the 200ms animation
         const auto pulled=home.translation+QVector3D(0,0,0.03f);
-        QCOMPARE(scene->node(root)->transform.translation,pulled);
+        QTRY_COMPARE_WITH_TIMEOUT(scene->node(root)->transform.translation,pulled,3000);
         for(int i=0;i<3;++i) { move(); QTest::qWait(100); }
         QVERIFY((scene->node(root)->transform.translation-pulled).length()<1e-5f);
         // Data/layout refresh while stationary must also preserve the hover pose.

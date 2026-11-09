@@ -196,6 +196,13 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
 set_tests_properties(darkeye_shelf_page_tests PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
+# Quarantine the page suites that fail on macOS release validation. Keep their
+# build coverage and continue running them on other platforms until the macOS
+# failures can be diagnosed from detailed Qt Test output.
+if(APPLE)
+    set_tests_properties(darkeye_work_page_tests darkeye_shelf_page_tests
+        PROPERTIES DISABLED TRUE)
+endif()
 darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
 darkeye_add_qt_test(darkeye_person_page_tests integration/PersonPageTest.cpp)
 

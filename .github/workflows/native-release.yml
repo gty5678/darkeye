@@ -80,6 +80,24 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "VCPKG_ROOT=$env:RUNNER_TEMP/darkeye-vcpkg" >> $env:GITHUB_ENV
           "Qt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6" >> $env:GITHUB_ENV
+      - name: Repair pinned vcpkg 7-Zip download URLs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The pinned vcpkg uses 21.07 downloads removed from 7-zip.org.
+          # Use the same official release files; retain versions and SHA512 hashes.
+          $toolsPath = Join-Path $env:VCPKG_ROOT 'scripts/vcpkgTools.xml'
+          $tools = [System.IO.File]::ReadAllText($toolsPath)
+          foreach ($archive in @('7z2107-extra.7z', '7z2107-x64.msi')) {
+            $oldUrl = "https://www.7-zip.org/a/$archive"
+            $newUrl = "https://github.com/ip7z/7zip/releases/download/21.07/$archive"
+            if (-not $tools.Contains($oldUrl)) {
+              throw "Pinned vcpkg tool metadata changed: missing $oldUrl"
+            }
+            $tools = $tools.Replace($oldUrl, $newUrl)
+          }
+          [System.IO.File]::WriteAllText($toolsPath, $tools)
       # Bootstrap explicitly so download/hash/permission errors appear in the job
       # output rather than being hidden by CMake's toolchain initialization.
       - name: Bootstrap vcpkg (Unix)
@@ -87,7 +105,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics 2>&1 | tee "$RUNNER_TEMP/vcpkg-bootstrap.log"
+          # The bootstrap script already retries curl, but a release download
+          # can return 504 for longer than that short retry window.
+          bootstrap_log="$RUNNER_TEMP/vcpkg-bootstrap.log"
+          : > "$bootstrap_log"
+          for attempt in 1 2 3; do
+            echo "vcpkg bootstrap attempt $attempt/3" | tee -a "$bootstrap_log"
+            if bash "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics 2>&1 | tee -a "$bootstrap_log"; then
+              break
+            else
+              bootstrap_status=$?
+              if [ "$attempt" -eq 3 ]; then
+                echo "::error::vcpkg bootstrap failed after 3 attempts; see vcpkg-bootstrap.log"
+                exit "$bootstrap_status"
+              fi
+              sleep "$((attempt * 15))"
+            fi
+          done
           "$VCPKG_ROOT/vcpkg" version
       - name: Bootstrap vcpkg (Windows)
         if: runner.os == 'Windows'

@@ -37,7 +37,9 @@ class PackagingTest(unittest.TestCase):
         package.write_update_package(payload, archive, "linux", "x64", "1.2.5")
         with tarfile.open(fileobj=io.BytesIO(zstandard.ZstdDecompressor().stream_reader(archive.read_bytes()).read()), mode="r:") as z:
             self.assertEqual(set(z.getnames()), {"bin", "bin/Darkeye", "bin/current"})
-            self.assertEqual(z.getmember("bin/Darkeye").mode & 0o111, 0o111)
+            # Windows chmod cannot set Unix executable bits on the source file.
+            if os.name == "posix":
+                self.assertEqual(z.getmember("bin/Darkeye").mode & 0o111, 0o111)
             self.assertEqual(z.getmember("bin/current").linkname, "Darkeye")
             self.assertTrue(z.getmember("bin/current").issym())
         manifest = json.loads((archive.parent / "latest.json").read_text())
@@ -205,7 +207,9 @@ class PackagingTest(unittest.TestCase):
              patch.object(package, "run", side_effect=thin):
             package.thin_macos_arm64(app, os.environ.copy())
         self.assertEqual(binary.read_bytes(), b"\xcf\xfa\xed\xfethinned")
-        self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
+        # Unix permission preservation is exercised on Linux and macOS runners.
+        if os.name == "posix":
+            self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
         self.assertTrue((app / "alias").is_symlink())
         self.assertEqual((app / "resource").read_text(), "keep")
 

@@ -30,11 +30,19 @@ jobs:
     timeout-minutes: 90
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 3
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install compatible macOS CMake
+        if: runner.os == 'macOS'
+        # The pinned vcpkg ports still require policy compatibility removed in CMake 4.
+        run: |
+          python -m pip install cmake==3.30.5
+          cmake --version
+          ninja --version
       - name: Install Linux build and desktop dependencies
         if: runner.os == 'Linux'
         run: |
@@ -101,5 +109,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: diagnostics-${{ matrix.platform }}
-          path: build/${{ matrix.preset }}/Testing/
+          path: |
+            build/${{ matrix.preset }}/Testing/
+            build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
+            build/${{ matrix.preset }}/vcpkg-manifest-install.log
+            build/${{ matrix.preset }}/vcpkg_installed/vcpkg/issue_body.md
+            ${{ runner.temp }}/darkeye-vcpkg/buildtrees/**/*.log
           if-no-files-found: ignore

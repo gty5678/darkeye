@@ -15,6 +15,8 @@ jobs:
           - runner: windows-2022
             platform: windows-x64
             qt_arch: win64_msvc2022_64
+            # aqtinstall 3.3.0 cannot resolve the Qt 6.11+ Windows repository layout.
+            aqt_source: git+https://github.com/miurahr/aqtinstall.git@8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b
             preset: windows-msvc-release-tests
           - runner: ubuntu-24.04
             platform: linux-x64
@@ -46,8 +48,19 @@ jobs:
         with:
           version: '6.12.0'
           arch: ${{ matrix.qt_arch }}
-          modules: 'qthttpserver qtwebsockets qtshadertools qtsvg'
+          # Qt SVG is included in the base installation, not an addon module.
+          modules: 'qthttpserver qtwebsockets qtshadertools'
+          setup-python: false
+          aqtversion: '==3.3.0'
+          aqtsource: ${{ matrix.aqt_source || '' }}
           cache: true
+      - name: Upload Qt installation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt-install-diagnostics-${{ matrix.platform }}
+          path: aqtinstall.log
+          if-no-files-found: ignore
       - name: Prepare reproducible dependencies
         shell: pwsh
         run: |

@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../windows-packaging/">
+        <link rel="prev" href="../development/">
       
       
-        <link rel="next" href="../macos-packaging/">
+        <link rel="next" href="../windows-packaging/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>三平台构建与发布 - DarkEye</title>
+        <title>三平台编译与打包 - DarkEye</title>
       
     
     
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              三平台构建与发布
+              三平台编译与打包
             
           </span>
         </div>
@@ -317,25 +317,6 @@
   
   
   
-  
-    <li class="md-tabs__item">
-      <a href="../windows-packaging/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Windows 打包与发布
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
     
   
   
@@ -346,7 +327,26 @@
   
     
   
-  三平台构建与发布
+  三平台编译与打包
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../windows-packaging/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Windows 编译与打包
 
       </a>
     </li>
@@ -365,7 +365,7 @@
   
     
   
-  macOS 安装、编译、运行与打包
+  macOS 编译与打包
 
       </a>
     </li>
@@ -385,25 +385,6 @@
     
   
   Linux 编译与打包
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../shelf-page-performance.md" class="md-tabs__link">
-        
-  
-  
-    
-  
-  书架页性能优化
 
       </a>
     </li>
@@ -442,6 +423,25 @@
     
   
   整体架构
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../doc-webpage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  文档与网页
 
       </a>
     </li>
@@ -647,33 +647,6 @@
       
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../windows-packaging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Windows 打包与发布
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
@@ -693,7 +666,7 @@
   <span class="md-ellipsis">
     
   
-    三平台构建与发布
+    三平台编译与打包
   
 
     
@@ -711,7 +684,7 @@
   <span class="md-ellipsis">
     
   
-    三平台构建与发布
+    三平台编译与打包
   
 
     
@@ -834,6 +807,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../windows-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows 编译与打包
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../macos-packaging/" class="md-nav__link">
         
   
@@ -841,7 +841,7 @@
   <span class="md-ellipsis">
     
   
-    macOS 安装、编译、运行与打包
+    macOS 编译与打包
   
 
     
@@ -869,33 +869,6 @@
     
   
     Linux 编译与打包
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../shelf-page-performance.md" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    书架页性能优化
   
 
     
@@ -950,6 +923,33 @@
     
   
     整体架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../doc-webpage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档与网页
   
 
     
@@ -1091,16 +1091,16 @@
 <h1 id="_1">三平台构建与发布<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
 <p>各平台从环境准备到产物验收的独立操作文档：</p>
 <ul>
-<li><a href="../windows-packaging/">Windows 打包与发布</a></li>
-<li><a href="../macos-packaging/">macOS arm64 编译与打包</a></li>
-<li><a href="../linux-packaging/">Linux x86_64 编译与打包</a></li>
+<li><a href="../windows-packaging/">Windows x64</a></li>
+<li><a href="../macos-packaging/">macOS arm64</a></li>
+<li><a href="../linux-packaging/">Linux x64</a></li>
 </ul>
 <h2 id="_2">支持范围<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Qt <strong>6.12.0 或更新的 Qt 6</strong>；C++20、CMake 3.25+、Ninja、Python 3.9+。</li>
 <li>Windows x64：MSVC 2022；便携 <code>.7z</code> 和 Inno Setup <code>.exe</code>。</li>
 <li>macOS <strong>arm64</strong>：Xcode 16+，macOS 14.4+；便携 <code>.zip</code> 和安装 <code>.dmg</code>。不生成 Intel 版本。</li>
-<li>Linux x86_64：官方 Qt 6.12 二进制以 Ubuntu 24.04 / glibc 2.39 为基线；便携 <code>.tar.gz</code> 和 Debian/Ubuntu 安装 <code>.deb</code>。不宣称覆盖全部发行版。</li>
+<li>Linux x64：官方 Qt 6.12 二进制以 Ubuntu 24.04 / glibc 2.39 为基线；便携 <code>.tar.gz</code> 和 Debian/Ubuntu 安装 <code>.deb</code>。不宣称覆盖全部发行版。</li>
 </ul>
 <p>Qt 的最低运行系统随实际使用的 Qt kit 确定。使用更新版本时需重新核对其系统要求。
 本项目使用 Qt 私有 API，因此每个发布包必须携带构建时对应的 Qt 运行库，不可混装其他 Qt 版本。</p>

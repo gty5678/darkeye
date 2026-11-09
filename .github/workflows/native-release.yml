@@ -18,10 +18,6 @@ jobs:
             # aqtinstall 3.3.0 cannot resolve the Qt 6.11+ Windows repository layout.
             aqt_source: git+https://github.com/miurahr/aqtinstall.git@8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b
             preset: windows-msvc-release-tests
-          - runner: ubuntu-24.04
-            platform: linux-x64
-            qt_arch: linux_gcc_64
-            preset: linux-x64-release-tests
           - runner: macos-15
             platform: macos-arm64
             qt_arch: clang_64
@@ -44,14 +40,26 @@ jobs:
           cmake --version
           ninja --version
           xcrun --find clang++
-      - name: Install Linux build and desktop dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build pkg-config libsecret-1-dev libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxcb-cursor0 xvfb unzip dpkg-dev fonts-noto-cjk
       - name: Install Windows packaging tools
         if: runner.os == 'Windows'
         run: choco install innosetup 7zip --yes --no-progress
+      - name: Install Windows pkg-config
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-pkgconf
+      - name: Configure pkg-config for pinned vcpkg
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          # The pinned vcpkg's automatic acquisition uses a removed MSYS2 archive.
+          # Supply a native Windows tool while retaining pkg-config validation.
+          pkg_config="$(cygpath -m "$(command -v pkg-config)")"
+          "$pkg_config" --version
+          echo "PKG_CONFIG=$pkg_config" >> "$GITHUB_ENV"
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -100,8 +108,8 @@ jobs:
           [System.IO.File]::WriteAllText($toolsPath, $tools)
       # Bootstrap explicitly so download/hash/permission errors appear in the job
       # output rather than being hidden by CMake's toolchain initialization.
-      - name: Bootstrap vcpkg (Unix)
-        if: runner.os != 'Windows'
+      - name: Bootstrap vcpkg (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
@@ -136,11 +144,7 @@ jobs:
       - name: Test release tooling
         run: python tools/test_packaging.py
       - name: Native Release build and tests
-        if: runner.os != 'Linux'
         run: python tools/build.py --config Release --test
-      - name: Native Linux Release build and tests
-        if: runner.os == 'Linux'
-        run: dbus-run-session -- xvfb-run -a python tools/build.py --config Release --test
       - name: Package portable and installer artifacts
         run: python tools/package.py --skip-build --build-dir build/${{ matrix.preset }}
       - name: Upload packages and checksums
@@ -150,10 +154,8 @@ jobs:
           path: |
             out/*-portable.7z
             out/*-portable.zip
-            out/*-portable.tar.gz
             out/*-setup.exe
             out/*-setup.dmg
-            out/*-setup.deb
             out/*-update.tar.zst
             out/latest.json
             out/*.sha256

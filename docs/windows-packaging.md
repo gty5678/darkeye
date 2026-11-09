@@ -104,11 +104,11 @@ uv venv
 uv pip install -r tools/requirements-packaging.txt
 ```
 
-使用虚拟环境运行打包脚本，无需手动激活。后续示例同样使用 `uv run --no-project`，详见[跨平台依赖安装说明](cross-platform-packaging.md#使用-uv-安装打包依赖)。
+使用虚拟环境运行打包脚本，无需手动激活。后续示例同样使用 `uv run`，详见[跨平台依赖安装说明](cross-platform-packaging.md#使用-uv-安装打包依赖)。
 
 ```powershell
 # 默认：编译 Release，生成便携包和安装包
-uv run --no-project python tools/package.py
+uv run python tools/package.py
 ```
 
 脚本自动使用 `windows-msvc-release` 配置预设和 `release` 构建预设，构建目录为 `build/windows-msvc-release`。默认增量编译，不会每次清空整个构建目录。
@@ -117,26 +117,26 @@ uv run --no-project python tools/package.py
 
 ```powershell
 # 便携版：只需要 7-Zip，不需要 Inno Setup
-uv run --no-project python tools/package.py --format portable
+uv run python tools/package.py --format portable
 
 # 安装版：只需要 Inno Setup，不需要 7-Zip
-uv run --no-project python tools/package.py --format installer
+uv run python tools/package.py --format installer
 
 # 指定 Inno Setup 编译器位置
-uv run --no-project python tools/package.py --format installer --iscc "C:/path/to/ISCC.exe"
+uv run python tools/package.py --format installer --iscc "C:/path/to/ISCC.exe"
 ```
 
 其他常用方式：
 
 ```powershell
 # 已完成当前源码的 release 构建，只重新暂存、部署依赖和打包
-uv run --no-project python tools/package.py --skip-build
+uv run python tools/package.py --skip-build
 
 # 清除发布构建目录并全量编译，再生成两个包
-uv run --no-project python tools/package.py --clean
+uv run python tools/package.py --clean
 
 # 只显示步骤，不执行构建、覆盖或打包
-uv run --no-project python tools/package.py --dry-run
+uv run python tools/package.py --dry-run
 ```
 
 `--skip-build` 固定读取 `build/windows-msvc-release`。源码或版本号修改后，应先正常构建再打包，避免使用旧程序。

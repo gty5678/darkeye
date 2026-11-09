@@ -55,20 +55,20 @@ Linux 保存 WebDAV 密码需要运行中的 Secret Service。知识库 ZIP 更�
 
 ## 使用 uv 安装打包依赖
 
-以下命令均在项目根目录执行，需先安装 `uv`。Windows、macOS 和 Linux 使用相同命令：
+所有 Python 构建、测试和打包脚本统一通过 `uv run python` 运行。需先安装 `uv`，并在项目根目录准备环境；Windows、macOS 和 Linux 使用相同命令：
 
 ```sh
 uv venv
 uv pip install -r tools/requirements-packaging.txt
-uv run --no-project python tools/package.py
+uv run python tools/package.py
 ```
 
-`uv venv` 创建项目内的 `.venv`；依赖只需在首次打包或依赖变更后安装。`uv run --no-project` 使用该虚拟环境运行脚本，无需手动激活环境。
+`uv venv` 创建项目内的 `.venv`；依赖只需在首次打包或依赖变更后安装。`uv run` 使用该虚拟环境运行脚本，无需手动激活环境。
 
 复用已有 Release 构建时：
 
 ```sh
-uv run --no-project python tools/package.py --skip-build
+uv run python tools/package.py --skip-build
 ```
 
 也可追加 `--build-dir` 指定构建目录，或用 `--test` 在构建并测试后打包。`zstandard` 用于生成各平台的 `.tar.zst` 更新包，JSON 和 SHA-256 随包自动生成。
@@ -82,7 +82,7 @@ Windows：
 ```powershell
 $env:VCPKG_ROOT = "C:/src/vcpkg"
 $env:Qt6_DIR = "C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6"
-python tools/build.py --config Release --test
+uv run python tools/build.py --config Release --test
 ```
 
 脚本自动导入 MSVC 环境；未设置 VCPKG_ROOT 时尝试使用 Visual Studio 自带 vcpkg。Windows 打包需 7-Zip 和 Inno Setup。
@@ -92,7 +92,7 @@ macOS（Apple Silicon）：
 ```sh
 export VCPKG_ROOT="$HOME/src/vcpkg"
 export Qt6_DIR="$HOME/Qt/6.12.0/macos/lib/cmake/Qt6"
-python3 tools/build.py --config Release --test
+uv run python tools/build.py --config Release --test
 ```
 
 预设强制 `CMAKE_OSX_ARCHITECTURES=arm64` 和部署目标 14.4。打包会用 `lipo` 再次核对主程序仅包含 arm64。需要 Xcode Command Line Tools、Ninja、`ditto`、`codesign`、`hdiutil`。
@@ -103,7 +103,7 @@ Linux（Ubuntu 24.04）：
 sudo apt-get install ninja-build pkg-config libsecret-1-dev libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxcb-cursor0 xvfb unzip dpkg-dev fonts-noto-cjk
 export VCPKG_ROOT="$HOME/src/vcpkg"
 export Qt6_DIR="$HOME/Qt/6.12.0/gcc_64/lib/cmake/Qt6"
-dbus-run-session -- xvfb-run -a python3 tools/build.py --config Release --test
+dbus-run-session -- xvfb-run -a uv run python tools/build.py --config Release --test
 ```
 
 原生界面和 GPU 测试不能全部使用 offscreen 替代，Linux 自动验证使用 Xvfb。系统钥匙串测试在非 Windows 默认跳过，只有准备好真实 keyring 后才设置 `DARKEYE_TEST_SYSTEM_KEYRING=1`。
@@ -115,16 +115,16 @@ dbus-run-session -- xvfb-run -a python3 tools/build.py --config Release --test
 在各自原生系统执行：
 
 ```sh
-uv run --no-project python tools/package.py
+uv run python tools/package.py
 ```
 
 或先构建并测试，再复用已完成的 Release 测试构建：
 
 ```sh
 # 根据平台选择对应目录：
-uv run --no-project python tools/package.py --skip-build --build-dir build/windows-msvc-release-tests
-uv run --no-project python tools/package.py --skip-build --build-dir build/linux-x64-release-tests
-uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
+uv run python tools/package.py --skip-build --build-dir build/windows-msvc-release-tests
+uv run python tools/package.py --skip-build --build-dir build/linux-x64-release-tests
+uv run python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
 ```
 
 `--test` 会在打包前构建和运行全套测试，失败时停止打包。`--skip-build` 明确跳过构建和测试，适合在独立验证通过后使用。两者不能同时使用。
@@ -157,7 +157,7 @@ macOS 默认进行 ad-hoc 签名，适用于构建验证，不等于面向公众
 工具自身的主机无关回归测试：
 
 ```sh
-python tools/test_packaging.py
+uv run python tools/test_packaging.py
 ```
 
 本地 Windows 通过不能替代 Linux/macOS 原生结果；必须查看对应 runner 的成功结果和下载包的干净环境运行结果后，才能标记该平台已验证。

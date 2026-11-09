@@ -45,7 +45,7 @@ sudo apt-get install -y \
 g++ --version
 cmake --version
 ninja --version
-python3 --version
+uv run python --version
 pkg-config --modversion libsecret-1
 dpkg-deb --version
 dpkg-shlibdeps --version
@@ -105,10 +105,17 @@ export Qt6_DIR="$HOME/Qt/6.12.0/gcc_64/lib/cmake/Qt6"
 
 ## 4. 编译 Release
 
-确认位于包含 `CMakeLists.txt` 的项目根目录，执行：
+先安装 `uv`，然后在包含 `CMakeLists.txt` 的项目根目录创建环境并安装打包依赖：
 
 ```sh
-python3 tools/build.py --config Release
+uv venv
+uv pip install -r tools/requirements-packaging.txt
+```
+
+依赖只需在首次使用或依赖变更后安装，后续构建、测试和打包均通过 `uv run python` 执行，无需手动激活环境。执行 Release 编译：
+
+```sh
+uv run python tools/build.py --config Release
 ```
 
 脚本识别 Linux x86_64，选择 `linux-x64-release` 预设，通过 Ninja 调用系统 C++ 编译器。构建输出在 `build/linux-x64-release/`，可查找主程序：
@@ -126,14 +133,14 @@ cmake --preset linux-x64-release -DQt6_DIR="$Qt6_DIR"
 cmake --build --preset linux-x64-release
 ```
 
-更换 Qt 或编译器后可使用新构建目录，或执行 `python3 tools/build.py --config Release --clean`。清理会删除该预设的构建目录，不应在构建目录保存用户数据。
+更换 Qt 或编译器后可使用新构建目录，或执行 `uv run python tools/build.py --config Release --clean`。清理会删除该预设的构建目录，不应在构建目录保存用户数据。
 
 ## 5. 运行测试
 
 在桌面或 CI 中，可以统一使用独立的 D-Bus 会话和 Xvfb：
 
 ```sh
-dbus-run-session -- xvfb-run -a python3 tools/build.py --config Release --test
+dbus-run-session -- xvfb-run -a uv run python tools/build.py --config Release --test
 ```
 
 测试构建使用 `build/linux-x64-release-tests/`。测试失败时脚本返回非零状态；查看详情：
@@ -143,7 +150,7 @@ dbus-run-session -- xvfb-run -a \
   ctest --test-dir build/linux-x64-release-tests -C Release --output-on-failure
 ```
 
-已有可用桌面会话时，也可以直接运行 `python3 tools/build.py --config Release --test`。测试配置按用例分别选择 offscreen 或 xcb；不要将所有测试强制设为 offscreen，否则不能验证原生界面和 GPU 功能。Xvfb 提供显示服务，不保证所有图形驱动和渲染断言一定通过。
+已有可用桌面会话时，也可以直接运行 `uv run python tools/build.py --config Release --test`。测试配置按用例分别选择 offscreen 或 xcb；不要将所有测试强制设为 offscreen，否则不能验证原生界面和 GPU 功能。Xvfb 提供显示服务，不保证所有图形驱动和渲染断言一定通过。
 
 凭据保存依赖 **Secret Service**，例如桌面会话中的 GNOME Keyring。只有 D-Bus 不代表已有可用的密码服务。系统钥匙串相关测试在非 Windows 默认跳过需要显式启用的用例；准备好测试 keyring 后可设置 `DARKEYE_TEST_SYSTEM_KEYRING=1` 再验证。
 
@@ -152,19 +159,19 @@ dbus-run-session -- xvfb-run -a \
 一条命令编译并生成两种格式：
 
 ```sh
-python3 tools/package.py
+uv run python tools/package.py
 ```
 
 默认不会运行测试。希望测试通过后才打包，执行：
 
 ```sh
-dbus-run-session -- xvfb-run -a python3 tools/package.py --test
+dbus-run-session -- xvfb-run -a uv run python tools/package.py --test
 ```
 
 已完成第 5 节测试时，可以复用其 Release 构建：
 
 ```sh
-python3 tools/package.py --skip-build --build-dir build/linux-x64-release-tests
+uv run python tools/package.py --skip-build --build-dir build/linux-x64-release-tests
 ```
 
 `--skip-build` 不会重新编译或测试；不能与 `--test`、`--clean` 同时使用。
@@ -183,9 +190,9 @@ out/Darkeye-<版本>-linux-x64-setup.deb.sha256
 其他入口：
 
 ```sh
-python3 tools/package.py --format portable
-python3 tools/package.py --format installer
-python3 tools/package.py --dry-run
+uv run python tools/package.py --format portable
+uv run python tools/package.py --format installer
+uv run python tools/package.py --dry-run
 ```
 
 默认重复执行会替换同名暂存目录和产物，但会拒绝清理包含用户数据的便携目录。可用 `--destination out/new-release/Darkeye-<版本>-linux-x64` 切换到新的项目内输出位置，`<版本>` 替换为实际版本。不要用 `sudo` 运行构建或打包脚本。

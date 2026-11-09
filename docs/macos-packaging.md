@@ -4,7 +4,7 @@
 
 主程序及演示程序已在 Apple Silicon、Apple Clang 21、macOS SDK 27、Qt 6.12.0 和 CMake 3.30.5 下完成 Release 原生编译。仓库中的 vcpkg overlay 修复了固定 baseline 内 zlib/libpng 对现代 macOS SDK 的兼容问题；Windows 保留原有编译分支。最低系统版本和干净机器运行仍需进行本文末尾的验收。
 
-`python3 tools/package.py` 的完整编译、部署、打包流程以及 `--skip-build --build-dir build/macos-arm64-release` 均已实测成功，生成便携 ZIP 和安装 DMG。验证包括 ZIP 完整性、便携标记与外部 data 目录、应用 ad-hoc 签名、DMG 内容清单；该验证针对旧版 PKG 流程，当前 DMG 流程需重新验收；未执行系统安装或 Developer ID 公证。运行前需按下文设置 Qt、vcpkg 和 CMake 3.x 环境。
+`uv run python tools/package.py` 的完整编译、部署、打包流程以及 `--skip-build --build-dir build/macos-arm64-release` 均已实测成功，生成便携 ZIP 和安装 DMG。验证包括 ZIP 完整性、便携标记与外部 data 目录、应用 ad-hoc 签名、DMG 内容清单；该验证针对旧版 PKG 流程，当前 DMG 流程需重新验收；未执行系统安装或 Developer ID 公证。运行前需按下文设置 Qt、vcpkg 和 CMake 3.x 环境。
 
 该环境下全部测试目标可编译；原生 CTest 为 58/70 通过（含启动、UI 冒烟、3D/DVD 演示冒烟），12 项失败涉及数据库夹具、路径/界面断言及 GPU/DPR 检查，尚未全部通过。发布工具的 4 项测试通过。此次验证的依赖在本机默认系统部署目标下构建，因此不构成对 macOS 14.4 运行兼容性的验证。
 
@@ -12,7 +12,7 @@
 
 本节适用于已经完成依赖准备的这台电脑。新电脑请从第 1 节开始安装，不要直接复制本节的 vcpkg 路径。
 
-构建脚本现在会自动识别默认的 `$HOME/Qt/6.12.0/macos` 和项目 `build/vcpkg`；如果 PATH 中选中 CMake 4，会优先使用 Qt 附带的 CMake 3.x。已有本机依赖时，无需设置环境变量即可执行 `python3 tools/package.py`。显式设置的 Qt/vcpkg/toolchain 路径仍优先使用。下面的环境变量命令也适用于直接运行 CMake。
+构建脚本现在会自动识别默认的 `$HOME/Qt/6.12.0/macos` 和项目 `build/vcpkg`；如果 PATH 中选中 CMake 4，会优先使用 Qt 附带的 CMake 3.x。已有本机依赖时，无需设置环境变量即可执行 `uv run python tools/package.py`。显式设置的 Qt/vcpkg/toolchain 路径仍优先使用。下面的环境变量命令也适用于直接运行 CMake。
 
 每次新开终端，先执行：
 
@@ -24,16 +24,23 @@ export VCPKG_ROOT="$PWD/build/vcpkg"
 cmake --version
 ```
 
-确认输出为 CMake 3.x。按需要选择下面的命令：
+确认输出为 CMake 3.x。首次使用或打包依赖变更后，先准备 uv 环境：
+
+```sh
+uv venv
+uv pip install -r tools/requirements-packaging.txt
+```
+
+后续无需手动激活环境。按需要选择下面的命令：
 
 | 目的 | 命令 |
 | --- | --- |
-| 编译 Release | `python3 tools/build.py --config Release` |
+| 编译 Release | `uv run python tools/build.py --config Release` |
 | 运行编译后的应用 | `open build/macos-arm64-release/apps/desktop/Darkeye.app` |
-| 编译并同时打包便携版、安装版 | `python3 tools/package.py` |
-| 直接复用现有 Release 结果打包 | `python3 tools/package.py --skip-build --build-dir build/macos-arm64-release` |
-| 只生成便携 ZIP | `python3 tools/package.py --format portable` |
-| 只生成安装 DMG | `python3 tools/package.py --format installer` |
+| 编译并同时打包便携版、安装版 | `uv run python tools/package.py` |
+| 直接复用现有 Release 结果打包 | `uv run python tools/package.py --skip-build --build-dir build/macos-arm64-release` |
+| 只生成便携 ZIP | `uv run python tools/package.py --format portable` |
+| 只生成安装 DMG | `uv run python tools/package.py --format installer` |
 
 当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.dmg`，同时生成 `.tar.zst` 更新包、`latest.json`（内含更新包 SHA256）。便携版需完整解压后运行，见第 6 节。
 
@@ -55,7 +62,7 @@ cmake --version
 
 ```sh
 uname -m
-python3 -c 'import platform; print(platform.machine())'
+uv run python -c 'import platform; print(platform.machine())'
 ```
 
 两条命令均应显示 `arm64`。不要使用 Rosetta 下的 x86_64 终端或 Python；本项目不生成 Intel 包。
@@ -83,14 +90,14 @@ xcrun clang++ --version
 已安装 Homebrew 时，可以用它准备通用工具：
 
 ```sh
-brew install ninja python git pkg-config
+brew install ninja uv git pkg-config
 ninja --version
-python3 --version
+uv run python --version
 git --version
 pkg-config --version
 ```
 
-Homebrew 安装与支持系统要求见[官方说明](https://docs.brew.sh/Installation)。若当前系统不在其支持范围内，可分别从 CMake、Python 等工具的官方渠道安装。无需通过 Homebrew 安装 Qt；以下步骤使用明确版本的 Qt kit。
+Homebrew 安装与支持系统要求见[官方说明](https://docs.brew.sh/Installation)。若当前系统不在其支持范围内，可分别从 CMake、uv 等工具的官方渠道安装。Python 脚本统一通过 uv 运行。无需通过 Homebrew 安装 Qt；以下步骤使用明确版本的 Qt kit。
 
 另需安装 CMake 3.25–3.x：可在 Qt 安装器的 Tools 中选择 CMake（本次使用 3.30.5），或自行安装 CMake 3.x。当前 vcpkg baseline 包含旧版 Brotli，其 CMake 最低版本声明不兼容 CMake 4，因此不要直接使用 Homebrew 默认安装的 CMake 4。Qt 附带的 CMake 安装在默认位置时，先将它加入 PATH，再执行依赖安装和后续构建：
 
@@ -155,7 +162,7 @@ export PATH="$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH"
 先确认位于包含 `CMakeLists.txt` 的项目根目录。仅编译：
 
 ```sh
-python3 tools/build.py --config Release
+uv run python tools/build.py --config Release
 ```
 
 脚本自动选择 `macos-arm64-release` 预设，使用 Ninja 调用 Apple Clang。构建目录为 `build/macos-arm64-release/`，主程序目标是 `Darkeye.app`。可查找构建出的应用：
@@ -181,12 +188,12 @@ open build/macos-arm64-release/apps/desktop/Darkeye.app
   --data-dir "$PWD/data"
 ```
 
-该命令使用源码中的配置与知识库，并将数据库等用户数据写入项目 `data/`。不传参数时按应用正常路径规则选择资源和用户数据目录。Debug 构建使用 `python3 tools/build.py --config Debug`，运行路径相应替换为 `build/macos-arm64-debug/apps/desktop/Darkeye.app`。
+该命令使用源码中的配置与知识库，并将数据库等用户数据写入项目 `data/`。不传参数时按应用正常路径规则选择资源和用户数据目录。Debug 构建使用 `uv run python tools/build.py --config Debug`，运行路径相应替换为 `build/macos-arm64-debug/apps/desktop/Darkeye.app`。
 
 编译测试并运行全部 CTest：
 
 ```sh
-python3 tools/build.py --config Release --test
+uv run python tools/build.py --config Release --test
 ```
 
 测试使用独立目录 `build/macos-arm64-release-tests/`。界面和 Metal 渲染测试需要正常图形登录会话，不能用纯 SSH/headless 环境的结果替代桌面验收。系统钥匙串测试默认会跳过需要显式启用的用例；在可使用测试钥匙串的桌面会话中，可设置 `DARKEYE_TEST_SYSTEM_KEYRING=1` 后单独验证。
@@ -204,7 +211,7 @@ cmake --preset macos-arm64-release -DQt6_DIR="$Qt6_DIR"
 cmake --build --preset macos-arm64-release
 ```
 
-这里生成的是 Ninja 构建目录，不是 `.xcodeproj`；Xcode 提供编译工具链。更换 Qt 或编译器后可使用 `python3 tools/build.py --config Release --clean` 重建；此操作会清理该预设的构建目录，用户数据不应放在那里。
+这里生成的是 Ninja 构建目录，不是 `.xcodeproj`；Xcode 提供编译工具链。更换 Qt 或编译器后可使用 `uv run python tools/build.py --config Release --clean` 重建；此操作会清理该预设的构建目录，用户数据不应放在那里。
 
 ### 在 VS Code 中断点调试
 
@@ -226,7 +233,7 @@ cmake --preset macos-arm64-debug \
 cmake --build --preset macos-arm64-debug --target Darkeye --parallel 8
 ```
 
-上述 `OFF` 仅适用于第 0 节已安装好依赖的本机环境。新电脑按第 3 节使用完整 vcpkg Git 仓库后，可直接用 `python3 tools/build.py --config Debug`，保留 manifest 自动安装依赖。
+上述 `OFF` 仅适用于第 0 节已安装好依赖的本机环境。新电脑按第 3 节使用完整 vcpkg Git 仓库后，可直接用 `uv run python tools/build.py --config Debug`，保留 manifest 自动安装依赖。
 
 调试对象应使用 Debug 构建；Release 优化可能导致变量无法查看、断点行跳动。无需先打包 ZIP/DMG 才能调试。若系统首次提示允许开发者工具调试，请按系统提示授权。
 
@@ -244,25 +251,25 @@ uv pip install -r tools/requirements-packaging.txt
 依赖只需首次打包或变更后安装，无需手动激活 `.venv`。然后构建并打包：
 
 ```sh
-uv run --no-project python tools/package.py
+uv run python tools/package.py
 ```
 
 该命令默认不运行测试。希望测试通过后才打包，执行：
 
 ```sh
-uv run --no-project python tools/package.py --test
+uv run python tools/package.py --test
 ```
 
 代码未变化、只希望重新打包现有 Release 构建时：
 
 ```sh
-uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release
+uv run python tools/package.py --skip-build --build-dir build/macos-arm64-release
 ```
 
 如果第 4 节的 Release 测试构建已经通过，也可复用测试构建目录：
 
 ```sh
-uv run --no-project python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
+uv run python tools/package.py --skip-build --build-dir build/macos-arm64-release-tests
 ```
 
 `--skip-build` 不会重新运行测试；不要用它把测试失败的构建标记为合格发布。它不能与 `--test` 或 `--clean` 同时使用。
@@ -279,9 +286,9 @@ out/latest.json
 版本自动读取顶层 `CMakeLists.txt`。仅生成一种格式，或先预览命令：
 
 ```sh
-uv run --no-project python tools/package.py --format portable
-uv run --no-project python tools/package.py --format installer
-uv run --no-project python tools/package.py --dry-run
+uv run python tools/package.py --format portable
+uv run python tools/package.py --format installer
+uv run python tools/package.py --dry-run
 ```
 
 重复执行会替换同名暂存目录和产物。若暂存的便携目录已经含有用户数据，脚本会拒绝删除；此时可通过 `--destination out/new-release/Darkeye-<版本>-macos-arm64` 使用新位置，`<版本>` 需替换为实际版本。
@@ -339,7 +346,7 @@ lipo -archs /Applications/Darkeye.app/Contents/MacOS/Darkeye
 默认打包使用 **ad-hoc 签名**，方便开发验证，不等于 Developer ID 签名或公证。已在钥匙串中安装相应证书时，可执行：
 
 ```sh
-uv run --no-project python tools/package.py \
+uv run python tools/package.py \
   --mac-sign-identity "Developer ID Application: 你的开发者名称 (TEAMID)" \
   --mac-installer-identity "Developer ID Installer: 你的开发者名称 (TEAMID)"
 ```

@@ -175,6 +175,7 @@ jobs:
           name: diagnostics-${{ matrix.platform }}
           path: |
             build/${{ matrix.preset }}/Testing/
+            build/${{ matrix.preset }}/tests/gpu-simulation-results.txt
             build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
             build/${{ matrix.preset }}/vcpkg-manifest-install.log
             build/${{ matrix.preset }}/vcpkg-bootstrap.log

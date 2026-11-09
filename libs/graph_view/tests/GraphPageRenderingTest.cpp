@@ -9,7 +9,6 @@
 #include <QApplication>
 #include <QAction>
 #include <QContextMenuEvent>
-#include <QEventLoop>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
@@ -19,7 +18,6 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStackedWidget>
-#include <QThread>
 #include <QVBoxLayout>
 #include <QtTest>
 
@@ -52,7 +50,10 @@ void GraphPageRenderingTest::hiddenManagerChangesPreserveLayout()
     view->setGraph(1, {}, {123.0f, 456.0f}, {QStringLiteral("w1")},
                    {QStringLiteral("Original")}, {7.0f});
     view->pauseSimulation();
-    QTest::qWait(50); // setGraph also schedules its own initial camera fit.
+    QSignalSpy cameraFit(view, &ForceViewRhiWidget::scaleChanged);
+    // setGraph schedules a delayed camera fit. Wait for its result before
+    // capturing the baseline, including on slower virtualized CI GPUs.
+    QTRY_VERIFY(!cameraFit.isEmpty());
     const QPointF position = view->getNodePosition(QStringLiteral("w1"));
     const float zoom = view->getZoom();
     const float panX = view->getPanX();
@@ -134,11 +135,7 @@ void GraphPageRenderingTest::coveredRendererSubmitsFrame()
     prewarm->lower();
     QSignalSpy frameSpy(view, &ForceViewRhiWidget::firstFrameSubmitted);
     window.show();
-    for (int frame = 0; frame < 10; ++frame) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        QThread::msleep(16);
-    }
-    QVERIFY(!frameSpy.isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(!frameSpy.isEmpty(), 5000);
     view->pauseSimulation();
 }
 

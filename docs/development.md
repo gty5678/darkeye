@@ -1,6 +1,6 @@
 # C++ / Qt 开发、构建与调试
 
-本仓库使用 C++ / Qt、CMake、Ninja 和 vcpkg manifest 模式。本文主要介绍 Windows / MSVC 的本地开发流程；其他平台见 [macOS arm64 编译与打包](macos-packaging.md)和 [Linux x86_64 编译与打包](linux-packaging.md)，发布规则见[三平台构建与发布](cross-platform-packaging.md)。
+本仓库使用 C++ / Qt、CMake、Ninja 和 vcpkg manifest 模式。本文主要介绍 Windows / MSVC 的本地开发流程；macOS 见 [macOS arm64 编译与打包](macos-packaging.md)，发布规则见[双平台构建与发布](cross-platform-packaging.md)。
 
 ## 前置条件
 
@@ -109,8 +109,8 @@ python tools/build.py --dry-run             # 查看将执行的命令
 ```
 
 Windows 下脚本自动查找 Visual Studio、加载 x64 MSVC / Windows SDK 环境，
-并使用上面的 CMake 预设。Linux / macOS 下使用 PATH 中的 CMake，构建目录为
-`build/<系统>-<配置>`；需自行安装相应编译器、Qt 和依赖。macOS arm64 已完成本机编译与 ZIP/PKG 打包验证，依赖清单、环境配置、编译运行命令和本机快捷操作见 [macOS 安装依赖、编译、运行与打包](macos-packaging.md)。Linux 的验证范围见其平台文档。
+并使用上面的 CMake 预设。macOS 下使用 PATH 中的 CMake，构建目录为
+`build/<系统>-<配置>`；需自行安装相应编译器、Qt 和依赖。macOS arm64 已完成本机编译与 ZIP/PKG 打包验证，依赖清单、环境配置、编译运行命令和本机快捷操作见 [macOS 安装依赖、编译、运行与打包](macos-packaging.md)。正式支持范围为 Windows x64 和 macOS ARM64，不提供 Linux 版本。
 
 Windows 安装版和便携版统一通过打包脚本生成：
 

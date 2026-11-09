@@ -207,4 +207,4 @@ cmake --install build/windows-msvc-release --config Release
 
 ## 后续平台移植
 
-标准模式数据位置通过 Qt `AppLocalDataLocation` 获取；便携配置与版本目录规则不依赖 Windows API。Linux 的共享资源布局、macOS 的 `.app/Contents/Resources` 布局，以及对应平台的包、依赖部署和签名，仍需在目标系统验证。
+标准模式数据位置通过 Qt `AppLocalDataLocation` 获取；便携配置与版本目录规则不依赖 Windows API。macOS 的 `.app/Contents/Resources` 布局及其包、依赖部署和签名，仍需在 macOS 验证。

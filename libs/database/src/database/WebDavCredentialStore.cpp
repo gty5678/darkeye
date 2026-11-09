@@ -9,11 +9,6 @@
 #include <wincred.h>
 #elif defined(Q_OS_MACOS)
 #include <Security/Security.h>
-#elif defined(DARKEYE_USE_LIBSECRET)
-#pragma push_macro("signals")
-#undef signals
-#include <libsecret/secret.h>
-#pragma pop_macro("signals")
 #endif
 
 namespace darkeye
@@ -51,31 +46,6 @@ bool keychainResult(OSStatus status, QString *errorMessage)
 {
     if (status == errSecSuccess) return true;
     setError(errorMessage, QStringLiteral("系统 Keychain 操作失败（%1）。").arg(status));
-    return false;
-}
-#elif defined(DARKEYE_USE_LIBSECRET)
-const SecretSchema *credentialSchema()
-{
-    // Python keyring's SecretService backend searches by service and username,
-    // without an xdg:schema attribute. Match those existing entries as well.
-    static const SecretSchema schema = [] {
-        SecretSchema value{};
-        value.name = "org.darkeye.WebDav";
-        value.flags = SECRET_SCHEMA_DONT_MATCH_NAME;
-        value.attributes[0] = {"service", SECRET_SCHEMA_ATTRIBUTE_STRING};
-        value.attributes[1] = {"username", SECRET_SCHEMA_ATTRIBUTE_STRING};
-        return value;
-    }();
-    return &schema;
-}
-
-bool secretResult(GError *error, QString *errorMessage)
-{
-    if (!error) return true;
-    // Report the backend code without including backend text that could contain secrets.
-    setError(errorMessage, QStringLiteral("系统 Secret Service 操作失败（%1）。请检查会话密钥环是否可用且已解锁。")
-                               .arg(error->code));
-    g_error_free(error);
     return false;
 }
 #endif
@@ -129,15 +99,6 @@ bool WebDavCredentialStore::save(const QString &profile, const WebDavCredentials
     CFRelease(data);
     CFRelease(query);
     return keychainResult(status, errorMessage);
-#elif defined(DARKEYE_USE_LIBSECRET)
-    const QByteArray service = serviceName(profile).toUtf8();
-    GError *error = nullptr;
-    const bool saved = secret_password_store_sync(credentialSchema(), SECRET_COLLECTION_DEFAULT,
-        "Darkeye WebDAV credentials", payload.constData(), nullptr, &error,
-        "service", service.constData(), "username", "credentials", nullptr);
-    if (!secretResult(error, errorMessage)) return false;
-    if (!saved) setError(errorMessage, QStringLiteral("写入系统 Secret Service 失败。"));
-    return saved;
 #else
     Q_UNUSED(profile);
     setError(errorMessage, QStringLiteral("当前平台不支持系统凭据存储。"));
@@ -182,14 +143,6 @@ std::optional<WebDavCredentials> WebDavCredentialStore::load(const QString &prof
     const auto data = static_cast<CFDataRef>(result);
     payload = QByteArray(reinterpret_cast<const char *>(CFDataGetBytePtr(data)), CFDataGetLength(data));
     CFRelease(result);
-#elif defined(DARKEYE_USE_LIBSECRET)
-    const QByteArray service = serviceName(profile).toUtf8();
-    GError *error = nullptr;
-    gchar *password = secret_password_lookup_sync(credentialSchema(), nullptr, &error,
-        "service", service.constData(), "username", "credentials", nullptr);
-    const bool succeeded = secretResult(error, errorMessage);
-    if (password) { payload = QByteArray(password); secret_password_free(password); }
-    if (!succeeded) return std::nullopt;
 #else
     Q_UNUSED(profile);
     setError(errorMessage, QStringLiteral("当前平台不支持系统凭据存储。"));
@@ -223,13 +176,6 @@ bool WebDavCredentialStore::clear(const QString &profile, QString *errorMessage)
     const OSStatus status = SecItemDelete(query);
     CFRelease(query);
     return status == errSecItemNotFound || keychainResult(status, errorMessage);
-#elif defined(DARKEYE_USE_LIBSECRET)
-    const QByteArray service = serviceName(profile).toUtf8();
-    GError *error = nullptr;
-    secret_password_clear_sync(credentialSchema(), nullptr, &error,
-        "service", service.constData(), "username", "credentials", nullptr);
-    // libsecret returns false without an error when the item does not exist.
-    return secretResult(error, errorMessage);
 #else
     Q_UNUSED(profile);
     setError(errorMessage, QStringLiteral("当前平台不支持系统凭据存储。"));

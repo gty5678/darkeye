@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.25)
 
 project(Darkeye VERSION 1.2.5 LANGUAGES CXX)
 
+if(NOT WIN32 AND NOT APPLE)
+    message(FATAL_ERROR "Darkeye supports Windows x64 and macOS ARM64 only.")
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(DARKEYE_BUILD_TESTS "Build Darkeye tests" OFF)

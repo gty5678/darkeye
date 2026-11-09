@@ -5,9 +5,6 @@ function(darkeye_configure_packaging target)
     if(APPLE AND is_bundle)
         set(resource_dir "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources")
         set(resource_install_dir "${target}.app/Contents/Resources")
-    elseif(UNIX AND NOT APPLE)
-        set(resource_dir "$<TARGET_FILE_DIR:${target}>")
-        set(resource_install_dir "${CMAKE_INSTALL_DATADIR}/darkeye")
     else()
         set(resource_dir "$<TARGET_FILE_DIR:${target}>")
         set(resource_install_dir "${CMAKE_INSTALL_BINDIR}")
@@ -62,7 +59,7 @@ function(darkeye_configure_packaging target)
     )
 
     # Each platform supplies one native executable in resources.
-    # macOS and Linux use the same filename, but different native binaries.
+    # macOS supplies its native updater without an extension.
     if(WIN32)
         set(updater_name "updater.exe")
     else()

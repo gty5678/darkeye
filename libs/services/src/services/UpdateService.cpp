@@ -58,11 +58,6 @@ bool UpdateService::launchUpdater(QString *error, const QStringList &extraArgume
         mainExe.prepend(QStringLiteral("Contents/MacOS/"));
         payloadRoot = QStringLiteral("Darkeye.app");
     }
-#elif defined(Q_OS_LINUX)
-    if (executableDir.dirName() == QStringLiteral("bin")) {
-        installDir = QDir::cleanPath(executableDir.filePath(QStringLiteral("..")));
-        mainExe.prepend(QStringLiteral("bin/"));
-    }
 #endif
     if (!QFileInfo(installDir).isWritable())
         return fail(QStringLiteral("程序目录不可写，请将程序移到可写位置或使用系统安装程序更新：%1").arg(installDir));

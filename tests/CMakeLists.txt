@@ -1,4 +1,4 @@
-# Native UI tests require a desktop (Linux: run ctest through xvfb-run).
+# Native UI tests require a desktop session.
 if(WIN32)
     set(DARKEYE_TEST_NATIVE_PLATFORM windows)
 elseif(APPLE)

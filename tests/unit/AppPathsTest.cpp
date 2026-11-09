@@ -102,13 +102,7 @@ void AppPathsTest::resolvesBundleAndUnixResources()
     const darkeye::settings::Paths writableMac(mac, profile);
     QVERIFY(writableMac.ensureRuntimeDirectories());
     QCOMPARE(writableMac.wikiDirectory(), profile + QStringLiteral("/avwiki"));
-    const QString linuxBin = root.filePath(QStringLiteral("linux/bin"));
-    const QString linuxResources = root.filePath(QStringLiteral("linux/share/darkeye"));
-    QVERIFY(QDir().mkpath(linuxBin));
-    QVERIFY(QDir().mkpath(linuxResources));
-    const darkeye::settings::Paths linuxPaths(linuxBin, profile);
-    QCOMPARE(linuxPaths.configDirectory(), linuxResources + QStringLiteral("/config"));
-    QCOMPARE(linuxPaths.bundledWikiDirectory(), linuxResources + QStringLiteral("/avwiki"));
+
 }
 
 void AppPathsTest::detectsPortableConfigurationAndSystemDataLocation()

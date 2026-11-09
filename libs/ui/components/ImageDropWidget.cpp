@@ -407,8 +407,6 @@ void ImageDropWidget::contextMenuEvent(QContextMenuEvent *event)
 #elif defined(Q_OS_MACOS)
         QProcess::startDetached(QStringLiteral("open"),
                                 {QStringLiteral("-R"), imageInfo.absoluteFilePath()});
-#else
-        QProcess::startDetached(QStringLiteral("xdg-open"), {imageInfo.absolutePath()});
 #endif
     }
     else if (chosen == select)

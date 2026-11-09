@@ -370,4 +370,4 @@ uv run python tools/package.py \
 
 在未安装 Qt、vcpkg 的另一台兼容 Mac 上分别验证 ZIP 和 DMG：启动、首次建库、知识库编辑、网络访问、凭据读写、图形渲染、中文路径、退出后重启。便携目录移动后应继续读取原数据；安装升级应保留用户数据库和知识库。系统钥匙串密码不会随便携目录自动迁移到另一台机器。
 
-通用规则见[三平台构建与发布](cross-platform-packaging.md)，Linux 流程见[Linux 编译与打包](linux-packaging.md)。
+通用规则见[双平台构建与发布](cross-platform-packaging.md)。

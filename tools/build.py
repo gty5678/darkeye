@@ -158,8 +158,6 @@ def build_project(configuration="Release", run_tests=False, dry_run=False, clean
             if machine not in ("arm64", "aarch64"):
                 raise RuntimeError("macOS releases require an arm64 host and arm64 Qt kit.")
             prefix = "macos-arm64"
-        elif system == "linux" and machine in ("x86_64", "amd64"):
-            prefix = "linux-x64"
         else:
             raise RuntimeError(f"Unsupported build host: {system}/{machine}")
         name = f"{prefix}-{config}" + ("-tests" if run_tests else "")

@@ -169,9 +169,6 @@ QString Paths::resourceRootDirectory() const
     const QDir app(m_applicationDirectory);
     if (m_applicationDirectory.endsWith(QStringLiteral(".app/Contents/MacOS")))
         return QDir::cleanPath(app.absoluteFilePath(QStringLiteral("../Resources")));
-    const QString shared = app.absoluteFilePath(QStringLiteral("../share/darkeye"));
-    if (app.dirName() == QStringLiteral("bin") && QFileInfo(shared).isDir())
-        return QDir::cleanPath(shared);
     return m_applicationDirectory;
 }
 

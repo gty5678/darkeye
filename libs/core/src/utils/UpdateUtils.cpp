@@ -12,8 +12,6 @@ QString updateTarget()
     const QString system = QStringLiteral("windows");
 #elif defined(Q_OS_MACOS)
     const QString system = QStringLiteral("macos");
-#elif defined(Q_OS_LINUX)
-    const QString system = QStringLiteral("linux");
 #else
     const QString system = QStringLiteral("unsupported");
 #endif

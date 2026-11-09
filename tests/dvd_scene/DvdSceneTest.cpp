@@ -13,6 +13,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QScreen>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <algorithm>
@@ -81,14 +82,18 @@ private slots:
         DvdSceneWidget view;
         view.resize(900,650);
         struct SyntheticHoverOnly final:QObject {
+            bool synthetic=false;
             bool eventFilter(QObject *,QEvent *event) override {
-                return event->spontaneous() && (event->type()==QEvent::MouseMove
+                return !synthetic && (event->type()==QEvent::MouseMove
                     || event->type()==QEvent::Enter || event->type()==QEvent::Leave);
             }
         } input;
         view.renderWidget()->installEventFilter(&input);
         QVERIFY(view.setModel(loaded.asset));
         QVERIFY(view.setItems(sampleItems(80)));
+        // Keep the requested viewport inside the native desktop so Cocoa
+        // cannot resize it after the picking coordinates have been calculated.
+        view.resize(view.size().boundedTo(view.screen()->availableGeometry().size()-QSize(80,80)));
         view.show();
         QVERIFY(QTest::qWaitForWindowExposed(&view));
         view.setCameraX(25*DvdShelfController::spacing,true);
@@ -119,23 +124,25 @@ private slots:
         wheel();
         QTRY_VERIFY(std::abs(view.cameraX()-view.cameraTargetX())<1e-5f);
         QTest::qWait(300);
-        const auto ray=view.renderWidget()->camera().ray(point,view.renderWidget()->size());
-        QVERIFY(ray);
-        const auto hit=raycast(*scene,*ray);
-        QVERIFY(hit);
-        auto root=scene->node(hit->node);
-        while(root && !root->name.startsWith("dvd-")) root=scene->node(root->parent);
-        QVERIFY(root);
-        QVERIFY(root->id!=originalRoot);
-        const auto home=DvdCaseFactory::shelfTransform(root->name.mid(4).toInt());
-        // Wait for the hover animation endpoint, rather than assuming a frame
-        // will be delivered within a fixed delay on the native desktop.
-        QTRY_VERIFY_WITH_TIMEOUT((root->transform.translation-home.translation-QVector3D(0,0,0.03f)).length()<1e-5f,3000);
+        // Pull-out animation changes overlapping bounding boxes. Re-evaluate
+        // the hit while waiting, rather than retaining an intermediate hit.
+        const auto hoveredAtPoint=[&] {
+            const auto ray=view.renderWidget()->camera().ray(point,view.renderWidget()->size());
+            if(!ray) return false;
+            const auto hit=raycast(*scene,*ray);
+            if(!hit) return false;
+            auto root=scene->node(hit->node);
+            while(root && !root->name.startsWith("dvd-")) root=scene->node(root->parent);
+            if(!root || root->id==originalRoot) return false;
+            const auto home=DvdCaseFactory::shelfTransform(root->name.mid(4).toInt());
+            return (root->transform.translation-home.translation-QVector3D(0,0,0.03f)).length()<1e-5f;
+        };
+        QTRY_VERIFY_WITH_TIMEOUT(hoveredAtPoint(),3000);
         QCOMPARE(scene->node(originalRoot)->transform.translation,DvdCaseFactory::shelfTransform(25).translation);
         QCOMPARE(view.renderWidget()->cursor().shape(),Qt::ArrowCursor);
         wheel();
         QEvent leave(QEvent::Leave);
-        QApplication::sendEvent(view.renderWidget(),&leave);
+        input.synthetic=true; QApplication::sendEvent(view.renderWidget(),&leave); input.synthetic=false;
         QTRY_VERIFY(std::abs(view.cameraX()-view.cameraTargetX())<1e-5f);
         QTest::qWait(300);
         for(const auto &part:scene->renderItems()) {
@@ -294,14 +301,16 @@ private slots:
     {
         DvdSceneWidget view; view.resize(700,500);
         struct SyntheticHoverOnly final:QObject {
+            bool synthetic=false;
             bool eventFilter(QObject *,QEvent *event) override {
-                return event->spontaneous() && (event->type()==QEvent::MouseMove
+                return !synthetic && (event->type()==QEvent::MouseMove
                     || event->type()==QEvent::Enter || event->type()==QEvent::Leave);
             }
         } input;
         // Keep desktop pointer movement separate from this synthetic hover test.
         view.renderWidget()->installEventFilter(&input);
         QVERIFY(view.setModel(model())); QVERIFY(view.setItems(sampleItems(1)));
+        view.resize(view.size().boundedTo(view.screen()->availableGeometry().size()-QSize(80,80)));
         view.show(); QVERIFY(QTest::qWaitForWindowExposed(&view));
         QTRY_VERIFY(view.renderWidget()->statistics().submittedFrames>0);
         const auto scene=view.renderWidget()->scene();
@@ -330,7 +339,7 @@ private slots:
         const auto move=[&] {
             const auto global=view.renderWidget()->mapToGlobal(point.toPoint());
             QMouseEvent event(QEvent::MouseMove,point,QPointF(global),Qt::NoButton,Qt::NoButton,Qt::NoModifier);
-            QApplication::sendEvent(view.renderWidget(),&event);
+            input.synthetic=true; QApplication::sendEvent(view.renderWidget(),&event); input.synthetic=false;
         };
         move();
         const auto pulled=home.translation+QVector3D(0,0,0.03f);
@@ -340,13 +349,13 @@ private slots:
         // Data/layout refresh while stationary must also preserve the hover pose.
         QVERIFY(view.setItems(sampleItems(1)));
         QCOMPARE(scene->node(root)->transform.translation,pulled);
-        QEvent leave(QEvent::Leave); QApplication::sendEvent(view.renderWidget(),&leave);
+        QEvent leave(QEvent::Leave); input.synthetic=true; QApplication::sendEvent(view.renderWidget(),&leave); input.synthetic=false;
         QTest::qWait(350);
         QCOMPARE(scene->node(root)->transform.translation,home.translation);
         QVERIFY(view.focusItem("dvd-0"));
         QTRY_COMPARE_WITH_TIMEOUT(view.state(),DvdInteractionController::State::Focused,3000);
         const auto focused=scene->node(root)->transform;
-        move(); QApplication::sendEvent(view.renderWidget(),&leave); QTest::qWait(350);
+        move(); input.synthetic=true; QApplication::sendEvent(view.renderWidget(),&leave); input.synthetic=false; QTest::qWait(350);
         QCOMPARE(scene->node(root)->transform.translation,focused.translation);
         QCOMPARE(scene->node(root)->transform.rotation,focused.rotation);
         QCOMPARE(view.selectedId(),QStringLiteral("dvd-0"));

@@ -490,8 +490,15 @@ void DvdShelfView::layoutOverlays()
     const QRectF cover=front->translated(offset);
     // Match the legacy overlay width and natural content height. Reserving a
     // scrollbar before it is needed forces extra text/chip rows.
-    const int width=qRound(std::min(cover.width()-16,std::clamp(m_scene->height()*0.55,240.0,600.0)));
-    const int maxHeight=m_scene->height()-24;
+    const QRectF availableCover=cover.intersected(QRectF(rect())).adjusted(8,0,-8,0);
+    if (availableCover.width()<40 || availableCover.height()<1) {
+        m_coverInfo->hide();
+        m_coverActions->hide();
+        m_fanartContainer->hide();
+        return;
+    }
+    const int width=int(std::floor(std::min(availableCover.width(),std::clamp(m_scene->height()*0.55,240.0,600.0))));
+    const int maxHeight=std::max(1,int(std::floor(availableCover.height())));
     const int fullTextWidth=std::max(40,width-24);
     const auto measureHeight=[&](int available) {
         const auto *contentLayout=m_coverContent->layout();
@@ -512,7 +519,8 @@ void DvdShelfView::layoutOverlays()
     m_coverContent->resize(width-scrollWidth,naturalHeight);
     const int height=std::min(maxHeight,naturalHeight);
     auto center=m_scene->selectedInfoAnchor().value_or(front->center())+QPointF(offset);
-    center.setX(std::clamp(center.x(),cover.left()+width*0.5,cover.right()-width*0.5));
+    center.setX(std::clamp(center.x(),availableCover.left()+width*0.5,availableCover.right()-width*0.5));
+    center.setY(std::clamp(center.y(),availableCover.top()+height*0.5,availableCover.bottom()-height*0.5));
     m_coverInfo->setGeometry(qRound(center.x()-width*0.5),qRound(center.y()-height*0.5),width,height);
     m_coverInfo->show(); m_coverInfo->raise();
     if(const auto spine=m_scene->selectedSpineCenter()) {

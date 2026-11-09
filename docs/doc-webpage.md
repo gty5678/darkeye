@@ -23,7 +23,7 @@ DarkEye 的文档网页由 MkDocs 和 Material 主题生成。修改 Markdown �
 
 安装 uv（已经安装的可以跳过）：
 
-### macOS / Linux
+### macOS
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh

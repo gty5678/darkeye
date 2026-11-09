@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build native Windows, Linux and macOS portable and installer packages."""
+"""Build native Windows and macOS portable and installer packages."""
 
 import argparse
 import hashlib
@@ -233,8 +233,6 @@ def release_platform(system=None, machine=None):
     machine = (machine or platform.machine()).lower()
     if system == "Windows" and machine in ("amd64", "x86_64"):
         return "windows", "x64"
-    if system == "Linux" and machine in ("amd64", "x86_64"):
-        return "linux", "x64"
     if system == "Darwin" and machine in ("arm64", "aarch64"):
         return "macos", "arm64"
     raise RuntimeError(f"Unsupported native release host: {system}/{machine}")
@@ -281,14 +279,11 @@ def reset_output(path, dry_run=False):
 
 
 def validate_payload(destination, system):
-    if system == "macos":
-        resources = destination / "Darkeye.app/Contents/Resources"
-        executable = destination / "Darkeye.app/Contents/MacOS/Darkeye"
-        plugin = destination / "Darkeye.app/Contents/PlugIns/platforms/libqcocoa.dylib"
-    else:
-        resources = destination / "share/darkeye"
-        executable = destination / "bin/Darkeye"
-        plugin = destination / "plugins/platforms/libqxcb.so"
+    if system != "macos":
+        raise RuntimeError(f"Unsupported deployed payload: {system}")
+    resources = destination / "Darkeye.app/Contents/Resources"
+    executable = destination / "Darkeye.app/Contents/MacOS/Darkeye"
+    plugin = destination / "Darkeye.app/Contents/PlugIns/platforms/libqcocoa.dylib"
     for required in (executable, executable.parent / "updater", plugin,
                      resources / "config/update.ini", resources / "LICENSE"):
         if not required.is_file():
@@ -398,89 +393,12 @@ def package_macos(args, destination, portable, base, version, cmake, env):
     return outputs
 
 
-def is_elf(path):
-    with path.open("rb") as source:
-        return source.read(4) == b"\x7fELF"
-
-
-def package_linux(args, destination, portable, base, version, env):
-    outputs = []
-    if not args.dry_run:
-        validate_payload(destination, "linux")
-    if args.format != "installer":
-        archive = safe_output(base.with_name(base.name + "-portable.tar.gz"))
-        reset_output(portable, args.dry_run)
-        reset_output(archive, args.dry_run)
-        root = portable / "DarkEye"
-        if not args.dry_run:
-            shutil.copytree(destination, root / f"app-{version}", symlinks=True)
-            (root / "data").mkdir()
-            (root / f"app-{version}/bin/portable.ini").write_text(
-                "[Portable]\nDataDirectory=../../data\n", encoding="utf-8")
-            launcher = root / "Darkeye.sh"
-            launcher.write_text('#!/bin/sh\nset -eu\nHERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\n'
-                                f'exec "$HERE/app-{version}/bin/Darkeye" "$@"\n', encoding="utf-8")
-            launcher.chmod(0o755)
-            def archive_permissions(info):
-                if info.name == "DarkEye/Darkeye.sh":
-                    info.mode = 0o755
-                return info
-            with tarfile.open(archive, "w:gz") as package:
-                package.add(root, arcname="DarkEye", filter=archive_permissions)
-            with tarfile.open(archive, "r:gz") as package:
-                if not package.getmembers():
-                    raise RuntimeError("Empty portable archive")
-        print(f"Portable archive: {archive}")
-        outputs.append(archive)
-    if args.format != "portable":
-        dpkg = require_tool("dpkg-deb", args.dry_run)
-        shlibdeps = require_tool("dpkg-shlibdeps", args.dry_run)
-        installer = safe_output(base.with_name(base.name + "-setup.deb"))
-        root = base.with_name(base.name + "-deb-root")
-        reset_output(root, args.dry_run)
-        reset_output(installer, args.dry_run)
-        if not args.dry_run:
-            shutil.copytree(destination, root / "opt/darkeye", symlinks=True)
-            (root / "DEBIAN").mkdir()
-            # Inspect all ELF code, including plugins, against host package metadata.
-            elf_files = [p for p in destination.rglob("*") if p.is_file() and not p.is_symlink()
-                         and is_elf(p)]
-            control_source = root / "debian/control"
-            control_source.parent.mkdir()
-            control_source.write_text("Source: darkeye\nSection: utils\nPriority: optional\nMaintainer: Darkeye <support@darkeye.win>\nStandards-Version: 4.6.2\n\nPackage: darkeye\nArchitecture: amd64\nDescription: Darkeye desktop application\n")
-            result = subprocess.run([shlibdeps, "--ignore-missing-info", "-O", f"-l{destination / 'lib'}",
-                                     *[f"-e{p}" for p in elf_files]], cwd=root, env=env,
-                                    capture_output=True, text=True)
-            if result.returncode:
-                raise RuntimeError(f"Debian dependency analysis failed:\n{result.stderr}")
-            dependencies = result.stdout.strip().removeprefix("shlibs:Depends=")
-            if not dependencies or "shlibs:" in dependencies:
-                raise RuntimeError(f"Cannot determine Debian runtime dependencies: {result.stdout}")
-            dependencies += ", unzip, libsecret-1-0, libxcb-cursor0, fonts-noto-cjk"
-            (root / "DEBIAN/control").write_text(
-                f"Package: darkeye\nVersion: {version}\nArchitecture: amd64\n"
-                "Maintainer: Darkeye <support@darkeye.win>\nSection: utils\nPriority: optional\n"
-                f"Depends: {dependencies}\nInstalled-Size: {sum(p.stat().st_size for p in destination.rglob('*') if p.is_file()) // 1024}\n"
-                "Description: Darkeye desktop application\n", encoding="utf-8")
-            shutil.rmtree(control_source.parent)
-            launcher = root / "usr/bin/darkeye"
-            launcher.parent.mkdir(parents=True)
-            launcher.write_text('#!/bin/sh\nexec /opt/darkeye/bin/Darkeye "$@"\n', encoding="utf-8")
-            launcher.chmod(0o755)
-            desktop = root / "usr/share/applications/darkeye.desktop"
-            desktop.parent.mkdir(parents=True)
-            desktop.write_text("[Desktop Entry]\nType=Application\nName=Darkeye\nExec=darkeye\nIcon=darkeye\nTerminal=false\nCategories=Utility;\n", encoding="utf-8")
-            icon = root / "usr/share/icons/hicolor/scalable/apps/darkeye.svg"
-            icon.parent.mkdir(parents=True)
-            shutil.copy2(PROJECT_ROOT / "resources/icons/logo.svg", icon)
-        run([dpkg, "--build", "--root-owner-group", str(root), str(installer)], env, args.dry_run)
-        outputs.append(installer)
-    return outputs
-
 
 def write_update_package(destination, archive, system, arch, version, dry_run=False):
     """A common program-only tar.zst for both standard and portable installs."""
     archive = safe_output(archive)
+    if (system, arch) not in (("windows", "x64"), ("macos", "arm64")):
+        raise RuntimeError(f"Unsupported update target: {system}-{arch}")
     target = f"{system}-{arch}"
     manifest_path = safe_output(archive.with_name("latest.json"))
     if dry_run:
@@ -600,10 +518,7 @@ def package_project(args):
         if not args.dry_run:
             destination.mkdir(parents=True)
         run([cmake, "--install", str(build_dir), "--config", "Release", "--prefix", str(destination)], env, args.dry_run)
-        if system == "macos":
-            outputs = package_macos(args, destination, portable, base, version, cmake, env)
-        else:
-            outputs = package_linux(args, destination, portable, base, version, env)
+        outputs = package_macos(args, destination, portable, base, version, cmake, env)
     version = project_version()
     base = safe_output((args.destination or PROJECT_ROOT / "out" / f"Darkeye-{version}-{system}-{arch}").absolute())
     destination = base.with_name(base.name + "-install")

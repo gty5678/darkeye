@@ -42,7 +42,6 @@
 | --- | --- |
 | Windows | `%LOCALAPPDATA%\Darkeye\Darkeye` |
 | macOS | `~/Library/Application Support/Darkeye/Darkeye` |
-| Linux | `~/.local/share/Darkeye/Darkeye`；设置了 `XDG_DATA_HOME` 时位于该目录下的 `Darkeye/Darkeye` |
 
 这些目录属于当前系统用户，移动程序文件不会改变数据的位置。
 
@@ -52,7 +51,6 @@
 | --- | --- | --- | --- |
 | Windows | `DarkEye/app-<版本>/portable.ini` | `DataDirectory=../data` | `DarkEye/data/` |
 | macOS | `DarkEye/portable.ini`，与 `Darkeye.app` 同级 | `DataDirectory=data` | `DarkEye/data/` |
-| Linux | `DarkEye/app-<版本>/bin/portable.ini` | `DataDirectory=../../data` | `DarkEye/data/` |
 
 配置写在 `[Portable]` 分组中。相对路径以 **`portable.ini` 所在目录**为基准，不以启动时的工作目录为基准。macOS 的数据位于 `.app` 外；便携包需要放在可写目录中运行。
 
@@ -97,7 +95,7 @@
 
 完整备份建议在退出程序后复制整个数据目录，并额外备份路径配置指向的外部数据库和图片目录。SQLite 使用 WAL 模式，运行中可能存在 `.db-wal`、`.db-shm` 文件，不应在程序写入时只复制主 `.db`；也可以使用“设置 → 数据库”中的备份功能生成数据库快照。精简数据库备份不包含图片，也不包含全部设置。
 
-便携版升级时保留 `data/` 和已有 `portable.ini`，只替换程序部分；不要同时运行多个版本访问同一套数据。更多布局与升级说明见[三平台编译与打包](cross-platform-packaging.md)。
+便携版升级时保留 `data/` 和已有 `portable.ini`，只替换程序部分；不要同时运行多个版本访问同一套数据。更多布局与升级说明见[双平台编译与打包](cross-platform-packaging.md)。
 
 ## 数据与隐私（Data & Privacy）
 

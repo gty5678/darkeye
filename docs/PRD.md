@@ -113,7 +113,7 @@
 
 | 维度 | 要求 |
 |-----|------|
-| 操作系统 | Windows（主要），兼顾 macOS / Linux |
+| 操作系统 | Windows x64（主要）、macOS ARM64 |
 | Python | 3.12 |
 | 打包 | PyInstaller / Nuitka 绿色可移动包 |
 

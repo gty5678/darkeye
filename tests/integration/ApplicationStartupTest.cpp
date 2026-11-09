@@ -9,6 +9,7 @@
 #include "ui/dialogs/TermsDialog.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QSettings>
 #include <QSplashScreen>
@@ -98,6 +99,12 @@ int main(int argc, char **argv)
             }
             if (auto *window = dynamic_cast<darkeye::MainWindow *>(widget);
                 window && window->isVisible() && !mainWindowSeen) {
+                // Prewarm pumps events before Application::run enters exec().
+                // Do not finish the test while startup still owns the splash.
+                bool starting = false;
+                for (QWidget *top : QApplication::topLevelWidgets())
+                    starting |= top->objectName() == QStringLiteral("startupSplash");
+                if (starting) return;
                 mainWindowSeen = true;
                 // Check after startup's finish() has returned and the first
                 // background services have had a chance to execute.
@@ -119,7 +126,10 @@ int main(int argc, char **argv)
                             || scene->itemCount() != 1 || scene->visibleItemCount() != 1;
                         const auto submitted = renderer->statistics().submittedFrames;
                         emit sidebar->itemClicked(QStringLiteral("shelf"));
-                        QTest::qWait(100);
+                        QElapsedTimer frameWait;
+                        frameWait.start();
+                        while (renderer->statistics().submittedFrames <= submitted && frameWait.elapsed() < 3000)
+                            QTest::qWait(20);
                         failed |= !scene->isVisible()
                             || renderer->statistics().submittedFrames <= submitted
                             || renderer->statistics().resourceGenerations != generation;
@@ -130,7 +140,12 @@ int main(int argc, char **argv)
         }
     });
     observer.start();
-    QTimer::singleShot(20000, qApp, [&] { failed = true; QCoreApplication::exit(5); });
+    QTimer::singleShot(20000, qApp, [&] {
+        qWarning() << "Startup test timed out; consent/main window/splash closed:"
+                   << consentSeen << mainWindowSeen << splashClosed;
+        failed = true;
+        QCoreApplication::exit(5);
+    });
     const int result = application.run();
     if (result != 0 || failed || !consentSeen) return 6;
     if (accept) {

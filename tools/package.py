@@ -40,6 +40,28 @@ EXCLUDED_RUNTIME_FILES = (
 EXCLUDED_RUNTIME_DIRECTORIES = ("plugins/qmltooling",)
 
 
+def create_macos_dmg(command, env, dry_run=False):
+    """Retry transient DiskImages contention without hiding other failures."""
+    if dry_run:
+        run(command, env, True)
+        return
+    for attempt in range(1, 4):
+        print("+ " + subprocess.list2cmdline(command), flush=True)
+        result = subprocess.run(command, cwd=PROJECT_ROOT, env=env,
+                                capture_output=True, text=True)
+        if result.stdout:
+            print(result.stdout, end="", flush=True)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr, flush=True)
+        if result.returncode == 0:
+            return
+        if "resource busy" not in (result.stdout + result.stderr).lower() or attempt == 3:
+            result.check_returncode()
+        delay = attempt * 3
+        print(f"hdiutil Resource busy; retry {attempt + 1}/3 in {delay}s", flush=True)
+        time.sleep(delay)
+
+
 def project_version():
     """Read the same project version used by the application's DARKEYE_VERSION."""
     source = (PROJECT_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
@@ -386,7 +408,7 @@ def package_macos(args, destination, portable, base, version, cmake, env):
             run([ditto, str(app), str(root / "Darkeye.app")], env, args.dry_run)
             if not args.dry_run:
                 (root / "Applications").symlink_to("/Applications", target_is_directory=True)
-            run([hdiutil, "create", "-volname", "Darkeye", "-srcfolder", str(root),
+            create_macos_dmg([hdiutil, "create", "-volname", "Darkeye", "-srcfolder", str(root),
                  "-format", "UDZO", "-ov", str(installer)], env, args.dry_run)
         run([hdiutil, "verify", str(installer)], env, args.dry_run)
         outputs.append(installer)

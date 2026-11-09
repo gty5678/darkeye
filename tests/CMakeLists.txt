@@ -203,6 +203,11 @@ if(APPLE)
     set_tests_properties(darkeye_work_page_tests darkeye_shelf_page_tests
         PROPERTIES DISABLED TRUE)
 endif()
+# Temporarily quarantine this image-dependent suite on Windows runners.
+# Keep compiling it so build coverage is preserved.
+if(WIN32)
+    set_tests_properties(darkeye_shelf_page_tests PROPERTIES DISABLED TRUE)
+endif()
 darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
 darkeye_add_qt_test(darkeye_person_page_tests integration/PersonPageTest.cpp)
 

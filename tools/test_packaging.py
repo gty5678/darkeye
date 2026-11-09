@@ -15,6 +15,36 @@ import package
 
 
 class PackagingTest(unittest.TestCase):
+    def test_dmg_retries_resource_busy_then_succeeds(self):
+        command = ["hdiutil", "create", "-ov", "output.dmg"]
+        busy = package.subprocess.CompletedProcess(command, 1, "", "hdiutil: create failed - Resource busy\n")
+        success = package.subprocess.CompletedProcess(command, 0, "created\n", "")
+        with patch.object(package.subprocess, "run", side_effect=[busy, success]) as run, \
+             patch.object(package.time, "sleep") as sleep:
+            package.create_macos_dmg(command, {})
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_called_once_with(3)
+
+    def test_dmg_does_not_retry_other_errors(self):
+        command = ["hdiutil", "create"]
+        failure = package.subprocess.CompletedProcess(command, 1, "", "Permission denied")
+        with patch.object(package.subprocess, "run", return_value=failure) as run, \
+             patch.object(package.time, "sleep") as sleep:
+            with self.assertRaises(package.subprocess.CalledProcessError):
+                package.create_macos_dmg(command, {})
+        self.assertEqual(run.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_dmg_busy_retries_are_bounded(self):
+        command = ["hdiutil", "create"]
+        busy = package.subprocess.CompletedProcess(command, 1, "", "Resource busy")
+        with patch.object(package.subprocess, "run", return_value=busy) as run, \
+             patch.object(package.time, "sleep") as sleep:
+            with self.assertRaises(package.subprocess.CalledProcessError):
+                package.create_macos_dmg(command, {})
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
     def setUp(self):
         output = package.PROJECT_ROOT / "out"
         output.mkdir(exist_ok=True)

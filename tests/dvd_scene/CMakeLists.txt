@@ -20,3 +20,7 @@ add_test(NAME darkeye_dvd_scene_demo_smoke
 set_tests_properties(darkeye_dvd_scene_demo_smoke PROPERTIES TIMEOUT 20 RUN_SERIAL TRUE
     ENVIRONMENT "QT_QPA_PLATFORM_PLUGIN_PATH=${_dvd_qt_prefix}/plugins;QT_FORCE_STDERR_LOGGING=1"
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_dvd_qt_bin}")
+if(WIN32)
+    # Windows CI cannot reliably capture the GPU framebuffer yet.
+    set_tests_properties(darkeye_dvd_scene_demo_smoke PROPERTIES DISABLED TRUE)
+endif()

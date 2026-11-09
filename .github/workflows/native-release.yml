@@ -36,13 +36,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install compatible macOS CMake
+      - name: Install compatible macOS build tools
         if: runner.os == 'macOS'
         # The pinned vcpkg ports still require policy compatibility removed in CMake 4.
         run: |
-          python -m pip install cmake==3.30.5
+          python -m pip install cmake==3.30.5 ninja==1.11.1.4
           cmake --version
           ninja --version
+          xcrun --find clang++
       - name: Install Linux build and desktop dependencies
         if: runner.os == 'Linux'
         run: |
@@ -73,10 +74,29 @@ jobs:
         shell: pwsh
         run: |
           git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP/darkeye-vcpkg"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $manifest = Get-Content vcpkg.json | ConvertFrom-Json
           git -C "$env:RUNNER_TEMP/darkeye-vcpkg" checkout $manifest.'builtin-baseline'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "VCPKG_ROOT=$env:RUNNER_TEMP/darkeye-vcpkg" >> $env:GITHUB_ENV
           "Qt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6" >> $env:GITHUB_ENV
+      # Bootstrap explicitly so download/hash/permission errors appear in the job
+      # output rather than being hidden by CMake's toolchain initialization.
+      - name: Bootstrap vcpkg (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics 2>&1 | tee "$RUNNER_TEMP/vcpkg-bootstrap.log"
+          "$VCPKG_ROOT/vcpkg" version
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/vcpkg-bootstrap.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:VCPKG_ROOT/vcpkg.exe" version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install packaging dependencies
         run: python -m pip install -r tools/requirements-packaging.txt
       - name: Test release tooling
@@ -113,6 +133,8 @@ jobs:
             build/${{ matrix.preset }}/Testing/
             build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
             build/${{ matrix.preset }}/vcpkg-manifest-install.log
+            build/${{ matrix.preset }}/vcpkg-bootstrap.log
             build/${{ matrix.preset }}/vcpkg_installed/vcpkg/issue_body.md
+            ${{ runner.temp }}/vcpkg-bootstrap.log
             ${{ runner.temp }}/darkeye-vcpkg/buildtrees/**/*.log
           if-no-files-found: ignore

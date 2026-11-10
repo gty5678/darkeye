@@ -6,3 +6,7 @@ endif()
 if(DARKEYE_BUILD_RENDER3D_DEMO OR DARKEYE_BUILD_TESTS)
     add_subdirectory(render3d_demo)
 endif()
+
+if(DARKEYE_BUILD_COVER_MAKER_DEMO OR DARKEYE_BUILD_TESTS)
+    add_subdirectory(cover_maker_demo)
+endif()

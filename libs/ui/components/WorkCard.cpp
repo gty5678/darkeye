@@ -60,7 +60,7 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     auto *serial = new ClickableLabel(work.serialNumber, false, this);
     serial->setObjectName(QStringLiteral("WorkCardSerialNumber"));
     serial->setStyleSheet(QStringLiteral(
-        "font-size: 16px; font-family: 'Microsoft YaHei'; font-weight: bold;"));
+        "font-size: 16px; font-family: 'Microsoft YaHei'; font-weight: normal;"));
     serial->ensurePolished();
     serial->setAlignment(Qt::AlignCenter);
     if (largeCoverView) {
@@ -98,7 +98,7 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     auto *title = new DesignLabel(displayedTitle, this);
     m_title = title;
     title->setStyleSheet(QStringLiteral(
-        "font-size: 14px; font-family: 'Microsoft YaHei'; font-weight: bold;"));
+        "font-size: 14px; font-family: 'Microsoft YaHei'; font-weight: normal;"));
     title->ensurePolished();
     title->setAlignment(Qt::AlignCenter);
     title->setWordWrap(true);

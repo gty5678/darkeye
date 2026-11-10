@@ -397,13 +397,15 @@ QProgressBar#DesignProgressBar::chunk {
     border-radius: 5px;
 }
 
-QPushButton#DesignStateToggleButton {
+QPushButton#DesignStateToggleButton,
+QPushButton#ShelfRelationGraphSettingsButton {
     background-color: transparent;
     border: none;
     border-radius: 6px;
     padding: 0;
 }
-QPushButton#DesignStateToggleButton:hover { background-color: @INPUT_BACKGROUND@; }
+QPushButton#DesignStateToggleButton:hover,
+QPushButton#ShelfRelationGraphSettingsButton:hover { background-color: @INPUT_BACKGROUND@; }
 
 QPushButton#DesignChip {
     color: @TEXT@;
@@ -626,6 +628,9 @@ QScrollArea#ForceViewSettingsPanel {
     background-color: @BACKGROUND@;
     border: 1px solid @BORDER@;
     border-radius: 8px;
+}
+QWidget#ShelfRelationGraphOverlay QScrollArea#ForceViewSettingsPanel {
+    border: none;
 }
 QScrollArea#ForceViewSettingsPanel::viewport,
 QScrollArea#ForceViewSettingsPanel > QWidget,

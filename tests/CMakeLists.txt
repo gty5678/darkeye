@@ -295,3 +295,9 @@ target_compile_definitions(darkeye_serial_number_tests PRIVATE
 
 darkeye_add_qt_test(darkeye_nfo_import_tests integration/NfoImportTest.cpp)
 target_link_libraries(darkeye_nfo_import_tests PRIVATE darkeye::ui)
+
+qt_add_executable(darkeye_cover_maker_tests unit/CoverMakerTest.cpp)
+target_link_libraries(darkeye_cover_maker_tests PRIVATE darkeye::cover_maker Qt6::Test)
+darkeye_apply_compiler_options(darkeye_cover_maker_tests)
+add_test(NAME darkeye_cover_maker_tests COMMAND darkeye_cover_maker_tests)
+set_tests_properties(darkeye_cover_maker_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

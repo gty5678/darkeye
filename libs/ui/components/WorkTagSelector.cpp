@@ -89,6 +89,14 @@ class TagCard final : public QGraphicsObject
         QColor bg = m_title ? QColor(t.text) : m_color;
         if (!bg.isValid())
             bg = QColor(t.pageBackground);
+        else if (!m_title)
+        {
+            // Soften tag colors without changing their stored category colors.
+            constexpr qreal whiteMix = 0.4;
+            bg.setRgbF(bg.redF() * (1 - whiteMix) + whiteMix,
+                       bg.greenF() * (1 - whiteMix) + whiteMix,
+                       bg.blueF() * (1 - whiteMix) + whiteMix, bg.alphaF());
+        }
         QColor fg = readable(bg),
                border = m_title ? QColor(t.border) : QColor(Qt::transparent);
         if (m_invert)
@@ -96,7 +104,7 @@ class TagCard final : public QGraphicsObject
         else if (m_hover && !m_title)
         {
             bg = bg.lighter(110);
-            fg = readable(m_color) == QColor(Qt::black) ? QColor("#646464") : QColor("#C5C5C5");
+            fg = readable(bg);
             border = Qt::red;
         }
         QRectF r = boundingRect();

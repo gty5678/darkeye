@@ -1,4 +1,5 @@
 add_subdirectory(core)
+add_subdirectory(cover_maker)
 add_subdirectory(settings)
 add_subdirectory(database)
 add_subdirectory(services)

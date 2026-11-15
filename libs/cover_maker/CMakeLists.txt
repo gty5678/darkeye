@@ -5,11 +5,12 @@ qt_add_library(darkeye_cover_maker STATIC
     include/cover_maker/SleeveEditor.h
     src/SleeveDocument.cpp
     src/SleeveEditor.cpp
+    include/cover_maker/UpscaleClient.h
+    src/UpscaleClient.cpp
     src/CoverDocument.cpp
-    src/ImageCropDialog.h
     src/CoverEditor.cpp
 )
 add_library(darkeye::cover_maker ALIAS darkeye_cover_maker)
 target_include_directories(darkeye_cover_maker PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(darkeye_cover_maker PUBLIC Qt6::Widgets)
+target_link_libraries(darkeye_cover_maker PUBLIC Qt6::Widgets Qt6::Network)
 darkeye_apply_compiler_options(darkeye_cover_maker)

@@ -2,6 +2,7 @@
 #include "darkeye_ui/theme/StylesheetLoader.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignInput.h"
+#include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/ColorPicker.h"
 #include "darkeye_ui/components/ColorWheel.h"
@@ -113,7 +114,11 @@ void ThemeServiceTest::renamedComponentsKeepStyle()
         darkeye::DesignPlainTextEdit plain;
         darkeye::DesignComboBox combo;
         combo.addItem(QStringLiteral("Item"));
-        const QList<QWidget *> widgets{&button, &input, &text, &plain, &combo};
+        darkeye::DesignLabel label(QStringLiteral("Description"), QStringLiteral("muted"));
+        label.ensurePolished();
+        QCOMPARE(label.palette().color(QPalette::WindowText),
+                 QColor(service.currentTokens().textPlaceholder));
+        const QList<QWidget *> widgets{&button, &input, &text, &plain, &combo, &label};
         for (QWidget *widget : widgets) {
             widget->resize(180, 50);
             widget->setAttribute(Qt::WA_DontShowOnScreen);

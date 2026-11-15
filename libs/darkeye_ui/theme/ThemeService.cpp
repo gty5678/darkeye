@@ -167,6 +167,8 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
         {"@ICON@", values.icon},
         {"@ICON_DISABLED@", values.iconDisabled},
         {"@FONT_SIZE_MIDDLE@", values.fontSizeMiddle},
+        {"@FONT_SIZE_BASE@", values.fontSizeBase},
+        {"@RADIUS_MD@", values.radiusMd},
         {"@FONT_FAMILY_BASE@", values.fontFamilyBase},
         {"@BORDER_WIDTH@", values.borderWidth},
     };
@@ -176,7 +178,7 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
     // Business widgets may change objectName for lookup/testing. Keep the original
     // ID selectors (and their priority), and add stable component selectors.
     const QRegularExpression componentId(QStringLiteral(
-        "#(DesignButton|DesignInput|DesignTextEdit|DesignPlainTextEdit|DesignComboBox)(?![A-Za-z0-9_])"));
+        "#(DesignButton|DesignInput|DesignTextEdit|DesignPlainTextEdit|DesignComboBox|DesignLabel)(?![A-Za-z0-9_])"));
     QStringList rules = styleSheet.split(QLatin1Char('}'));
     for (QString &rule : rules) {
         const qsizetype brace = rule.indexOf(QLatin1Char('{'));

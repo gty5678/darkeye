@@ -162,7 +162,17 @@ struct DvdSceneWidget::Impl {
                 it=cases.erase(it);
             } else ++it;
         }
-        for(const auto &id:desired) {
+        // Submit the selected and nearest cases first. QSet iteration is arbitrary
+        // and used to let off-screen prefetches occupy the first decode workers.
+        auto ordered=desired.values();
+        const auto selected=interaction.selectedId();
+        std::sort(ordered.begin(),ordered.end(),[&](const QString &a,const QString &b) {
+            if(a==selected || b==selected) return a==selected && b!=selected;
+            const float da=std::abs(shelf.indexOf(a)*DvdShelfController::spacing-camera.target.x());
+            const float db=std::abs(shelf.indexOf(b)*DvdShelfController::spacing-camera.target.x());
+            return da==db?shelf.indexOf(a)<shelf.indexOf(b):da<db;
+        });
+        for(const auto &id:ordered) {
             const int index=shelf.indexOf(id);
             if(index<0) continue;
             const auto &item=shelf.items()[index];

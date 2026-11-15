@@ -1,8 +1,7 @@
 #pragma once
 #include "SleeveDocument.h"
 #include <QWidget>
-class QSpinBox;
-class QLabel;
+class QPushButton;
 namespace darkeye::cover_maker {
 class CoverEditor;
 class SleeveEditor : public QWidget {
@@ -10,16 +9,15 @@ class SleeveEditor : public QWidget {
 public:
     explicit SleeveEditor(QWidget *parent = nullptr);
     SleeveDocument document() const;
-    void setDocument(const SleeveDocument &document);
+    void setApplyVisible(bool visible);
+    void setDocument(const SleeveDocument &document, bool resetHistory = true);
 signals:
     void applyRequested(const QImage &image);
 private:
     SleeveDocument m_document;
-    std::array<CoverEditor *, 3> m_editors{};
-    std::array<QSpinBox *, 4> m_dimensions{};
-    QWidget *m_preview = nullptr;
-    QLabel *m_sizeLabel = nullptr;
+    CoverEditor *m_editor = nullptr;
     bool m_loading = false;
+    QPushButton *m_apply = nullptr;
     void refresh();
 };
 }

@@ -10,9 +10,12 @@ struct SleeveDocument {
     int spineWidth = 156;
     int frontWidth = 1519;
     int height = 2160;
-    std::array<CoverDocument, 3> panels;
+    std::array<CoverDocument, 3> panels; // Legacy partitioned documents.
+    bool unified = false;
+    CoverDocument composition;
     QSize outputSize() const { return {backWidth + spineWidth + frontWidth, height}; }
 };
+CoverDocument unifiedComposition(const SleeveDocument &document);
 bool validSleeve(const SleeveDocument &document);
 QRectF panelRect(const SleeveDocument &document, int index);
 void paintSleeve(QPainter &painter, const QRectF &target, const SleeveDocument &document);

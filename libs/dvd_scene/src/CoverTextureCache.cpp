@@ -6,6 +6,7 @@
 #include <QPointer>
 #include <QRunnable>
 #include <QResource>
+#include <QThread>
 #include <algorithm>
 
 static void initializeDvdDefaults()
@@ -18,7 +19,9 @@ namespace darkeye::dvd_scene {
 CoverTextureCache::CoverTextureCache(QObject *parent):QObject(parent)
 {
     initializeDvdDefaults();
-    m_pool.setMaxThreadCount(2);
+    // Match card loading concurrency on smaller machines, while bounding
+    // decoded RGBA buffers and GPU upload pressure on many-core systems.
+    m_pool.setMaxThreadCount(std::clamp(QThread::idealThreadCount(), 2, 8));
     auto texture=std::make_shared<render3d::TextureData>();
     texture->source=QStringLiteral("DVD placeholder");
     texture->mipmap=render3d::TextureData::Mipmap::Linear;
@@ -29,7 +32,7 @@ CoverTextureCache::CoverTextureCache(QObject *parent):QObject(parent)
 }
 CoverTextureCache::~CoverTextureCache()
 {
-    // Discard obsolete queued decodes before joining the (at most two) workers.
+    // Discard obsolete queued decodes before joining the bounded workers.
     // Keep this QObject alive until running tasks have posted their callbacks;
     // QObject destruction then removes those queued callbacks safely.
     m_pool.clear();

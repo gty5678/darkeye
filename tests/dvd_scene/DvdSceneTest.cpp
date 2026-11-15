@@ -1,3 +1,4 @@
+#include <QThread>
 #include "dvd_scene/DvdSceneWidget.h"
 #include "dvd_scene/DvdSceneAdapter.h"
 #include "dvd_scene/DvdShelfController.h"
@@ -484,7 +485,7 @@ private slots:
         const auto wanted = cache.request(temporary.filePath("wanted.png"));
         cache.retainRequests({wanted.key});
 
-        QVERIFY(cache.pendingCount() <= 3);
+        QVERIFY(cache.pendingCount() <= std::clamp(QThread::idealThreadCount(), 2, 8) + 1);
         QTRY_COMPARE(cache.pendingCount(), 0);
         QCOMPARE(ready.size(), 1);
         QCOMPARE(ready.first().first().toString(), wanted.key);

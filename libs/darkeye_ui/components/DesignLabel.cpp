@@ -9,6 +9,7 @@ namespace darkeye {
 DesignLabel::DesignLabel(const QString &text, QWidget *parent) : QLabel(text, parent)
 {
     setObjectName(QStringLiteral("DesignLabel"));
+    setProperty("darkeyeStyle", QStringLiteral("DesignLabel"));
     setAttribute(Qt::WA_TranslucentBackground);
 }
 

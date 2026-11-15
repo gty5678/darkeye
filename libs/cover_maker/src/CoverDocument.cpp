@@ -1,5 +1,7 @@
 #include "cover_maker/CoverDocument.h"
 #include <QPainter>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QGuiApplication>
 #include <QSaveFile>
 #include <QFontMetricsF>
@@ -8,6 +10,23 @@
 #include <cmath>
 
 namespace darkeye::cover_maker {
+QVector<LayerRef> orderedLayers(const CoverDocument &doc)
+{
+    QVector<LayerRef> result;
+    for(int i=0;i<doc.imageLayers.size();++i)result.append({false,i});
+    for(int i=0;i<doc.textLayers.size();++i)result.append({true,i});
+    std::stable_sort(result.begin(),result.end(),[&](auto a,auto b){
+        return (a.text?doc.textLayers[a.index].z:doc.imageLayers[a.index].z)<(b.text?doc.textLayers[b.index].z:doc.imageLayers[b.index].z);
+    });return result;
+}
+int nextLayerZ(const CoverDocument &doc)
+{
+    int z=0;for(auto ref:orderedLayers(doc))z=std::max(z,(ref.text?doc.textLayers[ref.index].z:doc.imageLayers[ref.index].z)+1);return z;
+}
+void normalizeLayerOrder(CoverDocument &doc)
+{
+    int z=0;for(auto ref:orderedLayers(doc)) {if(ref.text)doc.textLayers[ref.index].z=z++;else doc.imageLayers[ref.index].z=z++;}
+}
 QRectF imageLayerRect(const ImageLayer &layer, const QSize &size)
 {
     return {layer.frame.x() * size.width(), layer.frame.y() * size.height(),
@@ -49,7 +68,10 @@ QFont textLayerFont(const TextLayer &layer)
     QFont font = QGuiApplication::font();
     if (!layer.fontFamily.isEmpty()) font.setFamily(layer.fontFamily);
     font.setPixelSize(std::clamp(layer.fontSize, 6, 1000));
-    font.setBold(layer.bold); return font;
+    font.setBold(layer.bold);
+    if(!layer.vertical && layer.horizontalSpacing!=0)
+        font.setLetterSpacing(QFont::AbsoluteSpacing,std::clamp(layer.horizontalSpacing,-1000,1000));
+    return font;
 }
 namespace {
 QVector<QStringList> verticalColumns(const QString &text)
@@ -66,6 +88,11 @@ QVector<QStringList> verticalColumns(const QString &text)
     }
     return columns;
 }
+qreal verticalAdvance(const TextLayer &layer)
+{
+    // Upright characters use one em by default, without the font's horizontal line leading.
+    return std::max(1, std::clamp(layer.fontSize, 6, 1000) + std::clamp(layer.verticalSpacing, -1000, 1000));
+}
 QSizeF verticalCell(const TextLayer &layer)
 {
     const QFontMetricsF metrics(textLayerFont(layer));
@@ -74,25 +101,59 @@ QSizeF verticalCell(const TextLayer &layer)
         for (const auto &glyph : column) width = std::max(width, metrics.horizontalAdvance(glyph));
     return {width, metrics.lineSpacing()};
 }
+struct TextGeometry {
+    QPainterPath glyphs;
+    QPainterPath background;
+    QPainterPath visual;
+};
+TextGeometry textGeometry(const TextLayer &layer)
+{
+    TextGeometry result;
+    // Font contours can overlap at stroke joins. Odd-even fill punches holes there;
+    // non-zero winding preserves joins while keeping genuine counter-shapes (B, 8, 田).
+    result.glyphs.setFillRule(Qt::WindingFill);
+    result.background.setFillRule(Qt::WindingFill);
+    result.visual.setFillRule(Qt::WindingFill);
+    const auto font=textLayerFont(layer);const QFontMetricsF metrics(font);
+    if(layer.vertical) {
+        const auto columns=verticalColumns(layer.text);const auto cell=verticalCell(layer);
+        for(int column=0;column<columns.size();++column)for(int row=0;row<columns[column].size();++row) {
+            QPainterPath glyph;glyph.setFillRule(Qt::WindingFill);glyph.addText(0,0,font,columns[column][row]);
+            if(glyph.isEmpty())continue;
+            const auto center=glyph.boundingRect().center();
+            glyph.translate(-column*cell.width()-center.x(),row*verticalAdvance(layer)-center.y());
+            result.glyphs.addPath(glyph);
+        }
+    } else {
+        int row=0;for(const auto &line:layer.text.split(u'\n'))result.glyphs.addText(0,row++*metrics.lineSpacing(),font,line);
+    }
+    if(result.glyphs.isEmpty())return result;
+    result.visual=result.glyphs;
+    if(layer.stroke && layer.strokeColor.alpha()>0) {
+        QPainterPathStroker stroker;stroker.setWidth(std::clamp(layer.strokeWidth,1,100)*2);stroker.setJoinStyle(Qt::RoundJoin);
+        result.visual.addPath(stroker.createStroke(result.glyphs));
+    }
+    if(layer.shadow && layer.shadowColor.alpha()>0)result.visual.addPath(result.glyphs.translated(layer.shadowOffset));
+    if(layer.background && layer.textBackground.alpha()>0) {
+        result.background.addRect(result.glyphs.boundingRect().adjusted(-6,-6,6,6));result.visual.addPath(result.background);
+    }
+    // Normalize the actual visible outline, not the font's line box or advance width.
+    const auto center=result.visual.boundingRect().center();
+    result.glyphs.translate(-center);result.background.translate(-center);result.visual.translate(-center);
+    return result;
 }
+}
+QPainterPath textLayerShape(const TextLayer &layer) {return textGeometry(layer).visual;}
 QRectF textLayerRect(const TextLayer &layer)
 {
-    const QFontMetricsF metrics(textLayerFont(layer));
-    if (layer.vertical) {
-        const auto columns = verticalColumns(layer.text);
-        const auto cell = verticalCell(layer);
-        int rows = 1;
-        for (const auto &column : columns) rows = std::max(rows, int(column.size()));
-        const qreal width = columns.size() * cell.width(), height = rows * cell.height();
-        return {-width / 2, -height / 2, width, height};
-    }
-    const auto lines = layer.text.split(u'\n');
-    qreal width = 1;
-    for (const auto &line : lines) width = std::max(width, metrics.horizontalAdvance(line));
-    // A small margin also includes glyph overhangs in selection and hit testing.
-    width += metrics.height() * .2;
-    const qreal height = metrics.lineSpacing() * lines.size();
-    return {-width / 2, -height / 2, width, height};
+    const auto shape=textLayerShape(layer);
+    return shape.isEmpty()?QRectF(-.5,-.5,1,1):shape.boundingRect();
+}
+QRectF textLayerBounds(const TextLayer &layer,const QSize &size)
+{
+    const auto shape=textLayerShape(layer);
+    if(shape.isEmpty())return textLayerTransform(layer,size).mapRect(textLayerRect(layer));
+    return textLayerTransform(layer,size).map(shape).boundingRect();
 }
 QTransform textLayerTransform(const TextLayer &layer, const QSize &size)
 {
@@ -147,6 +208,18 @@ QRectF imageRect(const ImageSlot &slot, const QRectF &frame)
             frame.y() - (size.height() - frame.height()) * std::clamp(slot.position.y(), 0., 1.),
             size.width(), size.height()};
 }
+namespace {
+void paintTextLayer(QPainter &p,const CoverDocument &doc,const TextLayer &layer)
+{
+    if(!layer.visible || layer.text.isEmpty())return;
+    const auto geometry=textGeometry(layer);
+    p.save();p.setTransform(textLayerTransform(layer,doc.outputSize),true);
+    if(layer.background)p.fillPath(geometry.background,layer.textBackground);
+    if(layer.shadow)p.fillPath(geometry.glyphs.translated(layer.shadowOffset),layer.shadowColor);
+    if(layer.stroke)p.strokePath(geometry.glyphs,QPen(layer.strokeColor,std::clamp(layer.strokeWidth,1,100)*2,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
+    p.fillPath(geometry.glyphs,layer.color);p.restore();
+}
+}
 void paintCover(QPainter &p, const QRectF &target, const CoverDocument &doc)
 {
     if (target.isEmpty() || doc.outputSize.isEmpty()) return;
@@ -159,12 +232,16 @@ void paintCover(QPainter &p, const QRectF &target, const CoverDocument &doc)
     p.setRenderHint(QPainter::SmoothPixmapTransform);
     p.setRenderHint(QPainter::Antialiasing);
     p.fillRect(canvas, doc.backgroundColor);
-    if (doc.editableImageLayers) {
-        for (const auto &layer : doc.imageLayers) {
-            const auto source = imageLayerSource(layer);
-            if (!layer.image.isNull() && !source.isEmpty()) p.drawImage(imageLayerRect(layer, doc.outputSize), layer.image, source);
+    if(doc.editableImageLayers && doc.editableTextLayers) {
+        for(auto ref:orderedLayers(doc)) {
+            if(ref.text)paintTextLayer(p,doc,doc.textLayers[ref.index]);
+            else {const auto &layer=doc.imageLayers[ref.index];const auto source=imageLayerSource(layer);
+                if(layer.visible && !layer.image.isNull() && !source.isEmpty())p.drawImage(imageLayerRect(layer,doc.outputSize),layer.image,source);}
         }
     } else {
+        if(doc.editableImageLayers) {
+            for(const auto &layer:doc.imageLayers)if(layer.visible)p.drawImage(imageLayerRect(layer,doc.outputSize),layer.image,imageLayerSource(layer));
+        } else {
     for (int i = 0; i < 2; ++i) {
         const auto frame = slotRect(doc.layout, i, size);
         if (frame.isEmpty()) continue;
@@ -180,25 +257,8 @@ void paintCover(QPainter &p, const QRectF &target, const CoverDocument &doc)
         } else p.drawImage(imageRect(doc.imageSlots[i], frame), doc.imageSlots[i].image);
         p.restore();
     }
-    }
-    for (const auto &layer : resolvedTextLayers(doc)) {
-        if (layer.text.isEmpty()) continue;
-        p.save();
-        p.setTransform(textLayerTransform(layer, doc.outputSize), true);
-        p.setFont(textLayerFont(layer)); p.setPen(layer.color);
-        if (layer.vertical) {
-            const auto columns = verticalColumns(layer.text);
-            const auto cell = verticalCell(layer);
-            const auto bounds = textLayerRect(layer);
-            for (int column = 0; column < columns.size(); ++column) {
-                for (int row = 0; row < columns[column].size(); ++row) {
-                    const QRectF box(bounds.right() - (column + 1) * cell.width(), bounds.top() + row * cell.height(),
-                                     cell.width(), cell.height());
-                    p.drawText(box, Qt::AlignCenter | Qt::TextDontClip, columns[column][row]);
-                }
-            }
-        } else p.drawText(textLayerRect(layer), Qt::AlignLeft | Qt::AlignTop | Qt::TextDontClip, layer.text);
-        p.restore();
+        }
+        for(const auto &layer:resolvedTextLayers(doc))paintTextLayer(p,doc,layer);
     }
     p.restore();
 }

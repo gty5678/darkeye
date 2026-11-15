@@ -6,80 +6,82 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
-#include <QSignalBlocker>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QCheckBox>
 #include <QSpinBox>
-#include <QTabWidget>
 #include <QVBoxLayout>
-#include <functional>
 
 namespace darkeye::cover_maker {
-namespace {
-class SleevePreview final : public QWidget {
-public:
-    std::function<SleeveDocument()> document;
-    explicit SleevePreview(QWidget *parent) : QWidget(parent) { setMinimumHeight(180); setMaximumHeight(250); }
-    void paintEvent(QPaintEvent *) override {
-        const auto d = document();
-        if (!validSleeve(d)) return;
-        QPainter p(this); p.fillRect(rect(), QColor("#141b25"));
-        QSizeF size(d.outputSize()); size.scale(QSizeF(width() - 32, height() - 32), Qt::KeepAspectRatio);
-        const QRectF target(QPointF((width() - size.width()) / 2, (height() - size.height()) / 2), size);
-        paintSleeve(p, target, d);
-        p.setPen(QPen(QColor("#9cb6cf"), 1, Qt::DashLine));
-        for (const int x : {d.backWidth, d.backWidth + d.spineWidth}) {
-            const qreal at = target.left() + x * target.width() / d.outputSize().width();
-            p.drawLine(QPointF(at, target.top()), QPointF(at, target.bottom()));
-        }
-    }
-};
-}
 SleeveEditor::SleeveEditor(QWidget *parent) : QWidget(parent)
 {
     auto *root = new QVBoxLayout(this);
-    auto *explanation = new QLabel(QStringLiteral("完整封套：封底 → 书脊 → 封面。分别编辑三个区域，下方实时预览合成结果。尺寸单位为像素。"));
-    explanation->setWordWrap(true); root->addWidget(explanation);
-    auto *dimensions = new QHBoxLayout;
-    const QStringList names{QStringLiteral("封底宽"), QStringLiteral("书脊宽"), QStringLiteral("封面宽"), QStringLiteral("共同高度")};
-    for (int i = 0; i < 4; ++i) {
-        dimensions->addWidget(new QLabel(names[i]));
-        auto *spin = new QSpinBox; spin->setRange(1, 8192); spin->setSuffix(QStringLiteral(" px"));
-        spin->setKeyboardTracking(false); spin->setObjectName(QStringLiteral("sleeveDimension%1").arg(i));
-        m_dimensions[i] = spin; dimensions->addWidget(spin);
-        connect(spin, &QSpinBox::valueChanged, this, [this](int) {
-            if (m_loading) return;
-            auto d = document(); d.backWidth = m_dimensions[0]->value(); d.spineWidth = m_dimensions[1]->value();
-            d.frontWidth = m_dimensions[2]->value(); d.height = m_dimensions[3]->value();
-            if (!validSleeve(d)) {
-                m_sizeLabel->setText(QStringLiteral("总宽不能超过 8192 px，已恢复原尺寸。"));
-                const int old[] = {m_document.backWidth, m_document.spineWidth, m_document.frontWidth, m_document.height};
-                for (int j = 0; j < 4; ++j) { const QSignalBlocker blocker(m_dimensions[j]); m_dimensions[j]->setValue(old[j]); }
-                return;
-            }
-            setDocument(d);
-        });
-    }
-    root->addLayout(dimensions);
-    auto *modelRatio = new QPushButton(QStringLiteral("恢复当前 DVD 模型比例 · 1525 : 156 : 1519，高 2160"));
-    root->addWidget(modelRatio);
-    connect(modelRatio, &QPushButton::clicked, this, [this] {
-        auto d = document(); const SleeveDocument preset;
-        d.backWidth = preset.backWidth; d.spineWidth = preset.spineWidth;
-        d.frontWidth = preset.frontWidth; d.height = preset.height; setDocument(d);
-    });
-    auto *tabs = new QTabWidget; tabs->setObjectName(QStringLiteral("sleevePanels"));
-    const QStringList panelNames{QStringLiteral("1 · 封底"), QStringLiteral("2 · 书脊"), QStringLiteral("3 · 封面")};
-    for (int i = 0; i < 3; ++i) {
-        m_editors[i] = new CoverEditor(nullptr, true); tabs->addTab(m_editors[i], panelNames[i]);
-        connect(m_editors[i], &CoverEditor::compositionChanged, this, [this] { if (!m_loading) refresh(); });
-    }
-    root->addWidget(tabs, 1);
-    m_sizeLabel = new QLabel; root->addWidget(m_sizeLabel);
-    auto *preview = new SleevePreview(this); preview->document = [this] { return document(); };
-    m_preview = preview; root->addWidget(preview);
+    m_editor = new CoverEditor(nullptr, true); m_editor->setObjectName(QStringLiteral("sleeveComposition"));
+    root->addWidget(m_editor, 1);
+    connect(m_editor, &CoverEditor::compositionChanged, this, [this] { if (!m_loading) refresh(); });
     auto *actions = new QHBoxLayout;
-    auto *exportButton = new QPushButton(QStringLiteral("合成并导出完整封套 PNG…"));
-    auto *apply = new QPushButton(QStringLiteral("应用完整封套到当前条目"));
-    actions->addWidget(exportButton); actions->addWidget(apply); root->addLayout(actions);
+    auto *exportButton = new QPushButton(QStringLiteral("导出 PNG…"));
+    exportButton->setObjectName(QStringLiteral("sleeveExport"));
+    auto *apply = new QPushButton(QStringLiteral("应用"));
+    m_apply=apply;
+    apply->setObjectName(QStringLiteral("sleeveApply"));
+    auto *title = new QLabel(QStringLiteral("封套制作器"));
+    QFont titleFont = title->font(); titleFont.setPointSize(18); titleFont.setBold(true); title->setFont(titleFont);
+    actions->addWidget(title); actions->addStretch();
+    auto *guides = new QCheckBox(QStringLiteral("显示参考线与区域名"));
+    guides->setObjectName(QStringLiteral("showSleeveGuides"));
+    guides->setChecked(true);
+    connect(guides, &QCheckBox::toggled, m_editor, &CoverEditor::setGuidesVisible);
+    actions->addWidget(guides);
+    auto *background = new QPushButton(QStringLiteral("画布底色…"));
+    background->setObjectName(QStringLiteral("sleeveBackground"));actions->addWidget(background);
+    connect(background,&QPushButton::clicked,m_editor,&CoverEditor::chooseBackgroundColor);
+    auto *settings = new QPushButton(QStringLiteral("画布设置…"));
+    settings->setObjectName(QStringLiteral("sleeveSettings"));
+    actions->addWidget(settings);
+    connect(settings, &QPushButton::clicked, this, [this] {
+        QDialog dialog(this); dialog.setObjectName(QStringLiteral("sleeveSettingsDialog"));
+        dialog.setWindowTitle(QStringLiteral("画布设置"));
+        auto *layout = new QVBoxLayout(&dialog);
+        auto *form = new QFormLayout; layout->addLayout(form);
+        const auto current = document();
+        const int values[] = {current.backWidth,current.spineWidth,current.frontWidth,current.height};
+        const QStringList names{QStringLiteral("封底宽度"),QStringLiteral("书脊宽度"),QStringLiteral("封面宽度"),QStringLiteral("共同高度")};
+        std::array<QSpinBox *,4> dimensions{};
+        for(int i=0;i<4;++i) {
+            auto *spin = new QSpinBox; spin->setRange(1,8192); spin->setSuffix(QStringLiteral(" px"));
+            spin->setKeyboardTracking(false);spin->setValue(values[i]);
+            spin->setObjectName(QStringLiteral("sleeveDimension%1").arg(i));dimensions[i]=spin;
+            form->addRow(names[i],spin);
+        }
+        auto *summary = new QLabel; summary->setWordWrap(true); layout->addWidget(summary);
+        auto *restore = new QPushButton(QStringLiteral("恢复 DVD 默认比例"));
+        restore->setObjectName(QStringLiteral("restoreSleeveDimensions"));layout->addWidget(restore);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
+        layout->addWidget(buttons);
+        const auto update = [dimensions,summary,buttons] {
+            const int width = dimensions[0]->value()+dimensions[1]->value()+dimensions[2]->value();
+            const bool valid = width<=8192;
+            buttons->button(QDialogButtonBox::Ok)->setEnabled(valid);
+            summary->setText(valid
+                ? QStringLiteral("完整封套：%1 × %2 px\n宽度比例：%3 : %4 : %5").arg(width).arg(dimensions[3]->value())
+                    .arg(dimensions[0]->value()).arg(dimensions[1]->value()).arg(dimensions[2]->value())
+                : QStringLiteral("总宽不能超过 8192 px，请减小分区宽度。"));
+        };
+        for(auto *spin:dimensions)connect(spin,&QSpinBox::valueChanged,&dialog,[update](int){update();});
+        connect(restore,&QPushButton::clicked,&dialog,[dimensions]{
+            const SleeveDocument preset; const int defaults[]={preset.backWidth,preset.spineWidth,preset.frontWidth,preset.height};
+            for(int i=0;i<4;++i)dimensions[i]->setValue(defaults[i]);
+        });
+        connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);
+        connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
+        update();dialog.resize(380,300);
+        if(dialog.exec()!=QDialog::Accepted)return;
+        auto d = document();d.backWidth=dimensions[0]->value();d.spineWidth=dimensions[1]->value();
+        d.frontWidth=dimensions[2]->value();d.height=dimensions[3]->value();setDocument(d,false);
+    });
+    actions->addWidget(exportButton); actions->addWidget(apply); root->insertLayout(0, actions);
     connect(exportButton, &QPushButton::clicked, this, [this] {
         auto path = QFileDialog::getSaveFileName(this, QStringLiteral("导出完整封套"), QStringLiteral("sleeve.png"), QStringLiteral("PNG (*.png)"));
         if (path.isEmpty()) return;
@@ -92,42 +94,36 @@ SleeveEditor::SleeveEditor(QWidget *parent) : QWidget(parent)
         if (image.isNull()) QMessageBox::warning(this, QStringLiteral("合成失败"), QStringLiteral("请检查尺寸或可用内存。"));
         else emit applyRequested(image);
     });
-    setDocument(m_document); tabs->setCurrentIndex(2);
+    setDocument(m_document);
 }
+void SleeveEditor::setApplyVisible(bool visible) {m_apply->setVisible(visible);}
 SleeveDocument SleeveEditor::document() const
 {
     auto d = m_document;
-    for (int i = 0; i < 3; ++i) if (m_editors[i]) d.panels[i] = m_editors[i]->document();
+    d.unified = true;
+    if (m_editor) {
+        d.composition = m_editor->document();const auto widths=d.composition.sleeveWidths;
+        if(widths[0]>0 && widths[1]>0 && widths[2]>0 && widths[0]+widths[1]+widths[2]==d.composition.outputSize.width()) {
+            d.backWidth=widths[0];d.spineWidth=widths[1];d.frontWidth=widths[2];d.height=d.composition.outputSize.height();
+        }
+    }
     return d;
 }
-void SleeveEditor::setDocument(const SleeveDocument &d)
+void SleeveEditor::setDocument(const SleeveDocument &d, bool resetHistory)
 {
     if (!validSleeve(d)) return;
+    const auto composition = unifiedComposition(d);
     m_loading = true; m_document = d;
-    const int values[] = {d.backWidth, d.spineWidth, d.frontWidth, d.height};
-    for (int i = 0; i < 4; ++i) { const QSignalBlocker blocker(m_dimensions[i]); m_dimensions[i]->setValue(values[i]); }
-    for (int i = 0; i < 3; ++i) {
-        auto panel = d.panels[i];
-        const auto newSize = panelRect(d, i).size().toSize();
-        if (panel.editableImageLayers && panel.outputSize != newSize) {
-            for (auto &layer : panel.imageLayers) {
-                const auto source = imageLayerSource(layer);
-                if (source.isEmpty()) continue;
-                const auto center = layer.frame.center();
-                layer.frame.setHeight(layer.frame.width() * newSize.width() * source.height() / source.width() / newSize.height());
-                layer.frame.moveCenter(center);
-            }
-        }
-        panel.outputSize = newSize; panel.spineText = i == 1; panel.showImagePlaceholders = false;
-        m_editors[i]->setDocument(panel);
-    }
+    m_document.unified = true;
+    m_document.composition = composition;
+    m_document.composition.sleeveWidths={d.backWidth,d.spineWidth,d.frontWidth};
+    m_editor->setDocument(m_document.composition,resetHistory);
     m_loading = false; refresh();
 }
 void SleeveEditor::refresh()
 {
     const auto d = document();
-    m_sizeLabel->setText(QStringLiteral("合成预览（封底 | 书脊 | 封面） · %1 × %2 px · 宽度 %3 : %4 : %5 · 辅助线不导出")
-        .arg(d.outputSize().width()).arg(d.height).arg(d.backWidth).arg(d.spineWidth).arg(d.frontWidth));
-    m_preview->update();
+    m_editor->setGuideLines({qreal(d.backWidth)/d.outputSize().width(),
+        qreal(d.backWidth+d.spineWidth)/d.outputSize().width()});
 }
 }

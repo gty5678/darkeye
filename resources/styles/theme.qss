@@ -1,8 +1,8 @@
 QWidget {
     background-color: @PAGE_BACKGROUND@;
     color: @TEXT@;
-    font-family: "Microsoft YaHei";
-    font-size: 14px;
+    font-family: "@FONT_FAMILY_BASE@";
+    font-size: @FONT_SIZE_BASE@;
 }
 
 /* Keep long option lists anchored to the field and respect maxVisibleItems. */
@@ -43,7 +43,7 @@ QTextEdit#DesignTextEdit,
 QPlainTextEdit#DesignPlainTextEdit {
     background-color: @BACKGROUND@;
     border: 2px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px 8px;
     color: @TEXT@;
     selection-background-color: @PRIMARY@;
@@ -51,6 +51,7 @@ QPlainTextEdit#DesignPlainTextEdit {
 
 QComboBox#themeSelector:hover,
 QComboBox#DesignComboBox:hover,
+QComboBox#DesignComboBox:focus,
 QComboBox#ShelfScopeSelector:hover,
 QComboBox#ShelfSortSelector:hover,
 QComboBox#DesignMakerSelector:hover,
@@ -109,11 +110,12 @@ QPushButton#WorkSaveButton {
     background-color: @BACKGROUND@;
     color: @TEXT@;
     border: 2px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px 12px;
 }
 
 QPushButton#DesignButton:hover,
+QPushButton#DesignButton:focus,
 QPushButton#WorkRefreshButton:hover,
 QPushButton#WorkLoadButton:hover,
 QPushButton#WorkSaveButton:hover {
@@ -146,33 +148,33 @@ QPushButton#WorkSaveButton[variant="primary"] {
 
 /* AddWorkTabPage3 mirrors the Python editor's three explicit submit states. */
 QPushButton#WorkSaveButton[variant="add"] {
-    background-color: #4CAF50;
-    color: white;
+    background-color: @SUCCESS@;
+    color: @TEXT_INVERSE@;
     border: none;
-    border-radius: 5px;
-    padding: 6px;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
 }
 
 QPushButton#WorkSaveButton[variant="modify"],
 QPushButton#WorkLoadButton[variant="warning"] {
-    background-color: #FFA500;
-    color: white;
+    background-color: @WARNING@;
+    color: @TEXT_INVERSE@;
     border: none;
-    border-radius: 5px;
-    padding: 6px;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
 }
 
 QPushButton#WorkSaveButton[variant="disabled"] {
-    background-color: #999999;
-    color: #CCCCCC;
+    background-color: @INPUT_BACKGROUND@;
+    color: @TEXT_DISABLED@;
     border: none;
-    border-radius: 5px;
-    padding: 6px;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
 }
 
 QPushButton#WorkLoadButton[variant="disabled"] {
-    background-color: gray;
-    color: darkGray;
+    background-color: @INPUT_BACKGROUND@;
+    color: @TEXT_DISABLED@;
 }
 
 /* Changed fields in the AddWork editor use the same orange warning frame as
@@ -276,7 +278,7 @@ QCheckBox#DesignCheckBox::indicator:checked {
 QSpinBox#DesignSpinBox {
     background-color: @BACKGROUND@;
     border: 2px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px 8px;
     padding-right: 24px;
     color: @TEXT@;
@@ -328,7 +330,7 @@ QSpinBox#DesignSpinBox::down-arrow {
 
 QGroupBox#DesignGroupBox {
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     margin-top: 10px;
     padding-top: 8px;
 }
@@ -340,7 +342,7 @@ QGroupBox#DesignGroupBox::title {
 
 QTabWidget#DesignTabWidget::pane {
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     background-color: @BACKGROUND@;
 }
 QTabWidget#StatisticsTabs::pane {
@@ -438,7 +440,7 @@ QPushButton#DesignEmptyStateAction {
     color: @TEXT_INVERSE@;
     background-color: @PRIMARY@;
     border: 1px solid @PRIMARY@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 6px 14px;
 }
 
@@ -501,7 +503,7 @@ QListWidget#DesignListWidget[personSelectorList="true"] {
     background-color: @BACKGROUND@;
     color: @TEXT@;
     border: 2px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px;
     selection-background-color: @PRIMARY@;
     outline: none;
@@ -543,7 +545,7 @@ QHeaderView::section {
 /* Match Python's path table, including its row numbers and cell editor. */
 QTableWidget#DesignTableWidget[pathManagement="true"] {
     border: 2px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
 }
 QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section {
     background-color: @PAGE_BACKGROUND@;
@@ -570,7 +572,7 @@ QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit {
     background-color: @BACKGROUND@;
     color: @TEXT@;
     border: 2px solid @BORDER_FOCUS@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px 6px;
     selection-background-color: @PRIMARY@;
 }
@@ -588,7 +590,7 @@ QLineEdit#DesignKeySequenceEditLineEdit {
     color: @TEXT@;
     background-color: @BACKGROUND@;
     border: 2px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px 8px;
 }
 QLineEdit#DesignKeySequenceEditLineEdit {
@@ -627,7 +629,7 @@ QWidget#DesignCollapsibleContent { background-color: transparent; }
 QScrollArea#ForceViewSettingsPanel {
     background-color: @BACKGROUND@;
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
 }
 QWidget#ShelfRelationGraphOverlay QScrollArea#ForceViewSettingsPanel {
     border: none;
@@ -662,7 +664,7 @@ QDialog#DesignModalDialog {
     color: @TEXT@;
     background-color: @BACKGROUND@;
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
 }
 QLabel#DesignModalTitle {
     color: @TEXT@;
@@ -673,7 +675,7 @@ QLabel#DesignModalMessage { color: @TEXT@; }
 QPushButton#DesignModalConfirm,
 QPushButton#DesignModalCancel {
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
     padding: 4px 12px;
 }
 QPushButton#DesignModalConfirm {
@@ -707,7 +709,7 @@ QWidget#DesignSidebarMenuButton[selected="true"] {
 QLabel#DesignSidebarMenuText {
     color: @TEXT@;
     background-color: transparent;
-    font-size: 14px;
+    font-size: @FONT_SIZE_BASE@;
 }
 
 /* Keep every scroll-menu surface on the same background. Plain layout widgets
@@ -752,7 +754,7 @@ QFrame#DesignLinkCard {
     color: @TEXT@;
     background-color: @BACKGROUND@;
     border: 1px solid @BORDER@;
-    border-radius: 8px;
+    border-radius: @RADIUS_MD@;
 }
 QFrame#DesignLinkCard:hover {
     background-color: @INPUT_BACKGROUND@;
@@ -862,4 +864,14 @@ QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical:hover {
 QScrollArea#DesignLazyScrollArea QScrollBar::add-line:vertical,
 QScrollArea#DesignLazyScrollArea QScrollBar::sub-line:vertical {
     height: 0;
+}
+
+/* Work cards share theme typography in both cover modes. */
+QLabel#WorkCardSerialNumber {
+    font-size: @FONT_SIZE_MIDDLE@;
+    font-weight: normal;
+}
+QLabel#WorkCardTitle {
+    font-size: @FONT_SIZE_BASE@;
+    font-weight: normal;
 }

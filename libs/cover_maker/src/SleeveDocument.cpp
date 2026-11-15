@@ -15,9 +15,39 @@ QRectF panelRect(const SleeveDocument &d, int i)
     const int widths[] = {d.backWidth, d.spineWidth, d.frontWidth};
     return {qreal(x[i]), 0, qreal(widths[i]), qreal(d.height)};
 }
+CoverDocument unifiedComposition(const SleeveDocument &d)
+{
+    if (d.unified) { auto composition = d.composition; composition.outputSize = d.outputSize(); return composition; }
+    CoverDocument composition; composition.outputSize = d.outputSize(); composition.editableImageLayers = true;
+    composition.editableTextLayers = true; composition.showImagePlaceholders = false;
+    if (!validSleeve(d)) return composition;
+    for (int i = 0; i < 3; ++i) {
+        auto panel = d.panels[i]; const auto region = panelRect(d,i);
+        panel.outputSize = region.size().toSize(); panel.spineText = i == 1;
+        enableImageLayers(panel); enableTextLayers(panel);
+        const auto mapFrame = [&](const QRectF &frame) {
+            return QRectF((region.x()+frame.x()*region.width())/d.outputSize().width(),frame.y(),
+                          frame.width()*region.width()/d.outputSize().width(),frame.height());
+        };
+        // Only keep separate colored backgrounds when the legacy colors differ.
+        if (panel.backgroundColor != d.panels[0].backgroundColor) {
+            QImage color(1,1,QImage::Format_ARGB32_Premultiplied); color.fill(panel.backgroundColor);
+            ImageLayer background; background.image=color; background.name=QStringLiteral("区域底色 %1").arg(i+1);
+            background.frame=mapFrame(QRectF(0,0,1,1)); composition.imageLayers.append(background);
+        }
+        for (auto layer : panel.imageLayers) { layer.frame=mapFrame(layer.frame); composition.imageLayers.append(layer); }
+        for (auto layer : panel.textLayers) {
+            layer.center.setX((region.x()+layer.center.x()*region.width())/d.outputSize().width());
+            composition.textLayers.append(layer);
+        }
+    }
+    composition.backgroundColor=d.panels[0].backgroundColor;
+    return composition;
+}
 void paintSleeve(QPainter &p, const QRectF &target, const SleeveDocument &d)
 {
     if (!validSleeve(d) || target.isEmpty()) return;
+    if (d.unified) { paintCover(p,target,unifiedComposition(d)); return; }
     p.save(); p.setClipRect(target, Qt::IntersectClip); p.translate(target.topLeft());
     p.scale(target.width() / d.outputSize().width(), target.height() / d.height);
     for (int i = 0; i < 3; ++i) {

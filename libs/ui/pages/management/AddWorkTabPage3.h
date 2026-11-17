@@ -52,7 +52,8 @@ public:
         QString fanartDirectory = {},
         QUrl imageFetchEndpoint = QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")),
         graph::GraphManager *graphManager = nullptr,
-        QWidget *parent = nullptr);
+        QWidget *parent = nullptr,
+        QString actressPortraitDirectory = {}, QString actorPortraitDirectory = {});
     ~AddWorkTabPage3() override;
 
     void beginCreate();
@@ -71,6 +72,8 @@ signals:
     void actressesCreated(const QList<qint64> &actressIds);
     void workLinkRequested(qint64 workId);
     void actressLinkRequested(qint64 actressId);
+    void personDetailRequested(PersonKind kind, qint64 personId);
+    void personEditRequested(PersonKind kind, qint64 personId);
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -117,6 +120,8 @@ private:
     ReferenceRepository m_references;
     PersonRepository m_people;
     ThemeService &m_themes;
+    QString m_actressPortraitDirectory;
+    QString m_actorPortraitDirectory;
     QString m_coverDirectory;
     QString m_fanartDirectory;
     QUrl m_imageFetchEndpoint;

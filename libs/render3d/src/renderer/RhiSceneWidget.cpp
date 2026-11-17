@@ -195,7 +195,9 @@ void RhiSceneWidget::setStatisticsVisible(bool visible)
 
 void RhiSceneWidget::showEvent(QShowEvent *event)
 {
+    ++m_visibilityGeneration;
     QRhiWidget::showEvent(event);
+    update(); // Rebuild GPU resources after an idle hidden page was trimmed.
     if(m_statisticsVisible && m_statisticsOverlay) {
         m_statisticsOverlay->position();
     }
@@ -208,6 +210,14 @@ void RhiSceneWidget::hideEvent(QHideEvent *event)
         m_statisticsOverlay->panel->hide();
     }
     QRhiWidget::hideEvent(event);
+    // Keep short page switches cheap, but do not retain a hidden scene's
+    // full-size HDR/MSAA/transmission targets indefinitely. CPU scene state
+    // survives; prepare() recreates resources on the next visible frame.
+    const auto generation = ++m_visibilityGeneration;
+    QTimer::singleShot(1000, this, [this, generation] {
+        if (generation == m_visibilityGeneration && !isVisible())
+            releaseResources();
+    });
 }
 
 bool RhiSceneWidget::event(QEvent *event)

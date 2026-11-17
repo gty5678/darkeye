@@ -15,6 +15,7 @@ struct IdLabelOption final
     qint64 id = 0;
     QString label;
     QString group;
+    QString imagePath;
 };
 
 class IdCheckList final : public QWidget

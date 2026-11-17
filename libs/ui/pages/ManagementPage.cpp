@@ -81,8 +81,10 @@ ManagementPage::ManagementPage(QSqlDatabase database, ThemeService &themes,
                                QString coverDirectory,
                                QString actressImageDirectory, QString fanartDirectory, QUrl imageFetchEndpoint,
                                QUrl topActressesEndpoint, graph::GraphManager *graphManager,
-                               QWidget *parent)
+                               QWidget *parent, QString actressPortraitDirectory, QString actorPortraitDirectory)
     : LazyWidget(parent), m_database(std::move(database)), m_privateDatabase(std::move(privateDatabase)), m_themes(themes),
+      m_actressPortraitDirectory(std::move(actressPortraitDirectory)),
+      m_actorPortraitDirectory(std::move(actorPortraitDirectory)),
       m_coverDirectory(std::move(coverDirectory)),
       m_actressImageDirectory(std::move(actressImageDirectory)),
       m_fanartDirectory(std::move(fanartDirectory)),
@@ -106,7 +108,8 @@ void ManagementPage::lazyLoad()
     // directly attached here and let its first showEvent perform lazy loading.
     m_workEditor = new AddWorkTabPage3(m_database, m_themes, m_crawlerScheduler,
                                        m_coverDirectory, m_fanartDirectory,
-                                       m_imageFetchEndpoint, m_graphManager, m_tabs);
+                                       m_imageFetchEndpoint, m_graphManager, m_tabs,
+                                       m_actressPortraitDirectory, m_actorPortraitDirectory);
     connect(m_workEditor, &AddWorkTabPage3::workSaved, this, [this](qint64 workId, bool)
     {
         if (m_softDelete != nullptr)
@@ -119,6 +122,10 @@ void ManagementPage::lazyLoad()
             &ManagementPage::workRequested);
     connect(m_workEditor, &AddWorkTabPage3::actressLinkRequested, this,
             &ManagementPage::actressRequested);
+    connect(m_workEditor, &AddWorkTabPage3::personDetailRequested, this,
+            &ManagementPage::personDetailRequested);
+    connect(m_workEditor, &AddWorkTabPage3::personEditRequested, this,
+            &ManagementPage::personEditRequested);
     connect(this, &ManagementPage::referencesChanged, m_workEditor,
             &AddWorkTabPage3::refreshReferences);
     connect(this, &ManagementPage::worksChanged, m_workEditor,

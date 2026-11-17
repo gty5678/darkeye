@@ -76,13 +76,7 @@ QString formatMemory(qint64 bytes)
     return QStringLiteral("%1 MiB").arg(bytes / 1024.0 / 1024.0, 0, 'f', 1);
 }
 
-struct ProcessMemoryUsage
-{
-    QString shared;
-    QString privateWorkingSet;
-};
-
-ProcessMemoryUsage processMemoryUsage()
+QString processMemoryUsage()
 {
 #ifdef Q_OS_WIN
     PROCESS_MEMORY_COUNTERS_EX2 counters{};
@@ -94,7 +88,8 @@ ProcessMemoryUsage processMemoryUsage()
         const qint64 privateWorkingSet = static_cast<qint64>(counters.PrivateWorkingSetSize);
         const qint64 sharedWorkingSet = qMax<qint64>(
             0, static_cast<qint64>(counters.WorkingSetSize) - privateWorkingSet);
-        return {formatMemory(sharedWorkingSet), formatMemory(privateWorkingSet)};
+        return QStringLiteral("公共内存 %1 | 私有内存 %2")
+            .arg(formatMemory(sharedWorkingSet), formatMemory(privateWorkingSet));
     }
 #elif defined(Q_OS_MACOS)
     task_vm_info_data_t counters{};
@@ -102,15 +97,14 @@ ProcessMemoryUsage processMemoryUsage()
     if (task_info(mach_task_self(), TASK_VM_INFO,
                   reinterpret_cast<task_info_t>(&counters), &count) == KERN_SUCCESS)
     {
-        // Darwin splits resident pages into anonymous (internal) and file-backed
-        // (external) memory. Use these for the private/shared display; external
-        // pages can be shared but are not necessarily mapped by another process.
-        // Compressed and swapped-out pages are excluded, as with a working set.
-        return {formatMemory(static_cast<qint64>(counters.external)),
-                formatMemory(static_cast<qint64>(counters.internal))};
+        // Activity Monitor reports physical footprint, not internal + external
+        // resident pages. The latter are not a private/shared memory split.
+        return QStringLiteral("内存占用 %1 | 驻留内存 %2")
+            .arg(formatMemory(static_cast<qint64>(counters.phys_footprint)),
+                 formatMemory(static_cast<qint64>(counters.resident_size)));
     }
 #endif
-    return {QStringLiteral("N/A"), QStringLiteral("N/A")};
+    return QStringLiteral("内存 N/A");
 }
 
 QString processCpuUsage()
@@ -266,10 +260,9 @@ MainWindow::MainWindow(ThemeService &themeService,
 
 void MainWindow::updateWindowTitle()
 {
-    const ProcessMemoryUsage memoryUsage = processMemoryUsage();
-    setWindowTitle(QStringLiteral("暗之眼 V%1 | CPU %2 | 公共内存 %3 | 私有内存 %4")
+    setWindowTitle(QStringLiteral("暗之眼 V%1 | CPU %2 | %3")
                        .arg(QStringLiteral(DARKEYE_VERSION), processCpuUsage(),
-                            memoryUsage.shared, memoryUsage.privateWorkingSet));
+                            processMemoryUsage()));
 }
 
 void MainWindow::showInitial()
@@ -889,7 +882,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                                m_paths.workCoverDirectory(), m_paths.actressImageDirectory(),
                                m_paths.fanartDirectory(),
                                settings::crawler().coverFetchApiUrl,
-                               settings::crawler().topActressesApiUrl, m_graphManager.get(), parent);
+                               settings::crawler().topActressesApiUrl, m_graphManager.get(), parent,
+                               m_paths.actressImageDirectory(), m_paths.actorImageDirectory());
         auto *management = m_managementPage;
         connect(management, &ManagementPage::referencesChanged, this,
                 [this](ReferenceKind) {
@@ -929,6 +923,14 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
         connect(management, &ManagementPage::workRequested, this, [this](qint64 workId) {
             showWorkInShelf(workId);
         });
+        connect(management, &ManagementPage::personEditRequested, this, &MainWindow::openPersonEditor);
+        connect(management, &ManagementPage::personDetailRequested, this,
+                [this](PersonKind kind, qint64 id) {
+                    const QString route = kind == PersonKind::Actress
+                        ? QStringLiteral("actress_detail") : QStringLiteral("actor_detail");
+                    auto *detail = static_cast<PersonDetailPage *>(ensurePage(route));
+                    if (detail->showPerson(id)) navigateTo(route);
+                });
         connect(management, &ManagementPage::actressRequested, this, [this](qint64 actressId) {
             auto *detail =
                 static_cast<PersonDetailPage *>(ensurePage(QStringLiteral("actress_detail")));

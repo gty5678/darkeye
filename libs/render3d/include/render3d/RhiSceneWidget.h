@@ -98,6 +98,7 @@ private:
     std::unique_ptr<StatisticsOverlay> m_statisticsOverlay;
     QAction *m_statisticsAction = nullptr;
     bool m_statisticsVisible = false;
+    quint64 m_visibilityGeneration = 0;
 };
 
 } // namespace darkeye::render3d

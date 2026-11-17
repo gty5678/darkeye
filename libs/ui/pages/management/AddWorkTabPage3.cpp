@@ -109,8 +109,9 @@ AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
                                    CrawlerScheduler &crawlerScheduler,
                                    QString coverDirectory, QString fanartDirectory,
                                    QUrl imageFetchEndpoint, graph::GraphManager *graphManager,
-                                   QWidget *parent)
-    : LazyWidget(parent), m_database(database), m_repository(database), m_references(database),
+                                   QWidget *parent, QString actressPortraitDirectory, QString actorPortraitDirectory)
+    : LazyWidget(parent), m_actressPortraitDirectory(std::move(actressPortraitDirectory)),
+      m_actorPortraitDirectory(std::move(actorPortraitDirectory)), m_database(database), m_repository(database), m_references(database),
       m_people(std::move(database)), m_themes(themes), m_coverDirectory(std::move(coverDirectory)),
       m_fanartDirectory(std::move(fanartDirectory)),
       m_imageFetchEndpoint(std::move(imageFetchEndpoint)),
@@ -346,6 +347,13 @@ void AddWorkTabPage3::lazyLoad()
     m_actresses->setObjectName(QStringLiteral("WorkActressSelector"));
     m_actors = new PersonTransferSelector(QStringLiteral("男优"), this, &m_themes);
     m_actors->setObjectName(QStringLiteral("WorkActorSelector"));
+    for (auto *selector : {m_actresses, m_actors}) {
+        const PersonKind kind = selector == m_actresses ? PersonKind::Actress : PersonKind::Actor;
+        connect(selector, &PersonTransferSelector::detailRequested, this,
+                [this, kind](qint64 id) { emit personDetailRequested(kind, id); });
+        connect(selector, &PersonTransferSelector::editRequested, this,
+                [this, kind](qint64 id) { emit personEditRequested(kind, id); });
+    }
     QString tagError;
     const QList<TagOption> tagOptions = withShortDatabase(
         m_database.databaseName(), true, &tagError,
@@ -1044,12 +1052,18 @@ void AddWorkTabPage3::refreshAssociations()
         QString errorMessage;
         const QList<IdLabelOption> options = withShortDatabase(
             m_database.databaseName(), true, &errorMessage,
-            [&search, &errorMessage](QSqlDatabase connection)
+            [this, &search, &errorMessage](QSqlDatabase connection)
             {
                 PersonRepository repository(connection);
                 QList<IdLabelOption> people;
                 for (const PersonSummary &person : repository.search(search, &errorMessage))
-                    people.append({person.id, person.name, {}});
+                {
+                    const QString directory = search.kind == PersonKind::Actress
+                        ? m_actressPortraitDirectory : m_actorPortraitDirectory;
+                    const QString path = person.imagePath.isEmpty() || QFileInfo(person.imagePath).isAbsolute()
+                        ? person.imagePath : QDir(directory).filePath(person.imagePath);
+                    people.append({person.id, person.name, {}, path});
+                }
                 return people;
             });
         if (!errorMessage.isEmpty())

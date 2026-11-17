@@ -11,6 +11,7 @@ class QListWidget;
 namespace darkeye
 {
 class ThemeService;
+class OctImage;
 
 // Python ActressSelector / ActorSelector 对应控件：上方待选、下方已选，使用按钮移动条目。
 class PersonTransferSelector final : public QWidget
@@ -31,6 +32,11 @@ public:
 signals:
     void selectionChanged();
     void addRequested();
+    void detailRequested(qint64 personId);
+    void editRequested(qint64 personId);
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void rebuildAvailable();
@@ -39,6 +45,7 @@ private:
     void removeCurrent();
     [[nodiscard]] QString optionText(const IdLabelOption &option) const;
 
+    OctImage *m_portrait = nullptr;
     QList<IdLabelOption> m_options;
     QList<qint64> m_selectedIds;
     QLineEdit *m_search = nullptr;

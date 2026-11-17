@@ -5,6 +5,12 @@
 #include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/TokenViews.h"
 
+#include "darkeye_ui/components/OctImage.h"
+
+#include <QHelpEvent>
+#include <QMenu>
+#include <QScreen>
+#include <QScrollBar>
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
@@ -50,6 +56,35 @@ PersonTransferSelector::PersonTransferSelector(QString personLabel, QWidget *par
     m_selected->setProperty("personSelectedList", true);
     m_selected->setProperty("personSelectorList", true);
     layout->addWidget(m_selected, 1);
+
+    m_portrait = new OctImage({}, {}, 150, true, this);
+    m_portrait->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
+    m_portrait->setAttribute(Qt::WA_ShowWithoutActivating);
+    m_portrait->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_portrait->setObjectName(QStringLiteral("PersonSelectorPortrait"));
+    for (auto *list : {m_available, m_selected}) {
+        list->viewport()->setMouseTracking(true);
+        list->viewport()->installEventFilter(this);
+        connect(list->verticalScrollBar(), &QScrollBar::valueChanged,
+                m_portrait, &QWidget::hide);
+    }
+
+    for (auto *list : {m_available, m_selected}) {
+        list->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(list, &QWidget::customContextMenuRequested, this, [this, list](const QPoint &pos) {
+            auto *item = list->itemAt(pos);
+            if (!item) return;
+            const qint64 id = item->data(Qt::UserRole).toLongLong();
+            list->setCurrentItem(item);
+            m_portrait->hide();
+            QMenu menu(this);
+            auto *detail = menu.addAction(QStringLiteral("查看详情"));
+            auto *edit = menu.addAction(QStringLiteral("编辑资料"));
+            const auto *action = menu.exec(list->viewport()->mapToGlobal(pos));
+            if (action == detail) emit detailRequested(id);
+            else if (action == edit) emit editRequested(id);
+        });
+    }
 
     connect(m_search, &QLineEdit::textChanged, this, [this] { rebuildAvailable(); });
     connect(choose, &QPushButton::clicked, this, &PersonTransferSelector::chooseCurrent);
@@ -121,6 +156,7 @@ void PersonTransferSelector::clearSelection()
 void PersonTransferSelector::rebuildAvailable()
 {
     const QString query = m_search->text().trimmed();
+    m_portrait->hide();
     m_available->clear();
     for (const auto &option : m_options) {
         if (m_selectedIds.contains(option.id) ||
@@ -132,6 +168,7 @@ void PersonTransferSelector::rebuildAvailable()
 
 void PersonTransferSelector::rebuildSelected()
 {
+    m_portrait->hide();
     m_selected->clear();
     for (qint64 id : m_selectedIds) {
         const auto found = std::find_if(m_options.cbegin(), m_options.cend(),
@@ -157,6 +194,41 @@ void PersonTransferSelector::removeCurrent()
     rebuildAvailable();
     rebuildSelected();
     emit selectionChanged();
+}
+
+bool PersonTransferSelector::eventFilter(QObject *watched, QEvent *event)
+{
+    auto *list = watched == m_available->viewport() ? m_available : m_selected;
+    if (event->type() == QEvent::ToolTip) {
+        auto *help = static_cast<QHelpEvent *>(event);
+        auto *item = list->itemAt(help->pos());
+        if (!item) { m_portrait->hide(); return true; }
+        const qint64 id = item->data(Qt::UserRole).toLongLong();
+        const auto found = std::find_if(m_options.cbegin(), m_options.cend(),
+            [id](const IdLabelOption &option) { return option.id == id; });
+        if (found == m_options.cend()) return true;
+        m_portrait->updateImage(found->imagePath);
+        const QRect rowRect = list->visualItemRect(item);
+        const QRect anchor(list->viewport()->mapToGlobal(rowRect.topLeft()), rowRect.size());
+        constexpr int gap = 8;
+        QPoint position(anchor.right() + 1 + gap,
+                        anchor.center().y() - m_portrait->height() / 2);
+        if (auto *screen = list->screen()) {
+            const QRect bounds = screen->availableGeometry();
+            if (position.x() + m_portrait->width() > bounds.right() + 1)
+                position.setX(anchor.left() - gap - m_portrait->width());
+            position.setX(qBound(bounds.left(), position.x(),
+                                qMax(bounds.left(), bounds.right() - m_portrait->width() + 1)));
+            position.setY(qBound(bounds.top(), position.y(), qMax(bounds.top(), bounds.bottom() - m_portrait->height() + 1)));
+        }
+        m_portrait->move(position);
+        m_portrait->show();
+        return true;
+    }
+    if (event->type() == QEvent::Leave || event->type() == QEvent::MouseMove
+        || event->type() == QEvent::MouseButtonPress || event->type() == QEvent::Hide)
+        m_portrait->hide();
+    return QWidget::eventFilter(watched, event);
 }
 
 QString PersonTransferSelector::optionText(const IdLabelOption &option) const

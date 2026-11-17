@@ -51,6 +51,32 @@ MeshHandle texturedQuad()
 class RhiSceneWidgetTest final : public QObject {
     Q_OBJECT
 private slots:
+    void hiddenSceneReleasesGpuResourcesAndRestores()
+    {
+        RhiSceneWidget view;
+        view.resize(400,300);
+        const auto scene=std::make_shared<Scene>();
+        auto material=std::make_shared<Material>();
+        QVERIFY(scene->setMesh(scene->createNode(),texturedQuad(),material));
+        view.setScene(scene);
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        const auto before=view.grabFramebuffer();
+        QVERIFY(!foregroundBounds(before).isEmpty());
+        QVERIFY(view.statistics().textureBytes>0);
+        const auto generation=view.statistics().resourceGenerations;
+        view.hide();
+        QTRY_COMPARE_WITH_TIMEOUT(view.statistics().textureBytes,0,3000);
+        QCOMPARE(view.statistics().bufferBytes,0);
+        QCOMPARE(view.scene(),scene);
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(!foregroundBounds(view.grabFramebuffer()).isEmpty());
+        QVERIFY(view.statistics().resourceGenerations>generation);
+        QVERIFY(view.statistics().textureBytes>0);
+        QVERIFY(view.lastError().isEmpty());
+    }
+
     void coverLodChangesDoNotResizeTheEntireTextureCache()
     {
         RhiSceneWidget view;

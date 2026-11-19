@@ -95,8 +95,11 @@ public:
         if (!m_hasCheckbox || !index.isValid() || index.column() != 0 ||
             role != Qt::CheckStateRole) return false;
         const qint64 id = m_records.at(index.row()).id;
-        if (value == Qt::Checked) m_checkedIds.insert(id);
-        else m_checkedIds.remove(id);
+        if (value == Qt::Checked) {
+            m_checkedIds.insert(id);
+        } else {
+            m_checkedIds.remove(id);
+        }
         emit dataChanged(index, index, {Qt::CheckStateRole, Qt::BackgroundRole});
         return true;
     }

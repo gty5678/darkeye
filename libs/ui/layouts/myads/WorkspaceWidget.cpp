@@ -165,14 +165,13 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
         }
     }
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::FocusIn) {
-        QWidget *widget = qobject_cast<QWidget *>(watched);
-        while (widget) {
-            if (auto *target = qobject_cast<PaneWidget *>(widget)) {
+        // A page can contain its own workspace. Keep walking until we reach a pane owned here.
+        for (auto *widget = receiver; widget && widget != this; widget = widget->parentWidget()) {
+            auto *target = qobject_cast<PaneWidget *>(widget);
+            if (target && pane(target->paneId()) == target) {
                 setActivePane(target);
                 break;
             }
-            if (widget == this) break;
-            widget = widget->parentWidget();
         }
     }
     return QWidget::eventFilter(watched, event);
@@ -236,6 +235,12 @@ PaneWidget *WorkspaceWidget::createPane(const QString &id)
 void WorkspaceWidget::connectPane(PaneWidget *result)
 {
     result->applyTheme(m_theme);
+    connect(result, &PaneWidget::activationRequested, this, [this, result] {
+        setActivePane(result);
+    });
+    connect(result, &PaneWidget::currentContentChanged, this, [this, result] {
+        if (result == activePane()) emit activeContentChanged();
+    });
     connect(result, &PaneWidget::tabContextMenuCreated, this,
             [this, result](QMenu *menu, const QString &contentId) {
         QMenu *moveMenu = menu->addMenu(tr("移动到其他组"));
@@ -259,6 +264,7 @@ void WorkspaceWidget::connectPane(PaneWidget *result)
         }
         moveMenu->setEnabled(!moveMenu->actions().isEmpty());
     });
+    connect(result, &PaneWidget::contentClosed, this, &WorkspaceWidget::contentClosed);
     connect(result, &PaneWidget::paneEmpty, this,
             [this](PaneWidget *empty) { removeEmptyPane(empty->paneId()); });
     connect(result, &PaneWidget::dragMoved, this, &WorkspaceWidget::handleDragMove);
@@ -412,7 +418,7 @@ QString WorkspaceWidget::addPanel(const QString &title, QWidget *content,
 
 void WorkspaceWidget::removeEmptyPane(const QString &id)
 {
-    if (m_tree.paneIds().size() <= 1) return;
+    if (m_tree.paneIds().size() <= 1) { emit layoutChanged(); return; }
     if (m_tree.removePane(id)) {
         rebuild();
         emit layoutChanged();
@@ -712,6 +718,16 @@ bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &fact
         for (auto it = metadata.begin(); it != metadata.end(); ++it)
             staged.pane(it.key())->setCurrentContentId(
                 it.value().toObject().value(QStringLiteral("current_content_id")).toString());
+
+        // Removed pages can leave a saved pane without any of its tabs.
+        // Preserve panes that were saved empty.
+        if (factory) {
+            for (auto it = contents.begin(); it != contents.end(); ++it) {
+                const auto *pane = staged.pane(it.key());
+                if (pane && pane->contentCount() == 0 && !it.value().toArray().isEmpty())
+                    staged.removeEmptyPane(it.key());
+            }
+        }
 
         // Rebind callbacks to the surviving workspace before adopting the root.
         for (PaneWidget *item : staged.m_panes) {

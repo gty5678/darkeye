@@ -1,4 +1,5 @@
 #include "ui/pages/ShelfPage.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/components/CompleterLineEdit.h"
 #include "darkeye_ui/components/DesignComboBox.h"
@@ -10,12 +11,14 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PrivateRepository.h"
+#include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/WorkRepository.h"
 #include "settings/Settings.h"
 #include "ui/components/DvdShelfView.h"
 #include "ui/components/WorkTagSelector.h"
 
 #include <QComboBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -29,14 +32,20 @@ namespace darkeye
 {
 
 ShelfPage::ShelfPage(QSqlDatabase database, QSqlDatabase privateDatabase,
-                     ThemeService &themeService, graph::GraphManager *graphManager,
+                     ThemeService &themeService,
                      QString coverDirectory, QString fanartDirectory, QWidget *parent)
     : LazyWidget(parent), m_database(std::move(database)),
       m_privateDatabase(std::move(privateDatabase)), m_themeService(themeService),
-      m_graphManager(graphManager), m_coverDirectory(std::move(coverDirectory)),
+      m_coverDirectory(std::move(coverDirectory)),
       m_fanartDirectory(std::move(fanartDirectory))
 {
     setObjectName(QStringLiteral("ShelfPage"));
+}
+
+void ShelfPage::toggleFilterBar()
+{
+    initialize();
+    m_filterBar->setVisible(m_filterBar->isHidden());
 }
 
 void ShelfPage::lazyLoad()
@@ -50,27 +59,36 @@ void ShelfPage::lazyLoad()
 
 void ShelfPage::buildUi()
 {
-    auto *root = new QVBoxLayout(this);
+    auto *content = addPageScrollArea(this);
+    auto *root = new QHBoxLayout(content);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
-    auto *filterBar = new QWidget(this);
-    filterBar->setFixedHeight(44);
+    auto *filterBar = new QWidget(content);
+    m_filterBar = filterBar;
+    filterBar->setObjectName(QStringLiteral("ShelfFilterBar"));
+    filterBar->setAttribute(Qt::WA_StyledBackground);
+    filterBar->setFixedHeight(50);
+    auto filterSizePolicy = filterBar->sizePolicy();
+    filterSizePolicy.setRetainSizeWhenHidden(true);
+    filterBar->setSizePolicy(filterSizePolicy);
     auto *bar = new QHBoxLayout(filterBar);
     bar->setContentsMargins(10, 0, 10, 0);
     bar->setSpacing(6);
 
     m_tagPanelButton = new IconButton(m_tagPanelVisible ? QStringLiteral("panel_left_close")
                                                          : QStringLiteral("panel_left_open"),
-                                      &m_themeService, filterBar);
+                                      nullptr, filterBar);
     m_tagPanelButton->setObjectName(QStringLiteral("ShelfTagPanelButton"));
     bar->addWidget(m_tagPanelButton);
     auto *filterScroll = new QScrollArea(filterBar);
+    filterScroll->setObjectName(QStringLiteral("ShelfFilterScroll"));
     filterScroll->setWidgetResizable(true);
     filterScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     filterScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     filterScroll->setFrameShape(QFrame::NoFrame);
     filterScroll->setFixedHeight(44);
     auto *filterContent = new QWidget(filterScroll);
+    filterContent->setObjectName(QStringLiteral("ShelfFilterContent"));
     auto *filters = new QHBoxLayout(filterContent);
     filters->setContentsMargins(0, 0, 0, 0);
     filters->setSpacing(6);
@@ -150,18 +168,20 @@ void ShelfPage::buildUi()
     filterScroll->setWidget(filterContent);
     bar->addWidget(filterScroll, 1);
 
-    auto *reload = new RotateButton(QStringLiteral("refresh_cw"), &m_themeService, filterBar);
-    auto *clear = new ShakeButton(QStringLiteral("eraser"), &m_themeService, filterBar);
+    auto *reload = new RotateButton(QStringLiteral("refresh_cw"), nullptr, filterBar);
+    auto *clear = new ShakeButton(QStringLiteral("eraser"), nullptr, filterBar);
     m_countLabel = new DesignLabel({}, filterBar);
     m_countLabel->setObjectName(QStringLiteral("ShelfCountLabel"));
     m_countLabel->setFixedWidth(100);
     m_scopeSelector = new DesignComboBox(filterBar);
+    m_scopeSelector->setProperty("compactFilter", true);
     m_scopeSelector->setObjectName(QStringLiteral("ShelfScopeSelector"));
     m_scopeSelector->addItems({QStringLiteral("公共库范围"), QStringLiteral("收藏库范围"),
                                QStringLiteral("收藏未观看"), QStringLiteral("已撸过"),
                                QStringLiteral("本地有视频")});
     m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏、观看记录或本地视频范围"));
     m_sortSelector = new DesignComboBox(filterBar);
+    m_sortSelector->setProperty("compactFilter", true);
     m_sortSelector->setObjectName(QStringLiteral("ShelfSortSelector"));
     const QList<QPair<QString, WorkSortOrder>> sorts{
         {QStringLiteral("随机顺序"), WorkSortOrder::Random},
@@ -184,11 +204,7 @@ void ShelfPage::buildUi()
     bar->addWidget(m_countLabel);
     bar->addWidget(m_scopeSelector);
     bar->addWidget(m_sortSelector);
-    root->addWidget(filterBar);
 
-    auto *body = new QHBoxLayout;
-    body->setContentsMargins(0, 0, 0, 0);
-    body->setSpacing(0);
     m_tagPanel = new QWidget(this);
     m_tagPanel->setObjectName(QStringLiteral("ShelfTagPanel"));
     auto *tagLayout = new QHBoxLayout(m_tagPanel);
@@ -211,11 +227,10 @@ void ShelfPage::buildUi()
     });
     tagLayout->addWidget(m_tagSelector, 0, Qt::AlignLeft);
     m_tagPanel->setVisible(m_tagPanelVisible);
-    body->addWidget(m_tagPanel);
-    m_shelfView = new DvdShelfView(m_database, m_privateDatabase, m_graphManager,
+    root->addWidget(m_tagPanel);
+    m_shelfView = new DvdShelfView(m_database, m_privateDatabase,
                                    m_coverDirectory, m_fanartDirectory, this);
-    m_shelfView->enableGraphSettings(m_themeService);
-    connect(m_shelfView, &DvdShelfView::workSelected, this, &ShelfPage::detailRequested);
+    connect(m_shelfView, &DvdShelfView::currentWorkChanged, this, &ShelfPage::graphContextChanged);
     connect(m_shelfView, &DvdShelfView::editRequested, this, &ShelfPage::editRequested);
     connect(m_shelfView, &DvdShelfView::favoriteChanged, this, &ShelfPage::favoriteChanged);
     connect(m_shelfView, &DvdShelfView::workDeleted, this, [this](qint64 workId) {
@@ -229,8 +244,15 @@ void ShelfPage::buildUi()
     connect(m_shelfView, &DvdShelfView::makerRequested, this, &ShelfPage::filterByMaker);
     connect(m_shelfView, &DvdShelfView::labelRequested, this, &ShelfPage::filterByLabel);
     connect(m_shelfView, &DvdShelfView::seriesRequested, this, &ShelfPage::filterBySeries);
-    body->addWidget(m_shelfView, 1);
-    root->addLayout(body, 1);
+    auto *shelfLayout = new QGridLayout;
+    shelfLayout->setContentsMargins(0, 0, 0, 0);
+    shelfLayout->addWidget(m_shelfView, 0, 0);
+    auto *filterOverlay = new QVBoxLayout;
+    filterOverlay->setContentsMargins(8, 8, 8, 0);
+    filterOverlay->addWidget(filterBar, 0, Qt::AlignTop);
+    shelfLayout->addLayout(filterOverlay, 0, 0);
+    root->addLayout(shelfLayout, 1);
+    m_shelfView->stackUnder(filterBar);
 
     connect(reload, &QPushButton::clicked, this, [this] {
         m_randomSeed = QRandomGenerator::global()->generate();
@@ -248,8 +270,11 @@ void ShelfPage::buildUi()
                                      m_labelFilter->lineEdit(), m_seriesFilter->lineEdit()};
     for (QLineEdit *input : inputs)
         connect(input, &QLineEdit::textChanged, m_filterTimer, qOverload<>(&QTimer::start));
-    connect(m_tagSelector, &WorkTagSelector::selectionChanged, m_filterTimer,
-            qOverload<>(&QTimer::start));
+    connect(m_actorFilter, &QLineEdit::textChanged, this, [this] { m_actorId.reset(); });
+    connect(m_tagSelector, &WorkTagSelector::selectionChanged, this, [this] {
+        m_categoryTagId = 0;
+        m_filterTimer->start();
+    });
     connect(m_scopeSelector, &QComboBox::currentIndexChanged, this, [this](int) { applyFilters(); });
     connect(m_sortSelector, &QComboBox::currentIndexChanged, this, [this](int) { applyFilters(); });
 }
@@ -262,16 +287,21 @@ void ShelfPage::refresh()
 
 void ShelfPage::refreshAfterCapture()
 {
-    initialize();
-    const qint64 workId = m_shelfView->currentWorkId();
-    refreshData();
-    if (workId > 0)
-        m_shelfView->openWork(workId);
+    refreshFromWorkspace(false, false);
 }
 
 void ShelfPage::refreshReferences()
 {
-    initialize();
+    refreshFromWorkspace(false, true);
+}
+
+void ShelfPage::refreshTags()
+{
+    refreshFromWorkspace(true, false);
+}
+
+void ShelfPage::reloadReferenceOptions()
+{
     QString error;
     SqliteConnection connection;
     if (!connection.open(m_database.databaseName(), true, &error)) return;
@@ -282,6 +312,7 @@ void ShelfPage::refreshReferences()
         for (const NamedIdOption &option : options)
             replacement.append({option.id, option.chineseName, option.japaneseName, option.aliases});
         const QSignalBlocker blocker(combo);
+        const QSignalBlocker editBlocker(combo->lineEdit());
         combo->setMakers(replacement);
         combo->setMaker(selected);
     };
@@ -291,14 +322,29 @@ void ShelfPage::refreshReferences()
     resetOptions(m_seriesFilter, repository.seriesOptions());
     m_serialFilter->reloadItems();
     m_directorFilter->reloadItems();
-    refreshData();
 }
 
-void ShelfPage::refreshTags()
+void ShelfPage::refreshFromWorkspace(bool tagsChanged, bool referencesChanged)
 {
     initialize();
-    m_tagSelector->reloadTags();
+    const qint64 workId = m_shelfView->currentWorkId();
+    if (referencesChanged)
+        reloadReferenceOptions();
+    if (tagsChanged) {
+        const QSignalBlocker blocker(m_tagSelector);
+        m_tagSelector->reloadTags();
+        if (m_categoryTagId > 0)
+            selectCategoryTag();
+    }
     refreshData();
+    if (workId > 0)
+        m_shelfView->openWork(workId);
+}
+
+void ShelfPage::refreshCurrentFavorite()
+{
+    if (m_shelfView)
+        m_shelfView->refreshCurrentFavorite();
 }
 
 void ShelfPage::resetForRoute()
@@ -316,6 +362,15 @@ void ShelfPage::filterByDirector(const QString &director)
     initialize();
     resetForRoute();
     m_directorFilter->setText(director);
+    refreshData();
+}
+
+void ShelfPage::filterByActor(qint64 actorId, const QString &name)
+{
+    initialize();
+    resetForRoute();
+    m_actorFilter->setText(name);
+    m_actorId = actorId;
     refreshData();
 }
 
@@ -347,8 +402,17 @@ void ShelfPage::filterByTag(qint64 tagId)
 {
     initialize();
     resetForRoute();
-    m_tagSelector->setSelectedIds({tagId});
+    m_categoryTagId = tagId;
+    selectCategoryTag();
     refreshData();
+}
+
+void ShelfPage::selectCategoryTag()
+{
+    const QSignalBlocker blocker(m_tagSelector);
+    m_categoryTagId = ReferenceRepository(m_database).resolveTagId(m_categoryTagId)
+                          .value_or(m_categoryTagId);
+    m_tagSelector->setSelectedIds({m_categoryTagId});
 }
 
 bool ShelfPage::showWork(qint64 workId)
@@ -358,6 +422,21 @@ bool ShelfPage::showWork(qint64 workId)
     resetForRoute();
     refreshData();
     return m_shelfView != nullptr && m_shelfView->openWork(workId);
+}
+
+qint64 ShelfPage::currentWorkId() const
+{
+    return m_shelfView ? m_shelfView->currentWorkId() : 0;
+}
+
+QSet<qint64> ShelfPage::filteredWorkIds() const
+{
+    return m_shelfView ? m_shelfView->displayedWorkIds() : QSet<qint64>{};
+}
+
+QList<WorkSummary> ShelfPage::filteredWorks() const
+{
+    return m_shelfView ? m_shelfView->displayedWorks() : QList<WorkSummary>{};
 }
 
 void ShelfPage::applyFilters() { refreshData(); }
@@ -370,6 +449,8 @@ void ShelfPage::clearFilters()
 
 void ShelfPage::clearFilterInputs()
 {
+    m_categoryTagId = 0;
+    m_actorId.reset();
     m_filterTimer->stop();
     const QList<QLineEdit *> inputs{m_serialFilter, m_actressFilter, m_titleFilter, m_notesFilter,
                                      m_directorFilter, m_actorFilter, m_makerFilter->lineEdit(),
@@ -417,6 +498,8 @@ int ShelfPage::reloadDvdScene()
     const QList<WorkSummary> works = WorkRepository(connection.database()).search(search, &error);
     if (!error.isEmpty()) return -1;
     m_shelfView->setWorks(works);
+    emit graphContextChanged();
+    emit filteredWorksChanged();
     return works.size();
 }
 
@@ -434,10 +517,14 @@ WorkSearch ShelfPage::currentSearch() const
     search.director = m_directorFilter->text();
     search.actressName = m_actressFilter->text();
     search.actorName = m_actorFilter->text();
+    search.actorId = m_actorId;
     search.makerId = m_makerFilter->maker();
     search.labelId = m_labelFilter->maker();
     search.seriesId = m_seriesFilter->maker();
     search.tagIds = m_tagSelector->selectedIds();
+    // Keep a deleted category scoped to its original ID until the user changes the filter.
+    if (search.tagIds.isEmpty() && m_categoryTagId > 0)
+        search.tagIds.append(m_categoryTagId);
     search.randomSeed = m_randomSeed;
     search.randomSeed2 = m_randomSeed2;
     search.order = selectedSortOrder();

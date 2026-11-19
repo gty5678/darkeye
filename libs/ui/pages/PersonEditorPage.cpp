@@ -1,4 +1,7 @@
+#include <QMessageBox>
+#include <QCloseEvent>
 #include "ui/pages/PersonEditorPage.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/DesignButton.h"
@@ -25,7 +28,6 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -114,7 +116,7 @@ void PersonEditorPage::buildUi()
     commonForm->addRow(QStringLiteral("身高"), m_height);
     commonForm->addRow(QString(), m_needUpdate);
     auto *basePanel = new QWidget(m_workspace);
-    auto *baseLayout = new QVBoxLayout(basePanel);
+    auto *baseLayout = new QVBoxLayout(addPageScrollArea(basePanel));
     baseLayout->setContentsMargins(0, 0, 0, 0);
     baseLayout->addLayout(commonForm);
 
@@ -174,7 +176,7 @@ void PersonEditorPage::buildUi()
     nameTools->addWidget(moveNameDown);
     nameTools->addStretch();
     auto *namePanel = new QWidget(m_workspace);
-    auto *nameLayout = new QVBoxLayout(namePanel);
+    auto *nameLayout = new QVBoxLayout(addPageScrollArea(namePanel));
     nameLayout->setContentsMargins(0, 0, 0, 0);
     nameLayout->addLayout(nameTools);
     m_names = new TokenTableWidget(0, 4, m_workspace);
@@ -186,12 +188,12 @@ void PersonEditorPage::buildUi()
     nameLayout->addWidget(m_names, 1);
 
     auto *notesPanel = new QWidget(m_workspace);
-    auto *notesLayout = new QVBoxLayout(notesPanel);
+    auto *notesLayout = new QVBoxLayout(addPageScrollArea(notesPanel));
     notesLayout->setContentsMargins(0, 0, 0, 0);
     notesLayout->addWidget(m_notes);
 
     auto *actionsPanel = new QWidget(m_workspace);
-    auto *actionsLayout = new QVBoxLayout(actionsPanel);
+    auto *actionsLayout = new QVBoxLayout(addPageScrollArea(actionsPanel));
     m_actionsLayout = actionsLayout;
     actionsLayout->setContentsMargins(0, 0, 0, 0);
     m_saveButton = new DesignButton(QStringLiteral("提交修改"), actionsPanel);
@@ -726,3 +728,14 @@ std::optional<int> PersonEditorPage::optionalSpinValue(const QSpinBox *spinBox)
 }
 
 } // namespace darkeye
+
+namespace darkeye {
+void PersonEditorPage::closeEvent(QCloseEvent *event) {
+    updateDirtyState();
+    if (!m_saveButton->isEnabled()) { event->accept(); return; }
+    const auto choice = QMessageBox::question(this, QStringLiteral("未保存的修改"),
+        QStringLiteral("关闭前保存人物资料的修改？"), QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
+    if (choice == QMessageBox::Cancel || (choice == QMessageBox::Save && !savePerson())) event->ignore();
+    else event->accept();
+}
+}

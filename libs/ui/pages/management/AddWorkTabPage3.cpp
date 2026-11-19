@@ -1,4 +1,7 @@
+#include <QMessageBox>
+#include <QCloseEvent>
 #include "ui/pages/management/AddWorkTabPage3.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/DesignButton.h"
@@ -24,8 +27,6 @@
 #include "utils/MediaUtils.h"
 #include "domain/SerialNumber.h"
 #include "database/SqliteConnection.h"
-#include "graph/GraphManager.h"
-#include "ui/pages/ForceDirectPage.h"
 #include "crawler/CrawlerScheduler.h"
 #include "services/ImageFetchService.h"
 #include "services/LlmTranslationService.h"
@@ -53,7 +54,6 @@
 #include <QSpinBox>
 #include <QStyle>
 #include <QThreadPool>
-#include <QTimer>
 #include <QUrl>
 #include <QTemporaryDir>
 #include <QTextEdit>
@@ -69,7 +69,6 @@ namespace
 {
 constexpr int kFormControlMinimumHeight = 32;
 constexpr int kBasicPaneMinimumHeight = 360;
-constexpr int kWorkspaceAuxiliaryMinimumHeight = 200;
 
 // Python stores an unknown runtime as 0, while the C++ repository also has to
 // handle older rows where the column is NULL.  Both values render as "未知" in
@@ -108,14 +107,15 @@ auto withShortDatabase(const QString &databasePath, bool readOnly, QString *erro
 AddWorkTabPage3::AddWorkTabPage3(QSqlDatabase database, ThemeService &themes,
                                    CrawlerScheduler &crawlerScheduler,
                                    QString coverDirectory, QString fanartDirectory,
-                                   QUrl imageFetchEndpoint, graph::GraphManager *graphManager,
+                                   QUrl imageFetchEndpoint,
                                    QWidget *parent, QString actressPortraitDirectory, QString actorPortraitDirectory)
-    : LazyWidget(parent), m_actressPortraitDirectory(std::move(actressPortraitDirectory)),
-      m_actorPortraitDirectory(std::move(actorPortraitDirectory)), m_database(database), m_repository(database), m_references(database),
-      m_people(std::move(database)), m_themes(themes), m_coverDirectory(std::move(coverDirectory)),
+    : LazyWidget(parent), m_database(database), m_repository(database), m_references(database),
+      m_people(std::move(database)), m_themes(themes),
+      m_actressPortraitDirectory(std::move(actressPortraitDirectory)),
+      m_actorPortraitDirectory(std::move(actorPortraitDirectory)), m_coverDirectory(std::move(coverDirectory)),
       m_fanartDirectory(std::move(fanartDirectory)),
       m_imageFetchEndpoint(std::move(imageFetchEndpoint)),
-      m_crawlerScheduler(crawlerScheduler), m_graphManager(graphManager)
+      m_crawlerScheduler(crawlerScheduler)
 {
 }
 
@@ -376,6 +376,7 @@ void AddWorkTabPage3::lazyLoad()
             m_associationsLoaded = false;
             refreshAssociations();
             m_actresses->selectId(id);
+            emit peopleChanged(PersonKind::Actress);
         });
         dialog->open();
     });
@@ -386,6 +387,7 @@ void AddWorkTabPage3::lazyLoad()
             m_associationsLoaded = false;
             refreshAssociations();
             m_actors->selectId(id);
+            emit peopleChanged(PersonKind::Actor);
         });
         dialog->open();
     });
@@ -489,11 +491,11 @@ void AddWorkTabPage3::lazyLoad()
 
     // Python 版将这些内容放入 MyADS 工作区而非一个固定表单；保持相同的独立内容槽，
     // 使用户可以拆分、合并和保存标签布局。
-    auto container = [this](const QString &slot, const QString &title) {
+    auto container = [this](const QString &slot, const QString &title, bool scrollable = true) {
         auto *widget = new QWidget(this);
         widget->setProperty("addwork_slot", slot);
         widget->setProperty("addwork_title", title);
-        auto *layout = new QVBoxLayout(widget);
+        auto *layout = new QVBoxLayout(scrollable ? addPageScrollArea(widget) : widget);
         layout->setContentsMargins(8, 8, 8, 8);
         m_slotWidgets.insert(slot, widget);
         return layout;
@@ -501,8 +503,7 @@ void AddWorkTabPage3::lazyLoad()
     auto *coverLayout = container(QStringLiteral("cover"), QStringLiteral("封面栏"));
     coverLayout->addWidget(m_imageDrop, 1);
     auto *basicLayout = container(QStringLiteral("basic"), QStringLiteral("基础信息"));
-    QWidget *basicPane = m_slotWidgets.value(QStringLiteral("basic"));
-    basicPane->setMinimumHeight(kBasicPaneMinimumHeight);
+    basicLayout->parentWidget()->setMinimumHeight(kBasicPaneMinimumHeight);
     // Python builds each base-information entry as a QHBoxLayout: its label
     // and editor always stay on the same line.  WrapLongRows made the C++
     // QFormLayout move an editor below its label as a dock was narrowed,
@@ -562,26 +563,14 @@ void AddWorkTabPage3::lazyLoad()
     auto *fanartLayout = container(QStringLiteral("fanart"), QStringLiteral("剧照"));
     fanartLayout->addWidget(m_fanart);
     auto *crawlerLayout = container(QStringLiteral("crawler"), QStringLiteral("信息补充区"));
-    m_slotWidgets.value(QStringLiteral("crawler"))->setMinimumHeight(
-        kWorkspaceAuxiliaryMinimumHeight);
     crawlerLayout->addWidget(m_crawlerFields);
     auto *editorLayout = container(QStringLiteral("editor"), QStringLiteral("自由记录区"));
     // Python's editor_container has no outer margin and does not cap the
     // WikiTextEdit height, so the editor fills its dock pane naturally.
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->addWidget(m_notes);
-    auto *navLayout = container(QStringLiteral("nav"), QStringLiteral("外部导航"));
-    m_slotWidgets.value(QStringLiteral("nav"))->setMinimumHeight(
-        kWorkspaceAuxiliaryMinimumHeight);
+    auto *navLayout = container(QStringLiteral("nav"), QStringLiteral("外部导航"), false);
     addManualNavigation(navLayout);
-    auto *forceLayout = container(QStringLiteral("force"), QStringLiteral("图谱"));
-    // Match Python's edge-to-edge graph instead of the form panes' padding.
-    forceLayout->setContentsMargins(0, 0, 0, 0);
-    auto *forcePlaceholder = new QLabel(QStringLiteral("正在生成力导向图..."),
-                                        m_slotWidgets.value("force"));
-    forcePlaceholder->setObjectName(QStringLiteral("relationGraphPlaceholder"));
-    forcePlaceholder->setAlignment(Qt::AlignCenter);
-    forceLayout->addWidget(forcePlaceholder);
     auto *settingsLayout = container(QStringLiteral("settings"), QStringLiteral("设置"));
     auto *saveLayoutButton = new DesignButton(QStringLiteral("保存布局"), m_slotWidgets.value("settings"));
     auto *resetLayoutButton = new DesignButton(QStringLiteral("恢复初始布局"), m_slotWidgets.value("settings"));
@@ -612,10 +601,6 @@ void AddWorkTabPage3::lazyLoad()
     clearEditor();
     m_serialNumber->setReadOnly(false);
     updateEditorActions();
-    // Match Python's QTimer.singleShot(0, self._init_forceview): defer the
-    // expensive RHI/font-atlas setup until after the management page can show
-    // its first frame instead of blocking the route switch.
-    QTimer::singleShot(0, this, &AddWorkTabPage3::initializeRelationGraph);
 }
 
 AddWorkTabPage3::~AddWorkTabPage3() = default;
@@ -647,26 +632,25 @@ void AddWorkTabPage3::buildDefaultWorkspace()
 {
     m_workspace->beginLayoutUpdate();
     auto *root = m_workspace->rootPane();
-    auto *basic = m_workspace->split(root, myads::Placement::Right, 70);
-    auto *tag = m_workspace->split(basic, myads::Placement::Right, 25);
-    auto *cnText = m_workspace->split(basic, myads::Placement::Bottom, 42);
-    auto *fanart = m_workspace->split(tag, myads::Placement::Bottom, 20);
-    auto *force = m_workspace->split(tag, myads::Placement::Right, 50);
+    auto *basic = m_workspace->split(root, myads::Placement::Right, 72);
+    // 给最右列分配剩余 72% 宽度的 39%，约占总宽度的 28%。
+    auto *tag = m_workspace->split(basic, myads::Placement::Right, 39);
+    auto *fanart = m_workspace->split(basic, myads::Placement::Bottom, 20);
+    auto *story = m_workspace->split(basic, myads::Placement::Bottom, 42);
+    auto *editor = m_workspace->split(tag, myads::Placement::Bottom, 33);
     auto *actress = m_workspace->split(root, myads::Placement::Bottom, 50);
-    auto *editor = m_workspace->split(force, myads::Placement::Bottom, 40);
     m_workspace->endLayoutUpdate();
     m_workspace->fillPane(root, contentConfig(QStringLiteral("settings")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("crawler")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("nav")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("cover")));
     m_workspace->fillPane(basic, contentConfig(QStringLiteral("basic")));
-    m_workspace->fillPane(cnText, contentConfig(QStringLiteral("jp_text")));
-    m_workspace->fillPane(cnText, contentConfig(QStringLiteral("cn_text")));
+    m_workspace->fillPane(story, contentConfig(QStringLiteral("jp_text")));
+    m_workspace->fillPane(story, contentConfig(QStringLiteral("cn_text")));
     m_workspace->fillPane(actress, contentConfig(QStringLiteral("actor")));
     m_workspace->fillPane(actress, contentConfig(QStringLiteral("actress")));
     m_workspace->fillPane(tag, contentConfig(QStringLiteral("tag")));
     m_workspace->fillPane(fanart, contentConfig(QStringLiteral("fanart")));
-    m_workspace->fillPane(force, contentConfig(QStringLiteral("force")));
     m_workspace->fillPane(editor, contentConfig(QStringLiteral("editor")));
 }
 
@@ -679,7 +663,7 @@ void AddWorkTabPage3::saveWorkspaceLayout()
         return;
     }
     const bool saved = m_workspace->saveLayout(m_workspaceLayoutPath,
-        [this](const myads::PaneWidget *pane, const QString &contentId) {
+        [](const myads::PaneWidget *pane, const QString &contentId) {
             QWidget *widget = pane->contentWidget(contentId);
             const QString slot = widget ? widget->property("addwork_slot").toString() : QString();
             if (slot.isEmpty()) return QJsonObject{};
@@ -907,8 +891,17 @@ void AddWorkTabPage3::addManualNavigation(QVBoxLayout *layout)
     layout->addWidget(scroll, 1);
 }
 
+void AddWorkTabPage3::setWorkCreationEnabled(bool enabled)
+{
+    m_workCreationEnabled = enabled;
+    if (isInitialized())
+        updateEditorActions();
+}
+
 void AddWorkTabPage3::beginCreate()
 {
+    if (!m_workCreationEnabled)
+        return;
     initialize();
     if (!m_associationsLoaded)
         refreshAssociations();
@@ -961,7 +954,6 @@ bool AddWorkTabPage3::loadWork(qint64 workId)
     m_loadingEditor = false;
     m_serialNumber->setReadOnly(false);
     updateEditorActions();
-    updateRelationGraph();
     return true;
 }
 
@@ -1031,7 +1023,6 @@ void AddWorkTabPage3::applyLoadedWork(std::optional<WorkDetails> details, QStrin
     m_loadingEditor = false;
     m_serialNumber->setReadOnly(false);
     updateEditorActions();
-    updateRelationGraph();
 }
 
 void AddWorkTabPage3::refreshAssociations()
@@ -1168,17 +1159,25 @@ void AddWorkTabPage3::loadInitialReferencesAsync()
         });
 }
 
-void AddWorkTabPage3::refreshReferences()
+void AddWorkTabPage3::refreshReferences(bool preserveSelection)
 {
     if (!isInitialized())
         return;
     ++m_referenceLoadSequence;
-    populateReferenceCombo(m_maker, ReferenceKind::Maker,
-                           m_currentWork.has_value() ? m_currentWork->makerId : std::nullopt);
-    populateReferenceCombo(m_label, ReferenceKind::Label,
-                           m_currentWork.has_value() ? m_currentWork->labelId : std::nullopt);
-    populateReferenceCombo(m_series, ReferenceKind::Series,
-                           m_currentWork.has_value() ? m_currentWork->seriesId : std::nullopt);
+    const Work saved = m_currentWork.value_or(Work{});
+    const auto reload = [this, preserveSelection](QComboBox *combo, ReferenceKind kind,
+                                                   std::optional<qint64> savedId) {
+        const qint64 selectedId = combo->currentData().toLongLong();
+        const std::optional<qint64> currentId = selectedId > 0
+            ? std::optional<qint64>(selectedId) : std::nullopt;
+        const QSignalBlocker blocker(combo);
+        populateReferenceCombo(combo, kind, preserveSelection ? currentId : savedId);
+    };
+    reload(m_maker, ReferenceKind::Maker, saved.makerId);
+    reload(m_label, ReferenceKind::Label, saved.labelId);
+    reload(m_series, ReferenceKind::Series, saved.seriesId);
+    if (preserveSelection)
+        markEditorChanged();
 }
 
 QString AddWorkTabPage3::currentSerialNumber() const
@@ -1252,43 +1251,6 @@ void AddWorkTabPage3::applyWork(const Work &work)
     refreshReferences();
 }
 
-void AddWorkTabPage3::initializeRelationGraph()
-{
-    if (m_relationGraph != nullptr) return;
-    auto *container = m_slotWidgets.value(QStringLiteral("force"));
-    if (container == nullptr) return;
-    // Python's editor reuses the application-wide GraphManager and gives its
-    // own view session an empty/ego filter.  Reusing the same topology avoids
-    // a second full database graph load on the first management-page visit.
-    if (m_graphManager == nullptr) return;
-    m_relationGraph = new ForceDirectPage(m_themes, *m_graphManager, container);
-    auto *layout = qobject_cast<QVBoxLayout *>(container->layout());
-    if (layout == nullptr) return;
-    if (auto *placeholder = container->findChild<QLabel *>(QStringLiteral("relationGraphPlaceholder"))) {
-        layout->removeWidget(placeholder);
-        placeholder->deleteLater();
-    }
-    layout->addWidget(m_relationGraph);
-    connect(m_relationGraph, &ForceDirectPage::workRequested,
-            this, &AddWorkTabPage3::workLinkRequested);
-    connect(m_relationGraph, &ForceDirectPage::actressRequested,
-            this, &AddWorkTabPage3::actressLinkRequested);
-    // Python AddWorkTabPage3 keeps this as an ego graph only.  The favorite
-    // filter belongs to the standalone relationship page, not this editor pane.
-    m_relationGraph->setFavoriteFilterToggleVisible(false);
-    if (m_currentWork.has_value() && m_currentWork->id > 0)
-        updateRelationGraph();
-    else
-        m_relationGraph->showEmptyGraph();
-}
-
-void AddWorkTabPage3::updateRelationGraph()
-{
-    if (m_relationGraph == nullptr || !m_currentWork.has_value()
-        || m_currentWork->id <= 0) return;
-    m_relationGraph->setEgoGraph(QStringLiteral("w%1").arg(m_currentWork->id), 3);
-}
-
 void AddWorkTabPage3::crawlSelectedFields()
 {
     const QString serial = currentSerialNumber();
@@ -1349,14 +1311,17 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
             return std::optional<qint64>{};
         QString errorMessage;
         std::optional<qint64> id = m_references.findByName(kind, trimmed, &errorMessage);
-        if (!id.has_value() && errorMessage.isEmpty())
+        if (!id.has_value() && errorMessage.isEmpty()) {
             id = m_references.create(kind, trimmed, &errorMessage);
+            if (id.has_value())
+                emit referencesChanged(kind);
+        }
         if (!errorMessage.isEmpty())
             Toast::showWarning(window(), QStringLiteral("创建关联资料失败：%1").arg(errorMessage),
                                &m_themes);
         return id;
     };
-    const auto selectReference = [this, &payload, &wants, &ensureReference](
+    const auto selectReference = [&payload, &wants, &ensureReference](
                                      QComboBox *combo, const QString &field, ReferenceKind kind)
     {
         if (!wants(field))
@@ -1378,12 +1343,12 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
     selectReference(m_series, QStringLiteral("series"), ReferenceKind::Series);
 
     const auto ensurePeople = [this](PersonKind kind, const QStringList &names,
-                                     QList<qint64> *newlyCreated = nullptr)
+                                     QList<qint64> &newlyCreated)
     {
         QString errorMessage;
         const QList<qint64> created = withShortDatabase(
             m_database.databaseName(), false, &errorMessage,
-            [kind, &names, &errorMessage, newlyCreated](QSqlDatabase connection)
+            [kind, &names, &errorMessage, &newlyCreated](QSqlDatabase connection)
             {
                 PersonRepository repository(connection);
                 QList<qint64> result;
@@ -1393,8 +1358,8 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
                     if (!id.has_value() && errorMessage.isEmpty())
                     {
                         id = repository.create(kind, {}, name, &errorMessage);
-                        if (id.has_value() && newlyCreated != nullptr)
-                            newlyCreated->append(*id);
+                        if (id.has_value())
+                            newlyCreated.append(*id);
                     }
                     if (!id.has_value() || !errorMessage.isEmpty())
                         return QList<qint64>{};
@@ -1408,15 +1373,18 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
         return created;
     };
     QList<qint64> createdActressIds;
+    QList<qint64> createdActorIds;
     const QList<qint64> actressIds = wants(QStringLiteral("actress"))
         ? ensurePeople(PersonKind::Actress, jsonStrings(QStringLiteral("actress_list")),
-                       &createdActressIds)
+                       createdActressIds)
         : QList<qint64>{};
     const QList<qint64> actorIds = wants(QStringLiteral("actor"))
-        ? ensurePeople(PersonKind::Actor, jsonStrings(QStringLiteral("actor_list")))
+        ? ensurePeople(PersonKind::Actor, jsonStrings(QStringLiteral("actor_list")),
+                       createdActorIds)
         : QList<qint64>{};
 
     QList<qint64> tagIds;
+    bool createdTags = false;
     if (wants(QStringLiteral("tag")))
     {
         QString errorMessage;
@@ -1428,8 +1396,10 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
             std::optional<qint64> id;
             if (found != records.cend())
                 id = found->id;
-            else if (errorMessage.isEmpty())
+            else if (errorMessage.isEmpty()) {
                 id = m_references.createTag(name, std::nullopt, {}, {}, &errorMessage);
+                createdTags |= id.has_value();
+            }
             if (id.has_value())
                 tagIds.append(*id);
         }
@@ -1445,8 +1415,14 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
         m_actors->setSelectedIds(actorIds);
     if (wants(QStringLiteral("tag")))
         m_tags->setSelectedIds(tagIds);
-    if (!createdActressIds.isEmpty())
+    if (!createdActressIds.isEmpty()) {
+        emit peopleChanged(PersonKind::Actress);
         emit actressesCreated(createdActressIds);
+    }
+    if (!createdActorIds.isEmpty())
+        emit peopleChanged(PersonKind::Actor);
+    if (createdTags)
+        emit tagsChanged();
     m_loadingEditor = false;
     markEditorChanged();
     if (wants(QStringLiteral("cover")))
@@ -1541,6 +1517,8 @@ Work AddWorkTabPage3::editorWork() const
 void AddWorkTabPage3::save()
 {
     Work work = editorWork();
+    if (work.id <= 0 && !m_workCreationEnabled)
+        return;
     if (work.serialNumber.isEmpty())
     {
         Toast::showWarning(window(), QStringLiteral("番号不能为空"), &m_themes);
@@ -1697,10 +1675,6 @@ void AddWorkTabPage3::save()
             }
         }
     }
-    if (m_graphManager != nullptr) {
-        m_graphManager->scheduleRefreshWork(workId);
-        updateRelationGraph();
-    }
     m_loadedActressIds = m_actresses->selectedIds();
     m_loadedActorIds = m_actors->selectedIds();
     m_loadedTagIds = m_tags->selectedIds();
@@ -1733,7 +1707,6 @@ void AddWorkTabPage3::clearEditor()
     m_loadedActressIds.clear();
     m_loadedActorIds.clear();
     m_loadedTagIds.clear();
-    if (m_relationGraph != nullptr) m_relationGraph->showEmptyGraph();
 }
 
 void AddWorkTabPage3::clearEditorExceptSerial()
@@ -1779,7 +1752,7 @@ void AddWorkTabPage3::updateEditorActions()
     if (!hasSavedWork)
     {
         updateModifiedFieldHighlights();
-        const bool canCreate = hasSerialNumber && !hasExistingSerial;
+        const bool canCreate = m_workCreationEnabled && hasSerialNumber && !hasExistingSerial;
         m_saveButton->setText(canCreate ? QStringLiteral("添加") : QStringLiteral("----"));
         m_saveButton->setVariant(canCreate ? QStringLiteral("add")
                                             : QStringLiteral("disabled"));
@@ -1905,3 +1878,20 @@ void AddWorkTabPage3::populateReferenceCombo(QComboBox *combo, ReferenceKind kin
 }
 
 } // namespace darkeye
+
+namespace darkeye {
+void AddWorkTabPage3::closeEvent(QCloseEvent *event) {
+    if (!isInitialized()) { event->accept(); return; }
+    updateEditorActions();
+    if (!m_saveButton->isEnabled()) { event->accept(); return; }
+    const auto choice = QMessageBox::question(this, QStringLiteral("未保存的修改"),
+        QStringLiteral("关闭前保存作品资料的修改？"), QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
+    if (choice == QMessageBox::Cancel) { event->ignore(); return; }
+    if (choice == QMessageBox::Save) {
+        save();
+        updateEditorActions();
+        if (m_saveButton->isEnabled()) { event->ignore(); return; }
+    }
+    event->accept();
+}
+}

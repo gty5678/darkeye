@@ -31,6 +31,20 @@ void GraphViewSession::setFavoriteWorkIds(QSet<QString> workIds)
     m_favoriteWorkIds = std::move(workIds);
 }
 
+bool GraphViewSession::setFilteredWorkIds(QSet<QString> workIds)
+{
+    if (m_filteredWorkIds == workIds) return false;
+    m_filteredWorkIds = std::move(workIds);
+    return true;
+}
+
+bool GraphViewSession::setFilteredActressIds(QSet<QString> actressIds)
+{
+    if (m_filteredActressIds == actressIds) return false;
+    m_filteredActressIds = std::move(actressIds);
+    return true;
+}
+
 GraphFilterMode GraphViewSession::filterMode() const noexcept
 {
     return m_filterMode;
@@ -45,21 +59,28 @@ QSet<int> GraphViewSession::filteredNodeIndexes() const
         const QVector<int> activeIndexes = m_store.activeNodeIndexes();
         return QSet<int>(activeIndexes.cbegin(), activeIndexes.cend());
     }
-    if (m_filterMode == GraphFilterMode::FavoriteWorks) {
+    const bool filterActresses = m_filterMode == GraphFilterMode::FilteredActresses;
+    if (filterActresses || m_filterMode == GraphFilterMode::FavoriteWorks
+        || m_filterMode == GraphFilterMode::FilteredWorks) {
+        const auto &ids = filterActresses ? m_filteredActressIds
+            : (m_filterMode == GraphFilterMode::FavoriteWorks ? m_favoriteWorkIds : m_filteredWorkIds);
+        const QString seedGroup = filterActresses ? QStringLiteral("actress") : QStringLiteral("work");
+        const QString neighborGroup = filterActresses ? QStringLiteral("work") : QStringLiteral("actress");
+        const QChar seedPrefix = filterActresses ? u'a' : u'w';
+        const QChar neighborPrefix = filterActresses ? u'w' : u'a';
         QSet<int> result;
-        for (const QString &workId : m_favoriteWorkIds) {
-            const auto index = m_store.indexOf(workId);
+        for (const QString &id : ids) {
+            const auto index = m_store.indexOf(id);
             const GraphNode *node = index.has_value() ? m_store.nodeAt(*index) : nullptr;
-            if (node == nullptr || (node->group != QStringLiteral("work")
-                                    && !node->id.startsWith(QLatin1Char('w')))) {
+            if (node == nullptr || (node->group != seedGroup && !node->id.startsWith(seedPrefix))) {
                 continue;
             }
             result.insert(*index);
             for (const int neighbor : m_store.neighbors(*index)) {
                 const GraphNode *neighborNode = m_store.nodeAt(neighbor);
                 if (neighborNode != nullptr
-                    && (neighborNode->group == QStringLiteral("actress")
-                        || neighborNode->id.startsWith(QLatin1Char('a')))) {
+                    && (neighborNode->group == neighborGroup
+                        || neighborNode->id.startsWith(neighborPrefix))) {
                     result.insert(neighbor);
                 }
             }

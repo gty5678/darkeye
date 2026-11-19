@@ -2,6 +2,7 @@
 
 #include "domain/Work.h"
 
+#include <QSet>
 #include <QSqlDatabase>
 #include <QVariantList>
 #include <QWidget>
@@ -18,29 +19,21 @@ namespace darkeye
 {
 
 class FanartStripWidget;
-class ThemeService;
-class StateToggleButton;
-class ForceViewSettingsPanel;
 namespace dvd_scene { class DvdSceneWidget; }
-namespace graph {
-class GraphManager;
-}
-namespace graph_view {
-class GraphViewWidget;
-}
-
 class DvdShelfView final : public QWidget
 {
     Q_OBJECT
 
 public:
     explicit DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
-                          graph::GraphManager *graphManager, const QString &coverDirectory,
+                          const QString &coverDirectory,
                           const QString &fanartDirectory, QWidget *parent = nullptr);
     void setWorks(const QList<WorkSummary> &works);
-    void enableGraphSettings(ThemeService &themes);
     bool openWork(qint64 workId);
+    void refreshCurrentFavorite();
     [[nodiscard]] qint64 currentWorkId() const;
+    [[nodiscard]] QSet<qint64> displayedWorkIds() const;
+    [[nodiscard]] const QList<WorkSummary> &displayedWorks() const { return m_works; }
 
     Q_PROPERTY(qreal cameraX READ cameraX NOTIFY cameraXChanged)
     Q_PROPERTY(qreal cameraTargetX READ cameraTargetX NOTIFY cameraTargetXChanged)
@@ -97,11 +90,10 @@ public:
     Q_INVOKABLE void on_studio_clicked();
     Q_INVOKABLE void on_label_clicked();
     Q_INVOKABLE void on_series_clicked();
-    Q_INVOKABLE void set_force_view_overlay(qreal centerX, qreal centerY);
     Q_INVOKABLE void set_fanart_strip_layout(qreal left, qreal top, qreal width);
 
 signals:
-    void workSelected(qint64 workId);
+    void currentWorkChanged();
     void editRequested(qint64 workId);
     void workDeleted(qint64 workId);
     void favoriteChanged(qint64 workId, bool favorite);
@@ -133,16 +125,12 @@ private:
     [[nodiscard]] qint64 workIdAt(int virtualIndex) const;
     void clearExpandedMeta();
     void clearFanartOverlay();
-    void showRelationGraph(qint64 workId);
     void hideOverlays();
-    void updateRelationGraphGeometry(qreal centerX, qreal centerY);
-    void updateRelationGraphControls();
     void updateFanartGeometry(qreal left, qreal top, qreal width);
     void persistFanartPreview();
 
     QSqlDatabase m_database;
     QSqlDatabase m_privateDatabase;
-    graph::GraphManager *m_graphManager = nullptr;
     QString m_coverDirectory;
     QString m_fanartDirectory;
     QList<WorkSummary> m_works;
@@ -170,16 +158,9 @@ private:
     qint64 m_makerId = -1, m_labelId = -1, m_seriesId = -1;
     bool m_favorited = false;
     bool m_hasLocalVideo = false;
-    graph_view::GraphViewWidget *m_relationGraph = nullptr;
     FanartStripWidget *m_fanartStrip = nullptr;
-    QWidget *m_relationGraphContainer = nullptr;
-    StateToggleButton *m_relationGraphSettingsButton = nullptr;
-    ForceViewSettingsPanel *m_relationGraphSettingsPanel = nullptr;
     QWidget *m_fanartContainer = nullptr;
     qint64 m_overlayWorkId = 0;
-    qint64 m_relationGraphWorkId = 0;
-    qreal m_relationGraphCenterX = -1;
-    qreal m_relationGraphCenterY = -1;
     qreal m_fanartLeft = -1;
     qreal m_fanartTop = -1;
     qreal m_fanartWidth = 0;

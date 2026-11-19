@@ -43,6 +43,9 @@ struct DvdSceneWidget::Impl {
     bool moved=false;
     QString lastSelection,lastState=QStringLiteral("Idle");
     bool lastExpanded=false;
+    bool expansionFits=true;
+    std::vector<QVector3D> closedPoints,openPoints;
+    float closedCenterX=0;
     float lastCameraX=0,lastCameraTargetX=0;
 
     explicit Impl(DvdSceneWidget *widget):owner(widget),canvas(new RhiSceneWidget(widget))
@@ -91,11 +94,32 @@ struct DvdSceneWidget::Impl {
     double now() const { return double(clock.nsecsElapsed())/1e9; }
     void updateFocusDistance()
     {
-        // Leave room for both halves of an open case in narrow page layouts.
-        const float aspect=float(std::max(1,canvas->width()))/std::max(1,canvas->height());
-        const float halfFov=camera.verticalFov*3.14159265f/360.0f;
-        interaction.setFocusDistance(std::max(0.2f,0.15f/(std::tan(halfFov)*aspect)));
+        // Measure the authored geometry in camera space at the normal viewing
+        // distance. Narrow panes keep a readable closed cover instead of zooming
+        // out until an open case fits.
+        const float focal=std::max(1,canvas->height())/(2*std::tan(camera.verticalFov*3.14159265f/360));
+        constexpr float margin=16;
+        expansionFits=!openPoints.empty();
+        for(const auto &point:openPoints) {
+            const float depth=0.2f-point.z();
+            const float x=canvas->width()*0.5f+focal*(point.x()+0.0075f)/depth;
+            if(depth<=0 || x<margin || x>canvas->width()-margin) expansionFits=false;
+        }
+        float distance=0.2f;
+        if(!expansionFits) {
+            for(const auto &point:closedPoints) {
+                distance=std::max(distance,point.z()+focal*std::abs(point.x()-closedCenterX)
+                    /std::max(1.0f,canvas->width()*0.5f-margin));
+            }
+        }
+        interaction.setFocusDistance(distance);
+        interaction.setFocusHorizontalOffset(expansionFits?0.0075f:-closedCenterX);
+        if(!expansionFits && owner->isExpanded()) {
+            interaction.toggleOpen(now());
+            emit owner->expansionBlocked();
+        }
     }
+
     bool needsAnimationTick() const
     {
         const bool moving=std::abs(camera.target.x()-cameraTargetX)>1e-5f;
@@ -266,13 +290,22 @@ struct DvdSceneWidget::Impl {
         return instance!=cases.end() && node && node->parent==instance->second.disc;
     }
 
+    bool isBackHit(const std::optional<RayHit> &hit,const QString &id) const
+    {
+        if(!hit || id!=interaction.selectedId() || !owner->isExpanded()
+            || interaction.state()!=DvdInteractionController::State::Focused) return false;
+        const auto instance=cases.find(id);
+        const auto *node=scene->node(hit->node);
+        return instance!=cases.end() && node && node->parent==instance->second.back;
+    }
+
     void refreshHover()
     {
         if(!hoverPositionValid || dragButton!=Qt::NoButton) return;
         const auto result=pick(hoverPosition);
         const auto id=result?primitiveIds.value(result->node):QString();
         interaction.hover(id,now());
-        canvas->setCursor(isDiscHit(result,id)?Qt::PointingHandCursor:Qt::ArrowCursor);
+        canvas->setCursor((isDiscHit(result,id) || isBackHit(result,id))?Qt::PointingHandCursor:Qt::ArrowCursor);
     }
 
     void cameraChanged()
@@ -305,7 +338,30 @@ bool DvdSceneWidget::setModel(std::shared_ptr<const ModelAsset> model)
     d->coverKeys.clear();
     d->coverSpecs.clear();
     d->scene->clear();
+    d->closedPoints.clear(); d->openPoints.clear();
+    const auto rotation=QQuaternion::fromAxisAndAngle(0,1,0,-90);
+    const auto pivot=rotation.rotatedVector({-0.006707f,0,-0.000293f});
+    for(const bool open:{false,true}) {
+        std::vector<QMatrix4x4> matrices;
+        auto &points=open?d->openPoints:d->closedPoints;
+        for(const auto &node:model->nodes) {
+            auto transform=node.transform;
+            if(open && (node.name=="front" || node.name=="spine"))
+                transform.rotation=QQuaternion::fromAxisAndAngle(0,1,0,-90);
+            const auto matrix=node.parent<0?transform.matrix():matrices.at(node.parent)*transform.matrix();
+            matrices.push_back(matrix);
+            if(node.name=="disc") continue;
+            for(const auto &primitive:node.primitives) if(primitive.mesh)
+                for(const auto &vertex:primitive.mesh->vertices)
+                    points.push_back(rotation.rotatedVector(matrix.map(
+                        {vertex.position[0],vertex.position[1],vertex.position[2]}))-pivot);
+        }
+    }
+    float left=1e20f,right=-1e20f;
+    for(const auto &point:d->closedPoints) { left=std::min(left,point.x()); right=std::max(right,point.x()); }
+    d->closedCenterX=d->closedPoints.empty()?0:(left+right)*0.5f;
     d->factory=std::make_unique<DvdCaseFactory>(std::move(model));
+    d->updateFocusDistance();
     d->refreshVisible();
     d->canvas->update();
     d->notify();
@@ -376,7 +432,16 @@ void DvdSceneWidget::returnToShelf()
     d->notify();
     d->updateTimer();
 }
-void DvdSceneWidget::toggleOpen() { d->interaction.toggleOpen(d->now()); d->notify(); d->updateTimer(); }
+bool DvdSceneWidget::canExpand() const { return d->expansionFits; }
+void DvdSceneWidget::toggleOpen()
+{
+    d->updateFocusDistance();
+    if(!isExpanded() && !canExpand() && state()==DvdInteractionController::State::Focused) {
+        emit expansionBlocked();
+        return;
+    }
+    d->interaction.toggleOpen(d->now()); d->notify(); d->updateTimer();
+}
 bool DvdSceneWidget::isExpanded() const
 {
     const auto it=d->cases.find(selectedId());
@@ -385,7 +450,7 @@ bool DvdSceneWidget::isExpanded() const
 bool DvdSceneWidget::isFullyExpanded() const
 {
     const auto it=d->cases.find(selectedId());
-    return it!=d->cases.end() && it->second.expanded
+    return it!=d->cases.end() && it->second.expanded && !it->second.backFolded
         && d->interaction.state()==DvdInteractionController::State::Focused
         && !d->interaction.active(it->second);
 }
@@ -396,7 +461,7 @@ bool DvdSceneWidget::isNearlyClosed() const
     // Use the actual animated pose, so interruptions and slow frames do not
     // reveal overlays while the lid is still visibly open.
     const float minimumDot=std::cos(8.0f*3.14159265f/360.0f);
-    for(const auto hinge:{it->second.spine,it->second.front}) {
+    for(const auto hinge:{it->second.back,it->second.spine,it->second.front}) {
         const auto *node=d->scene->node(hinge);
         if(!node || std::abs(QQuaternion::dotProduct(node->transform.rotation,QQuaternion()))<minimumDot)
             return false;
@@ -568,8 +633,15 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
                     d->dragButton=Qt::NoButton;
                     return true;
                 }
-                if(id==selectedId() && state()==DvdInteractionController::State::Focused) toggleOpen();
-                else focusItem(id);
+                if(d->isBackHit(hit,id)) {
+                    d->interaction.toggleBackFold(d->now());
+                    d->notify();
+                    d->updateTimer();
+                } else if(id==selectedId() && state()==DvdInteractionController::State::Focused) {
+                    toggleOpen();
+                } else {
+                    focusItem(id);
+                }
                 emit dvdClicked(id);
             }
         }

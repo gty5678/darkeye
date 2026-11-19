@@ -91,7 +91,7 @@ private slots:
         if(url.isEmpty())QSKIP("Set DARKEYE_SR_TEST_URL to test a running SRkit instance");
         UpscaleClient client;QSignalSpy done(&client,&UpscaleClient::completed),failed(&client,&UpscaleClient::failed);
         QImage image(16,12,QImage::Format_ARGB32);image.fill(QColor(100,70,40,97));
-        client.start(QUrl(url),qEnvironmentVariable("DARKEYE_SR_TEST_TOKEN"),image,2);
+        client.start(QUrl(url),qEnvironmentVariable("DARKEYE_SR_TEST_TOKEN"),image);
         QTRY_VERIFY_WITH_TIMEOUT(!client.busy(),240000);
         QVERIFY2(failed.isEmpty(),failed.isEmpty()?"":qPrintable(failed[0][0].toString()));
         QCOMPARE(done.count(),1);const auto result=qvariant_cast<QImage>(done[0][0]);
@@ -119,10 +119,11 @@ private slots:
         });
         UpscaleClient client;QSignalSpy done(&client,&UpscaleClient::completed),failed(&client,&UpscaleClient::failed);
         QImage image(12,8,QImage::Format_ARGB32);image.fill(Qt::red);
-        client.start(QUrl(QStringLiteral("http://127.0.0.1:%1/v1/upscale").arg(server.serverPort())),QStringLiteral("test-token"),image,2);
+        client.start(QUrl(QStringLiteral("http://127.0.0.1:%1/v1/upscale").arg(server.serverPort())),QStringLiteral("test-token"),image);
         QVERIFY(client.busy());QTRY_VERIFY_WITH_TIMEOUT(!client.busy(),5000);
         QVERIFY(request.startsWith("POST /v1/upscale "));QVERIFY(request.contains("Authorization: Bearer test-token"));
-        QVERIFY(request.contains("name=\"image\""));QVERIFY(request.contains("name=\"scale\""));QVERIFY(request.contains("\r\n\r\n2\r\n"));
+        QVERIFY(request.contains("name=\"image\""));QVERIFY(!request.contains("name=\"scale\""));QVERIFY(!request.contains("name=\"mode\""));
+        QCOMPARE(request.toLower().count("content-disposition: form-data;"),1);
         if(status==200 && !wrongSize){QCOMPARE(done.count(),1);QCOMPARE(failed.count(),0);QCOMPARE(qvariant_cast<QImage>(done[0][0]),result);}
         else{QCOMPARE(done.count(),0);QCOMPARE(failed.count(),1);if(status==503)QCOMPARE(failed[0][0].toString(),QStringLiteral("Engine unavailable"));}
     }
@@ -155,7 +156,7 @@ private slots:
         QTcpServer server;QVERIFY(server.listen(QHostAddress::LocalHost));
         UpscaleClient client;QSignalSpy done(&client,&UpscaleClient::completed),failed(&client,&UpscaleClient::failed);
         QImage image(10,10,QImage::Format_RGB32);image.fill(Qt::white);
-        client.start(QUrl(QStringLiteral("http://127.0.0.1:%1/v1/upscale").arg(server.serverPort())),{},image,2);
+        client.start(QUrl(QStringLiteral("http://127.0.0.1:%1/v1/upscale").arg(server.serverPort())),{},image);
         QVERIFY(client.busy());client.cancel();QTRY_VERIFY(!client.busy());QCOMPARE(done.count(),0);QCOMPARE(failed.count(),0);
     }
     void rotationAcceptsTypedFractionalAngles() {

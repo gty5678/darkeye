@@ -198,8 +198,11 @@ SidebarMenuButton *Sidebar::createButton(const QString &text, const QString &ico
 
 void Sidebar::handleMenuClick(const QString &menuId)
 {
-    if (m_selectedId == menuId) clearSelection();
-    else select(menuId);
+    if (m_selectedId == menuId) {
+        clearSelection();
+    } else {
+        select(menuId);
+    }
     emit itemClicked(menuId);
 }
 
@@ -301,8 +304,11 @@ void Sidebar2::paintEvent(QPaintEvent *)
 
 void Sidebar2::handleClick(const QString &menuId)
 {
-    if (m_selectedId == menuId) clearSelection();
-    else select(menuId);
+    if (m_selectedId == menuId) {
+        clearSelection();
+    } else {
+        select(menuId);
+    }
     emit itemClicked(menuId);
 }
 

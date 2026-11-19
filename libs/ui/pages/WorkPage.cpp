@@ -227,6 +227,7 @@ void WorkPage::buildUi()
     m_countLabel->setFixedWidth(100);
 
     m_sortSelector = new DesignComboBox(filterBar);
+    m_sortSelector->setProperty("compactFilter", true);
     m_sortSelector->setProperty("workControlId", QStringLiteral("WorkSortSelector"));
     m_sortSelector->addItem(QStringLiteral("随机顺序"), static_cast<int>(WorkSortOrder::Random));
     m_sortSelector->addItem(QStringLiteral("添加逆序"),
@@ -256,6 +257,7 @@ void WorkPage::buildUi()
     m_sortSelector->setCurrentIndex(1);
 
     m_scopeSelector = new DesignComboBox(filterBar);
+    m_scopeSelector->setProperty("compactFilter", true);
     m_scopeSelector->setProperty("workControlId", QStringLiteral("WorkScopeSelector"));
     m_scopeSelector->addItems({QStringLiteral("公共库范围"), QStringLiteral("收藏库范围"),
                                QStringLiteral("收藏未观看"), QStringLiteral("已撸过"),
@@ -495,7 +497,8 @@ void WorkPage::refreshData()
     }
 
     WorkRepository repository(connection.database());
-    const std::optional<int> total = repository.count(currentSearch(), &errorMessage);
+    const WorkSearch search = currentSearch();
+    const std::optional<int> total = repository.count(search, &errorMessage);
     if (!total.has_value())
     {
         const QString message = errorMessage.isEmpty() ? QStringLiteral("未知数据库错误")
@@ -512,7 +515,26 @@ void WorkPage::refreshData()
     m_lastCountError.clear();
     m_countLabel->setText(QStringLiteral("过滤总数:%1").arg(*total));
     qInfo() << "WorkPage query returned" << *total << "rows";
+    m_appliedSearch = search;
+    m_filteredWorkIds.reset();
     m_lazyArea->reset();
+    emit filteredWorksChanged();
+}
+
+QSet<qint64> WorkPage::filteredWorkIds()
+{
+    if (!m_appliedSearch) return {};
+    if (!m_filteredWorkIds) m_filteredWorkIds = m_repository.matchingWorkIds(*m_appliedSearch);
+    return *m_filteredWorkIds;
+}
+
+QList<WorkSummary> WorkPage::filteredWorks() const
+{
+    if (!m_appliedSearch) return {};
+    WorkSearch search = *m_appliedSearch;
+    search.limit = 0;
+    search.offset = 0;
+    return m_repository.search(search);
 }
 
 void WorkPage::focusSearch()
@@ -534,7 +556,16 @@ QWidget *WorkPage::captureContent()
 
 void WorkPage::refreshReferences()
 {
-    initialize();
+    refreshFromWorkspace(false, true);
+}
+
+void WorkPage::refreshTags()
+{
+    refreshFromWorkspace(true, false);
+}
+
+void WorkPage::reloadReferenceOptions()
+{
     QString errorMessage;
     SqliteConnection connection;
     if (!connection.open(m_database.databaseName(), true, &errorMessage))
@@ -547,14 +578,19 @@ void WorkPage::refreshReferences()
     populateSelector(m_makerFilter, repository.makerOptions());
     populateSelector(m_labelFilter, repository.labelOptions());
     populateSelector(m_seriesFilter, repository.seriesOptions());
-    refresh();
 }
 
-void WorkPage::refreshTags()
+void WorkPage::refreshFromWorkspace(bool tagsChanged, bool referencesChanged)
 {
     initialize();
-    m_tagSelector->reloadTags();
-    refresh();
+    if (referencesChanged)
+        reloadReferenceOptions();
+    if (tagsChanged) {
+        const QSignalBlocker blocker(m_tagSelector);
+        m_tagSelector->reloadTags();
+    }
+    m_filterTimer->stop();
+    refreshData();
 }
 
 QList<QWidget *> WorkPage::loadCardPage(int pageIndex, int pageSize)

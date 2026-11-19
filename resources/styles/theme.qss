@@ -30,6 +30,50 @@ QListWidget#mainSidebar::item:selected {
     color: @TEXT_INVERSE@;
 }
 
+QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput {
+    font-size: 20px;
+    padding: 4px 10px;
+}
+
+QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults {
+    font-size: 17px;
+}
+
+QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults::item {
+    padding: 5px 10px;
+}
+
+QWidget#ShelfFilterBar {
+    background-color: #ffffff;
+    border: 1px solid #d9dee5;
+    border-radius: @RADIUS_MD@;
+}
+
+QScrollArea#ShelfFilterScroll,
+QScrollArea#ShelfFilterScroll > QWidget,
+QWidget#ShelfFilterContent {
+    background-color: #ffffff;
+}
+
+QWidget#ShelfFilterBar QLabel {
+    color: #1f2937;
+    background-color: transparent;
+}
+
+QWidget#ShelfFilterBar > QPushButton {
+    background-color: transparent;
+    border: 0;
+    border-radius: 6px;
+}
+
+QWidget#ShelfFilterBar > QPushButton:hover {
+    background-color: #edf0f4;
+}
+
+QWidget#ShelfFilterBar > QPushButton:pressed {
+    background-color: #dfe4ea;
+}
+
 QComboBox#themeSelector,
 QComboBox#DesignComboBox,
 QComboBox#ShelfScopeSelector,
@@ -70,6 +114,13 @@ QComboBox#ShelfScopeSelector,
 QComboBox#ShelfSortSelector,
 QComboBox#DesignMakerSelector {
     padding-right: 24px;
+}
+
+QComboBox#DesignComboBox[compactFilter="true"],
+QComboBox#ShelfScopeSelector[compactFilter="true"],
+QComboBox#ShelfSortSelector[compactFilter="true"] {
+    padding-left: 4px;
+    padding-right: 18px;
 }
 
 QComboBox#DesignComboBox::drop-down,

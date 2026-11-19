@@ -69,6 +69,8 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
     connect(m_settingsPanel, &ForceViewSettingsPanel::contentSizeChanged, this,
             &ForceDirectPage::updateOverlayGeometry);
     m_settingsPanel->bindGraph(m_graphView);
+    connect(m_settingsPanel, &ForceViewSettingsPanel::graphNeighborDepthChanged,
+            this, [this](int radius) { m_egoRadius = radius; });
     connect(m_graphView, &graph_view::GraphViewWidget::nodeLeftClicked, this,
             [this](const QString &nodeId) {
                 bool ok = false;
@@ -86,7 +88,6 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
 void ForceDirectPage::lazyLoad()
 {
     m_graphManager.scheduleInitialize();
-    m_graphView->showAll();
     m_settingsPanel->setGraphNeighborDepthVisible(false);
     m_needsRefresh = false;
 }
@@ -149,7 +150,28 @@ void ForceDirectPage::setEgoGraph(const QString &centerId, int radius)
 {
     initialize();
     m_settingsPanel->setGraphNeighborDepthVisible(!centerId.isEmpty());
-    if (m_graphView != nullptr) m_graphView->setEgoGraph(centerId, radius);
+    if (radius >= 0) m_egoRadius = radius;
+    m_graphView->setEgoGraph(centerId, m_egoRadius);
+}
+
+void ForceDirectPage::showFilteredWorks(QSet<qint64> workIds)
+{
+    initialize();
+    m_settingsPanel->setGraphNeighborDepthVisible(false);
+    QSet<QString> nodeIds;
+    nodeIds.reserve(workIds.size());
+    for (qint64 id : workIds) nodeIds.insert(QStringLiteral("w%1").arg(id));
+    m_graphView->showFilteredWorks(std::move(nodeIds));
+}
+
+void ForceDirectPage::showFilteredActresses(const QSet<qint64> &actressIds)
+{
+    initialize();
+    m_settingsPanel->setGraphNeighborDepthVisible(false);
+    QSet<QString> nodeIds;
+    nodeIds.reserve(actressIds.size());
+    for (qint64 id : actressIds) nodeIds.insert(QStringLiteral("a%1").arg(id));
+    m_graphView->showFilteredActresses(std::move(nodeIds));
 }
 
 void ForceDirectPage::showEmptyGraph()

@@ -6,6 +6,7 @@
 #include "database/repositories/WorkRepository.h"
 #include "settings/Settings.h"
 
+#include <QSet>
 #include <QSqlDatabase>
 #include <QUrl>
 #include <optional>
@@ -39,21 +40,26 @@ public:
     void refresh();
     void refreshReferences();
     void refreshTags();
+    void refreshFromWorkspace(bool tagsChanged, bool referencesChanged);
     void focusSearch();
     [[nodiscard]] QWidget *captureContent();
     void filterByActor(qint64 actorId);
     void filterByTag(qint64 tagId);
+    [[nodiscard]] QSet<qint64> filteredWorkIds();
+    [[nodiscard]] QList<WorkSummary> filteredWorks() const;
 
 signals:
     void detailRequested(qint64 workId);
     void editRequested(qint64 workId);
     void worksChanged();
+    void filteredWorksChanged();
 
 private:
     void lazyLoad() override;
     void buildUi();
     void loadReferenceOptionsAsync();
     void applyInitialDefaultTagFilter(const QList<TagOption> &tags);
+    void reloadReferenceOptions();
     void refreshData();
     void applyFilters();
     void clearFilters();
@@ -88,6 +94,8 @@ private:
     QTimer *m_filterTimer = nullptr;
     quint32 m_randomSeed = 1;
     quint32 m_randomSeed2 = 1;
+    std::optional<WorkSearch> m_appliedSearch;
+    std::optional<QSet<qint64>> m_filteredWorkIds;
     QString m_lastCountError;
     QLabel *m_countLabel = nullptr;
     QWidget *m_tagPanel = nullptr;

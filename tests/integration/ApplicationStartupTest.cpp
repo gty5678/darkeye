@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "MainWindow.h"
-#include "darkeye_ui/components/Sidebar.h"
+#include "ui/components/WorkspaceSearch.h"
 #include "dvd_scene/DvdSceneWidget.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
@@ -12,6 +12,7 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QSettings>
+#include <QFile>
 #include <QSplashScreen>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -52,6 +53,9 @@ int main(int argc, char **argv)
 
     darkeye::settings::Paths paths;
     QSettings config(paths.settingsFile(), QSettings::IniFormat);
+    // This test covers a fresh startup, independent of the previous run's tabs.
+    QFile::remove(QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json")));
+    config.remove(QStringLiteral("workspace"));
     const QString publicDb = databases.filePath(QStringLiteral("public.db"));
     const QString privateDb = databases.filePath(QStringLiteral("private.db"));
     config.setValue(QStringLiteral("Paths/Database"), publicDb);
@@ -115,8 +119,8 @@ int main(int argc, char **argv)
                             splashClosed = false;
                     auto *scene = window->findChild<darkeye::dvd_scene::DvdSceneWidget *>(
                         QStringLiteral("ShelfDvdScene"));
-                    auto *sidebar = window->findChild<darkeye::Sidebar *>(QStringLiteral("DesignSidebar"));
-                    if (!scene || !sidebar) {
+                    auto *search = window->findChild<darkeye::WorkspaceSearch *>();
+                    if (!scene || !search) {
                         failed = true;
                     } else {
                         auto *renderer = scene->renderWidget();
@@ -125,14 +129,16 @@ int main(int argc, char **argv)
                             || !renderer->lastError().isEmpty() || scene->isVisible()
                             || scene->itemCount() != 1 || scene->visibleItemCount() != 1;
                         const auto submitted = renderer->statistics().submittedFrames;
-                        emit sidebar->itemClicked(QStringLiteral("shelf"));
+                        emit search->openRequested(QStringLiteral("shelf"));
                         QElapsedTimer frameWait;
                         frameWait.start();
                         while (renderer->statistics().submittedFrames <= submitted && frameWait.elapsed() < 3000)
                             QTest::qWait(20);
                         failed |= !scene->isVisible()
                             || renderer->statistics().submittedFrames <= submitted
-                            || renderer->statistics().resourceGenerations != generation;
+                            // Dock attachment may recreate the QRhi backing surface.
+                            || renderer->statistics().resourceGenerations < generation
+                            || !renderer->lastError().isEmpty();
                     }
                     QCoreApplication::quit();
                 });

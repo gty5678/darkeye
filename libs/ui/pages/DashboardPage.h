@@ -4,6 +4,8 @@
 
 #include <QSqlDatabase>
 
+class QListWidget;
+
 namespace darkeye
 {
 
@@ -21,10 +23,14 @@ public:
 
 private:
     void lazyLoad() override;
+    void refreshActivity();
 
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
     StatsOverviewCards *m_overview = nullptr;
+    QListWidget *m_recentView = nullptr;
+    QListWidget *m_recentAdded = nullptr;
+    QListWidget *m_pending = nullptr;
 };
 
 } // namespace darkeye

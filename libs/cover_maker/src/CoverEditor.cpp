@@ -563,8 +563,7 @@ CoverEditor::CoverEditor(QWidget *parent, bool panelMode) : QWidget(parent)
         const int index=canvas->selected;
         if(index<0 || index>=m_document.imageLayers.size() || !canvas->editableSelection() || canvas->cropping || m_upscale->busy())return;
         QDialog dialog(this);dialog.setWindowTitle(QStringLiteral("高清增强"));auto *layout=new QFormLayout(&dialog);
-        auto *notice=new QLabel(QStringLiteral("所选图片将上传至超分服务，增强成功后可撤销恢复原图。"));notice->setWordWrap(true);layout->addRow(notice);
-        auto *scale=new QComboBox;scale->addItem(QStringLiteral("2 倍"),2);scale->addItem(QStringLiteral("4 倍"),4);layout->addRow(QStringLiteral("放大倍数"),scale);
+        auto *notice=new QLabel(QStringLiteral("所选图片将上传至超分服务，返回固定 2 倍增强图片，成功后可撤销恢复原图。"));notice->setWordWrap(true);layout->addRow(notice);
         auto *configure=new QPushButton(QStringLiteral("服务设置…"));layout->addRow(configure);connect(configure,&QPushButton::clicked,this,&CoverEditor::configureUpscaleService);
         auto *buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);layout->addRow(buttons);
         connect(buttons,&QDialogButtonBox::accepted,&dialog,&QDialog::accept);connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
@@ -578,7 +577,7 @@ CoverEditor::CoverEditor(QWidget *parent, bool panelMode) : QWidget(parent)
             if(!(m_document==baseline)){QMessageBox::information(this,QStringLiteral("增强已完成"),QStringLiteral("编辑内容已变化，本次结果未覆盖当前图片。请重新选择图片增强。"));return;}
             m_document.imageLayers[index].image=image;canvas->selected=index;canvas->selectedText=-1;emit documentChanged();refresh();
         });
-        m_upscale->start(QUrl(m_srUrl),m_srToken,original.image,scale->currentData().toInt());
+        m_upscale->start(QUrl(m_srUrl),m_srToken,original.image);
         m_srCompletion=*connection;
         if(!m_upscale->busy())disconnect(m_srCompletion);
     });

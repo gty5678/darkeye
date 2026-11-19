@@ -22,7 +22,7 @@ qt_add_resources(darkeye_render3d_demo dvd_demo_assets
     FILES "${_dvd_demo_root}/libs/dvd/dvd.glb")
 set_target_properties(darkeye_render3d_demo PROPERTIES
     WIN32_EXECUTABLE FALSE RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(darkeye_render3d_demo PRIVATE darkeye::render3d darkeye::dvd_scene)
+target_link_libraries(darkeye_render3d_demo PRIVATE darkeye::dvd_scene)
 darkeye_apply_compiler_options(darkeye_render3d_demo)
 
 qt_add_executable(darkeye_dvd_scene_demo dvd_demo.cpp)

@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QWidget>
 
+class QActionGroup;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -24,7 +25,6 @@ namespace darkeye
 
 class ColorPicker;
 class ToggleSwitch;
-class TokenKeySequenceEdit;
 class MultiplePathManagement;
 
 class AboutSettingsPage final : public LazyWidget
@@ -74,16 +74,15 @@ class ShortcutSettingsPage final : public LazyWidget
     Q_OBJECT
 
 public:
-    explicit ShortcutSettingsPage(const QString &shortcutsFile, QWidget *parent = nullptr);
+    explicit ShortcutSettingsPage(const QString &shortcutsFile, const QActionGroup &actions,
+                                  QWidget *parent = nullptr);
 
 private:
     void lazyLoad() override;
-    void applyShortcut(const QString &actionId, TokenKeySequenceEdit *editor);
-    void resetShortcut(const QString &actionId, const QString &defaultKey,
-                       TokenKeySequenceEdit *editor);
-    void save() const;
+    bool saveShortcut(const QString &actionId, const QJsonValue &value);
 
     QString m_shortcutsFile;
+    const QActionGroup &m_actions;
     QJsonObject m_userShortcuts;
 };
 
@@ -260,7 +259,7 @@ class SettingsPage final : public LazyWidget
     Q_OBJECT
 
 public:
-    explicit SettingsPage(ThemeService &themeService, const QString &shortcutsFile,
+    explicit SettingsPage(ThemeService &themeService, const QActionGroup &shortcutActions,
                           QSqlDatabase publicDatabase = {}, QSqlDatabase privateDatabase = {},
                           settings::Paths paths = {},
                           QWidget *parent = nullptr);
@@ -279,7 +278,7 @@ private:
     void lazyLoad() override;
 
     ThemeService &m_themeService;
-    QString m_shortcutsFile;
+    const QActionGroup &m_shortcutActions;
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
     settings::Paths m_paths;

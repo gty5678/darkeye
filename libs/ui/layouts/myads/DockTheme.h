@@ -12,12 +12,13 @@ struct DockTheme
     QColor border = QColor(QStringLiteral("#cccccc"));
     QColor primary = QColor(QStringLiteral("#00aaff"));
     QColor primaryHover = QColor(QStringLiteral("#0099ee"));
+    QColor tabBarBackground = QColor(230, 230, 230);
+    QColor tabSelected = QColor(QStringLiteral("#ffffff"));
     QColor closeIcon = QColor(QStringLiteral("#333333"));
     QColor closeHover = QColor(QStringLiteral("#f0faff"));
     QColor closePressed = QColor(QStringLiteral("#cccccc"));
     QString fontFamily = QStringLiteral("Microsoft YaHei");
     int tabFontSize = 14;
-    int borderWidth = 2;
     int previewAlpha = 80;
     int previewBorderWidth = 2;
 

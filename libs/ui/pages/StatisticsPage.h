@@ -16,9 +16,11 @@ class StatisticsPage final : public LazyWidget
     Q_OBJECT
 
 public:
+    enum class Panel { Plots, Information };
+
     StatisticsPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
                    ThemeService &themeService, QString actressImageDirectory,
-                   QWidget *parent = nullptr);
+                   QWidget *parent = nullptr, Panel panel = Panel::Plots);
 
     void refresh();
     [[nodiscard]] QWidget *captureContent();
@@ -30,6 +32,7 @@ signals:
 private:
     void lazyLoad() override;
 
+    Panel m_panel;
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
     ThemeService &m_themeService;

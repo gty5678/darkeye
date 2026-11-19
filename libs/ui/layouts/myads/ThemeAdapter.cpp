@@ -13,12 +13,14 @@ DockTheme dockThemeFromTokens(const ThemeTokens &tokens)
     theme.border = QColor(tokens.border);
     theme.primary = QColor(tokens.primary);
     theme.primaryHover = QColor(tokens.primaryHover);
+    if (tokens.pageBackground != tokens.background)
+        theme.tabBarBackground = QColor(tokens.pageBackground);
+    theme.tabSelected = theme.background;
     theme.closeIcon = QColor(tokens.icon);
     theme.closeHover = QColor(tokens.inputBackground);
     theme.closePressed = QColor(tokens.border);
     theme.fontFamily = tokens.fontFamilyBase;
     theme.tabFontSize = tokens.fontSizeWorkspaceTab.chopped(2).toInt();
-    theme.borderWidth = tokens.borderWidth.chopped(2).toInt();
     return theme;
 }
 

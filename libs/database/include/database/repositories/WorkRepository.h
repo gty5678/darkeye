@@ -2,6 +2,7 @@
 
 #include "domain/Work.h"
 
+#include <QSet>
 #include <QList>
 #include <QSqlDatabase>
 #include <QString>
@@ -23,6 +24,7 @@ public:
                                        QString *errorMessage = nullptr) const;
     [[nodiscard]] QList<WorkSummary> search(const WorkSearch &search,
                                             QString *errorMessage = nullptr) const;
+    [[nodiscard]] QSet<qint64> matchingWorkIds(const WorkSearch &search) const;
     [[nodiscard]] std::optional<int> count(const WorkSearch &search,
                                            QString *errorMessage = nullptr) const;
     [[nodiscard]] bool existsSerial(const QString &serialNumber,

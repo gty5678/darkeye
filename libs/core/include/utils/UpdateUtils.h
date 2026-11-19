@@ -12,9 +12,9 @@ struct UpdateCheckResult
     QString title;
     QString message;
     bool updateAvailable = false;
-    QString latestVersion;
-    QString releaseNotes;
-    QString packageUrl;
+    QString latestVersion{};
+    QString releaseNotes{};
+    QString packageUrl{};
 };
 
 [[nodiscard]] QString updateTarget();

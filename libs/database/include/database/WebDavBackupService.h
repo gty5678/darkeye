@@ -12,9 +12,9 @@ namespace darkeye
 struct WebDavActionResult final
 {
     bool succeeded = false;
-    QString message;
-    QString localPath;
-    QString remotePath;
+    QString message{};
+    QString localPath{};
+    QString remotePath{};
 };
 
 class WebDavBackupService final

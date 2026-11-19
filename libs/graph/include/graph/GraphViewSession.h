@@ -13,6 +13,8 @@ enum class GraphFilterMode
     Empty,
     Ego,
     FavoriteWorks,
+    FilteredWorks,
+    FilteredActresses,
 };
 
 struct GraphViewNode
@@ -64,6 +66,8 @@ public:
     void setEgoCenter(QString nodeId);
     void setEgoRadius(int radius);
     void setFavoriteWorkIds(QSet<QString> workIds);
+    bool setFilteredWorkIds(QSet<QString> workIds);
+    bool setFilteredActressIds(QSet<QString> actressIds);
     [[nodiscard]] GraphFilterMode filterMode() const noexcept;
 
     [[nodiscard]] GraphViewSnapshot snapshot() const;
@@ -83,6 +87,8 @@ private:
     QString m_egoCenterId;
     int m_egoRadius = 1;
     QSet<QString> m_favoriteWorkIds;
+    QSet<QString> m_filteredWorkIds;
+    QSet<QString> m_filteredActressIds;
     bool m_loaded = false;
     GraphViewSnapshot m_previous;
 };

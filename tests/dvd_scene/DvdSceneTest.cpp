@@ -155,6 +155,122 @@ private slots:
         QCOMPARE(view.renderWidget()->cursor().shape(),Qt::ArrowCursor);
     }
 
+    void narrowPaneBlocksExpansionAndCentersCover()
+    {
+        GltfLoader loader;
+        const auto loaded=loadDvdModel(loader,QStringLiteral(DARKEYE_DVD_SOURCE_DIR)+"/libs/dvd/dvd.glb");
+        QVERIFY2(loaded,qPrintable(loaded.error));
+        DvdSceneWidget view;
+        view.resize(1200,600);
+        QVERIFY(view.setModel(loaded.asset));
+        QVERIFY(view.setItems(sampleItems(1)));
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(view.focusItem("dvd-0"));
+        QTRY_COMPARE(view.state(),DvdInteractionController::State::Focused);
+        QVERIFY(view.canExpand());
+        view.toggleOpen();
+        QTRY_VERIFY(view.isFullyExpanded());
+        QSignalSpy blocked(&view,&DvdSceneWidget::expansionBlocked);
+        view.resize(300,600);
+        QTRY_VERIFY(!view.canExpand());
+        QTRY_VERIFY(view.isNearlyClosed());
+        QCOMPARE(blocked.count(),1);
+        // The nearly-closed pose can still be a few degrees from the final
+        // position. Wait for the projected cover to finish moving into place.
+        std::optional<QRectF> cover;
+        QTRY_VERIFY((cover=view.selectedCaseRect())
+            && cover->right()<=view.renderWidget()->width()-10);
+        QVERIFY(std::abs(cover->center().x()-view.renderWidget()->width()*0.5)<5);
+        QVERIFY(cover->left()>=10);
+        view.toggleOpen();
+        QVERIFY(!view.isExpanded());
+        QCOMPARE(blocked.count(),2);
+        view.resize(1200,600);
+        QTRY_VERIFY(view.canExpand());
+        view.toggleOpen();
+        QTRY_VERIFY(view.isFullyExpanded());
+    }
+
+    void openCaseFoldsBackPanelOverFront()
+    {
+        GltfLoader loader;
+        const auto loaded=loadDvdModel(loader,QStringLiteral(DARKEYE_DVD_SOURCE_DIR)+"/libs/dvd/dvd.glb");
+        QVERIFY2(loaded,qPrintable(loaded.error));
+        DvdSceneWidget view;
+        const auto desktop=view.screen()->availableGeometry().size()-QSize(80,80);
+        const int width=std::min(1000,desktop.width());
+        view.resize(width,std::min(width/2,desktop.height()));
+        QVERIFY(view.setModel(loaded.asset));
+        QVERIFY(view.setItems(sampleItems(1)));
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QVERIFY(view.focusItem("dvd-0"));
+        QTRY_COMPARE(view.state(),DvdInteractionController::State::Focused);
+        view.toggleOpen();
+        QTRY_VERIFY(view.isFullyExpanded());
+
+        auto *canvas=view.renderWidget();
+        const auto scene=canvas->scene();
+        NodeId back=0,frontPanel=0;
+        for(const auto &part:scene->renderItems()) {
+            const auto *panel=scene->node(scene->node(part.node)->parent);
+            if(panel && panel->name=="back") back=panel->id;
+            if(panel && panel->name=="front") frontPanel=panel->id;
+        }
+        QVERIFY(back);
+        QVERIFY(frontPanel);
+        const auto openFront=scene->worldMatrix(frontPanel);
+        float maxFrontMovement=0;
+        int movingFrames=0;
+        const auto trackFront=connect(&view,&DvdSceneWidget::presentationChanged,&view,[&] {
+            const auto frontPose=scene->worldMatrix(frontPanel);
+            for(const auto &point:{QVector3D(),QVector3D(0,0.08f,-0.12f),QVector3D(0,-0.08f,-0.12f)})
+                maxFrontMovement=std::max(maxFrontMovement,(frontPose.map(point)-openFront.map(point)).length());
+            const float turn=std::abs(scene->node(back)->transform.rotation.y());
+            if(turn>0.1f && turn<0.9f) ++movingFrames;
+        });
+        const auto panelPoint=[&] {
+            // Stay clear of the disc to click the right panel itself.
+            const auto world=scene->worldMatrix(back).map({0,0.08f,-0.10f});
+            return canvas->camera().project(world,canvas->size());
+        };
+        const auto right=panelPoint();
+        QVERIFY(right);
+        QSignalSpy discClicked(&view,&DvdSceneWidget::discClicked);
+        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,right->toPoint());
+        QVERIFY(view.isExpanded());
+        QVERIFY(!view.isFullyExpanded());
+        QTRY_VERIFY(std::abs(scene->node(back)->transform.rotation.y())>0.99999f);
+        const auto left=panelPoint();
+        QVERIFY(left);
+        QVERIFY(left->x()<right->x());
+        const auto ray=canvas->camera().ray(*left,canvas->size());
+        QVERIFY(ray);
+        const auto hit=raycast(*scene,*ray,RaycastMode::Triangles);
+        QVERIFY(hit);
+        QCOMPARE(scene->node(hit->node)->parent,back);
+        QCOMPARE(discClicked.count(),0);
+
+        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,left->toPoint());
+        QTRY_VERIFY(view.isFullyExpanded());
+        disconnect(trackFront);
+        QVERIFY(movingFrames>0);
+        QVERIFY2(maxFrontMovement<1e-5f,qPrintable(QString::number(maxFrontMovement)));
+        const auto front=view.selectedFrontRect();
+        QVERIFY(front);
+        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,front->center().toPoint());
+        QTRY_VERIFY(view.isNearlyClosed());
+
+        view.toggleOpen();
+        QTRY_VERIFY(view.isFullyExpanded());
+        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,right->toPoint());
+        QTRY_VERIFY(std::abs(scene->node(back)->transform.rotation.y())>0.99999f);
+        view.returnToShelf();
+        QTRY_COMPARE(view.state(),DvdInteractionController::State::Idle);
+        QVERIFY(scene->node(back)->transform.rotation.isIdentity());
+    }
+
     void tiltedDiscClicksKeepCaseOpen()
     {
         GltfLoader loader;

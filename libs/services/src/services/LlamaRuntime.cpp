@@ -76,7 +76,9 @@ void LlamaRuntime::stop()
     if (!isRunning()) return;
     // Resolve a pending start before attempting to terminate it.
     if (m_process.state() == QProcess::Starting && !m_process.waitForStarted(2000)) return;
+#ifdef Q_OS_WIN
     const qint64 pid = processId();
+#endif
     m_process.terminate();
     if (!m_process.waitForFinished(3000)) {
 #ifdef Q_OS_WIN

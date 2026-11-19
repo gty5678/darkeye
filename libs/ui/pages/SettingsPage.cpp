@@ -27,6 +27,7 @@
 #include "database/repositories/WorkRepository.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -578,8 +579,9 @@ void VideoSettingsPage::synchronizeVideoUrls()
             .arg(result.unmatchedSerials).arg(result.updatedWorks));
 }
 
-ShortcutSettingsPage::ShortcutSettingsPage(const QString &shortcutsFile, QWidget *parent)
-    : LazyWidget(parent), m_shortcutsFile(shortcutsFile)
+ShortcutSettingsPage::ShortcutSettingsPage(const QString &shortcutsFile, const QActionGroup &actions,
+                                           QWidget *parent)
+    : LazyWidget(parent), m_shortcutsFile(shortcutsFile), m_actions(actions)
 {
 }
 
@@ -596,39 +598,18 @@ void ShortcutSettingsPage::lazyLoad()
         }
     }
 
-    struct ShortcutDefinition
-    {
-        QString id;
-        QString name;
-        QString key;
-    };
-    const QList<ShortcutDefinition> definitions = {
-        {QStringLiteral("add_masturbation_record"), QStringLiteral("添加撸管记录"),
-         QStringLiteral("M")},
-        {QStringLiteral("add_quick_work"), QStringLiteral("快速添加番号"), QStringLiteral("W")},
-        {QStringLiteral("add_makelove_record"), QStringLiteral("添加做爱记录"),
-         QStringLiteral("L")},
-        {QStringLiteral("add_sexual_rousal_record"), QStringLiteral("添加晨勃记录"),
-         QStringLiteral("A")},
-        {QStringLiteral("open_help"), QStringLiteral("打开文档"), QStringLiteral("H")},
-        {QStringLiteral("search"), QStringLiteral("搜索"), QStringLiteral("Ctrl+F")},
-        {QStringLiteral("capture"), QStringLiteral("部分截图"), QStringLiteral("C")},
-        {QStringLiteral("allcapture"), QStringLiteral("全软件截图"), QStringLiteral("Shift+C")},
-    };
-
     auto *layout = new QVBoxLayout(this);
-    for (const auto &definition : definitions)
+    for (auto *action : m_actions.actions())
     {
         auto *row = new QWidget(this);
         row->setProperty("designScrollMenuContent", true);
-        row->setObjectName(QStringLiteral("ShortcutSettingRow_%1").arg(definition.id));
+        row->setObjectName(QStringLiteral("ShortcutSettingRow_%1").arg(action->objectName()));
         auto *rowLayout = new QHBoxLayout(row);
-        auto *label = new DesignLabel(definition.name, row);
-        label->setFixedWidth(100);
+        auto *label = new DesignLabel(action->text(), row);
+        label->setMinimumWidth(154);
         auto *editor = new TokenKeySequenceEdit(row);
         editor->setFixedWidth(150);
-        editor->setKeySequence(QKeySequence(
-            m_userShortcuts.value(definition.id).toString(definition.key)));
+        editor->setKeySequence(action->shortcut());
         auto *reset = new DesignButton(QStringLiteral("恢复"), row);
         reset->setFixedWidth(50);
         rowLayout->addWidget(label);
@@ -637,51 +618,39 @@ void ShortcutSettingsPage::lazyLoad()
         rowLayout->addStretch();
         layout->addWidget(row);
         connect(editor, &QKeySequenceEdit::editingFinished, this,
-                [this, id = definition.id, editor] { applyShortcut(id, editor); });
+                [this, action, editor] {
+                    const auto shortcut = editor->keySequence();
+                    if (shortcut == action->shortcut()) return;
+                    if (saveShortcut(action->objectName(), shortcut.toString(QKeySequence::PortableText)))
+                        action->setShortcut(shortcut);
+                    else
+                        editor->setKeySequence(action->shortcut());
+                });
         connect(reset, &QPushButton::clicked, this,
-                [this, id = definition.id, key = definition.key, editor] {
-                    resetShortcut(id, key, editor);
+                [this, action, editor] {
+                    if (saveShortcut(action->objectName(), QJsonValue::Undefined)) {
+                        action->setShortcut(action->data().value<QKeySequence>());
+                        editor->setKeySequence(action->shortcut());
+                    }
                 });
     }
     layout->addStretch();
     layout->addWidget(
-        new DesignLabel(QStringLiteral("<small>配置保存位置：%1</small>").arg(settings::Paths().shortcutsFile().toHtmlEscaped()),
-                        this));
+        new DesignLabel(QStringLiteral("<small>配置保存位置：%1</small>").arg(m_shortcutsFile.toHtmlEscaped()), this));
 }
 
-void ShortcutSettingsPage::applyShortcut(const QString &actionId,
-                                         TokenKeySequenceEdit *editor)
+bool ShortcutSettingsPage::saveShortcut(const QString &actionId, const QJsonValue &value)
 {
-    const QString shortcut = editor->keySequence().toString();
-    m_userShortcuts.insert(actionId, shortcut);
-    save();
-    if (auto *action = window()->findChild<QAction *>(actionId))
-    {
-        action->setShortcut(QKeySequence(shortcut));
-    }
-}
-
-void ShortcutSettingsPage::resetShortcut(const QString &actionId, const QString &defaultKey,
-                                         TokenKeySequenceEdit *editor)
-{
-    m_userShortcuts.remove(actionId);
-    save();
-    editor->setKeySequence(QKeySequence(defaultKey));
-    if (auto *action = window()->findChild<QAction *>(actionId))
-    {
-        action->setShortcut(QKeySequence(defaultKey));
-    }
-}
-
-void ShortcutSettingsPage::save() const
-{
+    auto shortcuts = m_userShortcuts;
+    shortcuts.insert(actionId, value);
+    const auto contents = QJsonDocument(shortcuts).toJson(QJsonDocument::Indented);
     QSaveFile file(m_shortcutsFile);
-    if (!file.open(QIODevice::WriteOnly))
-    {
-        return;
+    if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size() || !file.commit()) {
+        QMessageBox::warning(this, QStringLiteral("快捷键保存失败"), file.errorString());
+        return false;
     }
-    file.write(QJsonDocument(m_userShortcuts).toJson(QJsonDocument::Indented));
-    file.commit();
+    m_userShortcuts = std::move(shortcuts);
+    return true;
 }
 
 CommonSettingsPage::CommonSettingsPage(ThemeService &themeService,
@@ -1563,11 +1532,11 @@ void DatabaseSettingsPage::restoreWebDavBackup()
     else QMessageBox::critical(this, QStringLiteral("恢复失败"), result.message);
 }
 
-SettingsPage::SettingsPage(ThemeService &themeService, const QString &shortcutsFile,
+SettingsPage::SettingsPage(ThemeService &themeService, const QActionGroup &shortcutActions,
                            QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
                            settings::Paths paths,
                            QWidget *parent)
-    : LazyWidget(parent), m_themeService(themeService), m_shortcutsFile(shortcutsFile),
+    : LazyWidget(parent), m_themeService(themeService), m_shortcutActions(shortcutActions),
       m_publicDatabase(std::move(publicDatabase)), m_privateDatabase(std::move(privateDatabase)),
       m_paths(std::move(paths))
 {
@@ -1584,7 +1553,7 @@ void SettingsPage::lazyLoad()
         {QStringLiteral("信息补充器"), new CrawlerSettingsPage(this)},
         {QStringLiteral("翻译"), new TranslationSettingsPage(this)},
         {QStringLiteral("数据库"), new DatabaseSettingsPage(m_publicDatabase, m_privateDatabase, m_paths, this)},
-        {QStringLiteral("快捷键"), new ShortcutSettingsPage(m_shortcutsFile, this)},
+        {QStringLiteral("快捷键"), new ShortcutSettingsPage(m_paths.shortcutsFile(), m_shortcutActions, this)},
         {QStringLiteral("关于软件"), new AboutSettingsPage(m_themeService, this, m_paths)},
     };
     auto *layout = new QVBoxLayout(this);

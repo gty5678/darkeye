@@ -294,6 +294,24 @@ std::optional<int> PersonRepository::count(const PersonSearch &search, QString *
     return query.value(0).toInt();
 }
 
+QSet<qint64> PersonRepository::matchingPersonIds(const PersonSearch &search) const
+{
+    const bool actress = search.kind == PersonKind::Actress;
+    const QString entityTable = actress ? QStringLiteral("actress") : QStringLiteral("actor");
+    const QString nameTable =
+        actress ? QStringLiteral("actress_name") : QStringLiteral("actor_name");
+    const QString idColumn = actress ? QStringLiteral("actress_id") : QStringLiteral("actor_id");
+    const PersonSearchClause clause = buildSearchClause(search, entityTable, nameTable, idColumn);
+    QSqlQuery query(m_database);
+    if (!bindAndExec(query, QStringLiteral("SELECT %1 FROM %2").arg(idColumn, entityTable)
+                                + clause.sql, clause.values, nullptr))
+        return {};
+    QSet<qint64> ids;
+    while (query.next())
+        ids.insert(query.value(0).toLongLong());
+    return ids;
+}
+
 QStringList PersonRepository::nameSuggestions(PersonKind kind) const
 {
     const QString table =

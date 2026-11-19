@@ -13,7 +13,7 @@ Transform DvdInteractionController::focusTransform(const Camera &camera) const
     Transform result;
     result.rotation=cameraRotation*QQuaternion::fromAxisAndAngle(0,1,0,-90);
     const QVector3D pivot(-0.006707f,0,-0.000293f);
-    const auto anchor=camera.position()+cameraRotation.rotatedVector({0.0075f,-0.095f,-m_focusDistance});
+    const auto anchor=camera.position()+cameraRotation.rotatedVector({m_focusHorizontalOffset,-0.095f,-m_focusDistance});
     result.translation=anchor-result.rotation.rotatedVector(pivot);
     return result;
 }
@@ -44,13 +44,51 @@ bool DvdInteractionController::select(const QString &id,const Camera &,double no
 void DvdInteractionController::close(DvdCaseInstance &instance,double now,double duration)
 {
     instance.expanded=false;
-    for(const auto id:{instance.spine,instance.front}) {
+    instance.backFolded=false;
+    animateHinges(instance,now,duration);
+}
+
+void DvdInteractionController::animateHinges(DvdCaseInstance &instance,double now,double duration)
+{
+    const auto openRotation=QQuaternion::fromAxisAndAngle(0,1,0,-90);
+    // Use exact zero for the half-turn so interpolation consistently swings
+    // the right panel toward the viewer before it settles over the left.
+    const QQuaternion backRotation(0,0,-1,0);
+    for(const auto id:{instance.back,instance.spine,instance.front}) {
         if(const auto *node=m_scene.node(id)) {
             auto transform=node->transform;
             transform.rotation={};
+            if(id==instance.back) {
+                transform.translation=instance.backHomeTranslation;
+                if(instance.backFolded) transform.rotation=backRotation;
+            } else if(instance.expanded && !instance.backFolded) {
+                // As the back folds, these two hinges counter-rotate so
+                // the front stays facing the viewer on the left.
+                transform.rotation=openRotation;
+            }
             m_animator.animateTo(m_scene,id,transform,now,duration);
         }
     }
+    // Retargeting can sample an in-flight track before the next frame.
+    pinFrontHinge(instance);
+}
+
+void DvdInteractionController::pinFrontHinge(const DvdCaseInstance &instance)
+{
+    const auto *back=m_scene.node(instance.back);
+    if(!back || back->transform.rotation.isIdentity()) return;
+    const auto *spine=m_scene.node(instance.spine);
+    const auto *front=m_scene.node(instance.front);
+    if(!spine || !front) return;
+
+    auto pose=back->transform;
+    const auto frontHinge=spine->transform.matrix().map(front->transform.translation);
+    // The spine counter-rotates by half the back's turn. Translate the
+    // assembly by the difference so the front hinge stays in place.
+    const auto halfTurn=QQuaternion::slerp(QQuaternion(),pose.rotation,0.5f);
+    pose.translation=instance.backHomeTranslation
+        +halfTurn.rotatedVector(frontHinge)-pose.rotation.rotatedVector(frontHinge);
+    m_scene.setTransform(instance.back,pose);
 }
 
 void DvdInteractionController::beginReturn(DvdCaseInstance &instance,double now)
@@ -68,7 +106,7 @@ void DvdInteractionController::returnToShelf(double now,float closeSpeed)
     if(m_state==State::Returning) return;
     const auto it=m_cases.find(m_selected);
     if(it==m_cases.end()) return;
-    const bool closing=it->second.expanded || m_animator.active(it->second.spine)
+    const bool closing=it->second.expanded || m_animator.active(it->second.back) || m_animator.active(it->second.spine)
         || m_animator.active(it->second.front);
     m_animator.advance(m_scene,now);
     m_animator.cancel(it->second.root);
@@ -91,15 +129,22 @@ void DvdInteractionController::toggleOpen(double now)
     const auto it=m_cases.find(m_selected);
     if(it==m_cases.end() || m_state!=State::Focused) return;
     auto &instance=it->second;
-    instance.expanded=!instance.expanded;
-    if(instance.expanded && instance.disc) m_scene.setVisible(instance.disc,true);
-    for(const auto id:{instance.spine,instance.front}) {
-        if(const auto *node=m_scene.node(id)) {
-            auto transform=node->transform;
-            transform.rotation=instance.expanded?QQuaternion::fromAxisAndAngle(0,1,0,-90):QQuaternion();
-            m_animator.animateTo(m_scene,id,transform,now,0.5);
-        }
+    if(instance.expanded) {
+        close(instance,now,0.5);
+    } else {
+        instance.expanded=true;
+        if(instance.disc) m_scene.setVisible(instance.disc,true);
+        animateHinges(instance,now,0.5);
     }
+}
+
+void DvdInteractionController::toggleBackFold(double now)
+{
+    const auto it=m_cases.find(m_selected);
+    if(it==m_cases.end() || m_state!=State::Focused || !it->second.expanded || !it->second.back) return;
+    auto &instance=it->second;
+    instance.backFolded=!instance.backFolded;
+    animateHinges(instance,now,0.5);
 }
 
 Transform DvdInteractionController::shelfPose(const DvdCaseInstance &instance) const
@@ -160,9 +205,11 @@ void DvdInteractionController::advance(const Camera &camera,double now)
             m_state=State::Focused;
         }
     }
-    for(auto &[_,instance]:m_cases)
-        if(!instance.expanded && !m_animator.active(instance.spine) && !m_animator.active(instance.front)
-            && instance.disc) m_scene.setVisible(instance.disc,false);
+    for(auto &[_,instance]:m_cases) {
+        pinFrontHinge(instance);
+        if(!instance.expanded && !m_animator.active(instance.back) && !m_animator.active(instance.spine)
+            && !m_animator.active(instance.front) && instance.disc) m_scene.setVisible(instance.disc,false);
+    }
 }
 
 void DvdInteractionController::followCamera(const Camera &camera)
@@ -186,16 +233,18 @@ void DvdInteractionController::reset()
     for(auto &[_,instance]:m_cases) {
         m_scene.setTransform(instance.root,instance.home);
         instance.expanded=false;
+        instance.backFolded=false;
         if(instance.disc) m_scene.setVisible(instance.disc,false);
         if(instance.disc) {
             auto pose=instance.discHome;
             pose.rotation=QQuaternion::fromAxisAndAngle(1,0,0,instance.hasLocalVideo?0:30)*pose.rotation;
             m_scene.setTransform(instance.disc,pose);
         }
-        for(const auto id:{instance.spine,instance.front}) {
+        for(const auto id:{instance.back,instance.spine,instance.front}) {
             if(const auto *node=m_scene.node(id)) {
                 auto transform=node->transform;
                 transform.rotation={};
+                if(id==instance.back) transform.translation=instance.backHomeTranslation;
                 m_scene.setTransform(id,transform);
             }
         }
@@ -205,7 +254,7 @@ void DvdInteractionController::reset()
 bool DvdInteractionController::active(const DvdCaseInstance &instance) const
 {
     return m_animator.active(instance.root) || m_animator.active(instance.spine)
-        || m_animator.active(instance.front);
+        || m_animator.active(instance.front) || m_animator.active(instance.back);
 }
 QString DvdInteractionController::stateName(State state)
 {

@@ -354,6 +354,16 @@ bool ReferenceRepository::redirect(ReferenceKind kind, qint64 sourceId, qint64 t
     return true;
 }
 
+std::optional<qint64> ReferenceRepository::resolveTagId(qint64 tagId) const
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT COALESCE(redirect_tag_id, tag_id) FROM tag WHERE tag_id=?"));
+    query.addBindValue(tagId);
+    if (!query.exec() || !query.next())
+        return std::nullopt;
+    return query.value(0).toLongLong();
+}
+
 QList<TagRecord> ReferenceRepository::listTags(QString *errorMessage) const
 {
     QSqlQuery query(m_database);

@@ -1,5 +1,7 @@
 #include "ui/pages/DashboardPage.h"
+#include "ui/pages/PageScrollArea.h"
 
+#include "database/repositories/StatisticsRepository.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "ui/components/StatsOverviewCards.h"
 
@@ -8,6 +10,46 @@
 #include <QVBoxLayout>
 
 #include <utility>
+
+namespace
+{
+
+void updateList(QListWidget *list, const QStringList &items)
+{
+    list->clear();
+    list->addItems(items);
+    int height = 2 * list->frameWidth();
+    for (int row = 0; row < list->count(); ++row)
+        height += list->sizeHintForRow(row);
+    list->setFixedHeight(qMin(height, 200));
+}
+
+QStringList activityLabels(
+    const std::optional<QVector<darkeye::DashboardActivity>> &activities, const QString &emptyText,
+    bool showKind)
+{
+    if (!activities)
+        return {QStringLiteral("数据加载失败")};
+    if (activities->isEmpty())
+        return {emptyText};
+
+    QStringList labels;
+    for (const auto &activity : *activities)
+    {
+        QString name = activity.name;
+        if (showKind)
+        {
+            const QString kind = activity.kind == darkeye::DashboardActivity::Kind::Work
+                                     ? QStringLiteral("作品")
+                                     : QStringLiteral("女优");
+            name = QStringLiteral("%1 · %2").arg(kind, name);
+        }
+        labels.append(QStringLiteral("%1    %2").arg(activity.time.left(16), name));
+    }
+    return labels;
+}
+
+} // namespace
 
 namespace darkeye
 {
@@ -21,68 +63,76 @@ DashboardPage::DashboardPage(QSqlDatabase publicDatabase, QSqlDatabase privateDa
 
 void DashboardPage::lazyLoad()
 {
-    auto *root = new QVBoxLayout(this);
+    auto *frame = addPageScrollArea(this);
+    auto *frameLayout = new QHBoxLayout(frame);
+    frameLayout->setContentsMargins(0, 0, 0, 0);
+    frameLayout->setSpacing(0);
+
+    auto *content = new QWidget(frame);
+    content->setObjectName(QStringLiteral("DashboardContent"));
+    content->setMaximumWidth(1000);
+    frameLayout->addStretch();
+    frameLayout->addWidget(content, 1);
+    frameLayout->addStretch();
+
+    auto *root = new QVBoxLayout(content);
     root->setContentsMargins(16, 16, 16, 16);
     root->setSpacing(16);
-
-    m_overview = new StatsOverviewCards(std::move(m_publicDatabase), std::move(m_privateDatabase), this);
+    m_overview = new StatsOverviewCards(m_publicDatabase, m_privateDatabase, content,
+                                        StatsOverviewCards::Layout::Wrapping);
     root->addWidget(m_overview);
 
-    auto *recentContainer = new QWidget(this);
-    auto *recentLayout = new QVBoxLayout(recentContainer);
-    recentLayout->setContentsMargins(0, 0, 0, 0);
-    recentLayout->setSpacing(8);
-    auto *recentHeading = new DesignLabel(QStringLiteral("最近行为"), recentContainer);
-    recentHeading->setObjectName(QStringLiteral("dashboard_section_title"));
-    recentLayout->addWidget(recentHeading);
-    auto *recentColumns = new QHBoxLayout;
-    recentColumns->setSpacing(16);
-    const auto addRecentColumn = [recentContainer, recentColumns](const QString &objectName,
-                                                                  const QString &title,
-                                                                  const QStringList &items)
+    const auto addSection = [root, content](const QString &objectName, const QString &title)
     {
-        auto *column = new QWidget(recentContainer);
-        auto *layout = new QVBoxLayout(column);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(4);
-        layout->addWidget(new DesignLabel(title, column));
-        auto *list = new QListWidget(column);
+        auto *layout = new QVBoxLayout;
+        layout->setSpacing(6);
+        auto *heading = new DesignLabel(title, content);
+        heading->setObjectName(QStringLiteral("dashboard_section_title"));
+        layout->addWidget(heading);
+        auto *list = new QListWidget(content);
         list->setObjectName(objectName);
-        list->setMaximumHeight(200);
-        list->addItems(items);
+        list->setSelectionMode(QAbstractItemView::NoSelection);
+        list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         layout->addWidget(list);
-        recentColumns->addWidget(column, 1);
+        root->addLayout(layout);
+        return list;
     };
-    addRecentColumn(QStringLiteral("DashboardRecentViewList"), QStringLiteral("最近观看 / 最近标记"),
-                    {QStringLiteral("（占位）最近看过的一部作品"),
-                     QStringLiteral("（占位）最近看过的另一部作品")});
-    addRecentColumn(QStringLiteral("DashboardRecentAddedList"), QStringLiteral("最近新增"),
-                    {QStringLiteral("（占位）最近新增作品"),
-                     QStringLiteral("（占位）最近新增女优")});
-    recentLayout->addLayout(recentColumns);
-    root->addWidget(recentContainer);
-
-    auto *pendingContainer = new QWidget(this);
-    auto *pendingLayout = new QVBoxLayout(pendingContainer);
-    pendingLayout->setContentsMargins(0, 0, 0, 0);
-    pendingLayout->setSpacing(8);
-    auto *pendingHeading = new DesignLabel(QStringLiteral("待处理事项"), pendingContainer);
-    pendingHeading->setObjectName(QStringLiteral("dashboard_section_title"));
-    pendingLayout->addWidget(pendingHeading);
-    auto *pending = new QListWidget(pendingContainer);
-    pending->setObjectName(QStringLiteral("DashboardPendingList"));
-    pending->setMaximumHeight(140);
-    pending->addItems({QStringLiteral("（占位）12 部作品没有封面"),
-                       QStringLiteral("（占位）8 部作品未绑定女优")});
-    pendingLayout->addWidget(pending);
-    root->addWidget(pendingContainer);
+    m_recentView = addSection(QStringLiteral("DashboardRecentViewList"),
+                              QStringLiteral("最近观看"));
+    m_recentAdded = addSection(QStringLiteral("DashboardRecentAddedList"),
+                               QStringLiteral("最近新增"));
+    m_pending = addSection(QStringLiteral("DashboardPendingList"), QStringLiteral("待处理事项"));
     root->addStretch();
+    refreshActivity();
 }
 
 void DashboardPage::refresh()
 {
-    initialize();
+    if (!isInitialized())
+    {
+        initialize();
+        return;
+    }
     m_overview->refresh();
+    refreshActivity();
+}
+
+void DashboardPage::refreshActivity()
+{
+    StatisticsRepository repository(m_publicDatabase, m_privateDatabase);
+    updateList(m_recentView, activityLabels(repository.recentWatching(),
+                                           QStringLiteral("暂无观看记录"), false));
+    updateList(m_recentAdded, activityLabels(repository.recentAdditions(),
+                                            QStringLiteral("暂无新增记录"), true));
+
+    const auto pending = repository.dashboardPendingCounts();
+    if (!pending)
+    {
+        updateList(m_pending, {QStringLiteral("数据加载失败")});
+        return;
+    }
+    updateList(m_pending, {QStringLiteral("%1 部作品没有封面").arg(pending->missingCover),
+                           QStringLiteral("%1 部作品未绑定女优").arg(pending->unlinkedActress)});
 }
 
 } // namespace darkeye

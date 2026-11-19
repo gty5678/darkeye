@@ -44,6 +44,7 @@ signals:
     void closeRequested();
 
 protected:
+    void closeEvent(QCloseEvent *event) override;
     void addActressExternalLinksPanel(QWidget *panel);
     void configureAvatar(const QString &purpose, const QString &placeholder);
     void setAvatarImagePath(const QString &path);

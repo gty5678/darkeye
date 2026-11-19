@@ -2,6 +2,8 @@
 
 #include "darkeye_ui/base/LazyWidget.h"
 
+#include <QSet>
+
 class QShowEvent;
 class QResizeEvent;
 class QLabel;
@@ -28,7 +30,9 @@ public:
                              QWidget *parent = nullptr, QString actressImageDirectory = {},
                              QString workCoverDirectory = {});
     void refreshGraph();
-    void setEgoGraph(const QString &centerId, int radius = 3);
+    void setEgoGraph(const QString &centerId, int radius = -1);
+    void showFilteredWorks(QSet<qint64> workIds);
+    void showFilteredActresses(const QSet<qint64> &actressIds);
     void showEmptyGraph();
     void setFavoriteFilterToggleVisible(bool visible);
 
@@ -50,6 +54,7 @@ private:
     TokenCheckBox *m_favoriteOnly = nullptr;
     StateToggleButton *m_settingsButton = nullptr;
     ForceViewSettingsPanel *m_settingsPanel = nullptr;
+    int m_egoRadius = 3;
     bool m_needsRefresh = false;
 };
 

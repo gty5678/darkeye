@@ -61,9 +61,9 @@ struct TagOption final
     QString name;
     QString typeName;
     QString color;
-    QString detail;
-    QString mutexGroup;
-    QStringList aliases;
+    QString detail{};
+    QString mutexGroup{};
+    QStringList aliases{};
 };
 
 struct NamedIdOption final
@@ -126,6 +126,7 @@ struct WorkSearch final
     std::optional<qint64> makerId;
     std::optional<qint64> labelId;
     std::optional<qint64> seriesId;
+    std::optional<qint64> actorId;
     QList<qint64> tagIds;
     QList<qint64> includedWorkIds;
     bool restrictToIncludedWorkIds = false;

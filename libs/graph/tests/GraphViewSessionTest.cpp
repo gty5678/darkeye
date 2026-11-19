@@ -9,6 +9,7 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
+#include <QThreadPool>
 #include <QTimer>
 
 #include <iostream>
@@ -303,6 +304,20 @@ bool testScheduledWorkRefreshIsCoalesced()
         if (changeCount != 1 || edgeType(manager.store(), QStringLiteral("w10"),
                                          QStringLiteral("a1")) != QStringLiteral("cast")) {
             std::cerr << "scheduled incremental graph refresh was not coalesced\n";
+            return false;
+        }
+        // Let the worker finish without delivering its queued result, then load a newer graph.
+        manager.scheduleRefreshWork(10);
+        QCoreApplication::sendPostedEvents(&manager, QEvent::MetaCall);
+        if (!QThreadPool::globalInstance()->waitForDone(5000)
+            || !query.exec(QStringLiteral("INSERT INTO actress VALUES (2)"))
+            || !manager.refresh(&error)) {
+            std::cerr << "could not reload the graph while an incremental result was queued\n";
+            return false;
+        }
+        QCoreApplication::sendPostedEvents(&manager, QEvent::MetaCall);
+        if (changeCount != 2 || !manager.store().containsNode(QStringLiteral("a2"))) {
+            std::cerr << "an older incremental result overwrote the full graph reload\n";
             return false;
         }
         database.close();

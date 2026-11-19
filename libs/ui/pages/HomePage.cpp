@@ -1,4 +1,5 @@
 #include "ui/pages/HomePage.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "app/Resources.h"
 #include "ui/components/ShopSceneWidget.h"
@@ -27,7 +28,7 @@ HomePage::HomePage(QSqlDatabase database, const QString &coverDirectory, ThemeSe
 void HomePage::lazyLoad()
 {
     Resources::ensureInitialized();
-    auto *root = new QGridLayout(this);
+    auto *root = new QGridLayout(addPageScrollArea(this));
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
     auto *bar = new QHBoxLayout;

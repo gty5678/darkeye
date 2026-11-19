@@ -149,6 +149,8 @@ test -f "$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 
 首次配置时，CMake 根据 `vcpkg.json` 自动构建 FreeType、msdfgen 及其依赖，使用仓库固定的 baseline。无需手动执行 `vcpkg install`，也不需要用 vcpkg 再安装一套 Qt。首次构建需联网。[vcpkg 配置说明](https://learn.microsoft.com/vcpkg/get_started/get-started?pivots=shell-bash)
 
+仓库的 `arm64-osx` overlay triplet 将依赖的最低系统版本设为 macOS 14.4，与应用预设一致。如使用 `VCPKG_MANIFEST_MODE=OFF` 并遇到依赖库的最低版本高于 14.4 的链接警告，请使用 `--overlay-triplets=<仓库根目录>/cmake/vcpkg-triplets` 在新的安装目录重建依赖，再以 `VCPKG_INSTALLED_DIR` 指向该目录。
+
 `export` 只影响当前终端。若需要每次打开终端自动生效，将以下三行加入自己的 `~/.zshrc`，路径按实际情况填写：
 
 ```sh

@@ -17,6 +17,7 @@
 #include "ui/components/AsyncImageLabel.h"
 #include "ui/components/WorkCard.h"
 #include "ui/components/WikiTextEdit.h"
+#include "ui/layouts/myads/PaneWidget.h"
 
 #include <QApplication>
 #include <QComboBox>
@@ -36,7 +37,6 @@
 #include <QSet>
 #include <QSqlQuery>
 #include <QSpinBox>
-#include <QStackedWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QToolTip>
@@ -55,6 +55,7 @@ private slots:
     void detailAndEditorCompletePersonRoundTrip();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
     void actressTimelineFitsAfterLayout();
+    void actressTimelineStacksSameDayWorksBelowAxis();
     void actressTimelineZoomKeepsPointerAnchor();
 };
 
@@ -163,18 +164,19 @@ void PersonPageTest::pageSwitchDoesNotFocusNameFilter()
 
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
     darkeye::ThemeService themes(*application);
-    QStackedWidget stack;
+    darkeye::myads::PaneWidget pane(QStringLiteral("people"));
     auto *otherPage = new QLineEdit;
-    stack.addWidget(otherPage);
+    QVERIFY(pane.addContent(QStringLiteral("other"), QStringLiteral("Other"), otherPage));
     auto *page = new darkeye::PersonPage(
         actress ? darkeye::PersonKind::Actress : darkeye::PersonKind::Actor,
         publicConnection.database(), privateConnection.database(), themes);
-    stack.addWidget(page);
-    stack.resize(800, 500);
-    stack.show();
-    stack.activateWindow();
+    QVERIFY(pane.addContent(QStringLiteral("people"), QStringLiteral("People"), page));
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("other")));
+    pane.resize(800, 500);
+    pane.show();
+    pane.activateWindow();
     otherPage->setFocus();
-    stack.setCurrentWidget(page);
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("people")));
     QApplication::processEvents();
     auto *name = page->findChild<darkeye::CompleterLineEdit *>();
     QVERIFY(name != nullptr);
@@ -183,9 +185,9 @@ void PersonPageTest::pageSwitchDoesNotFocusNameFilter()
 
     for (int i = 0; i < 3; ++i)
     {
-        stack.setCurrentWidget(otherPage);
+        QVERIFY(pane.setCurrentContentId(QStringLiteral("other")));
         otherPage->setFocus();
-        stack.setCurrentWidget(page);
+        QVERIFY(pane.setCurrentContentId(QStringLiteral("people")));
         QApplication::processEvents();
         QVERIFY(!name->hasFocus());
         QVERIFY(!name->completer()->popup()->isVisible());
@@ -196,9 +198,9 @@ void PersonPageTest::pageSwitchDoesNotFocusNameFilter()
     QTest::keyClicks(name, "test");
     QCOMPARE(name->text(), QStringLiteral("test"));
     name->completer()->popup()->hide();
-    stack.setCurrentWidget(otherPage);
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("other")));
     otherPage->setFocus();
-    stack.setCurrentWidget(page);
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("people")));
     QApplication::processEvents();
     QVERIFY(!name->hasFocus());
     QVERIFY(!name->completer()->popup()->isVisible());
@@ -278,7 +280,7 @@ void PersonPageTest::actressTimelineFitsAfterLayout()
     end.releaseDate = QStringLiteral("2026-12-31");
     timeline.setWorks({start, end});
     timeline.show();
-    // Detail-page layouts can assign the final width after the first show event.
+    // Workspace layouts can assign the final width after the first show event.
     timeline.resize(1080, 180);
     auto *scroll = timeline.findChild<QScrollArea *>();
     QVERIFY(scroll);
@@ -293,6 +295,42 @@ void PersonPageTest::actressTimelineFitsAfterLayout()
     timeline.show();
     QTRY_VERIFY(qAbs(visibleX(start.id) - 32) <= 2);
     QTRY_VERIFY(qAbs(visibleX(end.id) - (scroll->viewport()->width() - 32)) <= 3);
+}
+
+void PersonPageTest::actressTimelineStacksSameDayWorksBelowAxis()
+{
+    darkeye::ActressWorkTimeline timeline;
+    timeline.resize(760, 220);
+    darkeye::PersonWorkSummary single, first, second, nearby;
+    single.id = 1;
+    single.releaseDate = QStringLiteral("2019-01-01");
+    first.id = 2;
+    first.releaseDate = QStringLiteral("2020-06-18");
+    second.id = 3;
+    second.releaseDate = QStringLiteral("2020-06-18T21:00:00");
+    nearby.id = 4;
+    nearby.releaseDate = QStringLiteral("2020-06-19");
+    timeline.setWorks({single, first, second, nearby});
+    timeline.show();
+
+    auto *canvas = timeline.findChild<QWidget *>(QStringLiteral("ActressWorkTimelineCanvas"));
+    auto *scroll = timeline.findChild<QScrollArea *>();
+    QVERIFY(canvas && scroll);
+    QTRY_VERIFY(scroll->horizontalScrollBar()->value() > 0);
+    const QPoint firstMark = timeline.markerCenter(first.id);
+    const QPoint secondMark = timeline.markerCenter(second.id);
+    QCOMPARE(firstMark.x(), secondMark.x());
+    QVERIFY(firstMark.y() > timeline.markerCenter(single.id).y());
+    QVERIFY(secondMark.y() > firstMark.y());
+    QVERIFY(timeline.markerCenter(nearby.id) != firstMark);
+    QVERIFY(timeline.markerCenter(nearby.id) != secondMark);
+
+    QSignalSpy clicked(&timeline, &darkeye::ActressWorkTimeline::workRequested);
+    QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, firstMark);
+    QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, secondMark);
+    QCOMPARE(clicked.size(), 2);
+    QCOMPARE(clicked.at(0).at(0).toLongLong(), first.id);
+    QCOMPARE(clicked.at(1).at(0).toLongLong(), second.id);
 }
 
 void PersonPageTest::actressTimelineZoomKeepsPointerAnchor()
@@ -496,7 +534,7 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
     QVERIFY(application != nullptr);
     darkeye::ThemeService themes(*application);
-    darkeye::PersonDetailPage detail(darkeye::PersonKind::Actress, publicConnection.database(),
+    darkeye::PersonDetailPage detail(publicConnection.database(),
                                      privateConnection.database(), themes);
     QVERIFY(detail.showPerson(*actressId));
     QCOMPARE(detail.currentPersonId(), *actressId);
@@ -508,19 +546,16 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     auto *radar = detail.findChild<QWidget *>(QStringLiteral("DesignRadarChart"));
     QVERIFY(panel != nullptr);
     QVERIFY(workTable != nullptr);
-    QVERIFY(timeline != nullptr);
+    QVERIFY(timeline == nullptr);
     QVERIFY(heart != nullptr);
     QVERIFY(radar != nullptr);
     QCOMPARE(workTable->rowCount(), 3);
-    QCOMPARE(timeline->markerCount(), 3);
-    QCOMPARE(timeline->works().size(), sqlAligned->works.size());
     auto *radarChart = static_cast<darkeye::RadarChartWidget *>(radar);
     QCOMPARE(radarChart->categories(),
              QStringList({QStringLiteral("身高"), QStringLiteral("罩杯"),
                           QStringLiteral("胸围"), QStringLiteral("腰围"),
                           QStringLiteral("臀围")}));
     QCOMPARE(radarChart->values().size(), 5);
-    QCOMPARE(timeline->works().first().serialNumber, QStringLiteral("PERSON-001"));
     QCOMPARE(workTable->item(0, 0)->text(), QStringLiteral("PERSON-001"));
     QTest::mouseClick(heart, Qt::LeftButton);
     darkeye::PrivateRepository privateData(privateConnection.database());

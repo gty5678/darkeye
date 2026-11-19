@@ -22,6 +22,21 @@ struct DashboardStatistics final
     int favoriteActressCount = 0;
 };
 
+struct DashboardActivity final
+{
+    enum class Kind { Work, Actress };
+
+    Kind kind;
+    QString name;
+    QString time;
+};
+
+struct DashboardPendingCounts final
+{
+    int missingCover;
+    int unlinkedActress;
+};
+
 struct TopActressStatistic final
 {
     qint64 actressId = 0;
@@ -58,6 +73,9 @@ public:
 
     [[nodiscard]] std::optional<DashboardStatistics> dashboard(
         QString *errorMessage = nullptr) const;
+    [[nodiscard]] std::optional<QVector<DashboardActivity>> recentWatching() const;
+    [[nodiscard]] std::optional<QVector<DashboardActivity>> recentAdditions() const;
+    [[nodiscard]] std::optional<DashboardPendingCounts> dashboardPendingCounts() const;
     [[nodiscard]] std::optional<TopActressStatistic> topActress(
         int days, QString *errorMessage = nullptr) const;
     [[nodiscard]] int recordCountInDays(int days, PersonalRecordKind kind,

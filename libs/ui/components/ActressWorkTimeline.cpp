@@ -10,11 +10,12 @@
 #include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
+#include <QPaintEvent>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QScreen>
+#include <QSet>
 #include <QShowEvent>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -25,9 +26,9 @@
 
 namespace darkeye {
 namespace {
-constexpr int rulerHeight = 28;
-constexpr int markerSize = 20;
-constexpr int laneStride = 16;
+constexpr int axisY = 38;
+constexpr int markerSize = 16;
+constexpr int laneStride = 20;
 constexpr int trackPad = 14;
 constexpr int unknownWidth = 120;
 constexpr double minPpd = 0.001;
@@ -125,54 +126,43 @@ public:
     std::function<void(qint64)> activate;
 
 protected:
-    void paintEvent(QPaintEvent *) override
+    void paintEvent(QPaintEvent *event) override
     {
         QPainter painter(this);
-        painter.fillRect(rect(), palette().color(QPalette::Base));
+        const auto colors = palette();
+        const QRect exposed = event->rect();
+        painter.fillRect(exposed, colors.color(QPalette::Base));
+        painter.fillRect(exposed.intersected(QRect(0, 0, width(), axisY)),
+                         colors.color(QPalette::AlternateBase));
         painter.setRenderHint(QPainter::Antialiasing);
-        painter.setPen(QPen(palette().color(QPalette::Mid), 1));
-        painter.drawLine(0, rulerHeight - 1, width(), rulerHeight - 1);
-        painter.setPen(QPen(palette().color(QPalette::Mid), 2));
-        painter.drawLine(0, m_axisY, width(), m_axisY);
 
-        if (m_dateMin.isValid() && m_numDays > 0) {
-            const int rawStep = qMax(1, qCeil(76.0 / qMax(m_ppd, 1e-9)));
-            const QList<int> nice{1, 2, 3, 5, 7, 10, 14, 21, 30, 60, 90, 120,
-                                  180, 365, 730, 1095, 1825};
-            int step = rawStep;
-            for (int candidate : nice) if (candidate >= rawStep) { step = candidate; break; }
-            painter.setFont(QFont(painter.font().family(), 8));
-            painter.setPen(palette().color(QPalette::Text));
-            const int visibleStart = qMax(0, qFloor((m_scroll->horizontalScrollBar()->value()
-                                                    - trackPad) / m_ppd));
-            const int visibleEnd = qMin(m_numDays, visibleStart
-                + qCeil((m_scroll->viewport()->width() + 400) / m_ppd));
-            int first = ((visibleStart + step - 1) / step) * step;
-            for (int day = first; day <= visibleEnd; day += step) {
-                const int x = qRound(trackPad + day * m_ppd);
-                painter.drawLine(x, m_axisY - 5, x, m_axisY + 5);
-                const QString label = m_ppd >= 5.0
-                    ? m_dateMin.addDays(day).toString(QStringLiteral("yyyy-MM-dd"))
-                    : m_dateMin.addDays(day).toString(QStringLiteral("yyyy-MM"));
-                const int textWidth = painter.fontMetrics().horizontalAdvance(label);
-                painter.drawText(x - textWidth / 2, rulerHeight - 6, label);
-            }
-        }
+        if (m_dateMin.isValid() && m_numDays > 0)
+            paintRuler(painter, exposed, colors);
+
+        painter.setPen(colors.color(QPalette::Mid));
+        painter.drawLine(exposed.left(), axisY, exposed.right(), axisY);
         if (m_unknownX >= 0) {
-            painter.setPen(palette().color(QPalette::Text));
-            painter.drawText(m_unknownX - 18, rulerHeight - 6, QStringLiteral("日期未知"));
+            painter.setPen(colors.color(QPalette::PlaceholderText));
+            const QRect label(m_unknownX - unknownWidth / 2, 0, unknownWidth, axisY);
+            painter.drawText(label, Qt::AlignCenter, QStringLiteral("日期未知"));
         }
+
+        auto guideColor = colors.color(QPalette::Text);
+        guideColor.setAlphaF(0.24);
+        painter.setPen(guideColor);
+        for (const QPoint &end : m_stems) {
+            if (end.x() >= exposed.left() && end.x() <= exposed.right())
+                painter.drawLine(end.x(), axisY, end.x(), end.y());
+        }
+
         for (const Marker &marker : std::as_const(m_markers)) {
-            painter.setBrush(tagColor(marker.work.highlightTagId, palette()));
-            painter.setPen(QPen(palette().color(QPalette::Mid), 1));
+            if (!exposed.intersects(marker.rect)) continue;
             const QPointF center = marker.rect.center();
-            QPainterPath diamond;
-            diamond.moveTo(center.x(), marker.rect.top() + 2);
-            diamond.lineTo(marker.rect.right() - 2, center.y());
-            diamond.lineTo(center.x(), marker.rect.bottom() - 2);
-            diamond.lineTo(marker.rect.left() + 2, center.y());
-            diamond.closeSubpath();
-            painter.drawPath(diamond);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(colors.color(QPalette::Base));
+            painter.drawEllipse(center, 6.5, 6.5);
+            painter.setBrush(tagColor(marker.work.highlightTagId, colors));
+            painter.drawEllipse(center, 4.5, 4.5);
         }
     }
 
@@ -236,6 +226,7 @@ protected:
             return;
         }
         const Marker *marker = markerAt(event->position().toPoint());
+        setCursor(marker ? Qt::PointingHandCursor : Qt::ArrowCursor);
         if (marker != nullptr) {
             m_hideTimer->stop();
             showPopup(*marker);
@@ -255,12 +246,10 @@ protected:
             return;
         }
         if (event->button() == Qt::LeftButton) {
-            for (const Marker &marker : std::as_const(m_markers)) {
-                if (marker.rect.contains(event->position().toPoint())) {
-                    if (activate) activate(marker.work.id);
-                    event->accept();
-                    return;
-                }
+            if (const Marker *marker = markerAt(event->position().toPoint())) {
+                if (activate) activate(marker->work.id);
+                event->accept();
+                return;
             }
         }
         QWidget::mouseReleaseEvent(event);
@@ -289,7 +278,67 @@ protected:
     }
 
 private:
-    struct Marker { QRect rect; PersonWorkSummary work; int lane = 0; };
+    struct Marker { QRect rect; PersonWorkSummary work; };
+
+    void paintRuler(QPainter &painter, const QRect &exposed, const QPalette &colors) const
+    {
+        const auto firstDay = qBound(0, qFloor((exposed.left() - trackPad - 65) / m_ppd), m_numDays - 1);
+        const auto lastDay = qMin(m_numDays - 1, qCeil((exposed.right() - trackPad + 65) / m_ppd));
+        const QDate firstDate = m_dateMin.addDays(firstDay);
+        const QDate lastDate = m_dateMin.addDays(lastDay);
+        const auto minor = colors.color(QPalette::PlaceholderText);
+        const auto major = colors.color(QPalette::Text);
+        auto grid = major;
+        grid.setAlphaF(0.09);
+        const auto drawTick = [&](const QDate &date, const QString &label, bool emphasized) {
+            const int x = qRound(trackPad + m_dateMin.daysTo(date) * m_ppd);
+            if (exposed.bottom() > axisY) {
+                painter.setPen(grid);
+                painter.drawLine(x, axisY, x, exposed.bottom());
+            }
+            painter.setPen(emphasized ? major : minor);
+            painter.drawLine(x, axisY - (emphasized ? 6 : 4), x, axisY);
+            painter.drawText(QRect(x - 60, 0, 120, axisY - 7), Qt::AlignCenter, label);
+        };
+
+        const int dayLabelSpacing = painter.fontMetrics().horizontalAdvance(QStringLiteral("0000-00-00")) + 12;
+        if (15 * m_ppd >= dayLabelSpacing) {
+            int step = 1;
+            for (const int days : {1, 2, 5, 10, 15}) {
+                step = days;
+                if (days * m_ppd >= dayLabelSpacing) break;
+            }
+            for (QDate month(firstDate.year(), firstDate.month(), 1); month <= lastDate;
+                 month = month.addMonths(1)) {
+                for (int day = 1; day <= month.daysInMonth(); day += step) {
+                    const QDate date = month.addDays(day - 1);
+                    if (date < firstDate || date > lastDate) continue;
+                    // Skip the final subdivision when it sits too close to the next month.
+                    if (day > 1 && (month.daysInMonth() + 1 - day) * m_ppd < dayLabelSpacing) continue;
+                    drawTick(date, date.toString(QStringLiteral("yyyy-MM-dd")), day == 1);
+                }
+            }
+            return;
+        }
+
+        const int monthLabelSpacing = painter.fontMetrics().horizontalAdvance(QStringLiteral("0000-00")) + 16;
+        int step = 1;
+        for (const int months : {1, 2, 3, 6, 12, 24, 60, 120}) {
+            step = months;
+            if (months * 28.0 * m_ppd >= monthLabelSpacing) break;
+        }
+        if (step == 120)
+            step *= qMax(1, qCeil(monthLabelSpacing / (step * 28.0 * m_ppd)));
+        const QDate epoch(2000, 1, 1);
+        const int monthIndex = (firstDate.year() - epoch.year()) * 12 + firstDate.month() - 1;
+        const int aligned = monthIndex - ((monthIndex % step) + step) % step;
+        for (QDate date = epoch.addMonths(aligned); date <= lastDate; date = date.addMonths(step)) {
+            if (date < firstDate) continue;
+            const bool january = date.month() == 1;
+            const QString format = step >= 12 ? QStringLiteral("yyyy") : QStringLiteral("yyyy-MM");
+            drawTick(date, date.toString(format), january);
+        }
+    }
 
     const Marker *markerAt(const QPoint &position) const
     {
@@ -357,19 +406,20 @@ private:
     {
         hidePopup();
         m_markers.clear();
-        QList<QDate> dates;
-        QMap<QDate, int> lanes;
-        int unknownLane = 0;
-        for (const PersonWorkSummary &work : std::as_const(m_works)) {
+        m_stems.clear();
+        QMap<QDate, QList<const PersonWorkSummary *>> dates;
+        QList<const PersonWorkSummary *> unknown;
+        for (const auto &work : std::as_const(m_works)) {
             const QDate date = QDate::fromString(work.releaseDate.left(10), Qt::ISODate);
-            if (date.isValid()) dates.append(date);
+            if (date.isValid()) dates[date].append(&work);
+            else unknown.append(&work);
         }
         if (!m_works.isEmpty()) {
             QDate coreMin = defaultStart;
             QDate coreMax = defaultEnd;
             if (!dates.isEmpty()) {
-                coreMin = qMin(coreMin, *std::min_element(dates.cbegin(), dates.cend()));
-                coreMax = qMax(coreMax, *std::max_element(dates.cbegin(), dates.cend()));
+                coreMin = qMin(coreMin, dates.firstKey());
+                coreMax = qMax(coreMax, dates.lastKey());
             }
             m_dateMin = coreMin.addDays(-120).addYears(-90);
             const QDate end = coreMax.addDays(120).addYears(90);
@@ -386,31 +436,38 @@ private:
             m_dateMin = {};
             m_numDays = 0;
         }
-        int maxLane = 1;
-        const bool hasUnknown = std::any_of(m_works.cbegin(), m_works.cend(), [](const auto &work) {
-            return !QDate::fromString(work.releaseDate.left(10), Qt::ISODate).isValid();
-        });
-        m_unknownX = hasUnknown ? qRound(trackPad + m_numDays * m_ppd + 16) : -1;
-        for (const PersonWorkSummary &work : std::as_const(m_works)) {
-            const QDate date = QDate::fromString(work.releaseDate.left(10), Qt::ISODate);
-            int lane = 0;
-            int x = m_unknownX;
-            if (date.isValid()) {
-                lane = lanes[date]++;
-                x = qRound(trackPad + m_dateMin.daysTo(date) * m_ppd);
-            } else {
-                lane = unknownLane++;
+        m_unknownX = unknown.isEmpty() ? -1 : qRound(trackPad + m_numDays * m_ppd + 24);
+        QList<int> laneEnds;
+        int bottom = axisY;
+        const auto placeGroup = [&](int x, const QList<const PersonWorkSummary *> &group, int lane) {
+            int y = axisY;
+            for (const auto *work : group) {
+                // Near dates can share a rounded x coordinate at low zoom.
+                while (lane < laneEnds.size() && x - laneEnds.at(lane) < markerSize)
+                    ++lane;
+                if (lane >= laneEnds.size()) laneEnds.append(x);
+                else laneEnds[lane] = x;
+                y = axisY + lane * laneStride;
+                m_markers.append({QRect(x - markerSize / 2 + 1, y - markerSize / 2 + 1,
+                                        markerSize, markerSize), *work});
+                ++lane;
             }
-            maxLane = qMax(maxLane, lane + 1);
-            m_markers.append({QRect(x - markerSize / 2, 0, markerSize, markerSize), work, lane});
+            bottom = qMax(bottom, y);
+            if (y > axisY) m_stems.append(QPoint(x, y));
+        };
+
+        // Reserve the axis lane so same-day groups start below it.
+        laneEnds.append(-markerSize);
+        m_markers.reserve(m_works.size());
+        for (auto it = dates.cbegin(); it != dates.cend(); ++it) {
+            const int x = qRound(trackPad + m_dateMin.daysTo(it.key()) * m_ppd);
+            placeGroup(x, it.value(), it.value().size() == 1 ? 0 : 1);
         }
-        m_axisY = rulerHeight + 2 + (maxLane - 1) * laneStride + markerSize / 2;
-        for (Marker &marker : m_markers) {
-            marker.rect.moveTop(m_axisY - marker.lane * laneStride - markerSize / 2);
-        }
-        const int width = hasUnknown ? m_unknownX + unknownWidth
-                                     : qRound(trackPad + m_numDays * m_ppd + 30);
-        setFixedSize(qMax(200, width), qMax(84, m_axisY + markerSize + 14));
+        if (!unknown.isEmpty()) placeGroup(m_unknownX, unknown, 1);
+        const int width = m_unknownX >= 0 ? m_unknownX + unknownWidth
+                                          : qRound(trackPad + m_numDays * m_ppd + 30);
+        setFixedWidth(qMax(200, width));
+        setMinimumHeight(qMax(96, bottom + 22));
         update();
     }
 
@@ -420,9 +477,9 @@ private:
     QTimer *m_hideTimer = nullptr;
     QList<PersonWorkSummary> m_works;
     QList<Marker> m_markers;
+    QList<QPoint> m_stems;
     QDate m_dateMin;
     int m_numDays = 0;
-    int m_axisY = 52;
     int m_unknownX = -1;
     double m_ppd = 0.25;
     qint64 m_popupWorkId = 0;
@@ -436,7 +493,7 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     m_scroll = new QScrollArea(this);
-    m_scroll->setWidgetResizable(false);
+    m_scroll->setWidgetResizable(true);
     m_scroll->setFrameShape(QFrame::NoFrame);
     m_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     m_canvas = new TimelineCanvas(m_scroll, std::move(coverDirectory), m_scroll);
@@ -457,6 +514,20 @@ void ActressWorkTimeline::setWorks(const QList<PersonWorkSummary> &works)
     m_scroll->setVisible(!works.isEmpty());
     m_initialFitPending = !works.isEmpty();
     if (isVisible()) fitDefaultWindow();
+}
+
+void ActressWorkTimeline::setFilteredWorks(const QList<WorkSummary> &works)
+{
+    QList<PersonWorkSummary> summaries;
+    QSet<qint64> seen;
+    summaries.reserve(works.size());
+    for (const auto &work : works) {
+        if (seen.contains(work.id)) continue;
+        seen.insert(work.id);
+        summaries.append({work.id, work.serialNumber, work.chineseTitle, work.releaseDate,
+                          work.imageUrl, work.highlightTagId, work.standard});
+    }
+    setWorks(summaries);
 }
 
 QList<PersonWorkSummary> ActressWorkTimeline::works() const { return m_canvas->works(); }
@@ -487,12 +558,13 @@ void ActressWorkTimeline::fitDefaultWindow()
 {
     if (!m_initialFitPending || m_initialFitScheduled || !isVisible()) return;
     m_initialFitScheduled = true;
-    // The detail-page layout and QScrollArea geometry settle after show/resize.
+    // The workspace layout and QScrollArea geometry settle after show/resize.
     QTimer::singleShot(0, this, [this] {
         m_initialFitScheduled = false;
         if (!m_initialFitPending || !isVisible() || m_scroll->viewport()->width() < 100) return;
         const int viewportWidth = m_scroll->viewport()->width();
         const int span = defaultStart.daysTo(defaultEnd) + 1;
+        m_scroll->verticalScrollBar()->setValue(0);
         m_canvas->setPpd(qBound(minPpd,
             (viewportWidth - 64.0) / static_cast<double>(span), maxPpd));
         m_initialFitScheduled = true;

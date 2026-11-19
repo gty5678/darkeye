@@ -66,11 +66,20 @@ WorkSearchClause buildSearchClause(const darkeye::WorkSearch &search)
                               "WHERE war.work_id=work.work_id AND (an.cn LIKE ? "
                               "OR an.jp LIKE ?))"),
                search.actressName, 2);
-    appendLike(QStringLiteral(" AND EXISTS (SELECT 1 FROM work_actor_relation wor "
-                              "JOIN actor_name aon ON aon.actor_id=wor.actor_id "
-                              "WHERE wor.work_id=work.work_id AND (aon.cn LIKE ? "
-                              "OR aon.jp LIKE ?))"),
-               search.actorName, 2);
+    if (search.actorId)
+    {
+        clause.sql += QStringLiteral(" AND EXISTS (SELECT 1 FROM work_actor_relation wor "
+                                     "WHERE wor.work_id=work.work_id AND wor.actor_id=?)");
+        clause.values.append(*search.actorId);
+    }
+    else
+    {
+        appendLike(QStringLiteral(" AND EXISTS (SELECT 1 FROM work_actor_relation wor "
+                                  "JOIN actor_name aon ON aon.actor_id=wor.actor_id "
+                                  "WHERE wor.work_id=work.work_id AND (aon.cn LIKE ? "
+                                  "OR aon.jp LIKE ?))"),
+                   search.actorName, 2);
+    }
     appendLike(QStringLiteral(" AND EXISTS (SELECT 1 FROM work_tag_relation wtr "
                               "JOIN tag t ON t.tag_id=wtr.tag_id "
                               "WHERE wtr.work_id=work.work_id AND t.tag_name LIKE ? ESCAPE '\\')"),
@@ -455,6 +464,23 @@ QList<WorkSummary> WorkRepository::search(const WorkSearch &search, QString *err
         works.append(work);
     }
     return works;
+}
+
+QSet<qint64> WorkRepository::matchingWorkIds(const WorkSearch &search) const
+{
+    const WorkSearchClause clause = buildSearchClause(search);
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT work.work_id FROM work") + clause.sql);
+    for (const QVariant &value : clause.values) query.addBindValue(value);
+    if (!query.exec())
+    {
+        qWarning() << "WorkRepository matchingWorkIds failed:" << query.lastError().text();
+        return {};
+    }
+
+    QSet<qint64> ids;
+    while (query.next()) ids.insert(query.value(0).toLongLong());
+    return ids;
 }
 
 std::optional<int> WorkRepository::count(const WorkSearch &search, QString *errorMessage) const

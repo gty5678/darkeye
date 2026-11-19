@@ -46,14 +46,15 @@ DvdCaseInstance DvdCaseFactory::create(Scene &scene,const DvdItemViewModel &item
         const auto id=scene.createNode(source.parent<0?result.root:nodes[source.parent],source.name);
         scene.setTransform(id,source.transform);
         nodes.push_back(id);
+        if (source.name=="back") {
+            result.back=id;
+            result.backHomeTranslation=source.transform.translation;
+        }
         if (source.name=="spine") result.spine=id;
         if (source.name=="front") result.front=id;
         if (source.name=="disc") {
             result.disc=id;
             result.discHome=source.transform;
-            auto pose=result.discHome;
-            pose.rotation=QQuaternion::fromAxisAndAngle(1,0,0,item.hasLocalVideo?0:30)*pose.rotation;
-            scene.setTransform(id,pose);
             scene.setVisible(id,false);
         }
         for (const auto &primitive:source.primitives) {
@@ -76,6 +77,17 @@ DvdCaseInstance DvdCaseFactory::create(Scene &scene,const DvdItemViewModel &item
             scene.setMesh(part,std::move(mesh),std::move(material));
             result.primitives.push_back(part);
         }
+    }
+    if(result.disc) {
+        // The disc is authored beside the back panel. Attach it to the back
+        // hinge in the same resting position so it follows the panel when folded.
+        if(const auto *back=scene.node(result.back)) {
+            result.discHome.translation-=back->transform.translation;
+            scene.setParent(result.disc,result.back);
+        }
+        auto pose=result.discHome;
+        pose.rotation=QQuaternion::fromAxisAndAngle(1,0,0,item.hasLocalVideo?0:30)*pose.rotation;
+        scene.setTransform(result.disc,pose);
     }
     return result;
 }

@@ -1,4 +1,5 @@
 #include "ui/pages/InboxPage.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "crawler/CrawlerScheduler.h"
 #include "services/CrawlerPersistenceService.h"
@@ -58,7 +59,7 @@ InboxPage::InboxPage(CrawlerScheduler &crawlerScheduler,
 
 void InboxPage::lazyLoad()
 {
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QVBoxLayout(addPageScrollArea(this));
     layout->setContentsMargins(24, 24, 24, 24);
     auto *title = new DesignLabel(QStringLiteral("通知与爬虫任务"), this);
     layout->addWidget(title);

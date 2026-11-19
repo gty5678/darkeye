@@ -153,12 +153,7 @@ void Application::prepareGraphicsPrewarm()
     // Keep both QRhi users in the top-level widget tree long enough to submit
     // real frames so the first visible shelf/graph page does not initialize the
     // graphics stack on the user's click.
-    auto *pageStack = m_mainWindow->centralWidget()->findChild<QStackedWidget *>(
-        QStringLiteral("mainPages"));
-    if (pageStack == nullptr) {
-        qWarning() << "Graphics prewarm skipped: main page stack is unavailable";
-        return;
-    }
+    auto *pageStack = m_mainWindow->centralWidget();
     m_graphicsPrewarmWindow = std::make_unique<QWidget>(pageStack);
     m_graphicsPrewarmWindow->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_graphicsPrewarmWindow->setGeometry(0, 0, 240, 248);

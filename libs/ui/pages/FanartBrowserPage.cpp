@@ -1,4 +1,5 @@
 #include "ui/pages/FanartBrowserPage.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "ui/components/AsyncImageLabel.h"
 #include "darkeye_ui/components/ToastNotification.h"
@@ -57,7 +58,7 @@ int FanartBrowserPage::entryCount() const noexcept { return m_entries.size(); }
 
 void FanartBrowserPage::lazyLoad()
 {
-    auto *root = new QVBoxLayout(this);
+    auto *root = new QVBoxLayout(addPageScrollArea(this));
     root->setContentsMargins(24, 20, 24, 20);
     root->setSpacing(12);
 

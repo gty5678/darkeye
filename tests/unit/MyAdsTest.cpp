@@ -19,6 +19,7 @@
 #include <QPointer>
 #include <QScopeGuard>
 #include <QSplitter>
+#include <QStyle>
 #include <QTabBar>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -53,6 +54,9 @@ private slots:
     void rejectsInvalidTreesAndRatios();
     void savesAtomically();
     void paneTransfersCompleteContent();
+    void tabsShareWidthBeforeScrolling();
+    void tabClickSwitchesPageWhenReleaseLeavesTab();
+    void draggingTabFollowsPointer();
     void cancelledTabDragReturnsToOriginalPosition_data();
     void cancelledTabDragReturnsToOriginalPosition();
     void tabMenuClosesOnlyEligibleTabs();
@@ -165,6 +169,163 @@ void MyAdsTest::paneTransfersCompleteContent()
     QVERIFY(!destination.isContentCloseable(QStringLiteral("movie")));
 }
 
+void MyAdsTest::tabsShareWidthBeforeScrolling()
+{
+    PaneWidget pane(QStringLiteral("tabs"));
+    QVERIFY(pane.addContent("one", "One", new QWidget));
+    QVERIFY(pane.addContent("two", "A much longer tab title", new QWidget));
+    QVERIFY(pane.addContent("three", "Pinned", new QWidget, {}, false));
+    QVERIFY(pane.addContent("four", "Four", new QWidget));
+    QVERIFY(pane.setCurrentContentId("one"));
+
+    pane.resize(800, 200);
+    pane.show();
+    auto *bar = pane.findChild<QTabBar *>();
+    QVERIFY(bar);
+
+    const auto scrollButtons = [bar] {
+        QList<QToolButton *> buttons;
+        for (auto *button : bar->findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly)) {
+            if (button->isVisible() && button->objectName() != QStringLiteral("MyAdsCloseButton"))
+                buttons.append(button);
+        }
+        return buttons;
+    };
+    const auto checkWidths = [bar](int width) {
+        for (int i = 0; i < bar->count(); ++i)
+            QCOMPARE(bar->tabRect(i).width(), width);
+    };
+
+    checkWidths(168);
+    QVERIFY(scrollButtons().isEmpty());
+
+    pane.resize(500, 200);
+    checkWidths(125);
+    QVERIFY(scrollButtons().isEmpty());
+
+    pane.resize(250, 200);
+    checkWidths(76);
+    const auto buttons = scrollButtons();
+    QCOMPARE(buttons.size(), 2);
+    const int beforeScroll = bar->tabRect(0).left();
+    for (auto *button : buttons) {
+        if (!button->isEnabled()) continue;
+        button->click();
+        break;
+    }
+    QVERIFY(bar->tabRect(0).left() < beforeScroll);
+    QCOMPARE(pane.currentContentId(), QStringLiteral("one"));
+
+    QVERIFY(pane.removeContent("four"));
+    QVERIFY(scrollButtons().isEmpty());
+    QCOMPARE(bar->tabRect(0).left(), beforeScroll);
+
+    pane.resize(800, 200);
+    checkWidths(168);
+}
+
+void MyAdsTest::tabClickSwitchesPageWhenReleaseLeavesTab()
+{
+    WorkspaceWidget workspace;
+    auto *pane = workspace.rootPane();
+    auto *first = new QLabel(QStringLiteral("First page"));
+    QVERIFY(pane->addContent("first", "First tab", first));
+    QVERIFY(pane->addContent("second", "Second tab", new QLabel));
+    workspace.resize(600, 300);
+    workspace.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&workspace));
+    auto *bar = pane->findChild<QTabBar *>();
+    QVERIFY(bar);
+    const QRect tab = bar->tabRect(0);
+    const QPoint press(tab.center().x(), tab.bottom());
+    QTest::mousePress(bar, Qt::LeftButton, Qt::NoModifier, press);
+    QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, press + QPoint(0, 1));
+    QCOMPARE(pane->currentContentId(), QStringLiteral("first"));
+    QVERIFY(first->isVisible());
+}
+
+void MyAdsTest::draggingTabFollowsPointer()
+{
+    DockTheme theme;
+    theme.tabFontSize = 19;
+    theme.tabSelected = QColor(QStringLiteral("#86b7e0"));
+    WorkspaceWidget workspace(nullptr, theme);
+    auto *pane = workspace.rootPane();
+    QVERIFY(pane->addContent("left", "Left tab", new QLabel));
+    QVERIFY(pane->addContent("middle", "Middle tab", new QLabel));
+    QVERIFY(pane->addContent("right", "Right tab", new QLabel));
+    workspace.resize(600, 300);
+    workspace.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&workspace));
+    auto *bar = pane->findChild<QTabBar *>();
+    QVERIFY(bar);
+
+    const QRect middle = bar->tabRect(1);
+    const QPoint press = middle.center();
+    QTest::mousePress(bar, Qt::LeftButton, Qt::NoModifier, press);
+    auto release = qScopeGuard([bar, press] {
+        QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, press);
+    });
+    const QImage resting = bar->grab().toImage();
+    const auto move = [bar](const QPoint &position) {
+        QMouseEvent event(QEvent::MouseMove, position, bar->mapToGlobal(position),
+                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(bar, &event);
+    };
+    for (int dx : {-24, 24}) {
+        move(press + QPoint(dx, 0));
+        QCOMPARE(pane->contentIds(), QStringList({"left", "middle", "right"}));
+        const QPixmap dragged = bar->grab();
+        const QPoint edge(dx < 0 ? middle.right() - 14 : middle.left() + 14, middle.top() + 6);
+        const qreal scale = dragged.devicePixelRatio();
+        QCOMPARE(dragged.toImage().pixelColor((edge + QPoint(dx, 0)) * scale), theme.tabSelected);
+        QCOMPARE(dragged.toImage().pixelColor(edge * scale), theme.tabBarBackground);
+    }
+    const int boundary = (middle.center().x() + bar->tabRect(2).center().x()) / 2;
+    const QPoint beforeBoundary(boundary - 1, press.y());
+    const QPoint afterBoundary(boundary + 1, press.y());
+    move(beforeBoundary);
+    QCOMPARE(pane->contentIds(), QStringList({"left", "middle", "right"}));
+    move(afterBoundary);
+    QCOMPARE(pane->contentIds(), QStringList({"left", "right", "middle"}));
+    move(afterBoundary);
+    QCOMPARE(pane->contentIds(), QStringList({"left", "right", "middle"}));
+    move(beforeBoundary);
+    QCOMPARE(pane->contentIds(), QStringList({"left", "middle", "right"}));
+
+    const QPoint pastLastTab(bar->tabRect(2).right() + 20, press.y());
+    QVERIFY(bar->rect().contains(pastLastTab));
+    move(pastLastTab);
+    QCOMPARE(pane->contentIds(), QStringList({"left", "right", "middle"}));
+    QCOMPARE(pane->currentContentId(), QStringLiteral("middle"));
+    auto *animation = bar->findChild<QWidget *>(QStringLiteral("MyAdsTabReorderAnimation"));
+    QVERIFY(animation && animation->isVisible());
+    QVERIFY(animation->testAttribute(Qt::WA_TransparentForMouseEvents));
+    const QImage transitionStart = bar->grab().toImage();
+    const QRect title = bar->tabRect(0).adjusted(8, 4, -34, -4);
+    const qreal scale = resting.devicePixelRatio();
+    const QRect titlePixels(title.topLeft() * scale, title.size() * scale);
+    const auto inkBounds = [&titlePixels](const QImage &image) {
+        QRect bounds;
+        for (int y = titlePixels.top(); y <= titlePixels.bottom(); ++y) {
+            for (int x = titlePixels.left(); x <= titlePixels.right(); ++x) {
+                if (qGray(image.pixel(x, y)) < 128)
+                    bounds |= QRect(x, y, 1, 1);
+            }
+        }
+        return bounds;
+    };
+    QVERIFY(inkBounds(resting).isValid());
+    QCOMPARE(inkBounds(transitionStart).size(), inkBounds(resting).size());
+    const QPoint drop = bar->tabRect(2).center() + QPoint(20, 0);
+    move(drop);
+    QVERIFY(bar->grab().toImage() != transitionStart);
+    QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, drop);
+    release.dismiss();
+    QVERIFY(!animation->isVisible());
+    QCOMPARE(pane->contentIds(), QStringList({"left", "right", "middle"}));
+}
+
 void MyAdsTest::cancelledTabDragReturnsToOriginalPosition_data()
 {
     QTest::addColumn<bool>("reorderFirst");
@@ -192,7 +353,20 @@ void MyAdsTest::cancelledTabDragReturnsToOriginalPosition()
     QWidget *closeButton = bar->tabButton(0, QTabBar::RightSide);
     QVERIFY(closeButton);
     const QRect originalButtonGeometry = closeButton->geometry();
-    const QPoint press = bar->tabRect(0).center();
+    const QRect originalTab = bar->tabRect(0);
+    const QPoint press = originalTab.center();
+    const int overlap = bar->style()->pixelMetric(QStyle::PM_TabBarTabOverlap, nullptr, bar);
+    QVERIFY(overlap >= 7);
+    const auto pixelAt = [](const QPixmap &pixmap, QPoint point) {
+        return pixmap.toImage().pixelColor(point * pixmap.devicePixelRatio());
+    };
+    // Sample the lower bevel past the nominal tab rectangle.
+    const QPoint foot(originalTab.right() + 3, originalTab.bottom());
+    const QPixmap restingTabBar = bar->grab();
+    const QColor footColor = pixelAt(restingTabBar, foot);
+    const QPoint closeCenter = originalButtonGeometry.center();
+    const QColor closeColor = pixelAt(restingTabBar, closeCenter);
+    QVERIFY(closeColor != footColor);
     QTest::mousePress(bar, Qt::LeftButton, Qt::NoModifier, press);
     const auto releaseOnExit = qScopeGuard([bar] {
         QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, bar->tabRect(0).center());
@@ -204,19 +378,40 @@ void MyAdsTest::cancelledTabDragReturnsToOriginalPosition()
     };
     move(reorderFirst ? bar->tabRect(2).center() : press + QPoint(20, 0));
     if (reorderFirst) QVERIFY(pane.contentIds() != originalOrder);
+    if (!reorderFirst) QCOMPARE(closeButton->geometry(), originalButtonGeometry);
+    auto *animation = bar->findChild<QWidget *>(QStringLiteral("MyAdsTabReorderAnimation"));
+    QVERIFY(animation && animation->isVisible());
 
     // The native drag loop consumes release/Escape; do not send a release to
     // the tab bar afterwards, since that would conceal the stale drag state.
     QTimer cancelTimer;
-    connect(&cancelTimer, &QTimer::timeout, &pane, [] { QDrag::cancel(); });
+    QPixmap dockPixmap;
+    QPoint dockHotSpot;
+    const auto captureDockPixmap = [&] {
+        if (auto *drag = bar->findChild<QDrag *>()) {
+            dockPixmap = drag->pixmap();
+            dockHotSpot = drag->hotSpot();
+        }
+    };
+    connect(&cancelTimer, &QTimer::timeout, &pane, [&] {
+        captureDockPixmap();
+        QDrag::cancel();
+    });
     cancelTimer.start(10);
     QSignalSpy finished(&pane, &PaneWidget::dragFinished);
     move(QPoint(press.x(), bar->height() + 40));
     cancelTimer.stop();
+    if (dockPixmap.isNull()) captureDockPixmap();
+    QVERIFY(!dockPixmap.isNull());
+    const QPoint pixmapOffset = QPoint(overlap, 0) - originalTab.topLeft();
+    QCOMPARE(pixelAt(dockPixmap, foot + pixmapOffset), footColor);
+    QCOMPARE(pixelAt(dockPixmap, closeCenter + pixmapOffset), closeColor);
+    QCOMPARE(dockHotSpot, press - originalTab.topLeft() + QPoint(overlap, 0));
     QCOMPARE(pane.contentIds(), originalOrder);
     QCOMPARE(pane.currentContentId(), QStringLiteral("first"));
     QCOMPARE(pane.contentWidget("first"), first);
     QCOMPARE(finished.count(), 1);
+    QVERIFY(!animation->isVisible());
     QTRY_COMPARE(closeButton->geometry(), originalButtonGeometry);
     // A later ordinary click must still work after cancellation.
     QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, bar->tabRect(0).center());
@@ -811,10 +1006,10 @@ void MyAdsTest::dropsTabsAtInsertionLine()
     QMimeData mime;
     mime.setData(MyAdsTabMimeType, QJsonDocument(QJsonObject{
         {"pane_id", sourceId}, {"content_id", "moving"}}).toJson());
-    QDragEnterEvent enter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QDragEnterEvent enter(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(bar, &enter);
     QVERIFY(enter.isAccepted());
-    QDragMoveEvent move(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QDragMoveEvent move(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(bar, &move);
     QVERIFY(move.isAccepted());
     QVERIFY(preview->isVisible());
@@ -828,7 +1023,7 @@ void MyAdsTest::dropsTabsAtInsertionLine()
     QDragLeaveEvent leave;
     QApplication::sendEvent(bar, &leave);
     QVERIFY(!preview->isVisible());
-    QDragEnterEvent reenter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QDragEnterEvent reenter(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(bar, &reenter);
     QDropEvent drop(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(bar, &drop);
@@ -888,17 +1083,17 @@ void MyAdsTest::docksThroughGraphicsView()
     QMimeData mime;
     mime.setData(MyAdsTabMimeType, QJsonDocument(QJsonObject{
         {"pane_id", sourceId}, {"content_id", "moving"}}).toJson());
-    QDragEnterEvent enter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QDragEnterEvent enter(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(receiver, &enter);
     QVERIFY(enter.isAccepted());
-    QDragMoveEvent move(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QDragMoveEvent move(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(receiver, &move);
     QVERIFY(move.isAccepted());
     QVERIFY(preview->isVisible());
     QDragLeaveEvent leave;
     QApplication::sendEvent(receiver, &leave);
     QVERIFY(!preview->isVisible());
-    QDragEnterEvent reenter(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QDragEnterEvent reenter(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(receiver, &reenter);
     QVERIFY(reenter.isAccepted());
     QDropEvent drop(local, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
@@ -935,7 +1130,7 @@ void MyAdsTest::preservesChildDropsAndRejectsInvalidDockData()
     QCoreApplication::processEvents();
     QMimeData mime;
     mime.setText("ordinary child drag");
-    QDragEnterEvent ordinary(child->rect().center(), Qt::CopyAction, &mime,
+    QDragEnterEvent ordinary(QPointF(child->rect().center()), Qt::CopyAction, &mime,
                              Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(child, &ordinary);
     QVERIFY(ordinary.isAccepted());
@@ -944,7 +1139,7 @@ void MyAdsTest::preservesChildDropsAndRejectsInvalidDockData()
     QApplication::sendEvent(child, &leave);
 
     mime.setData(MyAdsTabMimeType, "invalid json");
-    QDragEnterEvent invalid(child->rect().center(), Qt::MoveAction, &mime,
+    QDragEnterEvent invalid(QPointF(child->rect().center()), Qt::MoveAction, &mime,
                             Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(child, &invalid);
     QVERIFY(!invalid.isAccepted());

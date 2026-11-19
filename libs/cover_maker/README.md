@@ -80,6 +80,6 @@ auto *editor = new darkeye::cover_maker::SleeveEditor(parent);
 
 ## HTTP 超分
 
-`UpscaleClient` 异步上传 `multipart/form-data` 至配置的 `/v1/upscale`：字段 `image`、`scale=2|4`、`mode=photo`，可带 Bearer token，返回定尺寸 PNG。仅接受 HTTPS 或回环 HTTP，校验服务证书，禁止自动重定向，支持取消、请求超时及响应尺寸限制。`DARKEYE_SR_CA_FILE` 可增加自建 CA。
+`UpscaleClient` 异步上传 `multipart/form-data` 至配置的 `/v1/upscale`：仅一个文件字段 `image`，服务端固定返回原图宽高各 2 倍的 PNG，可带 Bearer token，返回定尺寸 PNG。仅接受 HTTPS 或回环 HTTP，校验服务证书，禁止自动重定向，支持取消、请求超时及响应尺寸限制。`DARKEYE_SR_CA_FILE` 可增加自建 CA。
 
 编辑器图片属性的“高清增强…”调用客户端；“更多 → 超分服务设置…”或 `DARKEYE_SR_URL` / `DARKEYE_SR_TOKEN` 配置地址与令牌。结果保留图层 frame/crop，作为一步撤销；处理中若文档有变化则丢弃结果。独立服务见同级 SRkit 项目，模型与原生 Vulkan 运行库不进入此库。

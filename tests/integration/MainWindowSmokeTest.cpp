@@ -1,20 +1,39 @@
+#include "ui/components/ActressWorkTimeline.h"
+#include "ui/components/WorkspaceSearch.h"
+#include "ui/components/WorkMaintenanceActions.h"
+#include "ui/layouts/myads/WorkspaceWidget.h"
+#include "ui/components/DvdShelfView.h"
+#include <QListWidget>
+#include <QMessageBox>
+#include <QTabBar>
+#include <QToolButton>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "settings/Paths.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/base/LazyWidget.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PersonRepository.h"
+#include "database/repositories/PrivateRepository.h"
 #include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/WorkRepository.h"
+#include "dvd_scene/DvdSceneWidget.h"
 #include "MainWindow.h"
 #include "ui/pages/DashboardPage.h"
 #include "ui/pages/HomePage.h"
 #include "ui/components/ShopSceneWidget.h"
 #include "ui/pages/ManagementPage.h"
 #include "ui/pages/PersonDetailPage.h"
+#include "ui/pages/PersonEditorPage.h"
 #include "ui/pages/ForceDirectPage.h"
+#include "graph_view/ForceViewRhiWidget.h"
 #include "ui/pages/PersonPage.h"
 #include "ui/pages/StatisticsPage.h"
+#include "ui/pages/PersonalDataPage.h"
+#include <QScrollArea>
+#include <QScrollBar>
 #include "ui/pages/PlotTabPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/ShelfPage.h"
@@ -34,8 +53,8 @@
 #include "darkeye_ui/components/TokenViews.h"
 #include "ui/pages/management/WorkBatchStateWidget.h"
 #include "ui/pages/management/AddWorkTabPage3.h"
-#include "ui/pages/management/WorkMaintenanceWidget.h"
 #include "ui/pages/management/SummaryQueryWidget.h"
+#include "ui/pages/management/PersonalRecordManagementWidget.h"
 
 #include <QApplication>
 #include <QAction>
@@ -43,6 +62,7 @@
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QDir>
+#include <QFile>
 #include <QFontDatabase>
 #include <QLayout>
 #include <QLineEdit>
@@ -64,11 +84,19 @@
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QInputMethodEvent>
+#include <QWindow>
 #include <QtTest>
 #include <algorithm>
 
 namespace
 {
+#ifdef Q_OS_MACOS
+constexpr auto physicalControl = Qt::MetaModifier;
+#else
+constexpr auto physicalControl = Qt::ControlModifier;
+#endif
+
 QPushButton *findSettingsButton(QObject *root, const QString &text)
 {
     if (!root)
@@ -111,7 +139,14 @@ private slots:
     void histogramShowsPercentileLines();
     void homeShowsThreeRandomRows();
     void exposesAllPrimaryNavigationPages();
+    void workspaceSearchAndSessionLifecycle();
+    void localRelationshipGraphFollowsActiveContent();
+    void timelineFollowsActressAndFilteredWorks();
+    void openingPagesLeavesFocusUnset();
+    void statisticsPanelsOpenIndependentlyAndScroll();
+    void managementWorkFormScrollsInShortWindow();
     void backgroundChangesRefreshOpenPages();
+    void workspaceChangesRefreshAllShelvesAndGraph();
     void summarySearchKeyboardNavigation_data();
     void summarySearchKeyboardNavigation();
 };
@@ -647,9 +682,10 @@ void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()
     QVERIFY(actressId.has_value());
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::MainWindow window(themes, publicConnection.database(), privateConnection.database(), paths);
-    auto *sidebar = window.findChild<darkeye::Sidebar *>();
-    QVERIFY(sidebar);
-    sidebar->itemClicked(QStringLiteral("actress"));
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    QVERIFY(search);
+    search->openRequested(QStringLiteral("mutiwork"));
+    search->openRequested(QStringLiteral("actress"));
     auto *list = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
     QVERIFY(list);
     list->detailRequested(darkeye::PersonKind::Actress, *actressId);
@@ -660,10 +696,13 @@ void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()
     auto *sync = window.findChild<darkeye::ActressSyncService *>();
     QVERIFY(sync);
     sync->actressesChanged();
-    bool displaysUpdatedName = false;
-    for (QLabel *label : detail->findChildren<QLabel *>())
-        displaysUpdatedName |= label->text().contains(QStringLiteral("After"));
-    QVERIFY(displaysUpdatedName);
+    const auto displaysUpdatedName = [detail] {
+        const auto labels = detail->findChildren<QLabel *>();
+        return std::any_of(labels.cbegin(), labels.cend(), [](const QLabel *label) {
+            return label->text().contains(QStringLiteral("After"));
+        });
+    };
+    QTRY_VERIFY(displaysUpdatedName());
     auto *persistence = window.findChild<darkeye::CrawlerPersistenceService *>();
     QVERIFY(persistence);
     auto *works = window.findChild<darkeye::WorkPage *>();
@@ -672,11 +711,124 @@ void MainWindowSmokeTest::backgroundChangesRefreshOpenPages()
     auto *tags = works->findChild<darkeye::WorkTagSelector *>();
     QVERIFY(tags);
     tags->setSelectedIds({});
-    persistence->persist(QStringLiteral("REFRESH-001"), {}, {QStringLiteral("jp_title")});
-    bool displaysUpdatedCount = false;
-    for (QLabel *label : works->findChildren<QLabel *>())
-        displaysUpdatedCount |= label->text() == QStringLiteral("过滤总数:1");
-    QVERIFY(displaysUpdatedCount);
+    const QString tagName = QStringLiteral("New crawler tag");
+    const QJsonObject payload{{QStringLiteral("tag_list"), QJsonArray{tagName}}};
+    persistence->persist(QStringLiteral("REFRESH-001"), payload, {QStringLiteral("tag")});
+    const auto displaysUpdatedCount = [works] {
+        const auto labels = works->findChildren<QLabel *>();
+        return std::any_of(labels.cbegin(), labels.cend(), [](const QLabel *label) {
+            return label->text() == QStringLiteral("过滤总数:1");
+        });
+    };
+    QTRY_VERIFY(displaysUpdatedCount());
+    const auto tagOptions = darkeye::WorkRepository(publicConnection.database()).tagOptions();
+    const auto newTag = std::find_if(tagOptions.cbegin(), tagOptions.cend(), [&tagName](const auto &tag) {
+        return tag.name == tagName;
+    });
+    QVERIFY(newTag != tagOptions.cend());
+    tags->setSelectedIds({newTag->id});
+    QCOMPARE(tags->selectedIds(), QList<qint64>{newTag->id});
+
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>();
+    const QString detailRoute = QStringLiteral("actress_detail/%1").arg(*actressId);
+    QVERIFY(workspace && workspace->findPaneByContentId(detailRoute));
+    search->openRequested(QStringLiteral("modify_actress/%1").arg(*actressId));
+    auto *editor = window.findChild<darkeye::PersonEditorPage *>();
+    QVERIFY(editor);
+    QVERIFY(people.deletePerson(darkeye::PersonKind::Actress, *actressId, &error));
+    editor->personDeleted(darkeye::PersonKind::Actress, *actressId);
+    QVERIFY(!workspace->findPaneByContentId(detailRoute));
+}
+
+void MainWindowSmokeTest::workspaceChangesRefreshAllShelvesAndGraph()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection publicDatabase, privateDatabase;
+    QString error;
+    QVERIFY(publicDatabase.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        publicDatabase, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
+        privateDatabase, darkeye::DatabaseKind::Private, &error));
+
+    darkeye::ReferenceRepository references(publicDatabase.database());
+    const auto sourceTag = references.createTag(QStringLiteral("Source"), {}, {}, {}, &error);
+    const auto targetTag = references.createTag(QStringLiteral("Target"), {}, {}, {}, &error);
+    QVERIFY(sourceTag && targetTag);
+    darkeye::WorkRepository works(publicDatabase.database());
+    darkeye::Work first, second, untagged;
+    first.serialNumber = QStringLiteral("REFRESH-101");
+    second.serialNumber = QStringLiteral("REFRESH-102");
+    untagged.serialNumber = QStringLiteral("REFRESH-103");
+    const auto firstId = works.insertComplete(first, {}, {}, {*sourceTag}, &error);
+    const auto secondId = works.insertComplete(second, {}, {}, {*targetTag}, &error);
+    const auto untaggedId = works.insertComplete(untagged, {}, {}, {}, &error);
+    QVERIFY(firstId && secondId && untaggedId);
+
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, publicDatabase.database(), privateDatabase.database(), paths);
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>();
+    auto *graph = window.findChild<darkeye::graph::GraphManager *>();
+    QVERIFY(search && workspace && graph);
+    QVERIFY(graph->initialize(&error));
+    auto *pane = workspace->rootPane();
+    search->openRequested(QStringLiteral("shelf"));
+    auto *shelf = qobject_cast<darkeye::ShelfPage *>(pane->contentWidget(QStringLiteral("shelf")));
+    const QString categoryRoute = QStringLiteral("tag/%1").arg(*sourceTag);
+    search->openRequested(categoryRoute);
+    auto *category = qobject_cast<darkeye::ShelfPage *>(pane->contentWidget(categoryRoute));
+    QVERIFY(shelf && category);
+    shelf->initialize();
+    auto *shelfTags = shelf->findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(shelfTags);
+    shelfTags->clearSelection();
+    QTRY_COMPARE(shelf->filteredWorkIds(), (QSet<qint64>{*firstId, *secondId, *untaggedId}));
+    QCOMPARE(category->filteredWorkIds(), QSet<qint64>{*firstId});
+
+    window.resize(1280, 800);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *view = category->findChild<darkeye::DvdShelfView *>();
+    QVERIFY(view);
+    auto *scene = view->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    auto *heart = view->findChild<QToolButton *>(QStringLiteral("ShelfCoverFavorite"));
+    QVERIFY(scene && heart);
+    QVERIFY(view->openWork(*firstId));
+    QTRY_VERIFY(scene->isFullyExpanded());
+    QSignalSpy stateChanges(scene, &darkeye::dvd_scene::DvdSceneWidget::stateChanged);
+    QSignalSpy favoriteUpdates(graph, &darkeye::graph::GraphManager::graphChanged);
+    darkeye::PrivateRepository favorites(privateDatabase.database());
+    for (const bool favorite : {true, false}) {
+        heart->click();
+        QTRY_VERIFY(!favoriteUpdates.isEmpty());
+        favoriteUpdates.clear();
+        QCOMPARE(favorites.isFavoriteWork(*firstId, &error), favorite);
+        QCOMPARE(view->expandedWorkFavorited(), favorite);
+        QCOMPARE(view->currentWorkId(), *firstId);
+        QVERIFY(scene->isFullyExpanded());
+        QVERIFY(stateChanges.isEmpty());
+    }
+
+    search->openRequested(QStringLiteral("manage_tags"));
+    auto *tags = qobject_cast<darkeye::ManagementPage *>(pane->contentWidget(QStringLiteral("manage_tags")));
+    QVERIFY(tags);
+    QSignalSpy graphUpdates(graph, &darkeye::graph::GraphManager::graphChanged);
+    QVERIFY(references.redirectTag(*sourceTag, *targetTag, &error));
+    tags->tagsChanged();
+    tags->worksChanged();
+    QTRY_COMPARE(category->filteredWorkIds(), (QSet<qint64>{*firstId, *secondId}));
+    QCOMPARE(graphUpdates.size(), 1);
+
+    // A delete originating from a category tab also reaches the normal shelf and the graph.
+    QVERIFY(works.setDeleted(*firstId, true, &error));
+    category->workDeleted(*firstId);
+    QTRY_COMPARE(category->filteredWorkIds(), QSet<qint64>{*secondId});
+    QCOMPARE(shelf->filteredWorkIds(), (QSet<qint64>{*secondId, *untaggedId}));
+    QTRY_VERIFY(!graph->store().containsNode(QStringLiteral("w%1").arg(*firstId)));
 }
 
 void MainWindowSmokeTest::summarySearchKeyboardNavigation_data()
@@ -806,17 +958,15 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
                                privateConnection.database(), paths);
     window.show();
     QCoreApplication::processEvents();
-    auto *sidebar = window.findChild<darkeye::Sidebar *>(QStringLiteral("DesignSidebar"));
-    const auto *pages = window.findChild<QStackedWidget *>(QStringLiteral("mainPages"));
-
-    QVERIFY(sidebar != nullptr);
-    QVERIFY(pages != nullptr);
-    // Python's factory router only adds routes to the stack when first visited.
-    QCOMPARE(pages->count(), 1);
-    QCOMPARE(sidebar->selectedId(), QStringLiteral("work"));
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
-    QVERIFY(window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage")) !=
-            nullptr);
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(search);
+    QVERIFY(workspace);
+    QVERIFY(!window.findChild<darkeye::Sidebar *>());
+    auto currentWidget = [workspace] { auto *pane = workspace->activePane(); return pane->contentWidget(pane->currentContentId()); };
+    QCOMPARE(workspace->rootPane()->contentCount(), 0);
+    search->openRequested(QStringLiteral("mutiwork"));
+    QCOMPARE(currentWidget()->objectName(), QStringLiteral("WorkPage"));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("add_masturbation_record"))->shortcut(),
              QKeySequence(QStringLiteral("M")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("add_quick_work"))->shortcut(),
@@ -825,22 +975,20 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
              QKeySequence(QStringLiteral("L")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("add_sexual_rousal_record"))->shortcut(),
              QKeySequence(QStringLiteral("A")));
-    QCOMPARE(window.findChild<QAction *>(QStringLiteral("search"))->shortcut(),
-             QKeySequence(QStringLiteral("Ctrl+F")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("capture"))->shortcut(),
              QKeySequence(QStringLiteral("C")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("allcapture"))->shortcut(),
              QKeySequence(QStringLiteral("Shift+C")));
     QVERIFY(findThemeSelector(&window) == nullptr);
 
-    emit sidebar->itemClicked(QStringLiteral("chart"));
-    QVERIFY(qobject_cast<darkeye::StatisticsPage *>(pages->currentWidget()) != nullptr);
+    search->openRequested(QStringLiteral("chart"));
+    QVERIFY(qobject_cast<darkeye::StatisticsPage *>(currentWidget()) != nullptr);
     auto *statisticsPage = window.findChild<darkeye::StatisticsPage *>(
         QStringLiteral("StatisticsPage"));
     QVERIFY(statisticsPage != nullptr);
     QVERIFY(statisticsPage->isInitialized());
 
-    emit sidebar->itemClicked(QStringLiteral("setting"));
+    search->openRequested(QStringLiteral("setting"));
     auto *themeSelector = findThemeSelector(&window);
     QVERIFY(themeSelector != nullptr);
     QCOMPARE(themeSelector->count(), 7);
@@ -868,7 +1016,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     shortcutPage->initialize();
     const auto loadedShortcutRows =
         window.findChildren<QWidget *>(QRegularExpression(QStringLiteral("^ShortcutSettingRow_")));
-    QCOMPARE(loadedShortcutRows.size(), 8);
+    QCOMPARE(loadedShortcutRows.size(), 14);
     auto *helpEditor = window.findChild<QWidget *>(QStringLiteral("ShortcutSettingRow_open_help"))
                            ->findChild<QKeySequenceEdit *>(QStringLiteral("DesignKeySequenceEdit"));
     auto *helpReset =
@@ -885,6 +1033,20 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QCOMPARE(helpEditor->keySequence(), QKeySequence(QStringLiteral("H")));
     QCOMPARE(window.findChild<QAction *>(QStringLiteral("open_help"))->shortcut(),
              QKeySequence(QStringLiteral("H")));
+    auto *commandsRow = shortcutPage->findChild<QWidget *>(QStringLiteral("ShortcutSettingRow_workspace_commands"));
+    QVERIFY(commandsRow);
+    auto *commandsEditor = commandsRow->findChild<QKeySequenceEdit *>();
+    QVERIFY(commandsEditor);
+    const auto defaultCommandsKey = commandsEditor->keySequence();
+    commandsEditor->setKeySequence(QKeySequence(Qt::Key_F8));
+    QVERIFY(QMetaObject::invokeMethod(commandsEditor, "editingFinished", Qt::DirectConnection));
+    QTest::keyClick(&window, Qt::Key_F8);
+    QTRY_VERIFY(search->isVisible());
+    QTest::keyClick(search->findChild<QLineEdit *>(), Qt::Key_Escape);
+    auto *commandsReset = findSettingsButton(commandsRow, QStringLiteral("恢复"));
+    QVERIFY(commandsReset);
+    commandsReset->click();
+    QCOMPARE(commandsEditor->keySequence(), defaultCommandsKey);
     auto *videoPage = window.findChild<darkeye::VideoSettingsPage *>();
     QVERIFY(videoPage);
     videoPage->initialize();
@@ -945,8 +1107,8 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
         }
         QVERIFY(themeService.setTheme(darkeye::ThemeId::Light));
     }
-    emit sidebar->itemClicked(QStringLiteral("work"));
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("WorkPage"));
+    search->openRequested(QStringLiteral("mutiwork"));
+    QCOMPARE(currentWidget()->objectName(), QStringLiteral("WorkPage"));
     auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));
     auto *shelfPage = window.findChild<darkeye::ShelfPage *>(QStringLiteral("ShelfPage"));
     auto *actressPage = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
@@ -963,42 +1125,204 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(shelfPage != nullptr);
     QVERIFY(shelfPage->isInitialized());
     // Preloading must not navigate away from the page the user is viewing.
-    QCOMPARE(pages->currentWidget(), workPage);
+    QCOMPARE(currentWidget(), workPage);
     emit workPage->detailRequested(*workId);
-    QCOMPARE(pages->currentWidget(), shelfPage);
-    QCOMPARE(sidebar->selectedId(), QStringLiteral("shelf"));
-    emit sidebar->backwardClicked();
-    QCOMPARE(pages->currentWidget(), workPage);
-    emit sidebar->forwardClicked();
-    QCOMPARE(pages->currentWidget(), shelfPage);
-    emit sidebar->itemClicked(QStringLiteral("actress"));
+    QCOMPARE(currentWidget(), shelfPage);
+    auto *shelfView = shelfPage->findChild<darkeye::DvdShelfView *>();
+    QVERIFY(shelfView);
+    QTRY_COMPARE(shelfView->currentWorkId(), *workId);
+    auto *shelfShortcutRow = shortcutPage->findChild<QWidget *>(QStringLiteral("ShortcutSettingRow_toggle_shelf_filter_bar"));
+    QVERIFY(shelfShortcutRow);
+    auto *shelfShortcutEditor = shelfShortcutRow->findChild<QKeySequenceEdit *>();
+    auto *shelfShortcutReset = findSettingsButton(shelfShortcutRow, QStringLiteral("恢复"));
+    auto *filterBar = shelfPage->findChild<QWidget *>(QStringLiteral("ShelfFilterBar"));
+    QVERIFY(shelfShortcutEditor && shelfShortcutReset && filterBar);
+    const QKeySequence defaultShelfKey(Qt::Key_F);
+    QCOMPARE(shelfShortcutEditor->keySequence(), defaultShelfKey);
+    auto *shelfFilterInput = filterBar->findChild<QLineEdit *>();
+    QVERIFY(shelfFilterInput);
+    shelfFilterInput->setFocus();
+    QTRY_VERIFY(shelfFilterInput->hasFocus());
+    QTest::keyClick(shelfFilterInput, Qt::Key_F);
+    QCOMPARE(shelfFilterInput->text(), QStringLiteral("f"));
+    QVERIFY(filterBar->isVisible());
+    shelfFilterInput->clear();
+    shelfFilterInput->clearFocus();
+    QTRY_VERIFY(QApplication::focusWidget() == nullptr);
+    QTest::keyClick(window.windowHandle(), Qt::Key_F);
+    QVERIFY(filterBar->isHidden());
+    shelfShortcutEditor->setKeySequence(QKeySequence(Qt::Key_F9));
+    QVERIFY(QMetaObject::invokeMethod(shelfShortcutEditor, "editingFinished", Qt::DirectConnection));
+    QFile shortcutFile(paths.shortcutsFile());
+    QVERIFY(shortcutFile.open(QIODevice::ReadOnly));
+    QCOMPARE(QJsonDocument::fromJson(shortcutFile.readAll()).object().value(QStringLiteral("toggle_shelf_filter_bar")).toString(),
+             QStringLiteral("F9"));
+    shortcutFile.close();
+    QTest::keyClick(window.windowHandle(), Qt::Key_F9);
+    QVERIFY(filterBar->isVisible());
+    shelfShortcutReset->click();
+    QCOMPARE(shelfShortcutEditor->keySequence(), defaultShelfKey);
+    QTest::keyClick(window.windowHandle(), Qt::Key_F9);
+    QVERIFY(filterBar->isVisible());
+    QTest::keyClick(window.windowHandle(), Qt::Key_F);
+    QVERIFY(filterBar->isHidden());
+    QTest::keyClick(window.windowHandle(), Qt::Key_F);
+    QVERIFY(filterBar->isVisible());
+    search->openRequested(QStringLiteral("actress"));
     actressPage = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
     QVERIFY(actressPage != nullptr);
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ActressPage"));
-    emit sidebar->itemClicked(QStringLiteral("actor"));
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ActorPage"));
-    emit sidebar->itemClicked(QStringLiteral("database"));
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ManagementPage"));
-    auto *managementTabs =
-        window.findChild<QTabWidget *>(QStringLiteral("ManagementTabs"));
-    QVERIFY(managementTabs != nullptr);
-    const auto loadManagementTab = [managementTabs](int index)
-    {
-        managementTabs->setCurrentIndex(index);
-        QCoreApplication::processEvents();
-        if (auto *lazy = dynamic_cast<darkeye::LazyWidget *>(managementTabs->widget(index)))
-            lazy->initialize();
+    QCOMPARE(currentWidget()->objectName(), QStringLiteral("ActressPage"));
+    auto *shelfShortcutAction = window.findChild<QAction *>(QStringLiteral("toggle_shelf_filter_bar"));
+    QVERIFY(shelfShortcutAction && !shelfShortcutAction->isEnabled());
+    search->openRequested(QStringLiteral("actor"));
+    QCOMPARE(currentWidget()->objectName(), QStringLiteral("ActorPage"));
+    const QList<QPair<QString, QString>> managementShortcuts{
+        {QStringLiteral("标签管理"), QStringLiteral("manage_tags")},
+        {QStringLiteral("片商管理"), QStringLiteral("manage_makers")},
+        {QStringLiteral("厂牌管理"), QStringLiteral("manage_labels")},
+        {QStringLiteral("系列管理"), QStringLiteral("manage_series")},
+        {QStringLiteral("汇总查询"), QStringLiteral("manage_summary")},
+        {QStringLiteral("个人记录"), QStringLiteral("manage_records")},
+        {QStringLiteral("软删除"), QStringLiteral("manage_deleted")},
+        {QStringLiteral("回收站"), QStringLiteral("manage_trash")},
     };
-    // Python creates lazy tab shells up front; selecting each tab performs its
-    // first real load. Exercise the same lifecycle before inspecting content.
-    loadManagementTab(2);
-    loadManagementTab(3);
-    loadManagementTab(4);
-    QVERIFY(window.findChild<darkeye::MakerManagementWidget *>() != nullptr);
+    for (const auto &[title, route] : managementShortcuts)
+    {
+        QTest::keyClick(&window, Qt::Key_P, physicalControl);
+        QTRY_VERIFY(search->isVisible());
+        auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
+        input->setText(title);
+        QTest::keyClick(input, Qt::Key_Return);
+        QCOMPARE(workspace->activePane()->currentContentId(), route);
+        auto *page = qobject_cast<darkeye::ManagementPage *>(currentWidget());
+        QVERIFY(page);
+        QVERIFY(page->isInitialized());
+        QVERIFY(!page->findChild<QTabWidget *>(QStringLiteral("ManagementTabs")));
+        QVERIFY(!page->findChild<darkeye::AddWorkTabPage3 *>());
+        QTRY_VERIFY(QApplication::focusWidget() == nullptr);
+    }
+    window.activateWindow();
+    QTRY_VERIFY(window.isActiveWindow());
+    QTest::keyClick(&window, Qt::Key_P, physicalControl);
+    QTRY_VERIFY(search->isVisible());
+    auto *recentInput = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
+    auto *recentResults = search->findChild<QListWidget *>();
+    QVERIFY(recentResults->count() > 9);
+    for (qsizetype index = 0; index < managementShortcuts.size(); ++index)
+        QCOMPARE(recentResults->item(index)->data(Qt::UserRole).toString(), managementShortcuts.at(managementShortcuts.size() - 1 - index).second);
+
+    QSet<QString> routes;
+    for (int index = 0; index < recentResults->count(); ++index) {
+        const auto route = recentResults->item(index)->data(Qt::UserRole).toString();
+        QVERIFY(!route.contains(u'/'));
+        routes.insert(route);
+    }
+    QCOMPARE(routes.size(), recentResults->count());
+    for (const auto &page : managementShortcuts)
+        QVERIFY(routes.contains(page.second));
+    for (const QString &route : {QStringLiteral("home"), QStringLiteral("test_page"),
+                                 QStringLiteral("mutiwork"),
+                                 QStringLiteral("actress"), QStringLiteral("actor"),
+                                 QStringLiteral("chart"), QStringLiteral("information"),
+                                 QStringLiteral("graph"), QStringLiteral("shelf"),
+                                 QStringLiteral("av"), QStringLiteral("inbox")})
+        QVERIFY2(routes.contains(route), qPrintable(route));
+    QVERIFY(routes.contains(QStringLiteral("setting")));
+    QVERIFY(!routes.contains(QStringLiteral("fanart")));
+    QVERIFY(!routes.contains(QStringLiteral("manage_work")));
+    QVERIFY(!routes.contains(QStringLiteral("manage_batch")));
+
+    recentInput->setText(QStringLiteral("批量"));
+    QCOMPARE(recentResults->count(), 6);
+    for (int index = 0; index < recentResults->count(); ++index)
+        QVERIFY(recentResults->item(index)->text().startsWith(QStringLiteral("批量操作 · ")));
+    recentInput->setText(QStringLiteral("覆盖已有中文"));
+    QCOMPARE(recentResults->count(), 1);
+    QCOMPARE(recentResults->item(0)->data(Qt::UserRole).toString(), QStringLiteral("translate_overwrite"));
+    const auto pageBeforeBatch = workspace->activePane()->currentContentId();
+    bool confirmationShown = false;
+    QTimer::singleShot(0, &window, [&] {
+        if (auto *dialog = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+            confirmationShown = true;
+            dialog->button(QMessageBox::No)->click();
+        }
+    });
+    QTest::keyClick(recentInput, Qt::Key_Return);
+    QVERIFY(confirmationShown);
+    QVERIFY(search->isHidden());
+    QCOMPARE(workspace->activePane()->currentContentId(), pageBeforeBatch);
+    window.activateWindow();
+    QTRY_VERIFY(window.isActiveWindow());
+    QTest::keyClick(&window, Qt::Key_P, physicalControl);
+    QTRY_VERIFY(search->isVisible());
+
+    auto *maintenance = window.findChild<darkeye::WorkMaintenanceActions *>();
+    QVERIFY(maintenance);
+    QSignalSpy maintenanceCompleted(maintenance, &darkeye::WorkMaintenanceActions::worksChanged);
+    recentInput->setText(QStringLiteral("补译缺失"));
+    QCOMPARE(recentResults->count(), 1);
+    QTest::keyClick(recentInput, Qt::Key_Return);
+    QTRY_COMPARE(maintenanceCompleted.size(), 1);
+    QVERIFY(search->isHidden());
+    QCOMPARE(workspace->activePane()->currentContentId(), pageBeforeBatch);
+    QTest::keyClick(&window, Qt::Key_P, physicalControl);
+    QTRY_VERIFY(search->isVisible());
+
+    recentInput->setText(QStringLiteral("剧照浏览"));
+    QCOMPARE(recentResults->count(), 1);
+    QVERIFY(recentResults->item(0)->data(Qt::UserRole).toString().isEmpty());
+
+    recentInput->setText(QStringLiteral("管理"));
+    QCOMPARE(recentResults->count(), managementShortcuts.size());
+    for (int index = 0; index < recentResults->count(); ++index)
+        QVERIFY(recentResults->item(index)->data(Qt::UserRole).toString().startsWith(QStringLiteral("manage_")));
+
+    recentInput->clear();
+    QVERIFY(recentResults->count() > 9);
+    QTest::keyClick(recentInput, Qt::Key_Down);
+    QTest::keyClick(recentInput, Qt::Key_Return);
+    QCOMPARE(workspace->activePane()->currentContentId(), QStringLiteral("manage_deleted"));
+    QTest::keyClick(&window, Qt::Key_P, physicalControl);
+    QTRY_VERIFY(search->isVisible());
+    QVERIFY(recentResults->count() > 9);
+    QCOMPARE(recentResults->item(0)->data(Qt::UserRole).toString(), QStringLiteral("manage_deleted"));
+    QCOMPARE(recentResults->item(1)->data(Qt::UserRole).toString(), QStringLiteral("manage_trash"));
+    recentInput->setText(QStringLiteral("标签管理"));
+    QTRY_COMPARE(recentResults->item(0)->data(Qt::UserRole).toString(), QStringLiteral("manage_tags"));
+    recentInput->clear();
+    QTRY_COMPARE(recentResults->item(0)->data(Qt::UserRole).toString(), QStringLiteral("manage_deleted"));
+    QTest::keyClick(recentInput, Qt::Key_Escape);
+
+    QVERIFY(!workspace->findPaneByContentId(QStringLiteral("database")));
+    search->openRequested(QStringLiteral("manage_records"));
+    QVERIFY(currentWidget()->findChild<darkeye::PersonalRecordManagementWidget *>());
+    search->openRequested(QStringLiteral("manage_summary"));
+    auto *summaryPage = currentWidget();
+    auto *summary = summaryPage->findChild<darkeye::SummaryQueryWidget *>();
+    QVERIFY(summary);
+    emit summary->workRequested(*workId);
+    QCOMPARE(workspace->activePane()->currentContentId(), QStringLiteral("work_edit/%1").arg(*workId));
+    auto *workEditor = currentWidget()->findChild<darkeye::AddWorkTabPage3 *>();
+    QVERIFY(workEditor);
+    auto *serialInput = findWorkControl<QLineEdit>(workEditor, QStringLiteral("WorkSerialInput"));
+    auto *titleInput = findWorkControl<QPlainTextEdit>(workEditor, QStringLiteral("WorkChineseTitleInput"));
+    auto *saveButton = workEditor->findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
+    QVERIFY(serialInput && titleInput && saveButton);
+    QTRY_COMPARE(serialInput->text(), work.serialNumber);
+    const auto editedTitle = QStringLiteral("界面修改作品");
+    titleInput->setPlainText(editedTitle);
+    QCOMPARE(saveButton->text(), QStringLiteral("修改"));
+    QVERIFY(saveButton->isEnabled());
+    saveButton->click();
+    QTRY_COMPARE(repository.findById(*workId).value_or(darkeye::Work{}).chineseTitle, editedTitle);
+    serialInput->setText(QStringLiteral("UI-ADD-001"));
+    QTest::keyClick(serialInput, Qt::Key_Return);
+    QVERIFY(!saveButton->isEnabled());
+    QVERIFY(!repository.existsSerial(serialInput->text()));
+    search->openRequested(QStringLiteral("manage_summary"));
+    QCOMPARE(currentWidget(), summaryPage);
+    QVERIFY(window.findChild<darkeye::MakerManagementWidget *>());
     QCOMPARE(window.findChildren<darkeye::LabelManagementWidget *>().size(), 2);
-    loadManagementTab(8);
-    loadManagementTab(9);
-    loadManagementTab(5);
     const auto stateWidgets = window.findChildren<darkeye::WorkBatchStateWidget *>();
     QCOMPARE(stateWidgets.size(), 2);
     for (auto *stateWidget : stateWidgets)
@@ -1013,58 +1337,728 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
             QVERIFY(!table->isRowHidden(row));
         searchBar->input()->clear();
     }
-    auto *maintenanceWidget = window.findChild<darkeye::WorkMaintenanceWidget *>();
-    QVERIFY(maintenanceWidget != nullptr);
-    auto *addWorkEditor =
-        window.findChild<darkeye::ManagementPage *>(QStringLiteral("ManagementPage"))
-            ->findChild<darkeye::AddWorkTabPage3 *>();
-    QVERIFY(addWorkEditor != nullptr);
-    addWorkEditor->beginCreate();
-    auto *addSerial = findWorkControl<QLineEdit>(
-        addWorkEditor, QStringLiteral("WorkSerialInput"));
-    auto *addTitle = findWorkControl<QPlainTextEdit>(
-        addWorkEditor, QStringLiteral("WorkChineseTitleInput"));
-    auto *addSave = addWorkEditor->findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
-    QVERIFY(addSerial != nullptr);
-    QVERIFY(addTitle != nullptr);
-    QVERIFY(addSave != nullptr);
-    auto *addActresses = addWorkEditor->findChild<darkeye::PersonTransferSelector *>(
-        QStringLiteral("WorkActressSelector"));
-    QVERIFY(addActresses != nullptr);
-    addActresses->setSelectedIds({*actressId});
-    addSerial->setText(QStringLiteral("UI-ADD-001"));
-    addTitle->setPlainText(QStringLiteral("界面添加作品"));
-    addSave->click();
-    QTRY_VERIFY_WITH_TIMEOUT(repository.existsSerial(QStringLiteral("UI-ADD-001")), 500);
-    const QList<darkeye::WorkStateRecord> activeWorks = repository.listByDeletedState(false);
-    QCOMPARE(activeWorks.size(), 2);
-    loadManagementTab(1);
+    search->openRequested(QStringLiteral("manage_work"));
+    QVERIFY(!workspace->findPaneByContentId(QStringLiteral("manage_work")));
+    search->openRequested(QStringLiteral("manage_tags"));
     auto *tagWidget =
         window.findChild<darkeye::TagManagementWidget *>();
     QVERIFY(tagWidget != nullptr);
-    emit sidebar->itemClicked(QStringLiteral("setting"));
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("SettingsPage"));
+    search->openRequested(QStringLiteral("setting"));
+    QCOMPARE(currentWidget()->objectName(), QStringLiteral("SettingsPage"));
     themeSelector->setCurrentIndex(1);
     QCOMPARE(themeService.current(), darkeye::ThemeId::Dark);
     emit actressPage->detailRequested(darkeye::PersonKind::Actress, *actressId);
     actressDetail = window.findChild<darkeye::PersonDetailPage *>(
         QStringLiteral("ActressDetailPage"));
     QVERIFY(actressDetail != nullptr);
-    QCOMPARE(pages->currentWidget(), actressDetail);
+    QCOMPARE(currentWidget(), actressDetail);
     QCOMPARE(actressDetail->currentPersonId(), *actressId);
-    QCOMPARE(sidebar->selectedId(), QStringLiteral("actress"));
-    auto *actressGraph = actressDetail->findChild<darkeye::ForceDirectPage *>(
-        QStringLiteral("actressRelationGraph"));
-    QVERIFY(actressGraph != nullptr);
-    QVERIFY(!actressGraph->isHidden());
-    emit actressGraph->actressRequested(*actressId);
-    QCOMPARE(actressDetail->currentPersonId(), *actressId);
-    QCOMPARE(pages->currentWidget(), actressDetail);
+    QVERIFY(!actressDetail->findChild<ForceViewRhiWidget *>());
     emit actressDetail->editRequested(darkeye::PersonKind::Actress, *actressId);
-    QCOMPARE(pages->currentWidget()->objectName(), QStringLiteral("ModifyActressPage"));
-    QCOMPARE(sidebar->selectedId(), QStringLiteral("actress"));
+    QCOMPARE(currentWidget()->objectName(), QStringLiteral("ModifyActressPage"));
     QCOMPARE(window.findChildren<QDialog *>().size(), 0);
     QVERIFY(window.windowTitle().startsWith(QStringLiteral("暗之眼 V")));
+}
+
+
+void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection publicDatabase, privateDatabase;
+    QString error;
+    QVERIFY(publicDatabase.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(publicDatabase, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::PersonRepository people(publicDatabase.database());
+    const auto actress = people.create(darkeye::PersonKind::Actress, QStringLiteral("人物甲"), QStringLiteral("Test A"), &error);
+    QVERIFY(actress);
+    darkeye::WorkRepository works(publicDatabase.database());
+    darkeye::Work linked, unrelated;
+    linked.serialNumber = QStringLiteral("TIME-001");
+    linked.releaseDate = QStringLiteral("2020-01-01");
+    unrelated.serialNumber = QStringLiteral("TIME-002");
+    unrelated.releaseDate = QStringLiteral("2021-01-01");
+    const auto linkedId = works.insertComplete(linked, {*actress}, {}, {}, &error);
+    const auto unrelatedId = works.insertComplete(unrelated, {}, {}, {}, &error);
+    QVERIFY(linkedId && unrelatedId);
+
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, publicDatabase.database(), privateDatabase.database(), paths);
+    window.show();
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(search && workspace);
+
+    auto *sourcePane = workspace->rootPane();
+    const auto detailRoute = QStringLiteral("actress_detail/%1").arg(*actress);
+    search->openRequested(detailRoute);
+    auto *detail = sourcePane->contentWidget(detailRoute);
+    QVERIFY(detail);
+    QVERIFY(!detail->findChild<darkeye::ActressWorkTimeline *>());
+
+    const auto timelineRoute = QStringLiteral("timeline");
+    search->openRequested(timelineRoute);
+    auto *timeline = qobject_cast<darkeye::ActressWorkTimeline *>(sourcePane->contentWidget(timelineRoute));
+    QVERIFY(timeline);
+    const auto timelineIds = [timeline] {
+        QSet<qint64> ids;
+        for (const auto &work : timeline->works()) ids.insert(work.id);
+        return ids;
+    };
+    const QSet<qint64> linkedOnly{*linkedId};
+    const QSet<qint64> unrelatedOnly{*unrelatedId};
+    const QSet<qint64> allWorks{*linkedId, *unrelatedId};
+    QCOMPARE(timelineIds(), linkedOnly);
+    QVERIFY(workspace->moveContent(sourcePane->paneId(), timelineRoute, sourcePane->paneId(),
+                                   darkeye::myads::DropZone::Right));
+    auto *timelinePane = workspace->findPaneByContentId(timelineRoute);
+    QVERIFY(timelinePane && timelinePane != sourcePane);
+    QCOMPARE(timelinePane->contentWidget(timelineRoute), timeline);
+
+    workspace->setActivePane(sourcePane);
+    search->openRequested(QStringLiteral("mutiwork"));
+    auto *workPage = sourcePane->contentWidget(QStringLiteral("mutiwork"));
+    auto *serial = findWorkControl<QLineEdit>(workPage, QStringLiteral("WorkSerialFilter"));
+    QVERIFY(serial);
+    auto *tags = workPage->findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    QTRY_COMPARE(timelineIds(), allWorks);
+    serial->setText(unrelated.serialNumber);
+    QTRY_COMPARE(timelineIds(), unrelatedOnly);
+    workspace->setActivePane(timelinePane);
+    QCOMPARE(timelineIds(), unrelatedOnly);
+
+    workspace->setActivePane(sourcePane);
+    search->openRequested(QStringLiteral("modify_actress/%1").arg(*actress));
+    QCOMPARE(timelineIds(), linkedOnly);
+    search->openRequested(QStringLiteral("work_detail/%1").arg(*unrelatedId));
+    auto *shelf = qobject_cast<darkeye::ShelfPage *>(sourcePane->contentWidget(QStringLiteral("shelf")));
+    QVERIFY(shelf);
+    QTRY_COMPARE(shelf->currentWorkId(), *unrelatedId);
+    QTRY_COMPARE(timelineIds(), allWorks);
+    shelf->filterByTag(999);
+    QTRY_VERIFY(timelineIds().isEmpty());
+}
+
+void MainWindowSmokeTest::localRelationshipGraphFollowsActiveContent()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection publicDatabase, privateDatabase;
+    QString error;
+    QVERIFY(publicDatabase.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(publicDatabase, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::PersonRepository people(publicDatabase.database());
+    const auto actress = people.create(darkeye::PersonKind::Actress, QStringLiteral("人物甲"), QStringLiteral("Test A"), &error);
+    const auto coStar = people.create(darkeye::PersonKind::Actress, QStringLiteral("人物乙"), QStringLiteral("Test B"), &error);
+    QVERIFY(actress && coStar);
+    QSqlQuery cupUpdate(publicDatabase.database());
+    QVERIFY(cupUpdate.prepare(QStringLiteral("UPDATE actress SET cup='C' WHERE actress_id=?")));
+    cupUpdate.addBindValue(*actress);
+    QVERIFY(cupUpdate.exec());
+    darkeye::PrivateRepository privateData(privateDatabase.database());
+    QVERIFY(privateData.addFavoriteActress(*actress, QStringLiteral("Test A"), &error));
+    darkeye::WorkRepository works(publicDatabase.database());
+    darkeye::Work first, second;
+    first.serialNumber = QStringLiteral("LOCAL-001");
+    second.serialNumber = QStringLiteral("LOCAL-002");
+    const auto firstId = works.insertComplete(first, {*actress, *coStar}, {}, {}, &error);
+    const auto secondId = works.insertComplete(second, {}, {}, {}, &error);
+    QVERIFY(firstId && secondId);
+
+    const QString actressNode = QStringLiteral("a%1").arg(*actress);
+    const QString coStarNode = QStringLiteral("a%1").arg(*coStar);
+    const QString firstNode = QStringLiteral("w%1").arg(*firstId);
+    const QString secondNode = QStringLiteral("w%1").arg(*secondId);
+    const QStringList linkedNodes{actressNode, firstNode};
+    const QStringList sharedWorkNodes{actressNode, coStarNode, firstNode};
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, publicDatabase.database(), privateDatabase.database(), paths);
+    window.resize(1200, 800);
+    window.show();
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(search && workspace);
+    auto *sourcePane = workspace->rootPane();
+    auto *graphPane = workspace->split(sourcePane, darkeye::myads::Placement::Right);
+    QVERIFY(graphPane);
+    workspace->setActivePane(graphPane);
+    search->openRequested(QStringLiteral("graph"));
+    auto *globalPage = graphPane->contentWidget(QStringLiteral("graph"));
+    QVERIFY(globalPage);
+    auto *globalGraph = globalPage->findChild<ForceViewRhiWidget *>();
+    QVERIFY(globalGraph);
+    QTRY_COMPARE(globalGraph->getNodeIds().size(), 4);
+    search->openRequested(QStringLiteral("local_graph"));
+    auto *localPage = graphPane->contentWidget(QStringLiteral("local_graph"));
+    QVERIFY(localPage);
+    auto *localGraph = localPage->findChild<ForceViewRhiWidget *>();
+    QVERIFY(localGraph);
+    QCOMPARE(localGraph->getNodeIds().size(), 0);
+
+    workspace->setActivePane(sourcePane);
+    const QString actressRoute = QStringLiteral("actress_detail/%1").arg(*actress);
+    search->openRequested(actressRoute);
+    QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
+    search->openRequested(QStringLiteral("work_edit/%1").arg(*secondId));
+    QTRY_COMPARE(localGraph->getNodeIds(), QStringList{secondNode});
+    auto *editor = sourcePane->contentWidget(sourcePane->currentContentId());
+    QVERIFY(editor);
+    QVERIFY(!editor->findChild<ForceViewRhiWidget *>());
+    search->openRequested(QStringLiteral("modify_actress/%1").arg(*actress));
+    QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
+    search->openRequested(QStringLiteral("work_detail/%1").arg(*secondId));
+    QTRY_COMPARE(localGraph->getNodeIds(), QStringList{secondNode});
+
+    // Switching tabs in the same pane updates the graph as well.
+    QVERIFY(sourcePane->setCurrentContentId(actressRoute));
+    QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
+    search->openRequested(QStringLiteral("mutiwork"));
+    auto *workPage = window.findChild<darkeye::WorkPage *>();
+    auto *serial = findWorkControl<QLineEdit>(workPage, QStringLiteral("WorkSerialFilter"));
+    QVERIFY(serial);
+    auto *tags = workPage->findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    QTRY_COMPARE(localGraph->getNodeIds().size(), 4);
+    serial->setText(first.serialNumber);
+    QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
+    serial->setText(second.serialNumber);
+    QTRY_COMPARE(localGraph->getNodeIds(), QStringList{secondNode});
+    serial->setText(QStringLiteral("NO-MATCH"));
+    QTRY_COMPARE(localGraph->getNodeIds().size(), 0);
+
+    search->openRequested(QStringLiteral("actress"));
+    auto *actressPage = sourcePane->contentWidget(QStringLiteral("actress"));
+    QVERIFY(actressPage);
+    auto *nameFilter = actressPage->findChild<QLineEdit *>();
+    QVERIFY(nameFilter);
+    QComboBox *scope = nullptr;
+    QComboBox *cup = nullptr;
+    for (auto *combo : actressPage->findChildren<QComboBox *>()) {
+        if (combo->findText(QStringLiteral("收藏库范围")) >= 0) scope = combo;
+        if (combo->findText(QStringLiteral("C")) >= 0) cup = combo;
+    }
+    QVERIFY(scope && cup);
+    QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
+    cup->setCurrentIndex(cup->findText(QStringLiteral("C")));
+    QTRY_COMPARE(localGraph->getNodeIds(), linkedNodes);
+    cup->setCurrentIndex(0);
+    QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
+    nameFilter->setText(QStringLiteral("人物乙"));
+    const QStringList coStarNodes{coStarNode, firstNode};
+    QTRY_COMPARE(localGraph->getNodeIds(), coStarNodes);
+    scope->setCurrentIndex(scope->findText(QStringLiteral("收藏库范围")));
+    QTRY_VERIFY(localGraph->getNodeIds().isEmpty());
+    nameFilter->clear();
+    QTRY_COMPARE(localGraph->getNodeIds(), linkedNodes);
+    QVERIFY(sourcePane->setCurrentContentId(QStringLiteral("mutiwork")));
+    QTRY_VERIFY(localGraph->getNodeIds().isEmpty());
+    QVERIFY(sourcePane->setCurrentContentId(QStringLiteral("actress")));
+    QTRY_COMPARE(localGraph->getNodeIds(), linkedNodes);
+
+    workspace->setActivePane(graphPane);
+    QVERIFY(graphPane->setCurrentContentId(QStringLiteral("graph")));
+    QTRY_COMPARE(globalGraph->getNodeIds().size(), 4);
+}
+
+void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection database, privateDatabase;
+    QString error;
+    QVERIFY(database.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(database, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::PersonRepository people(database.database());
+    const auto first = people.create(darkeye::PersonKind::Actress, QStringLiteral("测试人物甲"), QStringLiteral("Test A"), &error);
+    const auto second = people.create(darkeye::PersonKind::Actress, QStringLiteral("测试人物乙"), QStringLiteral("Test B"), &error);
+    QVERIFY(first && second);
+    const auto actor = people.create(darkeye::PersonKind::Actor, QStringLiteral("测试男优"), QStringLiteral("Test Actor"), &error);
+    const auto similarActor = people.create(darkeye::PersonKind::Actor, QStringLiteral("测试男优二"), QStringLiteral("Other Actor"), &error);
+    QVERIFY2(actor && similarActor, qPrintable(error));
+    const auto legacyActorRoute = QStringLiteral("actor_detail/%1").arg(*actor);
+    darkeye::WorkRepository works(database.database());
+    darkeye::ReferenceRepository references(database.database());
+    const auto maker = references.create(darkeye::ReferenceKind::Maker, QStringLiteral("测试片商"), &error);
+    const auto label = references.create(darkeye::ReferenceKind::Label, QStringLiteral("测试厂牌"), &error);
+    const auto series = references.create(darkeye::ReferenceKind::Series, QStringLiteral("测试系列"), &error);
+    QVERIFY2(maker && label && series, qPrintable(error));
+    darkeye::Work work; work.serialNumber = QStringLiteral("SEARCH-001"); work.chineseTitle = QStringLiteral("测试作品");
+    work.makerId = maker;
+    work.seriesId = series;
+    const auto workId = works.insertComplete(work, {*first}, {*actor}, {}, &error);
+    QVERIFY(workId);
+    const auto firstRoute = QStringLiteral("actress_detail/") + QString::number(*first);
+    const auto secondRoute = QStringLiteral("actress_detail/") + QString::number(*second);
+    const auto workRoute = QStringLiteral("work_detail/") + QString::number(*workId);
+    const auto shelfRoute = QStringLiteral("shelf");
+    darkeye::Work otherWork;
+    otherWork.serialNumber = QStringLiteral("OTHER-002");
+    otherWork.labelId = label;
+    otherWork.director = QStringLiteral("测试导演/甲");
+    const auto otherWorkId = works.insertComplete(otherWork, {}, {*similarActor}, {}, &error);
+    QVERIFY2(otherWorkId, qPrintable(error));
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    {
+        darkeye::MainWindow window(themes, database.database(), privateDatabase.database(), paths);
+        window.resize(1200, 800);
+        window.show();
+        window.raise();
+        window.activateWindow();
+        QTRY_VERIFY(window.isActiveWindow());
+        auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+        auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
+        auto *results = search->findChild<QListWidget *>();
+        auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+        QVERIFY(input && results && workspace);
+        QVERIFY(!search->isVisible());
+        auto *startupPane = workspace->rootPane();
+        for (auto *button : window.findChildren<QPushButton *>())
+            QVERIFY(!button->isVisible());
+        auto *emptyHint = window.findChild<QLabel *>(QStringLiteral("workspaceEmptyHint"));
+        QVERIFY(emptyHint && emptyHint->isVisible());
+        const auto openSearch = [&](Qt::Key key = Qt::Key_O) {
+            QCoreApplication::processEvents();
+            QTest::keyClick(&window, key, physicalControl);
+        };
+        openSearch();
+        QTRY_VERIFY(search->isVisible() && input->hasFocus());
+        QVERIFY(results->isHidden());
+        QCOMPARE(window.windowHandle()->focusObject(), input);
+        input->setText(QStringLiteral("统计"));
+        QTRY_VERIFY(results->count() == 1 && results->item(0)->data(Qt::UserRole).toString().startsWith(QStringLiteral("search/")));
+        QTest::keyClick(input, Qt::Key_P, physicalControl);
+        QTRY_VERIFY(results->isVisible() && results->count() > 9);
+        QVERIFY(input->text().isEmpty());
+        QCOMPARE(startupPane->contentCount(), 0);
+        const auto unopenedRoute = QStringLiteral("manage_tags");
+        QVERIFY(!workspace->findPaneByContentId(unopenedRoute));
+        bool listsUnopenedPage = false;
+        for (int row = 0; row < results->count(); ++row) {
+            const auto *item = results->item(row);
+            if (item->data(Qt::UserRole).toString() == unopenedRoute)
+                listsUnopenedPage = item->text() == QStringLiteral("管理 · 标签管理");
+        }
+        QVERIFY(listsUnopenedPage);
+        for (int row = 1; row < results->count(); ++row)
+            QTest::keyClick(input, Qt::Key_Down);
+        QCOMPARE(results->currentRow(), results->count() - 1);
+        QTRY_VERIFY(results->viewport()->rect().intersects(results->visualItemRect(results->currentItem())));
+        openSearch();
+        QVERIFY(results->isHidden());
+        QTest::mouseClick(startupPane, Qt::LeftButton, Qt::NoModifier,
+                          startupPane->rect().bottomLeft() + QPoint(5, -5));
+        QTRY_VERIFY(!search->isVisible());
+        openSearch();
+        QTRY_VERIFY(search->isVisible() && input->hasFocus());
+        startupPane->setFocusPolicy(Qt::ClickFocus);
+        startupPane->setFocus();
+        QTRY_VERIFY(!search->isVisible());
+        openSearch();
+        QTRY_VERIFY(search->isVisible());
+        QTest::keyClick(input, Qt::Key_Escape);
+        QTRY_VERIFY(!search->isVisible());
+
+        openSearch();
+        input->setText(QStringLiteral("统计"));
+        QTest::keyClick(input, Qt::Key_Return);
+        const auto fullResultsRoute = startupPane->currentContentId();
+        QVERIFY(fullResultsRoute.startsWith(QStringLiteral("search/")));
+        auto *fullResultsPage = startupPane->contentWidget(fullResultsRoute);
+        QVERIFY(fullResultsPage);
+        const auto *fullResults = fullResultsPage->findChild<QListWidget *>();
+        QVERIFY(fullResults);
+        QCOMPARE(fullResults->count(), 1);
+        QVERIFY(fullResults->item(0)->data(Qt::UserRole).toString().isEmpty());
+        QVERIFY(startupPane->removeContent(fullResultsRoute));
+
+        QTest::keyClick(&window, Qt::Key_Comma, physicalControl);
+        QTRY_COMPARE(workspace->activePane()->currentContentId(), QStringLiteral("setting"));
+        QVERIFY(!search->isVisible());
+
+        openSearch(Qt::Key_P);
+        QTRY_VERIFY(search->isVisible());
+        QInputMethodEvent preedit(QStringLiteral("zuopin"), {});
+        QCoreApplication::sendEvent(window.windowHandle()->focusObject(), &preedit);
+        QVERIFY(search->isVisible() && input->hasFocus());
+        QVERIFY(input->text().isEmpty());
+        QInputMethodEvent commit;
+        commit.setCommitString(QStringLiteral("作品"));
+        QCoreApplication::sendEvent(window.windowHandle()->focusObject(), &commit);
+        QCOMPARE(input->text(), QStringLiteral("作品"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(workspace->findPaneByContentId(QStringLiteral("mutiwork")));
+        QVERIFY(!emptyHint->isVisible());
+        QVERIFY(!search->isVisible());
+        openSearch(Qt::Key_P);
+        QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("女优"));
+        QTRY_VERIFY(results->isVisible() && results->count() > 0
+                    && results->item(0)->data(Qt::UserRole).toString() == QStringLiteral("actress"));
+        QTest::mouseClick(results->viewport(), Qt::LeftButton, Qt::NoModifier,
+                          results->visualItemRect(results->item(0)).center());
+        QVERIFY(workspace->findPaneByContentId(QStringLiteral("actress")));
+        QVERIFY(!search->isVisible());
+        openSearch();
+        QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("测试人物甲"));
+        QTest::keyClick(input, Qt::Key_Return);
+        auto *pane = workspace->findPaneByContentId(firstRoute);
+        QVERIFY(pane);
+        auto *firstPage = qobject_cast<darkeye::PersonDetailPage *>(pane->contentWidget(firstRoute));
+        QVERIFY(firstPage);
+        search->openRequested(secondRoute);
+        auto *secondPage = qobject_cast<darkeye::PersonDetailPage *>(pane->contentWidget(secondRoute));
+        QVERIFY(secondPage && firstPage != secondPage);
+        QCOMPARE(firstPage->currentPersonId(), *first);
+        QCOMPARE(secondPage->currentPersonId(), *second);
+        const int count = pane->contentCount();
+        search->openRequested(firstRoute);
+        QCOMPARE(pane->contentCount(), count);
+        QCOMPARE(pane->currentContentId(), firstRoute);
+        openSearch();
+        QTRY_VERIFY(search->isVisible());
+        QTest::keyClicks(input, QStringLiteral("search-001"));
+        QCOMPARE(input->text(), QStringLiteral("search-001"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(!workspace->findPaneByContentId(workRoute));
+        QCOMPARE(workspace->findPaneByContentId(shelfRoute), pane);
+        auto *shelfPage = qobject_cast<darkeye::ShelfPage *>(pane->contentWidget(shelfRoute));
+        QVERIFY(shelfPage);
+        auto *shelfView = shelfPage->findChild<darkeye::DvdShelfView *>();
+        QVERIFY(shelfView);
+        QTRY_COMPARE(shelfView->expandedWorkCode(), work.serialNumber);
+        QVERIFY(workspace->moveContent(pane->paneId(), shelfRoute, pane->paneId(), darkeye::myads::DropZone::Right));
+        QCOMPARE(workspace->panes().size(), 2);
+        auto *workPane = workspace->findPaneByContentId(shelfRoute);
+        QVERIFY(workPane && workPane != pane);
+        search->openRequested(firstRoute);
+        QCOMPARE(workspace->activePane(), pane);
+        search->openRequested(QStringLiteral("work_detail/") + QString::number(*otherWorkId));
+        QCOMPARE(workspace->activePane(), workPane);
+        QCOMPARE(workPane->contentWidget(shelfRoute), shelfPage);
+        QTRY_COMPARE(shelfView->expandedWorkCode(), otherWork.serialNumber);
+
+        const QList<QPair<QString, qint64>> shelfSearches{
+            {QStringLiteral("片商 · 测试片商"), *workId},
+            {QStringLiteral("厂牌 · 测试厂牌"), *otherWorkId},
+            {QStringLiteral("系列 · 测试系列"), *workId},
+            {QStringLiteral("男优 · 测试男优"), *workId},
+            {QStringLiteral("导演 · 测试导演/甲"), *otherWorkId},
+        };
+        for (const auto &[resultText, expectedWorkId] : shelfSearches) {
+            search->openRequested(firstRoute);
+            openSearch();
+            QTRY_VERIFY(search->isVisible());
+            input->setText(resultText.section(QStringLiteral(" · "), 1));
+            QTRY_COMPARE(results->findItems(resultText, Qt::MatchExactly).size(), 1);
+            results->setCurrentItem(results->findItems(resultText, Qt::MatchExactly).first());
+            const auto filterRoute = results->currentItem()->data(Qt::UserRole).toString();
+            QTest::keyClick(input, Qt::Key_Return);
+            QCOMPARE(workspace->activePane(), workPane);
+            QCOMPARE(workPane->currentContentId(), shelfRoute);
+            QCOMPARE(workPane->contentWidget(shelfRoute), shelfPage);
+            QVERIFY(!workspace->findPaneByContentId(filterRoute));
+            QCOMPARE(shelfPage->filteredWorkIds(), QSet<qint64>{expectedWorkId});
+        }
+        // Reopen before deleteLater is processed: the old object must never be reused.
+        QPointer<QWidget> oldPage = shelfPage;
+        QVERIFY(workPane->removeContent(shelfRoute));
+        search->openRequested(workRoute);
+        auto *source = workspace->findPaneByContentId(shelfRoute);
+        QVERIFY(source);
+        QVERIFY(source->contentWidget(shelfRoute) != oldPage.data());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(oldPage.isNull());
+        // Recreate a split and persist its order, contents and active tab.
+        QVERIFY(workspace->moveContent(source->paneId(), shelfRoute, source->paneId(), darkeye::myads::DropZone::Right));
+        const auto editorRoute = QStringLiteral("modify_actress/") + QString::number(*first);
+        search->openRequested(editorRoute);
+        auto *editorPane = workspace->findPaneByContentId(editorRoute);
+        auto *editor = editorPane->contentWidget(editorRoute);
+        QLineEdit *birthday = nullptr;
+        for (auto *edit : editor->findChildren<QLineEdit *>())
+            if (edit->property("testId").toString() == QStringLiteral("PersonBirthdayInput")) birthday = edit;
+        QVERIFY(birthday);
+        birthday->setText(QStringLiteral("1990-01-01"));
+        auto answer = [](QMessageBox::StandardButton choice) {
+            QTimer::singleShot(0, [choice] {
+                auto *dialog = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+                if (dialog) dialog->button(choice)->click();
+            });
+        };
+        answer(QMessageBox::Cancel);
+        QVERIFY(!editorPane->removeContent(editorRoute));
+        QVERIFY(workspace->findPaneByContentId(editorRoute));
+        answer(QMessageBox::Save);
+        QVERIFY(editorPane->removeContent(editorRoute));
+        QCOMPARE(people.findDetails(darkeye::PersonKind::Actress, *first)->birthday, QStringLiteral("1990-01-01"));
+        search->openRequested(workRoute);
+        const auto preview = qEnvironmentVariable("DARKEYE_WORKSPACE_PREVIEW");
+        if (!preview.isEmpty()) { QTest::qWait(100); QVERIFY(window.grab().save(preview)); }
+        // Simulate a saved layout containing a pane dedicated to the old person graph.
+        auto *legacyPane = workspace->split(workspace->activePane(), darkeye::myads::Placement::Right);
+        QVERIFY(legacyPane);
+        const auto legacyRoute = QStringLiteral("person_graph/%1").arg(*first);
+        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(legacyRoute)
+                                                   .setWidget(new QWidget(&window))));
+        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(legacyActorRoute)
+                                                   .setWidget(new QWidget(&window))));
+        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(QStringLiteral("manage_batch"))
+                                                   .setWidget(new QWidget(&window))));
+        QCOMPARE(workspace->panes().size(), 3);
+        QVERIFY(window.close());
+    }
+    {
+        darkeye::MainWindow window(themes, database.database(), privateDatabase.database(), paths);
+        auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+        QCOMPARE(workspace->panes().size(), 2);
+        QVERIFY(workspace->findPaneByContentId(firstRoute));
+        QVERIFY(workspace->findPaneByContentId(secondRoute));
+        QVERIFY(workspace->findPaneByContentId(shelfRoute));
+        QVERIFY(!workspace->findPaneByContentId(workRoute));
+        QVERIFY(!workspace->findPaneByContentId(legacyActorRoute));
+        QVERIFY(!workspace->findPaneByContentId(QStringLiteral("manage_batch")));
+        QCOMPARE(qobject_cast<darkeye::PersonDetailPage *>(workspace->findPaneByContentId(firstRoute)->contentWidget(firstRoute))->currentPersonId(), *first);
+        window.show();
+        window.activateWindow();
+        QTRY_VERIFY(window.isActiveWindow());
+        QTest::keyClick(&window, Qt::Key_O, physicalControl);
+        auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+        QTRY_VERIFY(search->isVisible());
+        auto *recent = search->findChild<QListWidget *>();
+        QVERIFY(recent->count() > 1);
+        QCOMPARE(recent->item(0)->data(Qt::UserRole).toString(), workRoute);
+        QCOMPARE(recent->item(0)->text(), QStringLiteral("SEARCH-001"));
+        QTest::keyClick(search->findChild<QLineEdit *>(), Qt::Key_Escape);
+
+        // Closing the last tab returns to the empty workspace.
+        for (auto *pane : workspace->panes()) {
+            for (const auto &id : pane->contentIds()) pane->removeContent(id);
+        }
+        QCoreApplication::processEvents();
+        QCOMPARE(workspace->panes().size(), 1);
+        QCOMPARE(workspace->rootPane()->contentCount(), 0);
+        QVERIFY(workspace->rootPane()->currentContentId().isEmpty());
+        QVERIFY(window.findChild<QLabel *>(QStringLiteral("workspaceEmptyHint"))->isVisible());
+        QTest::keyClick(&window, Qt::Key_P, physicalControl);
+        QTRY_VERIFY(search->isVisible());
+        auto *input = search->findChild<QLineEdit *>();
+        input->setText(QStringLiteral("通知"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QCOMPARE(workspace->rootPane()->currentContentId(), QStringLiteral("inbox"));
+    }
+}
+
+void MainWindowSmokeTest::openingPagesLeavesFocusUnset()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection database, privateDatabase;
+    QString error;
+    QVERIFY(database.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(database, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    QVERIFY(darkeye::PersonRepository(database.database()).create(darkeye::PersonKind::Actress,
+        QStringLiteral("焦点测试"), QStringLiteral("Focus Test"), &error));
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("FOCUS-001");
+    const auto workId = darkeye::WorkRepository(database.database()).insertComplete(work, {}, {}, {}, &error);
+    QVERIFY2(workId, qPrintable(error));
+    const auto editorRoute = QStringLiteral("work_edit/%1").arg(*workId);
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, database.database(), privateDatabase.database(), paths);
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(search && workspace);
+    search->openRequested(QStringLiteral("actress"));
+    window.resize(1100, 700);
+    window.show();
+    window.raise();
+    window.activateWindow();
+    QTRY_COMPARE(QApplication::activeWindow(), &window);
+    QTRY_VERIFY(QApplication::focusWidget() == nullptr);
+    auto *actressPane = workspace->findPaneByContentId(QStringLiteral("actress"));
+    auto *actress = actressPane->contentWidget(QStringLiteral("actress"));
+    auto *filter = actress->findChild<QLineEdit *>();
+    QVERIFY(filter);
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    filter->setFocus();
+    QTRY_VERIFY(filter->hasFocus());
+    search->openRequested(QStringLiteral("inbox"));
+    auto *pane = workspace->activePane();
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    search->openRequested(QStringLiteral("actress"));
+    filter->setFocus();
+    QTRY_VERIFY(filter->hasFocus());
+    search->openRequested(QStringLiteral("mutiwork"));
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    // Selecting a tab must not restore an old filter as its keyboard target.
+    pane = workspace->findPaneByContentId(QStringLiteral("actress"));
+    pane->setCurrentContentId(QStringLiteral("actress"));
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    auto *tabs = pane->findChild<QTabBar *>(QStringLiteral("MyAdsTabBar"));
+    QVERIFY(tabs);
+    for (int index = 0; index < tabs->count(); ++index)
+        if (tabs->tabData(index).toString() == QStringLiteral("mutiwork"))
+            QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier, tabs->tabRect(index).center());
+    QCOMPARE(pane->currentContentId(), QStringLiteral("mutiwork"));
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    QTest::keyClick(window.windowHandle(), Qt::Key_Tab);
+    QTRY_VERIFY(QApplication::focusWidget() != nullptr);
+    // An explicit click into a filter continues to work.
+    pane->setCurrentContentId(QStringLiteral("actress"));
+    QTest::mouseClick(filter, Qt::LeftButton);
+    QTRY_VERIFY(filter->hasFocus());
+    // A visible filter in another split must not capture newly opened pages.
+    QVERIFY(workspace->moveContent(pane->paneId(), QStringLiteral("actress"), pane->paneId(), darkeye::myads::DropZone::Right));
+    filter->setFocus();
+    QTRY_VERIFY(filter->hasFocus());
+    search->openRequested(QStringLiteral("mutiwork"));
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    auto *destination = workspace->activePane();
+    search->openRequested(QStringLiteral("information"));
+    QCOMPARE(workspace->activePane(), destination);
+    QTest::qWait(50);
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    search->openRequested(editorRoute);
+    QVERIFY(workspace->moveContent(destination->paneId(), editorRoute,
+                                   destination->paneId(), darkeye::myads::DropZone::Bottom));
+    auto *editorPane = workspace->findPaneByContentId(editorRoute);
+    QVERIFY(editorPane && editorPane != destination);
+    auto *editor = editorPane->contentWidget(editorRoute)->findChild<darkeye::AddWorkTabPage3 *>();
+    QVERIFY(editor);
+    QTRY_VERIFY(editor->isInitialized());
+    auto *serial = findWorkControl<QLineEdit>(editor, QStringLiteral("WorkSerialInput"));
+    QVERIFY(serial);
+
+    destination->setCurrentContentId(QStringLiteral("mutiwork"));
+    QCOMPARE(QApplication::focusWidget(), nullptr);
+    QCOMPARE(workspace->activePane(), destination);
+    serial->setFocus();
+    QTRY_VERIFY(serial->hasFocus());
+    QCOMPARE(workspace->activePane(), editorPane);
+
+    QTest::keyClick(serial, Qt::Key_P, physicalControl);
+    auto *input = search->findChild<QLineEdit *>();
+    QTRY_VERIFY(input->hasFocus());
+    input->setText(QStringLiteral("统计"));
+    QTest::keyClick(input, Qt::Key_Return);
+    QCOMPARE(workspace->findPaneByContentId(QStringLiteral("chart")), editorPane);
+    QCOMPARE(workspace->activePane(), editorPane);
+    QTRY_VERIFY(QApplication::focusWidget() == nullptr);
+    QVERIFY(!search->isVisible());
+}
+
+void MainWindowSmokeTest::managementWorkFormScrollsInShortWindow()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection database, privateDatabase;
+    QString error;
+    QVERIFY(database.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(database, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("SCROLL-001");
+    const auto workId = darkeye::WorkRepository(database.database()).insertComplete(work, {}, {}, {}, &error);
+    QVERIFY2(workId, qPrintable(error));
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, database.database(), privateDatabase.database(), paths);
+    window.resize(1100, 300);
+    window.show();
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(search && workspace);
+
+    const auto editorRoute = QStringLiteral("work_edit/%1").arg(*workId);
+    search->openRequested(editorRoute);
+    auto *editorPane = workspace->findPaneByContentId(editorRoute);
+    QVERIFY(editorPane);
+    auto *editor = editorPane->contentWidget(editorRoute)->findChild<darkeye::AddWorkTabPage3 *>();
+    QVERIFY(editor);
+    QTRY_VERIFY(editor->isInitialized());
+    auto *editorWorkspace = editor->findChild<darkeye::myads::WorkspaceWidget *>();
+    QVERIFY(editorWorkspace);
+    const auto formId = QStringLiteral("addwork_basic");
+    auto *formPane = editorWorkspace->findPaneByContentId(formId);
+    QVERIFY(formPane);
+    auto *formScroll = formPane->contentWidget(formId)->findChild<QScrollArea *>();
+    QVERIFY(formScroll);
+    QTRY_VERIFY(formScroll->verticalScrollBar()->maximum() > 0);
+    QCOMPARE(window.height(), 300);
+    formScroll->verticalScrollBar()->setValue(formScroll->verticalScrollBar()->maximum());
+    QVERIFY(formScroll->widget()->y() < 0);
+
+}
+
+void MainWindowSmokeTest::statisticsPanelsOpenIndependentlyAndScroll()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::SqliteConnection database, privateDatabase;
+    QString error;
+    QVERIFY(database.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(database, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, database.database(), privateDatabase.database(), paths);
+    window.resize(1100, 360);
+    window.show();
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    search->openRequested(QStringLiteral("chart"));
+    auto *pane = workspace->findPaneByContentId(QStringLiteral("chart"));
+    auto *plots = pane->contentWidget(QStringLiteral("chart"));
+    QCOMPARE(plots->windowTitle(), QStringLiteral("统计"));
+    QVERIFY(!plots->findChild<darkeye::PersonalDataPage *>());
+    QVERIFY(!plots->findChild<QTabWidget *>(QStringLiteral("StatisticsTabs")));
+    auto *plotScroll = plots->findChild<QScrollArea *>(QStringLiteral("StatisticsScrollArea"));
+    QVERIFY(plotScroll);
+    QVERIFY(dynamic_cast<darkeye::PlotTabPage *>(plotScroll->widget()));
+    QTRY_VERIFY(plotScroll->verticalScrollBar()->maximum() > 0);
+    window.resize(1100, 300);
+    QTRY_COMPARE(window.height(), 300);
+    search->openRequested(QStringLiteral("information"));
+    auto *information = pane->contentWidget(QStringLiteral("information"));
+    QVERIFY(information && information != plots);
+    QCOMPARE(information->windowTitle(), QStringLiteral("信息面板"));
+    QVERIFY(information->findChild<darkeye::PersonalDataPage *>());
+    auto *informationScroll = information->findChild<QScrollArea *>(QStringLiteral("StatisticsScrollArea"));
+    QVERIFY(informationScroll);
+    QTRY_VERIFY(informationScroll->verticalScrollBar()->maximum() > 0);
+    informationScroll->verticalScrollBar()->setValue(informationScroll->verticalScrollBar()->maximum());
+    QVERIFY(informationScroll->verticalScrollBar()->value() > 0);
+    QVERIFY(workspace->moveContent(pane->paneId(), QStringLiteral("chart"), pane->paneId(), darkeye::myads::DropZone::Bottom));
+    QCOMPARE(workspace->panes().size(), 2);
+    QTRY_VERIFY(plotScroll->verticalScrollBar()->maximum() > 0);
+    QTRY_VERIFY(informationScroll->verticalScrollBar()->maximum() > 0);
+    auto *chartPane = workspace->findPaneByContentId(QStringLiteral("chart"));
+    QVERIFY(chartPane->removeContent(QStringLiteral("chart")));
+    QVERIFY(workspace->findPaneByContentId(QStringLiteral("information")));
+    QVERIFY(!workspace->findPaneByContentId(QStringLiteral("chart")));
+    const auto count = workspace->activePane()->contentCount();
+    search->openRequested(QStringLiteral("information"));
+    QCOMPARE(workspace->findPaneByContentId(QStringLiteral("information"))->contentWidget(QStringLiteral("information")), information);
+    QCOMPARE(workspace->activePane()->contentCount(), count);
 }
 
 QTEST_MAIN(MainWindowSmokeTest)

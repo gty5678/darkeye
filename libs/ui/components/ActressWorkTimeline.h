@@ -1,6 +1,7 @@
 #pragma once
 
 #include "domain/Person.h"
+#include "domain/Work.h"
 
 #include <QPoint>
 #include <QWidget>
@@ -19,6 +20,7 @@ public:
     explicit ActressWorkTimeline(QWidget *parent = nullptr, QString coverDirectory = {});
 
     void setWorks(const QList<PersonWorkSummary> &works);
+    void setFilteredWorks(const QList<WorkSummary> &works);
     [[nodiscard]] QList<PersonWorkSummary> works() const;
     [[nodiscard]] int markerCount() const noexcept;
     [[nodiscard]] double pixelsPerDay() const noexcept;

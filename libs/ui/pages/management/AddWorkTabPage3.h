@@ -32,12 +32,10 @@ class PersonTransferSelector;
 class WorkTagSelector;
 class ThemeService;
 class WikiTextEdit;
-class ForceDirectPage;
 class IconButton;
 class DesignButton;
 class CrawlerScheduler;
 class ImageFetchService;
-namespace graph { class GraphManager; }
 
 // Python 的 ui/pages/management/AddWorkTabPage3.py 对应页面。它也作为作品页的
 // 共用编辑器使用，因此不再额外维护一套添加作品逻辑。
@@ -51,22 +49,25 @@ public:
         QString coverDirectory = {},
         QString fanartDirectory = {},
         QUrl imageFetchEndpoint = QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")),
-        graph::GraphManager *graphManager = nullptr,
         QWidget *parent = nullptr,
         QString actressPortraitDirectory = {}, QString actorPortraitDirectory = {});
     ~AddWorkTabPage3() override;
 
+    void setWorkCreationEnabled(bool enabled);
     void beginCreate();
     bool loadWork(qint64 workId);
     /// Mirrors Python's asynchronous editor load used by route-based work editing.
     void loadWorkAsync(qint64 workId);
-    void refreshReferences();
+    void refreshReferences(bool preserveSelection = false);
     void refreshAssociations();
     void refreshCompletions();
     [[nodiscard]] QString currentSerialNumber() const;
 
 signals:
     void workSaved(qint64 workId, bool created);
+    void peopleChanged(PersonKind kind);
+    void tagsChanged();
+    void referencesChanged(ReferenceKind kind);
     /// Emitted only for actresses created while applying a GUI crawl result.
     /// The application shell uses this to queue Minnano enrichment.
     void actressesCreated(const QList<qint64> &actressIds);
@@ -76,6 +77,7 @@ signals:
     void personEditRequested(PersonKind kind, qint64 personId);
 
 protected:
+    void closeEvent(QCloseEvent *event) override;
     void showEvent(QShowEvent *event) override;
 
 private:
@@ -102,8 +104,6 @@ private:
     void updateModifiedFieldHighlights();
     void markEditorChanged();
     void addManualNavigation(QVBoxLayout *layout);
-    void initializeRelationGraph();
-    void updateRelationGraph();
     void crawlSelectedFields();
     void translateJapaneseTitle();
     void translateJapaneseStory();
@@ -134,6 +134,7 @@ private:
     bool m_highQualityCoverFetching = false;
     QString m_workspaceLayoutPath;
     std::optional<Work> m_currentWork;
+    bool m_workCreationEnabled = true;
     bool m_associationsLoaded = false;
     bool m_fanartDirty = false;
     bool m_loadingEditor = false;
@@ -171,8 +172,6 @@ private:
     IconButton *m_translateTitleButton = nullptr;
     IconButton *m_translateStoryButton = nullptr;
     myads::WorkspaceWidget *m_workspace = nullptr;
-    graph::GraphManager *m_graphManager = nullptr;
-    ForceDirectPage *m_relationGraph = nullptr;
     QHash<QString, QWidget *> m_slotWidgets;
 };
 

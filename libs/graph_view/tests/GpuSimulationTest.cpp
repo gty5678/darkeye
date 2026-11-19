@@ -1058,7 +1058,7 @@ private slots:
             positions << random(rng) << random(rng); ids << QString::number(i);
             if (i) edges << i - 1 << i;
         }
-        for (const QString backend : {QStringLiteral("cpu"), QStringLiteral("gpu")}) {
+        for (const QString &backend : {QStringLiteral("cpu"), QStringLiteral("gpu")}) {
             ForceViewRhiWidget view;
             view.resize(1000, 700);
             view.setSimulationBackendMode(backend);

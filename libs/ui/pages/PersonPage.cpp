@@ -25,7 +25,6 @@ PersonPage::PersonPage(PersonKind kind, QSqlDatabase publicDatabase, QSqlDatabas
       m_privateRepository(std::move(privateDatabase)), m_themeService(themeService),
       m_imageDirectory(std::move(imageDirectory))
 {
-    setFocusPolicy(Qt::ClickFocus);
 }
 
 void PersonPage::lazyLoad()
@@ -36,17 +35,10 @@ void PersonPage::lazyLoad()
     m_lazyArea->setViewportItemHandler([](QWidget *widget, bool active) {
         static_cast<PersonCard *>(widget)->avatar()->setImageActive(active);
     });
+    m_appliedSearch = currentSearch();
     m_lazyArea->setLoader([this](int pageIndex, int pageSize)
                           { return loadCardPage(pageIndex, pageSize); });
     updateCount();
-}
-
-void PersonPage::showEvent(QShowEvent *event)
-{
-    LazyWidget::showEvent(event);
-    // Reset the stack's focus target on every visit, including after the user
-    // previously edited the name filter, so its completer does not open on entry.
-    setFocus(Qt::OtherFocusReason);
 }
 
 void PersonPage::buildUi()
@@ -68,10 +60,11 @@ void PersonPage::buildUi()
                                        filterBar));
     const QStringList nameSuggestions = m_repository.nameSuggestions(m_kind);
     m_nameInput = new CompleterLineEdit([nameSuggestions] { return nameSuggestions; }, filterBar);
-    m_nameInput->setFixedWidth(180);
+    m_nameInput->setFixedWidth(140);
     filters->addWidget(m_nameInput);
 
     m_cupSelector = new DesignComboBox(filterBar);
+    m_cupSelector->setProperty("compactFilter", true);
     m_cupSelector->addItem(QString());
     m_cupSelector->addItems(m_repository.cupOptions());
     auto *cupLabel = new DesignLabel(QStringLiteral("罩杯"), filterBar);
@@ -110,6 +103,7 @@ void PersonPage::buildUi()
     trailingLayout->addWidget(m_countLabel);
 
     m_scopeSelector = new DesignComboBox(trailingControls);
+    m_scopeSelector->setProperty("compactFilter", true);
     m_scopeSelector->addItem(QStringLiteral("公共库范围"), false);
     m_scopeSelector->addItem(QStringLiteral("收藏库范围"), true);
     auto scopePolicy = m_scopeSelector->sizePolicy();
@@ -119,6 +113,8 @@ void PersonPage::buildUi()
     m_scopeSelector->setVisible(m_kind == PersonKind::Actress);
 
     m_sortSelector = new DesignComboBox(trailingControls);
+    m_sortSelector->setProperty("compactFilter", true);
+    m_sortSelector->setFixedWidth(118);
     m_sortSelector->addItem(QStringLiteral("随机顺序"), static_cast<int>(PersonSortOrder::Random));
     m_sortSelector->addItem(QStringLiteral("添加顺序"),
                             static_cast<int>(PersonSortOrder::CreatedAscending));
@@ -156,8 +152,6 @@ void PersonPage::buildUi()
         m_sortSelector->findData(static_cast<int>(PersonSortOrder::CreatedDescending)));
     trailingLayout->addWidget(m_sortSelector);
     filters->addWidget(trailingControls, 0, Qt::AlignRight | Qt::AlignVCenter);
-    m_sortSelector->setMinimumContentsLength(5);
-    m_sortSelector->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     filters->setAlignment(Qt::AlignVCenter);
     trailingLayout->setAlignment(Qt::AlignVCenter);
     root->addWidget(filterBar);
@@ -190,8 +184,7 @@ void PersonPage::refresh()
         m_randomSeed = QRandomGenerator::global()->generate();
         m_randomSeed2 = QRandomGenerator::global()->generate();
     }
-    m_lazyArea->reset();
-    updateCount();
+    applyFilters();
 }
 
 QWidget *PersonPage::captureContent()
@@ -207,10 +200,22 @@ PersonKind PersonPage::kind() const noexcept
     return m_kind;
 }
 
+const QSet<qint64> &PersonPage::filteredPersonIds()
+{
+    initialize();
+    if (!m_filteredPersonIds)
+        m_filteredPersonIds = m_repository.matchingPersonIds(m_appliedSearch);
+    return *m_filteredPersonIds;
+}
+
 void PersonPage::applyFilters()
 {
+    m_filterTimer->stop();
+    m_appliedSearch = currentSearch();
+    m_filteredPersonIds.reset();
     m_lazyArea->reset();
     updateCount();
+    emit filteredPeopleChanged();
 }
 
 void PersonPage::clearFilters()
@@ -226,7 +231,7 @@ void PersonPage::clearFilters()
 void PersonPage::updateCount()
 {
     QString errorMessage;
-    const std::optional<int> total = m_repository.count(currentSearch(), &errorMessage);
+    const std::optional<int> total = m_repository.count(m_appliedSearch, &errorMessage);
     if (!total.has_value())
     {
         m_countLabel->setText(QStringLiteral("查询失败"));
@@ -255,7 +260,7 @@ PersonSearch PersonPage::currentSearch() const
 
 QList<QWidget *> PersonPage::loadCardPage(int pageIndex, int pageSize)
 {
-    PersonSearch search = currentSearch();
+    PersonSearch search = m_appliedSearch;
     search.limit = pageSize;
     search.offset = pageIndex * pageSize;
     QString errorMessage;

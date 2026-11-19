@@ -69,6 +69,7 @@ public:
     bool remove(ReferenceKind kind, qint64 id, QString *errorMessage = nullptr);
     bool redirect(ReferenceKind kind, qint64 sourceId, qint64 targetId,
                   QString *errorMessage = nullptr);
+    [[nodiscard]] std::optional<qint64> resolveTagId(qint64 tagId) const;
     [[nodiscard]] QList<TagRecord> listTags(QString *errorMessage = nullptr) const;
     [[nodiscard]] QList<TagTypeRecord> listTagTypes(QString *errorMessage = nullptr) const;
     std::optional<qint64> createTag(const TagRecord &record, QString *errorMessage = nullptr);

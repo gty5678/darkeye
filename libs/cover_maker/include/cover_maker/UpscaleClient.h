@@ -10,7 +10,7 @@ class UpscaleClient final : public QObject {
 public:
     explicit UpscaleClient(QObject *parent = nullptr);
     bool busy() const { return m_reply != nullptr; }
-    void start(const QUrl &url, const QString &token, const QImage &image, int scale);
+    void start(const QUrl &url, const QString &token, const QImage &image);
     void cancel();
     static bool validEndpoint(const QUrl &url);
 signals:

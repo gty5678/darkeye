@@ -55,7 +55,8 @@ signals:
 private:
     void finishScheduledInitialize(GraphStore store, bool succeeded, QString errorMessage);
     void startNextScheduledRefresh();
-    void finishScheduledRefresh(GraphStore store, bool succeeded, QString errorMessage);
+    void finishScheduledRefresh(GraphStore store, bool succeeded, QString errorMessage,
+                                quint64 refreshGeneration);
 
     GraphRepository m_repository;
     GraphStore m_store;
@@ -72,6 +73,7 @@ private:
     QSet<qint64> m_pendingWorkRefreshes;
     bool m_scheduledRefreshActive = false;
     bool m_initialized = false;
+    quint64 m_fullRefreshGeneration = 0;
 };
 
 } // namespace darkeye::graph

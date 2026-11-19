@@ -1,5 +1,4 @@
 #include "ui/pages/WorkPage.h"
-#include "ui/pages/ManagementPage.h"
 #include "settings/Paths.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/CompleterLineEdit.h"
@@ -49,8 +48,6 @@
 #include <QScopeGuard>
 #include <QSqlQuery>
 #include <QTabWidget>
-#include <QTabBar>
-#include <QWheelEvent>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <algorithm>
@@ -108,7 +105,6 @@ class WorkPageTest final : public QObject
     void editorCompletesExistingDirectorsAndRefreshes();
     void addWorkBasicInfoKeepsRowsHorizontalWhenNarrow();
     void workCardCopiesSerialAndActivatesOnlyCover();
-    void managementWheelNavigationKeepsFocusOnTabs();
     void matchesPythonWorkListSqlContract();
     void loadsConfiguredRealDatabaseWhenAvailable();
 };
@@ -1458,80 +1454,6 @@ void WorkPageTest::importsCoverAndRollsBackOnDatabaseFailure()
     QVERIFY(darkeye::FanartStripWidget::parseJson(withoutLocalFanart->fanartJson, &remainingFanart, &errorMessage));
     QCOMPARE(remainingFanart.size(), 1);
     QCOMPARE(remainingFanart.first().url, QStringLiteral("https://example.invalid/scene.jpg"));
-}
-
-void WorkPageTest::managementWheelNavigationKeepsFocusOnTabs()
-{
-    QTemporaryDir temporaryDirectory;
-    darkeye::SqliteConnection connection;
-    QString errorMessage;
-    QVERIFY(connection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
-                            &errorMessage));
-    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
-        connection, darkeye::DatabaseKind::Public, &errorMessage));
-    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
-    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
-    darkeye::CrawlerScheduler crawler(QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
-    darkeye::ManagementPage page(connection.database(), themes, crawler);
-    page.resize(1200, 800);
-    page.show();
-    page.activateWindow();
-    QCoreApplication::processEvents();
-    auto *tabs = page.findChild<QTabWidget *>(QStringLiteral("ManagementTabs"));
-    auto *serial = findWorkControl<QLineEdit>(&page, QStringLiteral("WorkSerialInput"));
-    QVERIFY(tabs != nullptr);
-    QVERIFY(serial != nullptr);
-
-    // Start with focus inside a page, as after editing a field. Wheel away
-    // and back to the editor repeatedly; typing must stay out of its fields.
-    QTest::mouseClick(serial, Qt::LeftButton);
-    QTRY_VERIFY(serial->hasFocus());
-    auto *bar = tabs->tabBar();
-    const auto wheel = [bar](int delta) {
-        const QPoint position = bar->tabRect(bar->currentIndex()).center();
-        QWheelEvent event(position, bar->mapToGlobal(position), {}, QPoint(0, delta),
-                          Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
-        QApplication::sendEvent(bar, &event);
-        QCoreApplication::processEvents();
-    };
-    for (int i = 0; i < 2; ++i)
-    {
-        wheel(-120);
-        QCOMPARE(tabs->currentIndex(), 1);
-        QVERIFY(bar->hasFocus());
-        wheel(120);
-        QCOMPARE(tabs->currentIndex(), 0);
-        QVERIFY(bar->hasFocus());
-        QVERIFY(!serial->hasFocus());
-    }
-    QTest::keyClick(bar, Qt::Key_Right);
-    QCOMPARE(tabs->currentIndex(), 1);
-    QTest::keyClick(bar, Qt::Key_Left);
-    QCOMPARE(tabs->currentIndex(), 0);
-    QVERIFY(bar->hasFocus());
-    QTest::mouseClick(serial, Qt::LeftButton);
-    QTRY_VERIFY(serial->hasFocus());
-    QTest::keyClicks(serial, "TEST-001");
-    QCOMPARE(serial->text(), QStringLiteral("TEST-001"));
-    // Compare first-show geometry with an independently styled Python tab
-    // baseline. This catches cached default styles from setTabBar() even
-    // when the application stylesheet contains the correct rules.
-    QTabWidget baseline;
-    baseline.setStyleSheet(QStringLiteral(
-        "QTabBar {background: transparent; border: none;}"
-        "QTabBar::tab {background: transparent; color: #bbbbbb; padding: 5px 0px;"
-        "margin-right: 20px; font-size: 16px; font-family: Microsoft YaHei; border: none;}"
-        "QTabBar::tab:hover {color: #333333;}"
-        "QTabBar::tab:selected {color: #333333; font-weight: bold;"
-        "border-bottom: 2px solid #00aaff;}"
-        "QTabWidget::pane {border: none; top: -1px;}"));
-    for (int i = 0; i < tabs->count(); ++i)
-        baseline.addTab(new QWidget(&baseline), tabs->tabText(i));
-    baseline.resize(tabs->size());
-    baseline.show();
-    QCoreApplication::processEvents();
-    for (int i = 0; i < tabs->count(); ++i)
-        QCOMPARE(bar->tabRect(i), baseline.tabBar()->tabRect(i));
 }
 
 void WorkPageTest::workCardCopiesSerialAndActivatesOnlyCover()

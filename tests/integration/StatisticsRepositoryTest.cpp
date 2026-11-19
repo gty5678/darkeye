@@ -150,7 +150,7 @@ void StatisticsRepositoryTest::rendersDashboardPage()
         privateConnection, darkeye::DatabaseKind::Private, &errorMessage));
 
     darkeye::DashboardPage page(publicConnection.database(), privateConnection.database());
-    page.resize(1000, 700);
+    page.resize(1440, 700);
     page.show();
     QApplication::processEvents();
 
@@ -163,14 +163,62 @@ void StatisticsRepositoryTest::rendersDashboardPage()
     QVERIFY(recentView);
     QVERIFY(recentAdded);
     QVERIFY(pending);
+    const auto *content = page.findChild<QWidget *>(QStringLiteral("DashboardContent"));
+    QVERIFY(content);
+    QCOMPARE(content->width(), 1000);
+    QVERIFY(qAbs(content->mapTo(&page, content->rect().center()).x() -
+                 page.rect().center().x()) < 10);
+    QCOMPARE(recentAdded->width(), recentView->width());
+    QVERIFY(recentAdded->geometry().top() > recentView->geometry().bottom());
+    QVERIFY(pending->geometry().top() > recentAdded->geometry().bottom());
+    QCOMPARE(recentView->item(0)->text(), QStringLiteral("暂无观看记录"));
+    QCOMPARE(recentAdded->item(0)->text(), QStringLiteral("暂无新增记录"));
+    QCOMPARE(pending->item(0)->text(), QStringLiteral("0 部作品没有封面"));
+
+    darkeye::PersonRepository people(publicConnection.database());
+    const auto actressId = people.create(darkeye::PersonKind::Actress, QString(),
+                                         QStringLiteral("测试女优"), &errorMessage);
+    QVERIFY2(actressId.has_value(), qPrintable(errorMessage));
+    darkeye::WorkRepository works(publicConnection.database());
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("DASH-001");
+    work.imageUrl = QStringLiteral("cover.jpg");
+    const auto workId = works.insertComplete(work, {*actressId}, {}, {}, &errorMessage);
+    QVERIFY2(workId.has_value(), qPrintable(errorMessage));
+    const auto incomplete = works.insertSerial(QStringLiteral("DASH-002"), &errorMessage);
+    QVERIFY2(incomplete.has_value(), qPrintable(errorMessage));
+    const auto deleted = works.insertSerial(QStringLiteral("DASH-003"), &errorMessage);
+    QVERIFY2(deleted.has_value(), qPrintable(errorMessage));
+    QVERIFY2(works.setDeleted(*deleted, true, &errorMessage), qPrintable(errorMessage));
+
+    QSqlQuery fixture(publicConnection.database());
+    QVERIFY(fixture.exec(QStringLiteral("UPDATE actress SET create_time='2025-01-01 10:00:00'")));
+    QVERIFY(fixture.exec(QStringLiteral("UPDATE work SET create_time='2025-01-02 10:00:00'")));
+    QVERIFY(fixture.exec(QStringLiteral("UPDATE work SET create_time='2025-01-03 10:00:00' "
+                                        "WHERE serial_number='DASH-002'")));
+    darkeye::PrivateRepository records(privateConnection.database());
+    QVERIFY(records.addMasturbationRecord(*incomplete, QStringLiteral("DASH-002"),
+                                          QStringLiteral("2025-02-01 10:00"), QStringLiteral("tool"),
+                                          5, QString(), &errorMessage));
+    QVERIFY(records.addMasturbationRecord(*workId, work.serialNumber,
+                                          QStringLiteral("2025-02-02 10:00"), QStringLiteral("tool"),
+                                          5, QString(), &errorMessage));
+    page.refresh();
     QCOMPARE(recentView->count(), 2);
-    QCOMPARE(recentAdded->count(), 2);
+    QVERIFY(recentView->item(0)->text().endsWith(QStringLiteral("DASH-001")));
+    QVERIFY(recentView->item(1)->text().endsWith(QStringLiteral("DASH-002")));
+    QCOMPARE(recentAdded->count(), 3);
+    QVERIFY(recentAdded->item(0)->text().endsWith(QStringLiteral("作品 · DASH-002")));
+    QVERIFY(recentAdded->item(2)->text().endsWith(QStringLiteral("女优 · 测试女优")));
     QCOMPARE(pending->count(), 2);
-    QCOMPARE(recentView->maximumHeight(), 200);
-    QCOMPARE(pending->maximumHeight(), 140);
-    QCOMPARE(recentView->item(0)->text(), QStringLiteral("（占位）最近看过的一部作品"));
-    QCOMPARE(recentAdded->item(1)->text(), QStringLiteral("（占位）最近新增女优"));
-    QCOMPARE(pending->item(1)->text(), QStringLiteral("（占位）8 部作品未绑定女优"));
+    QCOMPARE(pending->item(0)->text(), QStringLiteral("1 部作品没有封面"));
+    QCOMPARE(pending->item(1)->text(), QStringLiteral("1 部作品未绑定女优"));
+
+    page.resize(480, 700);
+    QApplication::processEvents();
+    QCOMPARE(content->width(), page.width());
+    QVERIFY(content->findChild<QWidget *>(QStringLiteral("StatsOverviewCards"))->height() >
+            content->findChild<QWidget *>(QStringLiteral("StatisticsOverviewCard"))->height() + 8);
 }
 
 void StatisticsRepositoryTest::rendersPersonalDataPage()

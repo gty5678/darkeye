@@ -70,6 +70,9 @@ void GraphViewWidget::setFavoriteOnly(bool enabled)
 
 void GraphViewWidget::setEgoGraph(const QString &centerId, int radius, bool prepareWhileHidden)
 {
+    if (m_session.filterMode() == graph::GraphFilterMode::Ego
+        && m_style.centerId == centerId && m_egoRadius == radius
+        && m_prepareWhileHidden == prepareWhileHidden) return;
     m_prepareWhileHidden = prepareWhileHidden;
     m_session.setFilterMode(graph::GraphFilterMode::Ego);
     m_session.setEgoCenter(centerId);
@@ -99,8 +102,27 @@ void GraphViewWidget::showAll()
     reloadView();
 }
 
+void GraphViewWidget::showFilteredWorks(QSet<QString> workIds)
+{
+    const bool changed = m_session.setFilteredWorkIds(std::move(workIds));
+    if (!changed && m_session.filterMode() == graph::GraphFilterMode::FilteredWorks) return;
+    m_session.setFilterMode(graph::GraphFilterMode::FilteredWorks);
+    m_style.centerId.clear();
+    reloadView();
+}
+
+void GraphViewWidget::showFilteredActresses(QSet<QString> actressIds)
+{
+    const bool changed = m_session.setFilteredActressIds(std::move(actressIds));
+    if (!changed && m_session.filterMode() == graph::GraphFilterMode::FilteredActresses) return;
+    m_session.setFilterMode(graph::GraphFilterMode::FilteredActresses);
+    m_style.centerId.clear();
+    reloadView();
+}
+
 void GraphViewWidget::showEmpty()
 {
+    if (m_session.filterMode() == graph::GraphFilterMode::Empty) return;
     m_session.setFilterMode(graph::GraphFilterMode::Empty);
     m_style.centerId.clear();
     reloadView();

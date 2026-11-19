@@ -109,6 +109,7 @@ bool GraphManager::refresh(QString *errorMessage)
         emit loadFailed(localError);
         return false;
     }
+    ++m_fullRefreshGeneration;
     emit graphChanged();
     return true;
 }
@@ -153,6 +154,7 @@ void GraphManager::startNextScheduledRefresh()
     }
 
     GraphStore workerStore = m_store;
+    const auto refreshGeneration = m_fullRefreshGeneration;
     const QString driverName = m_publicDriverName;
     const QString databaseName = m_publicDatabaseName;
     const QString connectOptions = m_publicConnectOptions;
@@ -164,7 +166,7 @@ void GraphManager::startNextScheduledRefresh()
 
     QThreadPool::globalInstance()->start(
         [target, workId, workerStore = std::move(workerStore), driverName, databaseName,
-         connectOptions, hostName, userName, password, port]() mutable
+         connectOptions, hostName, userName, password, port, refreshGeneration]() mutable
         {
             bool succeeded = false;
             QString error;
@@ -195,11 +197,12 @@ void GraphManager::startNextScheduledRefresh()
             if (target) {
                 QMetaObject::invokeMethod(
                     target.data(),
-                    [target, store = std::move(workerStore), succeeded, error = std::move(error)]() mutable
+                    [target, store = std::move(workerStore), succeeded, error = std::move(error),
+                     refreshGeneration]() mutable
                     {
                         if (target) {
                             target->finishScheduledRefresh(std::move(store), succeeded,
-                                                         std::move(error));
+                                                         std::move(error), refreshGeneration);
                         }
                     },
                     Qt::QueuedConnection);
@@ -242,13 +245,17 @@ void GraphManager::finishScheduledInitialize(GraphStore store, bool succeeded,
     }
 }
 
-void GraphManager::finishScheduledRefresh(GraphStore store, bool succeeded, QString errorMessage)
+void GraphManager::finishScheduledRefresh(GraphStore store, bool succeeded, QString errorMessage,
+                                          quint64 refreshGeneration)
 {
-    if (succeeded) {
-        m_store = std::move(store);
-        emit graphChanged();
-    } else {
-        emit loadFailed(errorMessage);
+    // A full reload supersedes a worker snapshot taken before that reload.
+    if (refreshGeneration == m_fullRefreshGeneration) {
+        if (succeeded) {
+            m_store = std::move(store);
+            emit graphChanged();
+        } else {
+            emit loadFailed(errorMessage);
+        }
     }
 
     bool startNext = false;

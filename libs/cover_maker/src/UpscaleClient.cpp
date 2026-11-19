@@ -21,11 +21,11 @@ bool UpscaleClient::validEndpoint(const QUrl &url)
     return url.scheme()==QStringLiteral("https") || (url.scheme()==QStringLiteral("http") &&
         (host==QStringLiteral("localhost") || host==QStringLiteral("127.0.0.1") || host==QStringLiteral("::1")));
 }
-void UpscaleClient::start(const QUrl &url,const QString &token,const QImage &image,int scale)
+void UpscaleClient::start(const QUrl &url,const QString &token,const QImage &image)
 {
     if(busy())return;
     if(!validEndpoint(url)){emit failed(QStringLiteral("服务地址须使用 HTTPS；仅本机调试允许 HTTP。"));return;}
-    if(image.isNull() || (scale!=2 && scale!=4) || image.width()>8192/scale || image.height()>8192/scale) {
+    if(image.isNull() || image.width()>8192/2 || image.height()>8192/2) {
         emit failed(QStringLiteral("图片为空或增强后尺寸超过 8192 像素。"));return;
     }
     QByteArray png;QBuffer buffer(&png);buffer.open(QIODevice::WriteOnly);
@@ -34,10 +34,6 @@ void UpscaleClient::start(const QUrl &url,const QString &token,const QImage &ima
     auto *multipart=new QHttpMultiPart(QHttpMultiPart::FormDataType);
     QHttpPart file;file.setHeader(QNetworkRequest::ContentDispositionHeader,QStringLiteral("form-data; name=\"image\"; filename=\"image.png\""));
     file.setHeader(QNetworkRequest::ContentTypeHeader,QStringLiteral("image/png"));file.setBody(png);multipart->append(file);
-    for(const auto &field:QList<QPair<QByteArray,QByteArray>>{{"scale",QByteArray::number(scale)},{"mode","photo"}}) {
-        QHttpPart part;part.setHeader(QNetworkRequest::ContentDispositionHeader,QString::fromLatin1("form-data; name=\"%1\"").arg(QString::fromLatin1(field.first)));
-        part.setBody(field.second);multipart->append(part);
-    }
     QNetworkRequest request(url);request.setTransferTimeout(240000);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::ManualRedirectPolicy);
     if(!token.isEmpty())request.setRawHeader("Authorization",("Bearer "+token).toUtf8());
@@ -45,7 +41,7 @@ void UpscaleClient::start(const QUrl &url,const QString &token,const QImage &ima
     if(!caPath.isEmpty()) {
         auto ssl=request.sslConfiguration();auto certs=ssl.caCertificates();certs.append(QSslCertificate::fromPath(caPath));ssl.setCaCertificates(certs);request.setSslConfiguration(ssl);
     }
-    m_data.clear();m_cancelled=false;m_tooLarge=false;m_expected={image.width()*scale,image.height()*scale};
+    m_data.clear();m_cancelled=false;m_tooLarge=false;m_expected={image.width()*2,image.height()*2};
     auto *reply=m_network->post(request,multipart);multipart->setParent(reply);m_reply=reply;
     connect(reply,&QNetworkReply::readyRead,this,[this,reply]{
         m_data.append(reply->readAll());if(m_data.size()>maxResponse){m_tooLarge=true;reply->abort();}

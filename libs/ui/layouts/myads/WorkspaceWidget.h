@@ -89,8 +89,10 @@ public:
     void hideDropPreview();
 
 signals:
+    void contentClosed(const QString &contentId);
     void layoutChanged();
     void contentMoved(const QString &contentId, const QString &paneId);
+    void activeContentChanged();
     void activePaneChanged(const QString &paneId);
 
 protected:

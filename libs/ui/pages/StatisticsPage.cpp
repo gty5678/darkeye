@@ -1,18 +1,18 @@
 #include "ui/pages/StatisticsPage.h"
 
-#include "darkeye_ui/components/TokenControls.h"
 #include "ui/pages/PersonalDataPage.h"
 #include "ui/pages/PlotTabPage.h"
 
 #include <QVBoxLayout>
+#include <QScrollArea>
 
 namespace darkeye
 {
 
 StatisticsPage::StatisticsPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
                                ThemeService &themeService, QString actressImageDirectory,
-                               QWidget *parent)
-    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
+                               QWidget *parent, Panel panel)
+    : LazyWidget(parent), m_panel(panel), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase)), m_themeService(themeService),
       m_actressImageDirectory(std::move(actressImageDirectory))
 {
@@ -22,33 +22,44 @@ void StatisticsPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    auto *tabs = new TokenTabWidget(this);
-    // The shared TokenTabWidget draws a framed pane.  Statistics uses full-page
-    // content, so that frame only creates a visually broken outline below tabs.
-    tabs->setObjectName(QStringLiteral("StatisticsTabs"));
-    m_personalData = new PersonalDataPage(m_publicDatabase, m_privateDatabase,
-                                          m_themeService, m_actressImageDirectory, tabs);
-    connect(m_personalData, &PersonalDataPage::actressDetailRequested, this,
-            &StatisticsPage::actressDetailRequested);
-    connect(m_personalData, &PersonalDataPage::actressEditRequested, this,
-            &StatisticsPage::actressEditRequested);
-    m_plots = new PlotTabPage(m_publicDatabase, m_privateDatabase, m_themeService, tabs);
-    tabs->addTab(m_personalData, QStringLiteral("信息面版"));
-    tabs->addTab(m_plots, QStringLiteral("统计"));
-    layout->addWidget(tabs);
+    auto *scroll = new QScrollArea(this);
+    scroll->setObjectName(QStringLiteral("StatisticsScrollArea"));
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
+    scroll->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    if (m_panel == Panel::Information)
+    {
+        m_personalData = new PersonalDataPage(m_publicDatabase, m_privateDatabase,
+                                              m_themeService, m_actressImageDirectory);
+        connect(m_personalData, &PersonalDataPage::actressDetailRequested, this,
+                &StatisticsPage::actressDetailRequested);
+        connect(m_personalData, &PersonalDataPage::actressEditRequested, this,
+                &StatisticsPage::actressEditRequested);
+        m_personalData->initialize();
+        scroll->setWidget(m_personalData);
+    }
+    else
+    {
+        m_plots = new PlotTabPage(m_publicDatabase, m_privateDatabase, m_themeService);
+        m_plots->initialize();
+        scroll->setWidget(m_plots);
+    }
+    layout->addWidget(scroll);
 }
 
 QWidget *StatisticsPage::captureContent()
 {
     initialize();
-    return m_plots->isVisible() ? m_plots->captureContent() : nullptr;
+    if (m_plots) return m_plots->captureContent();
+    return m_personalData;
 }
 
 void StatisticsPage::refresh()
 {
     initialize();
-    m_personalData->refresh();
-    m_plots->refresh();
+    if (m_personalData) m_personalData->refresh();
+    if (m_plots) m_plots->refresh();
 }
 
 } // namespace darkeye

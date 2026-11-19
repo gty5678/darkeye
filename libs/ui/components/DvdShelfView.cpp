@@ -1,15 +1,10 @@
 #include "ui/components/DvdShelfView.h"
-#include "darkeye_ui/components/StateToggleButton.h"
-#include "ui/pages/ForceViewSettingsPanel.h"
 
 #include "app/Resources.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/ToastNotification.h"
-#include "graph/GraphManager.h"
-#include "graph_view/GraphViewWidget.h"
-#include "graph_view/ForceViewRhiWidget.h"
 #include "settings/Settings.h"
 #include "ui/components/FanartStripWidget.h"
 #include "utils/MediaUtils.h"
@@ -93,10 +88,10 @@ QString coverExcerpt(const QString &text,QFont font,int width,int lines)
 } // namespace
 
 DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
-                           graph::GraphManager *graphManager, const QString &coverDirectory,
+                           const QString &coverDirectory,
                            const QString &fanartDirectory, QWidget *parent)
     : QWidget(parent), m_database(std::move(database)), m_privateDatabase(std::move(privateDatabase)),
-      m_graphManager(graphManager), m_coverDirectory(coverDirectory),
+      m_coverDirectory(coverDirectory),
       m_fanartDirectory(fanartDirectory), m_scene(new dvd_scene::DvdSceneWidget(this))
 {
     Resources::ensureInitialized();
@@ -110,6 +105,10 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_scene->renderWidget()->setStatisticsVisible(false);
     m_scene->renderWidget()->installEventFilter(this);
     m_scene->setCoverBudget(128ULL*1024*1024);
+    connect(m_scene, &dvd_scene::DvdSceneWidget::expansionBlocked, this, [this] {
+        ToastNotification::showMessage(window(), QStringLiteral("空间不足，无法展开 DVD，请加宽书架区域"),
+                                       ToastNotification::Level::Info, 2500);
+    });
     m_contextMenu = new QMenu(this);
     m_contextMenu->setObjectName(QStringLiteral("ShelfContextMenu"));
     const auto action = [this](const QString &text, const QString &name, auto handler) {
@@ -174,7 +173,11 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     });
     connect(this, &DvdShelfView::expandedWorkMetaChanged, this, &DvdShelfView::updateActions);
     connect(this, &DvdShelfView::expandedWorkFavoritedChanged, this, &DvdShelfView::updateActions);
-    connect(m_scene, &dvd_scene::DvdSceneWidget::selectionChanged, this, [this] { updateSelection(); });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::selectionChanged, this, [this] {
+        if (m_settingWorks) return;
+        updateSelection();
+        emit currentWorkChanged();
+    });
     connect(m_scene, &dvd_scene::DvdSceneWidget::stateChanged, this, [this] {
         if(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused
             && m_pendingOpen==m_scene->selectedId()) {
@@ -191,28 +194,6 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     connect(m_scene, &dvd_scene::DvdSceneWidget::discClicked, this, [this](const QString &id) {
         if(id==m_scene->selectedId()) on_cd_clicked(selectedIndex());
     });
-    if (m_graphManager != nullptr)
-    {
-        m_relationGraphContainer = new QWidget(this);
-        m_relationGraphContainer->setObjectName(QStringLiteral("ShelfRelationGraphOverlay"));
-        auto *graphLayout = new QVBoxLayout(m_relationGraphContainer);
-        graphLayout->setContentsMargins(0, 0, 0, 0);
-        m_relationGraph = new graph_view::GraphViewWidget(*m_graphManager, m_relationGraphContainer);
-        m_relationGraph->view()->setBackgroundColor(Qt::white);
-        graphLayout->addWidget(m_relationGraph);
-        connect(m_relationGraph, &graph_view::GraphViewWidget::nodeLeftClicked, this,
-                [this](const QString &nodeId) {
-                    if (nodeId.size() < 2) return;
-                    bool ok = false;
-                    const qint64 id = nodeId.mid(1).toLongLong(&ok);
-                    if (!ok || id <= 0) return;
-                    if (nodeId.startsWith(QLatin1Char('w')))
-                        emit workSelected(id);
-                    else if (nodeId.startsWith(QLatin1Char('a')))
-                        emit actressRequested(id);
-                });
-        m_relationGraphContainer->hide();
-    }
     m_fanartContainer = new QWidget(this);
     m_fanartContainer->setObjectName(QStringLiteral("ShelfFanartOverlay"));
     auto *fanartLayout = new QVBoxLayout(m_fanartContainer);
@@ -362,24 +343,8 @@ void DvdShelfView::updateSelection()
 {
     if(m_settingWorks) return;
     const int index=selectedIndex();
-    const bool returning=m_scene->state()==dvd_scene::DvdInteractionController::State::Returning;
     if(index<0) { m_pendingOpen.clear(); clearExpandedMeta(); hideOverlays(); return; }
     refresh_expanded_work_meta(index);
-    if(returning || m_scene->isExpanded()) {
-        if(m_relationGraphContainer) m_relationGraphContainer->hide();
-    } else if(m_relationGraph) {
-        const auto workId=workIdAt(index);
-        if(m_relationGraphWorkId!=workId) {
-            m_relationGraphContainer->hide();
-            m_relationGraphWorkId=workId;
-            if (!m_graphManager->isInitialized()) m_graphManager->scheduleInitialize();
-            // Start the snapshot, force layout and font build during pull-out.
-            // The same hidden widget is revealed when the focus animation ends.
-            m_relationGraph->setEgoGraph(QStringLiteral("w%1").arg(workId),3,true);
-        }
-        if(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused)
-            showRelationGraph(workId);
-    }
     updateActions(); layoutOverlays();
 }
 void DvdShelfView::updateActions()
@@ -472,13 +437,7 @@ void DvdShelfView::updateCoverInfo()
 }
 void DvdShelfView::layoutOverlays()
 {
-    // expanded becomes false as soon as closing starts. Reveal the prepared
-    // graph only near the end of the actual lid animation.
-    if(m_relationGraphContainer && m_relationGraphContainer->isHidden())
-        showRelationGraph(m_relationGraphWorkId);
     const auto front=m_scene->selectedFrontRect();
-    if(const auto anchor=m_scene->selectedInfoAnchor())
-        set_force_view_overlay(anchor->x(),anchor->y());
     if(m_settingWorks || !m_scene->isFullyExpanded() || !front || front->width()<80
         || front->height()<80 || (m_code.isEmpty() && m_title.isEmpty())) {
         if(m_coverInfo) m_coverInfo->hide();
@@ -597,6 +556,13 @@ void DvdShelfView::refresh_expanded_work_meta(int virtualIndex)
     {
         m_fanartStrip->setEntries({});
     }
+}
+
+void DvdShelfView::refreshCurrentFavorite()
+{
+    const int index = selectedIndex();
+    if (index >= 0)
+        refresh_expanded_favorite_state(index);
 }
 
 void DvdShelfView::refresh_expanded_favorite_state(int virtualIndex)
@@ -767,6 +733,14 @@ void DvdShelfView::clearFanartOverlay()
 
 qint64 DvdShelfView::currentWorkId() const { return m_scene->selectedId().toLongLong(); }
 
+QSet<qint64> DvdShelfView::displayedWorkIds() const
+{
+    QSet<qint64> ids;
+    ids.reserve(m_works.size());
+    for (const auto &work : m_works) ids.insert(work.id);
+    return ids;
+}
+
 bool DvdShelfView::openWork(qint64 workId)
 {
     int index=-1;
@@ -785,93 +759,10 @@ bool DvdShelfView::openWork(qint64 workId)
     return true;
 }
 
-void DvdShelfView::showRelationGraph(qint64 workId)
-{
-    if (m_relationGraph == nullptr || m_relationGraphContainer == nullptr || workId <= 0 ||
-        workId!=currentWorkId() || !m_scene->isNearlyClosed()
-        || m_scene->state()!=dvd_scene::DvdInteractionController::State::Focused)
-        return;
-    if (m_relationGraphCenterX >= 0 && m_relationGraphCenterY >= 0)
-        updateRelationGraphGeometry(m_relationGraphCenterX, m_relationGraphCenterY);
-    m_relationGraphContainer->show();
-    m_relationGraphContainer->raise();
-}
-
 void DvdShelfView::hideOverlays()
 {
     m_overlayWorkId = 0;
-    m_relationGraphWorkId = 0;
-    m_relationGraphCenterX = m_relationGraphCenterY = -1;
-    if (m_relationGraphContainer != nullptr) m_relationGraphContainer->hide();
     clearFanartOverlay();
-}
-
-void DvdShelfView::set_force_view_overlay(qreal centerX, qreal centerY)
-{
-    m_relationGraphCenterX = centerX;
-    m_relationGraphCenterY = centerY;
-    if (m_relationGraphContainer != nullptr && m_relationGraphContainer->isVisible())
-        updateRelationGraphGeometry(centerX, centerY);
-}
-
-void DvdShelfView::enableGraphSettings(ThemeService &themes)
-{
-    if (!m_relationGraph || m_relationGraphSettingsPanel) return;
-    m_relationGraphSettingsButton = new StateToggleButton(
-        QStringLiteral("settings"), QStringLiteral("x"), 24, 32, &themes, m_relationGraphContainer);
-    m_relationGraphSettingsButton->setObjectName(QStringLiteral("ShelfRelationGraphSettingsButton"));
-    m_relationGraphSettingsButton->setToolTip(QStringLiteral("关系图设置"));
-    m_relationGraphSettingsPanel = new ForceViewSettingsPanel(themes, m_relationGraphContainer);
-    m_relationGraphSettingsPanel->bindGraph(m_relationGraph);
-    m_relationGraphSettingsPanel->setGraphNeighborDepthVisible(true);
-    m_relationGraphSettingsPanel->hide();
-    connect(m_relationGraphSettingsButton, &StateToggleButton::stateChanged, this, [this](bool visible) {
-        m_relationGraphSettingsPanel->setVisible(visible);
-        updateRelationGraphControls();
-    });
-    connect(m_relationGraphSettingsPanel, &ForceViewSettingsPanel::contentSizeChanged,
-            this, &DvdShelfView::updateRelationGraphControls);
-    updateRelationGraphControls();
-}
-
-void DvdShelfView::updateRelationGraphControls()
-{
-    if (!m_relationGraphSettingsButton) return;
-    constexpr int margin = 10;
-    const int width = m_relationGraphContainer->width();
-    const int height = m_relationGraphContainer->height();
-    m_relationGraphSettingsButton->move(qMax(0, width - m_relationGraphSettingsButton->width() - margin), margin);
-    if (!m_relationGraphSettingsPanel->isHidden()) {
-        const int panelWidth = qMax(1, qMin(250, width - margin * 2));
-        m_relationGraphSettingsPanel->setFixedWidth(panelWidth);
-        m_relationGraphSettingsPanel->resize(panelWidth,
-            qMax(1, qMin(m_relationGraphSettingsPanel->preferredHeight(), height - margin * 2)));
-        m_relationGraphSettingsPanel->move(qMax(0, width - panelWidth - margin), margin);
-        m_relationGraphSettingsPanel->raise();
-    }
-    m_relationGraphSettingsButton->raise();
-}
-
-void DvdShelfView::updateRelationGraphGeometry(qreal centerX, qreal centerY)
-{
-    if (m_relationGraphContainer == nullptr || m_scene == nullptr ||
-        !std::isfinite(centerX) || !std::isfinite(centerY) ||
-        centerX < -90000.0 || centerY < -90000.0)
-        return;
-
-    // Match the original shelf: anchor under spine, then shift left by 42%
-    // of the viewport height. The transparent graph may overlap the 3D view.
-    const int viewWidth=m_scene->renderWidget()->width();
-    const int viewHeight=m_scene->renderWidget()->height();
-    if(viewWidth<1 || viewHeight<1) return;
-    const int graphWidth=std::min(std::max(40,qRound(viewHeight*0.61)),viewWidth);
-    const int graphHeight=std::min(std::max(40,qRound(viewHeight*0.88)),std::max(40,viewHeight-4));
-    const int left=std::clamp(qRound(centerX-graphWidth*0.5-viewHeight*0.42),0,std::max(0,viewWidth-graphWidth));
-    const int top=std::clamp(qRound(centerY-graphHeight*0.5),0,std::max(0,viewHeight-graphHeight));
-    const auto offset=m_scene->renderWidget()->mapTo(this,QPoint());
-    m_relationGraphContainer->setGeometry(left+offset.x(), top+offset.y(), graphWidth, graphHeight);
-    updateRelationGraphControls();
-    m_relationGraphContainer->raise();
 }
 
 void DvdShelfView::set_fanart_strip_layout(qreal left, qreal top, qreal width)

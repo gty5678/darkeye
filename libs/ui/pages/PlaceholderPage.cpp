@@ -1,4 +1,5 @@
 #include "ui/pages/PlaceholderPage.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include <QLabel>
 #include <QVBoxLayout>
@@ -12,7 +13,7 @@ PlaceholderPage::PlaceholderPage(const QString &title, const QString &routeName,
 
 void PlaceholderPage::lazyLoad()
 {
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QVBoxLayout(addPageScrollArea(this));
     layout->setContentsMargins(40, 32, 40, 32);
 
     auto *heading = new QLabel(m_title, this);

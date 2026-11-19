@@ -23,6 +23,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSplitter>
 #include <QSqlError>
 #include <QStyledItemDelegate>
@@ -143,6 +144,7 @@ MakerManagementWidget::MakerManagementWidget(QSqlDatabase database, ThemeService
     m_makerTable = new TokenTableWidget(0, 4, splitter);
     m_makerTable->setHorizontalHeaderLabels(
         {QStringLiteral("中文名"), QStringLiteral("日文名"), QStringLiteral("别名"), QStringLiteral("ID")});
+    constexpr int minimumVisibleRows = 5;
     for (QTableWidget *table : {m_prefixTable, m_makerTable})
     {
         table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -150,6 +152,11 @@ MakerManagementWidget::MakerManagementWidget(QSqlDatabase database, ThemeService
         table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
         table->horizontalHeader()->setStretchLastSection(true);
         table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        table->ensurePolished();
+        table->setMinimumHeight(table->horizontalHeader()->sizeHint().height()
+                                + minimumVisibleRows * table->verticalHeader()->defaultSectionSize()
+                                + 2 * table->frameWidth()
+                                + table->horizontalScrollBar()->sizeHint().height());
     }
     m_prefixTable->setColumnHidden(2, true);
     m_makerTable->setColumnHidden(3, true);

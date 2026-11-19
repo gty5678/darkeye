@@ -450,18 +450,18 @@ void PlotTabPage::lazyLoad()
     m_chart = canvas;
     canvas->setToolTip(QStringLiteral("按 C 保存当前图表"));
     auto *tools=new QVBoxLayout(toolbar);auto *scopeBox=new TokenGroupBox(QStringLiteral("选择统计范围"),toolbar);auto *scopeLayout=new QVBoxLayout(scopeBox);auto *group=new QButtonGroup(scopeBox);const QList<QPair<QString,int>> scopes{{QStringLiteral("公共数据库"),-1},{QStringLiteral("收藏库内"),0},{QStringLiteral("撸过"),1},{QStringLiteral("撸过加权"),2}};for(const auto &[label,scope]:scopes){auto *radio=new TokenRadioButton(label,scopeBox);group->addButton(radio,scope);scopeLayout->addWidget(radio);if(scope==1)radio->setChecked(true);}tools->addWidget(scopeBox);auto *stats=new TokenGroupBox(QStringLiteral("多样化统计"),toolbar);auto *buttons=new QVBoxLayout(stats);tools->addWidget(stats);const auto scope=[group]{return group->checkedId();};const auto add=[buttons,canvas,stats](const QString &text,auto callback){auto *button=new DesignButton(text,stats);buttons->addWidget(button);QObject::connect(button,&QPushButton::clicked,canvas,callback);};
-    add(QStringLiteral("作品拍摄时女优年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("作品中女优平均拍摄年龄分布"),r.workActressAges(scope()),QStringLiteral("平均拍摄年龄（岁）"),24,1,16.5,40.5);});
-    add(QStringLiteral("作品发行年份分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("每年数量统计"),r.workReleaseYears(scope()));});
-    add(QStringLiteral("女优出道年份分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("女优出道年份统计"),r.actressDebutYears(scope()));});
-    add(QStringLiteral("女优身高分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("女优身高分布"),r.actressHeights(scope()),QStringLiteral("身高（cm）"),0,2);});
-    add(QStringLiteral("女优身材腰臀比气泡图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bubbles(QStringLiteral("女优腰臀比（颜色=腰臀比，大小=人数）"),r.waistHipDistribution(scope()));});
-    add(QStringLiteral("女优罩杯分布饼图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->pie(QStringLiteral("女优罩杯分布（日本罩杯比国内大两个）"),r.cupDistribution(scope()));});
-    add(QStringLiteral("导演统计柱状图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("导演作品数量排名"),r.topDirectors(scope()),true);});
-    add(QStringLiteral("制作商统计柱状图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("片商数量排名"),r.topMakers(scope()),true);});
+    add(QStringLiteral("作品拍摄时女优年龄分布直方图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("作品中女优平均拍摄年龄分布"),r.workActressAges(scope()),QStringLiteral("平均拍摄年龄（岁）"),24,1,16.5,40.5);});
+    add(QStringLiteral("作品发行年份分布直方图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("每年数量统计"),r.workReleaseYears(scope()));});
+    add(QStringLiteral("女优出道年份分布直方图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("女优出道年份统计"),r.actressDebutYears(scope()));});
+    add(QStringLiteral("女优身高分布直方图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("女优身高分布"),r.actressHeights(scope()),QStringLiteral("身高（cm）"),0,2);});
+    add(QStringLiteral("女优身材腰臀比气泡图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bubbles(QStringLiteral("女优腰臀比（颜色=腰臀比，大小=人数）"),r.waistHipDistribution(scope()));});
+    add(QStringLiteral("女优罩杯分布饼图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->pie(QStringLiteral("女优罩杯分布（日本罩杯比国内大两个）"),r.cupDistribution(scope()));});
+    add(QStringLiteral("导演统计柱状图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("导演作品数量排名"),r.topDirectors(scope()),true);});
+    add(QStringLiteral("制作商统计柱状图"),[this,canvas,scope]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("片商数量排名"),r.topMakers(scope()),true);});
     auto *disabled=new DesignButton(QStringLiteral("Tag词云生成"),toolbar);disabled->setEnabled(false);tools->addWidget(disabled);
-    add(QStringLiteral("最喜欢的女优柱状图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("女优按撸管次数排名"),r.mostRecordedActresses(),true);});
-    add(QStringLiteral("按添加时间统计作品数"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->line(QStringLiteral("添加到数据库中作品数量随时间分布"),r.workAddedDates());});
-    add(QStringLiteral("女优出道年龄分布直方图"),[=]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("女优平均出道年龄分布（以出道日期减半年计算）"),r.actressDebutAges(),QStringLiteral("出道年龄"),40,1);});
+    add(QStringLiteral("最喜欢的女优柱状图"),[this,canvas]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->bars(QStringLiteral("女优按撸管次数排名"),r.mostRecordedActresses(),true);});
+    add(QStringLiteral("按添加时间统计作品数"),[this,canvas]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->line(QStringLiteral("添加到数据库中作品数量随时间分布"),r.workAddedDates());});
+    add(QStringLiteral("女优出道年龄分布直方图"),[this,canvas]{StatisticsRepository r(m_publicDatabase,m_privateDatabase);canvas->histogram(QStringLiteral("女优平均出道年龄分布（以出道日期减半年计算）"),r.actressDebutAges(),QStringLiteral("出道年龄"),40,1);});
     auto *yearReport=new DesignButton(QStringLiteral("撸管年回忆录"),toolbar);yearReport->setEnabled(false);tools->addWidget(yearReport);tools->addStretch();
 }
 

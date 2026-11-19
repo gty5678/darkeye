@@ -18,6 +18,7 @@ public:
     bool focusItem(const QString &id);
     void returnToShelf();
     void toggleOpen();
+    [[nodiscard]] bool canExpand() const;
     void scrollToIndex(int index);
     void setCameraX(float x, bool immediate=false);
     [[nodiscard]] float cameraX() const;
@@ -53,6 +54,7 @@ signals:
     void presentationChanged();
     void sceneError(const QString &message);
     void coverWarning(const QString &message);
+    void expansionBlocked();
 protected:
     bool eventFilter(QObject *object,QEvent *event) override;
     void showEvent(QShowEvent *event) override;

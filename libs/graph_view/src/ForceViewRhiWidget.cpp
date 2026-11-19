@@ -280,7 +280,7 @@ QString ForceViewRhiWidget::detectDefaultFontPath()
         "C:/Windows/Fonts/simhei.ttf",
         "C:/Windows/Fonts/simsun.ttc",
         "C:/Windows/Fonts/arial.ttf",
-#elif defined(Q_OS_MAC)
+#elif defined(Q_OS_MACOS)
         "/System/Library/Fonts/PingFang.ttc",
         "/System/Library/Fonts/STHeiti Light.ttc",
         "/System/Library/Fonts/Helvetica.ttc",

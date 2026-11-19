@@ -29,13 +29,12 @@ public:
     void refresh();
     [[nodiscard]] QWidget *captureContent();
     [[nodiscard]] PersonKind kind() const noexcept;
+    [[nodiscard]] const QSet<qint64> &filteredPersonIds();
 
 signals:
     void detailRequested(PersonKind kind, qint64 personId);
     void editRequested(PersonKind kind, qint64 personId);
-
-protected:
-    void showEvent(QShowEvent *event) override;
+    void filteredPeopleChanged();
 
 private:
     void lazyLoad() override;
@@ -58,6 +57,8 @@ private:
     QLabel *m_countLabel = nullptr;
     LazyScrollArea *m_lazyArea = nullptr;
     QTimer *m_filterTimer = nullptr;
+    PersonSearch m_appliedSearch;
+    std::optional<QSet<qint64>> m_filteredPersonIds;
     quint32 m_randomSeed = 1;
     quint32 m_randomSeed2 = 1;
 };

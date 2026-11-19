@@ -159,12 +159,12 @@ struct Converter {
     IoContext &io;
     QDir directory;
     ModelAsset &asset;
-    QString error;
+    QString error{};
     std::size_t verticesRead = 0;
     quint64 decodedImageBytes=0;
-    std::map<const cgltf_primitive *, MeshHandle> meshes;
-    std::map<const cgltf_material *, MaterialHandle> materials;
-    std::map<std::pair<const cgltf_texture *, bool>, std::shared_ptr<const TextureData>> textures;
+    std::map<const cgltf_primitive *, MeshHandle> meshes{};
+    std::map<const cgltf_material *, MaterialHandle> materials{};
+    std::map<std::pair<const cgltf_texture *, bool>, std::shared_ptr<const TextureData>> textures{};
 
     std::shared_ptr<const TextureData> texture(const cgltf_texture_view &view, bool srgb)
     {

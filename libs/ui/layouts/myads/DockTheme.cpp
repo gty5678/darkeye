@@ -9,6 +9,8 @@ DockTheme DockTheme::dark()
     theme.text = QColor(QStringLiteral("#e0e0e0"));
     theme.border = QColor(QStringLiteral("#444444"));
     theme.primaryHover = QColor(QStringLiteral("#33bbff"));
+    theme.tabBarBackground = QColor(QStringLiteral("#252526"));
+    theme.tabSelected = theme.background;
     theme.closeIcon = QColor(QStringLiteral("#e0e0e0"));
     theme.closeHover = QColor(QStringLiteral("#2d2d2d"));
     theme.closePressed = QColor(QStringLiteral("#444444"));
@@ -20,11 +22,9 @@ QString DockTheme::styleSheet() const
     return QStringLiteral(
         "#MyAdsWorkspace { background:%1; color:%2; }"
         "QWidget[myadsPane=\"true\"] { background:%1; border:none; }"
-        "QTabBar#MyAdsTabBar { background:transparent; border:none; }"
-        "QTabBar#MyAdsTabBar::tab { background:transparent; color:%2; padding:4px 6px; "
-        "margin:0; border:none; font-family:\"%6\"; font-size:%8px; }"
-        "QTabBar#MyAdsTabBar::tab:selected { color:%2; font-weight:bold; "
-        "border-bottom:%7px solid %4; }"
+        "QTabBar#MyAdsTabBar { background:%11; color:%2; border:none; "
+        "font-family:\"%6\"; font-size:%7px; }"
+        "QStackedWidget#MyAdsPageStack, QStackedWidget#MyAdsPageStack > QWidget { background:%8; }"
         "QToolButton#MyAdsCloseButton { padding:0; margin:0; border:none; background:transparent; }"
         "QToolButton#MyAdsCloseButton:hover { background:%5; border-radius:2px; }"
         "QToolButton#MyAdsCloseButton:pressed { background:%9; }"
@@ -33,9 +33,8 @@ QString DockTheme::styleSheet() const
         "stop:0 %4,stop:0.5 %10,stop:1 %4); }")
         .arg(background.name(), text.name(), border.name(), primary.name(),
              closeHover.name(), fontFamily)
-        .arg(borderWidth)
         .arg(tabFontSize)
-        .arg(closePressed.name(), primaryHover.name());
+        .arg(tabSelected.name(), closePressed.name(), primaryHover.name(), tabBarBackground.name());
 }
 
 } // namespace darkeye::myads

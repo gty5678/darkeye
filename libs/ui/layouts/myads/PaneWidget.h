@@ -67,6 +67,9 @@ public:
     [[nodiscard]] QRect tabInsertionRect(int index) const;
 
 signals:
+    void currentContentChanged();
+    void activationRequested();
+    void contentClosed(const QString &contentId);
     void paneEmpty(darkeye::myads::PaneWidget *pane);
     void dragMoved(darkeye::myads::PaneWidget *target, const QPoint &globalPosition);
     void tabDropped(darkeye::myads::PaneWidget *target, const QPoint &globalPosition,
@@ -83,6 +86,8 @@ protected:
 private:
     [[nodiscard]] int indexOf(const QString &contentId) const;
     void updateCloseButton(int index);
+    void clearWindowFocus();
+    void switchContent(int index);
 
     QString m_paneId;
     QTabBar *m_tabBar = nullptr;

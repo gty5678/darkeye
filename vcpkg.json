@@ -3,7 +3,8 @@
   "name": "darkeye-cpp",
   "version-string": "1.2.5",
   "vcpkg-configuration": {
-    "overlay-ports": ["cmake/vcpkg-ports"]
+    "overlay-ports": ["cmake/vcpkg-ports"],
+    "overlay-triplets": ["cmake/vcpkg-triplets"]
   },
   "dependencies": [
     "freetype",

@@ -30,6 +30,8 @@ public:
     void setEgoGraph(const QString &centerId, int radius = 1, bool prepareWhileHidden = false);
     void showEgoGraph(int radius);
     void showAll();
+    void showFilteredWorks(QSet<QString> workIds);
+    void showFilteredActresses(QSet<QString> actressIds);
     void showEmpty();
     void setEgoRadius(int radius);
     void setNodeColor(const QString &group, const QColor &color);

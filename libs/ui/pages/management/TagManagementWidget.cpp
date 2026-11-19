@@ -291,7 +291,6 @@ void TagManagementWidget::beginNewTag()
     m_aliases->setRowCount(0);
     m_aliases->setColumnCount(0);
     updatePreview();
-    m_name->setFocus();
 }
 
 void TagManagementWidget::saveCurrent()
@@ -518,13 +517,16 @@ TagTypeManagementWidget::TagTypeManagementWidget(QSqlDatabase database, ThemeSer
     buttons->addStretch();
     root->addLayout(buttons);
     connect(m_table, &QTableWidget::cellClicked, this, [this](int row, int) { selectRow(row); });
-    connect(newButton, &QPushButton::clicked, this, &TagTypeManagementWidget::beginNewType);
+    const auto addType = [this] {
+        beginNewType();
+        m_name->setFocus();
+    };
+    connect(newButton, &QPushButton::clicked, this, addType);
     connect(saveButton, &QPushButton::clicked, this, &TagTypeManagementWidget::saveCurrent);
     connect(removeButton, &QPushButton::clicked, this, &TagTypeManagementWidget::removeCurrent);
     connect(upButton, &QPushButton::clicked, this, [this] { moveCurrent(-1); });
     connect(downButton, &QPushButton::clicked, this, [this] { moveCurrent(1); });
-    connect(m_table, &TokenTableWidget::addRequested, this,
-            &TagTypeManagementWidget::beginNewType);
+    connect(m_table, &TokenTableWidget::addRequested, this, addType);
     connect(m_table, &TokenTableWidget::deleteRequested, this,
             &TagTypeManagementWidget::removeCurrent);
     connect(m_table, &TokenTableWidget::submitRequested, this,
@@ -577,7 +579,6 @@ void TagTypeManagementWidget::beginNewType()
     m_currentId = 0;
     m_table->clearSelection();
     m_name->clear();
-    m_name->setFocus();
 }
 
 void TagTypeManagementWidget::saveCurrent()

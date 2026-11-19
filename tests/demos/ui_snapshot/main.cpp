@@ -5,20 +5,23 @@
 #include "ui/pages/PersonPage.h"
 #include "ui/pages/WorkPage.h"
 #include "darkeye_ui/components/ColorWheel.h"
-#include "darkeye_ui/components/Sidebar.h"
+#include "ui/components/WorkspaceSearch.h"
+#include "ui/pages/management/AddWorkTabPage3.h"
+#include "ui/pages/management/TagManagementWidget.h"
 #include "ui/components/FanartStripWidget.h"
 #include "ui/components/WorkCard.h"
 #include "ui/pages/ModifyActressPage.h"
 #include "ui/pages/DashboardPage.h"
 
 #include <QApplication>
+#include <QDialog>
 #include <QDir>
 #include <QFileInfo>
 #include <QLabel>
 #include <QPushButton>
 #include <QSqlQuery>
-#include <QTabWidget>
 #include <QTest>
+#include <QTimer>
 
 namespace
 {
@@ -55,17 +58,17 @@ int main(int argc, char *argv[])
     darkeye::ThemeService themes(application);
     darkeye::MainWindow window(themes, publicConnection.database(),
                                privateConnection.database(), paths);
-    // Sidebar occupies 62px; this leaves WorkPage at the same 1340px width used
-    // by PythonWorkSnapshot.py for a direct visual comparison.
-    window.resize(1402, 800);
+    window.resize(1340, 800);
     window.show();
     QApplication::processEvents();
 
-    auto *sidebar = window.findChild<darkeye::Sidebar *>(QStringLiteral("DesignSidebar"));
-    auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));
-    if (sidebar == nullptr || workPage == nullptr)
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    if (!search)
         return 4;
-    emit sidebar->itemClicked(QStringLiteral("work"));
+    emit search->openRequested(QStringLiteral("mutiwork"));
+    auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));
+    if (!workPage)
+        return 4;
     auto *workCount = findWorkControl<QLabel>(workPage, QStringLiteral("WorkCountLabel"));
     if (workCount == nullptr || workCount->text() == QStringLiteral("过滤总数:0") ||
         workPage->findChildren<darkeye::WorkCard *>().isEmpty())
@@ -111,16 +114,17 @@ int main(int argc, char *argv[])
     {
         return 6;
     }
-    emit workPage->detailRequested(query.value(0).toLongLong());
+    const auto workId = query.value(0).toLongLong();
+    emit workPage->detailRequested(workId);
     QTest::qWait(250);
     if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("work-detail.png"))))
     {
         return 7;
     }
+    emit search->openRequested(QStringLiteral("actress"));
     auto *actressPage = window.findChild<darkeye::PersonPage *>(QStringLiteral("ActressPage"));
     if (actressPage == nullptr)
         return 10;
-    emit sidebar->itemClicked(QStringLiteral("actress"));
     QTest::qWait(1500);
     if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("actress-list.png"))))
     {
@@ -152,67 +156,49 @@ int main(int argc, char *argv[])
         return 14;
     }
     personEditor->close();
-    emit sidebar->itemClicked(QStringLiteral("database"));
-    QTest::qWait(250);
-    auto *managementTabs = window.findChild<QTabWidget *>(QStringLiteral("ManagementTabs"));
-    if (managementTabs == nullptr ||
-        !window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("tag-management.png"))))
-    {
+    const auto capturePage = [&](const QString &route, const QString &filename) {
+        emit search->openRequested(route);
+        QTest::qWait(250);
+        return window.grab().save(QDir(outputDirectory).filePath(filename));
+    };
+    if (!capturePage(QStringLiteral("manage_tags"), QStringLiteral("tag-management.png")))
         return 15;
-    }
-    managementTabs->setCurrentIndex(1);
-    QTest::qWait(100);
-    if (!window.grab().save(
-            QDir(outputDirectory).filePath(QStringLiteral("tag-type-management.png"))))
-    {
+    auto *tags = window.findChild<darkeye::TagManagementWidget *>();
+    if (!tags)
         return 16;
-    }
-    managementTabs->setCurrentIndex(2);
-    QTest::qWait(100);
-    if (!window.grab().save(
-            QDir(outputDirectory).filePath(QStringLiteral("maker-prefix-management.png"))))
+    bool capturedTagTypes = false;
+    for (auto *button : tags->findChildren<QPushButton *>())
     {
+        if (button->text() != QStringLiteral("修改标签类型"))
+            continue;
+        QTimer::singleShot(100, &window, [&] {
+            if (auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()))
+            {
+                capturedTagTypes = dialog->grab().save(QDir(outputDirectory).filePath(
+                    QStringLiteral("tag-type-management.png")));
+                dialog->reject();
+            }
+        });
+        button->click();
+        break;
+    }
+    if (!capturedTagTypes)
+        return 16;
+    if (!capturePage(QStringLiteral("manage_makers"), QStringLiteral("maker-prefix-management.png")))
         return 17;
-    }
-    managementTabs->setCurrentIndex(3);
-    QTest::qWait(100);
-    if (!window.grab().save(
-            QDir(outputDirectory).filePath(QStringLiteral("reference-management.png"))))
-    {
+    if (!capturePage(QStringLiteral("manage_labels"), QStringLiteral("reference-management.png")))
         return 18;
-    }
-    managementTabs->setCurrentIndex(6);
-    QTest::qWait(100);
-    if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("work-maintenance.png"))))
-    {
-        return 19;
-    }
-    managementTabs->setCurrentIndex(7);
-    QTest::qWait(100);
-    if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("work-soft-delete.png"))))
-    {
+    if (!capturePage(QStringLiteral("manage_deleted"), QStringLiteral("work-soft-delete.png")))
         return 20;
-    }
-    managementTabs->setCurrentIndex(8);
-    QTest::qWait(100);
-    if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("work-recycle-bin.png"))))
-    {
+    if (!capturePage(QStringLiteral("manage_trash"), QStringLiteral("work-recycle-bin.png")))
         return 21;
-    }
-    managementTabs->setCurrentIndex(9);
-    QTest::qWait(100);
-    if (!window.grab().save(
-            QDir(outputDirectory).filePath(QStringLiteral("add-work-management.png"))))
-    {
+    if (!capturePage(QStringLiteral("work_edit/%1").arg(workId), QStringLiteral("work-editor.png")))
         return 22;
-    }
-    auto *workRelationTabs = managementTabs->currentWidget()->findChild<QTabWidget *>(
-        QStringLiteral("WorkRelationTabs"));
-    if (workRelationTabs == nullptr)
+    auto *editor = window.findChild<darkeye::AddWorkTabPage3 *>();
+    if (editor == nullptr)
         return 23;
-    workRelationTabs->setCurrentIndex(3);
     auto *fanartStrip = findWorkControl<darkeye::FanartStripWidget>(
-        managementTabs->currentWidget(), QStringLiteral("WorkFanartStrip"));
+        editor, QStringLiteral("WorkFanartStrip"));
     if (fanartStrip == nullptr)
         return 24;
     fanartStrip->setEntries({{QStringLiteral("https://invalid.example/fanart-1.jpg"),
@@ -221,11 +207,11 @@ int main(int argc, char *argv[])
                              {QStringLiteral("https://invalid.example/pending.jpg"), {}, {}}});
     fanartStrip->setCanAdd(true);
     QTest::qWait(100);
-    if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("add-work-fanart.png"))))
+    if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("work-editor-fanart.png"))))
     {
         return 25;
     }
-    emit sidebar->itemClicked(QStringLiteral("chart"));
+    emit search->openRequested(QStringLiteral("information"));
     QTest::qWait(250);
     if (!window.grab().save(
             QDir(outputDirectory).filePath(QStringLiteral("personal-statistics.png"))))

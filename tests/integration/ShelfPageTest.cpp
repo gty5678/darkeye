@@ -8,8 +8,6 @@
 #include "ui/components/FanartStripWidget.h"
 #include "ui/components/WorkTagSelector.h"
 #include "ui/pages/ShelfPage.h"
-#include "ui/pages/ForceViewSettingsPanel.h"
-#include "darkeye_ui/components/StateToggleButton.h"
 
 #include <QAbstractButton>
 #include <QComboBox>
@@ -30,9 +28,6 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QToolButton>
-#include "graph/GraphManager.h"
-#include "graph_view/GraphViewWidget.h"
-#include "graph_view/ForceViewRhiWidget.h"
 #include <QTextCursor>
 #include <QSqlQuery>
 #include "dvd_scene/DvdSceneWidget.h"
@@ -50,7 +45,6 @@ private slots:
     void filtersAndLoadsVirtualizedShelf();
     void nativeRenderingAndActions();
     void rightDragRotatesWithoutContextMenu();
-    void relationGraphWaitsUntilLidNearlyCloses();
     void existingShelfVisualProbe();
     void scrollPerformanceProbe();
     void filtersByPrivateScope();
@@ -65,7 +59,7 @@ private slots:
 
 void ShelfPageTest::rightDragRotatesWithoutContextMenu()
 {
-    darkeye::DvdShelfView view({}, {}, nullptr, {}, {});
+    darkeye::DvdShelfView view({}, {}, {}, {});
     darkeye::WorkSummary work;
     work.id=1;
     view.setWorks({work});
@@ -118,7 +112,7 @@ void ShelfPageTest::initialCameraFramesShelf()
 {
     QFETCH(int, workCount);
     QFETCH(int, viewportWidth);
-    darkeye::DvdShelfView view({}, {}, nullptr, {}, {});
+    darkeye::DvdShelfView view({}, {}, {}, {});
     for (const auto *widget : view.findChildren<QWidget *>())
         QVERIFY(!widget->inherits("QQuickWidget"));
     auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
@@ -213,6 +207,40 @@ void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
 
     serial->setText(QStringLiteral("002"));
     QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
+
+    auto *filterBar = page.findChild<QWidget *>(QStringLiteral("ShelfFilterBar"));
+    QVERIFY(filterBar != nullptr);
+    QVERIFY(filterBar->isVisible());
+    const QRect shelfGeometry = view->geometry();
+    QVERIFY(shelfGeometry.contains(filterBar->geometry()));
+    const auto *topWidget = view->parentWidget()->childAt(filterBar->geometry().center());
+    QVERIFY(topWidget == filterBar || filterBar->isAncestorOf(topWidget));
+    page.toggleFilterBar();
+    QVERIFY(filterBar->isHidden());
+    QCoreApplication::processEvents();
+    QCOMPARE(view->geometry(), shelfGeometry);
+    page.toggleFilterBar();
+    QVERIFY(filterBar->isVisible());
+    QCoreApplication::processEvents();
+    QCOMPARE(view->geometry(), shelfGeometry);
+    QCOMPARE(serial->text(), QStringLiteral("002"));
+    QCOMPARE(count->text(), QStringLiteral("过滤总数:1"));
+
+    for (const auto theme : {darkeye::ThemeId::Dark, darkeye::ThemeId::Light})
+    {
+        QVERIFY(themes.setTheme(theme));
+        const auto barImage = filterBar->grab().toImage();
+        QVERIFY(!barImage.isNull());
+        const auto dpr = barImage.devicePixelRatio();
+        QCOMPARE(barImage.pixelColor(qRound(4 * dpr), qRound(25 * dpr)), QColor(Qt::white));
+    }
+
+    page.resize(480, 540);
+    QCoreApplication::processEvents();
+    const QRect narrowShelfGeometry = view->geometry();
+    page.toggleFilterBar();
+    QCoreApplication::processEvents();
+    QCOMPARE(view->geometry(), narrowShelfGeometry);
 }
 
 void ShelfPageTest::nativeRenderingAndActions()
@@ -260,9 +288,7 @@ void ShelfPageTest::nativeRenderingAndActions()
     QVERIFY(id.has_value());
     auto *application=qobject_cast<QApplication *>(QCoreApplication::instance());
     darkeye::ThemeService themes(*application);
-    darkeye::graph::GraphManager graph(connection.database());
-    QVERIFY(graph.initialize(&error));
-    darkeye::ShelfPage page(connection.database(),{},themes,&graph,directory.path(),{});
+    darkeye::ShelfPage page(connection.database(),{},themes,directory.path(),{});
     page.resize(1280,800);
     page.initialize(); page.show();
     auto *view=page.findChild<darkeye::DvdShelfView *>();
@@ -511,104 +537,14 @@ void ShelfPageTest::nativeRenderingAndActions()
     }
     if(!artifacts.isEmpty())
         QVERIFY(page.grab().save(QDir(artifacts).filePath("shelf-native-spines.png")));
-    auto *relation=view->findChild<QWidget *>("ShelfRelationGraphOverlay");
-    QVERIFY(relation);
-    auto *relationGraph=relation->findChild<darkeye::graph_view::GraphViewWidget *>();
-    QVERIFY(relationGraph);
-    QVERIFY(scene->focusItem(QString::number(*id)));
-    QCOMPARE(scene->state(),darkeye::dvd_scene::DvdInteractionController::State::Focusing);
-    QVERIFY(relation->isHidden());
-    // Preparation must finish its CPU snapshot before the animation ends,
-    // even though the QRhi widget itself has never been shown.
-    QVERIFY(relationGraph->view()->getNodeIds().contains(QStringLiteral("w%1").arg(*id)));
-    QTRY_COMPARE(scene->state(),darkeye::dvd_scene::DvdInteractionController::State::Focused);
-    QVERIFY(relation->isVisible());
-    auto *graphSettingsButton = relation->findChild<darkeye::StateToggleButton *>("ShelfRelationGraphSettingsButton");
-    auto *graphSettingsPanel = relation->findChild<darkeye::ForceViewSettingsPanel *>();
-    QVERIFY(graphSettingsButton && graphSettingsPanel);
-    QVERIFY(graphSettingsButton->isVisible());
-    QVERIFY(graphSettingsPanel->isHidden());
-    QTest::mouseClick(graphSettingsButton, Qt::LeftButton);
-    QVERIFY(graphSettingsPanel->isVisible());
-    QVERIFY(relation->rect().contains(graphSettingsPanel->geometry()));
-    QVERIFY(relation->rect().contains(graphSettingsButton->geometry()));
-    QTest::mouseClick(graphSettingsButton, Qt::LeftButton);
-    QVERIFY(graphSettingsPanel->isHidden());
-    QTest::qWait(100);
-    const auto box=scene->selectedCaseRect();
-    QVERIFY(box);
-    const auto anchor=scene->selectedInfoAnchor();
-    QVERIFY(anchor);
-    QVERIFY(anchor->x()<scene->selectedFrontRect()->center().x()-100);
-    QCOMPARE(relation->x(),std::clamp(qRound(anchor->x()-relation->width()*0.5-scene->height()*0.42),0,view->width()-relation->width()));
-    const auto graphImage=relation->grab().toImage();
-    const auto graphBackground=graphImage.pixelColor(qRound(12*graphImage.devicePixelRatio()),qRound(12*graphImage.devicePixelRatio()));
-    QVERIFY(graphBackground.red()>245 && graphBackground.green()>245 && graphBackground.blue()>245);
-    QVERIFY(view->rect().contains(relation->geometry()));
-    if(!artifacts.isEmpty())
-        QVERIFY(page.grab().save(QDir(artifacts).filePath("shelf-native-relation.png")));
-    page.resize(1000,800);
-    QTest::qWait(100);
-    QVERIFY(view->rect().contains(relation->geometry()));
-    scene->toggleOpen();
-    QVERIFY(relation->isHidden());
-
-}
-
-void ShelfPageTest::relationGraphWaitsUntilLidNearlyCloses()
-{
-    QTemporaryDir directory;
-    QVERIFY(directory.isValid());
-    darkeye::SqliteConnection connection;
-    QString error;
-    QVERIFY(connection.open(directory.filePath("public.db"),false,&error));
-    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection,darkeye::DatabaseKind::Public,&error));
-    darkeye::WorkRepository repository(connection.database());
-    darkeye::Work work;
-    work.serialNumber=QStringLiteral("CLOSE-TIMING-001");
-    const auto id=repository.insertComplete(work,{},{},{},&error);
-    QVERIFY(id);
-    darkeye::graph::GraphManager graph(connection.database());
-    QVERIFY(graph.initialize(&error));
-    darkeye::DvdShelfView view(connection.database(),{},&graph,{},{ });
-    QList<darkeye::WorkSummary> works;
-    darkeye::WorkSummary summary; summary.id=*id; summary.serialNumber=work.serialNumber;
-    works.append(summary);
-    view.resize(1000,650);
-    view.setWorks(works);
-    view.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&view));
-    auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
-    auto *relation=view.findChild<QWidget *>("ShelfRelationGraphOverlay");
-    QVERIFY(scene && relation);
-    scene->renderWidget()->setAttribute(Qt::WA_TransparentForMouseEvents);
-    QVERIFY(scene->focusItem(QString::number(*id)));
-    QTRY_VERIFY(relation->isVisible());
-    scene->toggleOpen();
-    QVERIFY(relation->isHidden());
-    QTRY_VERIFY(scene->isFullyExpanded());
-    scene->toggleOpen();
-    QVERIFY(!scene->isExpanded());
-    QVERIFY(relation->isHidden()); // closing intent must not reveal the graph
-    QTest::qWait(180);
-    QVERIFY(relation->isHidden());
-    QTRY_VERIFY_WITH_TIMEOUT(relation->isVisible(),1500);
-    QVERIFY(scene->isNearlyClosed());
-    // Reopening during a close must not leave a delayed graph reveal behind.
-    scene->toggleOpen();
-    QTRY_VERIFY(scene->isFullyExpanded());
-    scene->toggleOpen();
-    QTest::qWait(100);
-    scene->toggleOpen();
-    QTRY_VERIFY(scene->isFullyExpanded());
-    QVERIFY(relation->isHidden());
+    QVERIFY(!view->findChild<QWidget *>("ShelfRelationGraphOverlay"));
 }
 
 void ShelfPageTest::scrollPerformanceProbe()
 {
     const auto output=qEnvironmentVariable("DARKEYE_SHELF_PERF_OUTPUT");
     if(output.isEmpty()) QSKIP("Optional production-material shelf performance probe");
-    darkeye::DvdShelfView view({}, {}, nullptr, {}, {});
+    darkeye::DvdShelfView view({}, {}, {}, {});
     auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
     QVERIFY(scene);
     auto *canvas=scene->renderWidget();
@@ -697,9 +633,7 @@ void ShelfPageTest::existingShelfVisualProbe()
     darkeye::WorkSearch search; search.limit=0;
     const auto works=darkeye::WorkRepository(connection.database()).search(search,&error);
     QVERIFY2(error.isEmpty(),qPrintable(error)); QVERIFY(!works.isEmpty());
-    darkeye::graph::GraphManager graph(connection.database());
-    QVERIFY2(graph.initialize(&error),qPrintable(error));
-    darkeye::DvdShelfView view(connection.database(),{},&graph,
+    darkeye::DvdShelfView view(connection.database(),{},
         QFileInfo(database).dir().filePath("workcovers"),QFileInfo(database).dir().filePath("fanart"));
     view.resize(1032,730); view.show(); view.setWorks(works);
     auto *scene=view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
@@ -1016,9 +950,7 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
     QVERIFY(application != nullptr);
     darkeye::ThemeService themes(*application);
-    darkeye::graph::GraphManager graph(connection.database());
-    QVERIFY2(graph.initialize(&error), qPrintable(error));
-    darkeye::ShelfPage page(connection.database(), privateConnection.database(), themes, &graph);
+    darkeye::ShelfPage page(connection.database(), privateConnection.database(), themes);
     page.initialize();
     page.resize(1280,800);
     page.show();
@@ -1052,20 +984,8 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     QTRY_VERIFY(scene->isExpanded());
     QCOMPARE(scene->selectedId(),QString::number(*id));
     scene->renderWidget()->setAttribute(Qt::WA_TransparentForMouseEvents);
-    auto *relation = view->findChild<QWidget *>("ShelfRelationGraphOverlay");
-    QVERIFY(relation != nullptr);
     QTRY_VERIFY(scene->isFullyExpanded());
-    QVERIFY(relation->isHidden());
-    scene->toggleOpen();
-    QVERIFY(relation->isHidden());
-    QTRY_VERIFY_WITH_TIMEOUT(relation->isVisible(), 5000);
-    QVERIFY(scene->isNearlyClosed());
-    // A route-opened DVD must follow the same graph lifecycle as a clicked DVD.
-    scene->toggleOpen();
-    QVERIFY(relation->isHidden());
-    QTRY_VERIFY(scene->isFullyExpanded());
-    scene->toggleOpen();
-    QTRY_VERIFY_WITH_TIMEOUT(relation->isVisible(), 5000);
+    QVERIFY(!view->findChild<QWidget *>("ShelfRelationGraphOverlay"));
 }
 
 QTEST_MAIN(ShelfPageTest)

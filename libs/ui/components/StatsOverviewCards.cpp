@@ -2,6 +2,7 @@
 
 #include "database/repositories/StatisticsRepository.h"
 #include "darkeye_ui/components/DesignLabel.h"
+#include "darkeye_ui/layouts/FlowLayout.h"
 
 #include <QFrame>
 #include <QHBoxLayout>
@@ -11,7 +12,8 @@ namespace darkeye
 {
 
 StatsOverviewCards::StatsOverviewCards(QSqlDatabase publicDatabase,
-                                       QSqlDatabase privateDatabase, QWidget *parent)
+                                       QSqlDatabase privateDatabase, QWidget *parent,
+                                       Layout cardArrangement)
     : QWidget(parent), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase))
 {
@@ -19,9 +21,13 @@ StatsOverviewCards::StatsOverviewCards(QSqlDatabase publicDatabase,
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 4, 0, 4);
     layout->setSpacing(4);
-    auto *cards = new QHBoxLayout;
-    cards->setSpacing(8);
-    cards->addStretch();
+    auto *row = cardArrangement == Layout::SingleRow ? new QHBoxLayout : nullptr;
+    QLayout *cards = row ? static_cast<QLayout *>(row) : new FlowLayout(nullptr, 0, 8);
+    if (row)
+    {
+        row->setSpacing(8);
+        row->addStretch();
+    }
 
     const QStringList labels{QStringLiteral("作品总数"), QStringLiteral("女优总数"),
                              QStringLiteral("男优总数"), QStringLiteral("Tag总数"),
@@ -49,7 +55,8 @@ StatsOverviewCards::StatsOverviewCards(QSqlDatabase publicDatabase,
         cards->addWidget(card);
         m_valueLabels.append(value);
     }
-    cards->addStretch();
+    if (row)
+        row->addStretch();
     layout->addLayout(cards);
     refresh();
 }

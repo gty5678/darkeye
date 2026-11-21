@@ -19,6 +19,7 @@ class QShowEvent;
 class QSpinBox;
 class QToolButton;
 class QVBoxLayout;
+class QTimer;
 
 namespace darkeye
 {
@@ -94,7 +95,6 @@ private:
     void loadInitialReferencesAsync();
     void buildDefaultWorkspace();
     void saveWorkspaceLayout();
-    void restoreDefaultWorkspace();
     void openCurrentWorkDetail();
     void playLocalVideo();
     void checkSerialAvailability();
@@ -132,6 +132,7 @@ private:
     int m_crawlCoverIndex = 0;
     bool m_highQualityCoverFetching = false;
     QString m_workspaceLayoutPath;
+    QTimer *m_workspaceSaveTimer = nullptr;
     std::optional<Work> m_currentWork;
     bool m_workCreationEnabled = true;
     bool m_associationsLoaded = false;

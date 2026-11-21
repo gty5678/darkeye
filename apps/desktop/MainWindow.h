@@ -26,7 +26,7 @@ class QStackedWidget;
 namespace darkeye
 {
 
-namespace myads { class WorkspaceWidget; }
+namespace myads { class PaneWidget; class WorkspaceWidget; }
 class WorkspaceSearch;
 class SettingsDialog;
 class Sidebar;
@@ -81,8 +81,11 @@ private:
     void changeTheme(int index);
     void saveWindowState() const;
     enum class ActressOpenMode { Automatic, Switching, Independent };
+    enum class ShelfFilterPolicy { Keep, ClearIfExcluded };
     void navigateTo(const QString &routeName, bool recordRecent = true,
-                    ActressOpenMode actressMode = ActressOpenMode::Automatic);
+                    ActressOpenMode actressMode = ActressOpenMode::Automatic,
+                    myads::PaneWidget *preferredPane = nullptr,
+                    ShelfFilterPolicy shelfFilter = ShelfFilterPolicy::Keep);
     void openPersonEditor(PersonKind kind, qint64 personId);
     enum WorkspaceChange {
         WorksChanged = 0x01,

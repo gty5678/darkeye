@@ -140,6 +140,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; }"
         "QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical { background:transparent; }"));
     m_coverInfo->viewport()->setAutoFillBackground(false);
+    m_coverInfo->viewport()->installEventFilter(this);
     m_coverInfo->hide();
     m_coverActions=new QWidget(this);
     m_coverActions->setObjectName("ShelfCoverActions");
@@ -150,7 +151,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     const auto tool=[&](const QString &name,const QString &icon,const QString &tip,auto handler) {
         auto *button=new QToolButton(m_coverActions); button->setObjectName(name);
         button->setFixedSize(40,40); button->setIcon(QIcon(icon)); button->setIconSize(QSize(26,26));
-        button->setToolTip(tip); button->setCursor(Qt::PointingHandCursor);
+        button->setToolTip(tip);
         button->setStyleSheet("QToolButton { background:transparent;border:0;border-radius:6px; } QToolButton:hover { background:rgba(255,255,255,100); }");
         connect(button,&QToolButton::clicked,this,handler); tools->addWidget(button); return button;
     };
@@ -222,9 +223,6 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     connect(m_scene, &dvd_scene::DvdSceneWidget::cameraPositionChanged, this, [this] {
         m_cameraX=m_scene->cameraX(); m_cameraTargetX=m_scene->cameraTargetX();
         emit cameraXChanged(); emit cameraTargetXChanged();
-    });
-    connect(m_scene, &dvd_scene::DvdSceneWidget::discClicked, this, [this](const QString &id) {
-        if(id==m_scene->selectedId()) on_cd_clicked(selectedIndex());
     });
     m_fanartContainer = new QWidget(this);
     m_fanartContainer->setObjectName(QStringLiteral("ShelfFanartOverlay"));
@@ -375,6 +373,12 @@ void DvdShelfView::selection_changed(int selected,int expanded)
 void DvdShelfView::updateSelection()
 {
     if(m_settingWorks) return;
+    const qint64 focusedWorkId = m_scene->state() == dvd_scene::DvdInteractionController::State::Focused
+        ? currentWorkId() : 0;
+    if (m_focusedWorkId != focusedWorkId) {
+        m_focusedWorkId = focusedWorkId;
+        emit focusedWorkChanged();
+    }
     const int index=selectedIndex();
     if(index<0) { m_pendingOpen.clear(); clearExpandedMeta(); hideOverlays(); return; }
     refresh_expanded_work_meta(index);
@@ -419,7 +423,7 @@ void DvdShelfView::updateCoverInfo()
     if(!m_story.isEmpty()) label(coverExcerpt(m_story,bodyFont,m_coverTextWidth,6),"ShelfCoverStory");
     const auto button=[&](const QString &text,const QString &name,auto handler,const QString &background=QString()) {
         auto *widget=new QToolButton(m_coverContent); widget->setText(text); widget->setObjectName(name);
-        widget->setCursor(Qt::PointingHandCursor); widget->setFont(bodyFont);
+        widget->setFont(bodyFont);
         widget->setToolTip(text);
         const QString &fill=background;
         widget->setStyleSheet(fill.isEmpty()
@@ -451,11 +455,17 @@ void DvdShelfView::updateCoverInfo()
         for(const auto &entry:list) {
             const auto person=entry.toMap(); const auto id=person.value(idKey).toLongLong();
             const auto background=kind=="tag"?person.value("color").toString():QStringLiteral("#ffffff");
-            flow->addWidget(button(person.value(nameKey).toString(),kind+QString::number(id),[this,kind,id] {
+            auto *chip=button(person.value(nameKey).toString(),kind+QString::number(id),[this,kind,id] {
                 if(kind=="actress") on_actress_clicked(id);
                 else if(kind=="actor") on_actor_clicked(id);
                 else on_tag_clicked(id);
-            },QColor(background).isValid()?background:QStringLiteral("#cccccc")));
+            },QColor(background).isValid()?background:QStringLiteral("#cccccc"));
+            if(kind=="actress") {
+                // Keep the current timeline source until clicked opens the actress page.
+                chip->setProperty("skipPaneActivationOnMouseFocus",true);
+                chip->setFocusPolicy(Qt::StrongFocus);
+            }
+            flow->addWidget(chip);
         }
         stack->addWidget(chips); column->addWidget(section);
     };
@@ -866,6 +876,17 @@ void DvdShelfView::showContextMenu(const QPoint &position)
 
 bool DvdShelfView::eventFilter(QObject *object,QEvent *event)
 {
+    if(m_coverInfo && object==m_coverInfo->viewport()
+        && (event->type()==QEvent::MouseButtonPress || event->type()==QEvent::MouseButtonRelease
+            || event->type()==QEvent::MouseMove)) {
+        const auto *mouse=static_cast<QMouseEvent *>(event);
+        if(mouse->button()==Qt::LeftButton || mouse->buttons().testFlag(Qt::LeftButton)) {
+            auto *canvas=m_scene->renderWidget();
+            QMouseEvent forwarded(event->type(),canvas->mapFromGlobal(mouse->globalPosition()),
+                mouse->globalPosition(),mouse->button(),mouse->buttons(),mouse->modifiers());
+            return QApplication::sendEvent(canvas,&forwarded);
+        }
+    }
     if(object==m_scene->renderWidget()) {
         if(event->type()==QEvent::MouseButtonPress) {
             const auto *mouse=static_cast<QMouseEvent *>(event);

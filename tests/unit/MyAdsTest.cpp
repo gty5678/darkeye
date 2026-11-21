@@ -59,6 +59,7 @@ private slots:
     void tabsShareWidthBeforeScrolling();
     void closeButtonsFollowSelectionAndHover();
     void tabClickSwitchesPageWhenReleaseLeavesTab();
+    void selectedTabLooksTheSameWhenPaneFocusChanges();
     void draggingTabFollowsPointer();
     void cancelledTabDragReturnsToOriginalPosition_data();
     void cancelledTabDragReturnsToOriginalPosition();
@@ -212,8 +213,8 @@ void MyAdsTest::tabsShareWidthBeforeScrolling()
     checkWidths(125);
     QVERIFY(scrollButtons().isEmpty());
 
-    pane.resize(250, 200);
-    checkWidths(76);
+    pane.resize(380, 200);
+    checkWidths(120);
     QVERIFY(scrollButtons().isEmpty());
     const auto tabLeft = [&pane, bar](int index) {
         return bar->mapTo(&pane, bar->tabRect(index).topLeft()).x();
@@ -229,8 +230,9 @@ void MyAdsTest::tabsShareWidthBeforeScrolling()
     QVERIFY(tabLeft(0) < beforeScroll);
     QVERIFY(tabLeft(3) + bar->tabRect(3).width() <= pane.width());
     QCOMPARE(pane.currentContentId(), QStringLiteral("one"));
+    const int scrolledLeft = tabLeft(0);
     scroll(QPoint(20, 0), {});
-    QCOMPARE(tabLeft(0), beforeScroll - 34);
+    QCOMPARE(tabLeft(0), scrolledLeft + 20);
     scroll({}, QPoint(0, 120));
     QCOMPARE(tabLeft(0), beforeScroll);
     scroll({}, QPoint(0, -120));
@@ -324,6 +326,32 @@ void MyAdsTest::tabClickSwitchesPageWhenReleaseLeavesTab()
     QVERIFY(first->isVisible());
 }
 
+void MyAdsTest::selectedTabLooksTheSameWhenPaneFocusChanges()
+{
+    WorkspaceWidget workspace;
+    auto *left = workspace.rootPane();
+    QVERIFY(left->addContent("left", "Left tab", new QLabel));
+    auto *right = workspace.split(left, Placement::Right);
+    QVERIFY(right);
+    QVERIFY(right->addContent("right", "Right tab", new QLabel));
+    workspace.resize(600, 300);
+    workspace.show();
+    workspace.activateWindow();
+    QTRY_VERIFY(workspace.isActiveWindow());
+
+    auto *leftBar = left->findChild<QTabBar *>();
+    auto *rightBar = right->findChild<QTabBar *>();
+    QVERIFY(leftBar);
+    QVERIFY(rightBar);
+
+    right->focusTabBar();
+    QTRY_VERIFY(rightBar->hasFocus());
+    const QImage unfocused = leftBar->grab().toImage();
+    left->focusTabBar();
+    QTRY_VERIFY(leftBar->hasFocus());
+    QCOMPARE(leftBar->grab().toImage(), unfocused);
+}
+
 void MyAdsTest::draggingTabFollowsPointer()
 {
     DockTheme theme;
@@ -347,6 +375,17 @@ void MyAdsTest::draggingTabFollowsPointer()
         QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, press);
     });
     const QImage resting = bar->grab().toImage();
+    const auto checkStripEdges = [&](const QImage &image) {
+        const QRect left = bar->tabRect(0);
+        const QRect right = bar->tabRect(2);
+        for (const int x : {left.left() + 3, right.right() - 3}) {
+            QCOMPARE(image.pixelColor(QPoint(x, left.center().y()) * image.devicePixelRatio()),
+                     theme.tabSelected);
+            QCOMPARE(image.pixelColor(QPoint(x, left.bottom()) * image.devicePixelRatio()),
+                     theme.tabBarBackground);
+        }
+    };
+    checkStripEdges(resting);
     const auto move = [bar](const QPoint &position) {
         QMouseEvent event(QEvent::MouseMove, position, bar->mapToGlobal(position),
                           Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
@@ -356,6 +395,7 @@ void MyAdsTest::draggingTabFollowsPointer()
         move(press + QPoint(dx, 0));
         QCOMPARE(pane->contentIds(), QStringList({"left", "middle", "right"}));
         const QPixmap dragged = bar->grab();
+        checkStripEdges(dragged.toImage());
         const QPoint edge(dx < 0 ? middle.right() - 14 : middle.left() + 14, middle.top() + 6);
         const qreal scale = dragged.devicePixelRatio();
         QCOMPARE(dragged.toImage().pixelColor((edge + QPoint(dx, 0)) * scale), theme.tabSelected);

@@ -33,6 +33,7 @@
 
 #include <QComboBox>
 #include <QCursor>
+#include <QDebug>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -54,6 +55,7 @@
 #include <QSpinBox>
 #include <QStyle>
 #include <QThreadPool>
+#include <QTimer>
 #include <QUrl>
 #include <QTemporaryDir>
 #include <QTextEdit>
@@ -355,8 +357,8 @@ void AddWorkTabPage3::lazyLoad()
         m_database.databaseName(), true, &tagError,
         [](QSqlDatabase connection) { return WorkRepository(connection).tagOptions(); });
     m_tags = new WorkTagSelector(tagOptions, &m_themes, this);
-    m_tags->setSelectedColumnWidth(116);
-    m_tags->setAvailablePanelExpanded(true);
+    m_tags->setSelectedColumnLayout(WorkTagSelector::SelectedColumnLayout::ThreeColumns);
+    m_tags->useResponsiveLayout();
     m_tags->setLoader(
         [this]
         {
@@ -551,8 +553,16 @@ void AddWorkTabPage3::lazyLoad()
     actressLayout->addWidget(m_actresses);
     auto *actorLayout = container(QStringLiteral("actor"), QStringLiteral("男优选择器"));
     actorLayout->addWidget(m_actors);
-    auto *tagLayout = container(QStringLiteral("tag"), QStringLiteral("标签选择器"));
-    tagLayout->addWidget(m_tags, 0, Qt::AlignLeft);
+    auto *tagLayout = container(QStringLiteral("tag"), QStringLiteral("标签选择器"), false);
+    tagLayout->setContentsMargins(0, 0, 0, 0);
+    auto *tagScroll = new QScrollArea(tagLayout->parentWidget());
+    tagScroll->setWidgetResizable(true);
+    tagScroll->setFrameShape(QFrame::NoFrame);
+    tagScroll->setStyleSheet(QStringLiteral("QScrollArea { border: none; outline: none; }"));
+    tagScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tagScroll->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    tagScroll->setWidget(m_tags);
+    tagLayout->addWidget(tagScroll);
     auto *fanartLayout = container(QStringLiteral("fanart"), QStringLiteral("剧照"));
     fanartLayout->addWidget(m_fanart);
     auto *crawlerLayout = container(QStringLiteral("crawler"), QStringLiteral("信息补充区"));
@@ -562,14 +572,6 @@ void AddWorkTabPage3::lazyLoad()
     editorLayout->addWidget(m_notes);
     auto *navLayout = container(QStringLiteral("nav"), QStringLiteral("外部导航"), false);
     addManualNavigation(navLayout);
-    auto *settingsLayout = container(QStringLiteral("settings"), QStringLiteral("设置"));
-    auto *saveLayoutButton = new DesignButton(QStringLiteral("保存布局"), m_slotWidgets.value("settings"));
-    auto *resetLayoutButton = new DesignButton(QStringLiteral("恢复初始布局"), m_slotWidgets.value("settings"));
-    settingsLayout->addWidget(saveLayoutButton);
-    settingsLayout->addWidget(resetLayoutButton);
-    settingsLayout->addStretch();
-    connect(saveLayoutButton, &QPushButton::clicked, this, &AddWorkTabPage3::saveWorkspaceLayout);
-    connect(resetLayoutButton, &QPushButton::clicked, this, &AddWorkTabPage3::restoreDefaultWorkspace);
 
     auto *pageLayout = new QVBoxLayout(this);
     pageLayout->setContentsMargins(0, 0, 0, 0);
@@ -584,6 +586,13 @@ void AddWorkTabPage3::lazyLoad()
     {
         buildDefaultWorkspace();
     }
+    m_workspaceSaveTimer = new QTimer(this);
+    m_workspaceSaveTimer->setSingleShot(true);
+    m_workspaceSaveTimer->setInterval(250);
+    connect(m_workspaceSaveTimer, &QTimer::timeout, this, &AddWorkTabPage3::saveWorkspaceLayout);
+    const auto scheduleWorkspaceSave = [this] { m_workspaceSaveTimer->start(); };
+    connect(m_workspace, &myads::WorkspaceWidget::layoutChanged, this, scheduleWorkspaceSave);
+    connect(m_workspace, &myads::WorkspaceWidget::layoutPreferencesChanged, this, scheduleWorkspaceSave);
     // Python's Maker/Label/Series selectors dispatch their initial reloads to
     // QThreadPool.  Keep the first management frame independent of these
     // reference queries and populate the combos when the worker completes.
@@ -594,7 +603,11 @@ void AddWorkTabPage3::lazyLoad()
     updateEditorActions();
 }
 
-AddWorkTabPage3::~AddWorkTabPage3() = default;
+AddWorkTabPage3::~AddWorkTabPage3()
+{
+    if (m_workspaceSaveTimer && m_workspaceSaveTimer->isActive())
+        saveWorkspaceLayout();
+}
 
 myads::ContentConfig AddWorkTabPage3::contentConfig(const QString &slot) const
 {
@@ -631,7 +644,6 @@ void AddWorkTabPage3::buildDefaultWorkspace()
     auto *editor = m_workspace->split(tag, myads::Placement::Bottom, 33);
     auto *actress = m_workspace->split(root, myads::Placement::Bottom, 50);
     m_workspace->endLayoutUpdate();
-    m_workspace->fillPane(root, contentConfig(QStringLiteral("settings")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("crawler")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("nav")));
     m_workspace->fillPane(root, contentConfig(QStringLiteral("cover")));
@@ -650,7 +662,7 @@ void AddWorkTabPage3::saveWorkspaceLayout()
     QString error;
     if (!QDir().mkpath(QFileInfo(m_workspaceLayoutPath).absolutePath()))
     {
-        Toast::showError(window(), QStringLiteral("保存布局失败：无法创建数据目录"), &m_themes);
+        qWarning() << "Work editor layout save: cannot create data directory";
         return;
     }
     const bool saved = m_workspace->saveLayout(m_workspaceLayoutPath,
@@ -663,24 +675,8 @@ void AddWorkTabPage3::saveWorkspaceLayout()
                                {QStringLiteral("title"), pane->contentTitle(contentId)},
                                {QStringLiteral("closeable"), pane->isContentCloseable(contentId)}};
         }, {}, &error);
-    if (saved)
-        Toast::showSuccess(window(), QStringLiteral("工作区布局已保存"), &m_themes);
-    else
-        Toast::showError(window(), QStringLiteral("保存布局失败：%1").arg(error), &m_themes);
-}
-
-void AddWorkTabPage3::restoreDefaultWorkspace()
-{
-    // Python restores the dock layout immediately, as well as removing the
-    // persisted override for the next start.
-    // resetToSingleEmptyPane() deletes the old pane hierarchy.  The slot
-    // widgets are reused by buildDefaultWorkspace(), so detach them first.
-    for (QWidget *widget : std::as_const(m_slotWidgets))
-        widget->setParent(this);
-    m_workspace->resetToSingleEmptyPane();
-    buildDefaultWorkspace();
-    QFile::remove(m_workspaceLayoutPath);
-    Toast::showSuccess(window(), QStringLiteral("已恢复初始布局"), &m_themes);
+    if (!saved)
+        qWarning() << "Work editor layout save:" << error;
 }
 
 void AddWorkTabPage3::checkSerialAvailability()

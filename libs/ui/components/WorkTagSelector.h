@@ -12,7 +12,6 @@ class QLabel;
 class QGraphicsScene;
 class QGraphicsView;
 class QTabWidget;
-class QVariantAnimation;
 
 namespace darkeye
 {
@@ -54,11 +53,10 @@ class WorkTagSelector final : public QWidget
     void setSelectedIds(const QList<qint64> &ids);
     void clearSelection();
     void setModified(bool modified);
-    // WorkPage/ShelfPage override TagSelector5's generic 130px view with an 84px compact column.
-    void setSelectedColumnWidth(int width, int containerWidth = -1);
     void setAvailablePanelWidth(int width);
-    // 编辑作品时与 Python TagSelector5 一致，默认显示可选标签面板。
-    void setAvailablePanelExpanded(bool expanded);
+    enum class SelectedColumnLayout { Compact, ThreeColumns };
+    void setSelectedColumnLayout(SelectedColumnLayout selectedLayout);
+    void useResponsiveLayout(int availableMaximum = 700);
     void setLoader(Loader loader);
     void setMutexCheckEnabled(bool enabled) { m_mutexCheckEnabled = enabled; }
     void reloadTags();
@@ -70,7 +68,8 @@ class WorkTagSelector final : public QWidget
     bool eventFilter(QObject *watched, QEvent *event) override;
 
   private:
-    void setPanelExpanded(bool expanded, bool animate = true);
+    void updateSelectedWidth();
+    void updateWidth();
     void setTagSelected(qint64 tagId, bool selected, bool switchTab = true);
     void rebuildSearch(const QString &text);
     void navigateSearch(int offset);
@@ -96,12 +95,7 @@ class WorkTagSelector final : public QWidget
     QLabel *m_searchResult = nullptr;
     IconButton *m_searchPrevious = nullptr;
     IconButton *m_searchNext = nullptr;
-    IconButton *m_expandButton = nullptr;
-    QVariantAnimation *m_panelAnimation = nullptr;
-    bool m_panelExpanded = false;
-    int m_selectedColumnWidth = 130;
-    int m_selectedContainerWidth = 154;
-    int m_availablePanelWidth = 255;
+    bool m_threeSelectedColumns = false;
     bool m_updating = false;
     bool m_mutexCheckEnabled = true;
     QList<qint64> m_searchMatches;

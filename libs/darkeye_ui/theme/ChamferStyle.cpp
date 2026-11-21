@@ -242,12 +242,12 @@ bool usesCutCorners(QWidget *widget)
             || qobject_cast<QComboBox *>(widget->parentWidget()))) return false;
     if (qobject_cast<QPushButton *>(widget) || qobject_cast<QToolButton *>(widget)
         || qobject_cast<QLineEdit *>(widget)
+        || qobject_cast<QAbstractSpinBox *>(widget)
         || qobject_cast<QComboBox *>(widget) || qobject_cast<QTextEdit *>(widget)
         || qobject_cast<QPlainTextEdit *>(widget))
         return true;
     return chamferNames.contains(name)
         || name == QLatin1String("ShelfFilterBar")
-        || name == QLatin1String("WorkTagPanel")
         || name == QLatin1String("WorkspaceSearch")
         || name == QLatin1String("DesignCard")
         || name == QLatin1String("DesignCollapsibleSection");
@@ -368,6 +368,14 @@ bool ChamferStyle::eventFilter(QObject *object, QEvent *event)
         }
     }
     if (event->type() == QEvent::Show || event->type() == QEvent::Polish) {
+        if (auto *spinBox = qobject_cast<QAbstractSpinBox *>(widget)) {
+            if (auto *editor = spinBox->findChild<QLineEdit *>(Qt::FindDirectChildrenOnly)) {
+                // Qt lays out the embedded editor from x=0 and adds its own 2 px inset.
+                auto margins = editor->textMargins();
+                margins.setLeft(cut - 2);
+                editor->setTextMargins(margins);
+            }
+        }
         updateComboPopup(widget);
         updateSearchResults(widget);
     }

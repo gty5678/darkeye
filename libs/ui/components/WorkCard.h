@@ -22,7 +22,6 @@ public:
 
     [[nodiscard]] qint64 workId() const noexcept;
     void setCoverActive(bool active);
-    void setUntaggedBackground(const QColor &color);
 
 signals:
     void activated(qint64 workId);
@@ -38,7 +37,6 @@ protected:
 private:
     qint64 m_workId = 0;
     QColor m_backgroundColor;
-    QColor m_untaggedBackground = Qt::transparent;
     bool m_largeCoverView = false;
     AsyncImageLabel *m_cover = nullptr;
     QLabel *m_title = nullptr;

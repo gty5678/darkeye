@@ -9,14 +9,18 @@
 #include "darkeye_ui/components/MakerSelector.h"
 #include "darkeye_ui/components/Pagination.h"
 #include "darkeye_ui/components/RatingSelector.h"
+#include "darkeye_ui/components/TokenControls.h"
+#include "darkeye_ui/components/TokenViews.h"
 
 #include <QApplication>
 #include <QAbstractItemView>
 #include <QCompleter>
+#include <QListWidget>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStyle>
 #include <QStyleOptionSlider>
+#include <QVBoxLayout>
 #include <QtTest>
 
 class ThemeServiceTest final : public QObject
@@ -27,7 +31,9 @@ private slots:
     void stateOnlyMethodsDoNotApplyStyleSheet();
     void mapsAllPersistedThemeIds();
     void chamferEdgesKeepStyleAndAntialiasing();
+    void singleLineFieldsShareHeightAndTextOrigin();
     void scrollBarHandlesHavePointedEnds();
+    void selectionIndicatorsUseThemedDiamonds();
     void comboPopupAndSelectionHaveChamferedCorners();
     void derivesCustomLightAndDarkTokens();
     void appliesThemeWithoutUnresolvedTokens();
@@ -304,6 +310,56 @@ void ThemeServiceTest::chamferEdgesKeepStyleAndAntialiasing()
     QVERIFY(button.findChild<QWidget *>(QStringLiteral("darkeyeChamferOutline")) == nullptr);
 }
 
+void ThemeServiceTest::singleLineFieldsShareHeightAndTextOrigin()
+{
+    darkeye::ThemeService service(*qApp);
+    QVERIFY(service.setTheme(darkeye::ThemeId::Light));
+    QWidget surface;
+    surface.setFocusPolicy(Qt::StrongFocus);
+    QVBoxLayout layout(&surface);
+    const QString sample = QStringLiteral("HHH");
+    darkeye::DesignLineEdit line;
+    line.setText(sample);
+    darkeye::TokenSpinBox spin;
+    spin.setPrefix(sample);
+    darkeye::TokenDateTimeEdit date;
+    date.setDisplayFormat(QStringLiteral("'HHH' yyyy-MM-dd"));
+    darkeye::DesignComboBox combo;
+    combo.addItem(sample);
+    darkeye::DesignComboBox compactCombo;
+    compactCombo.setProperty("compactFilter", true);
+    compactCombo.addItem(sample);
+    darkeye::MakerSelector editableCombo;
+    editableCombo.setEditText(sample);
+    const QList<QWidget *> fields{&line, &spin, &date, &combo, &compactCombo, &editableCombo};
+    for (auto *field : fields) layout.addWidget(field);
+    surface.resize(280, 360);
+    surface.show();
+    surface.setFocus();
+    QApplication::processEvents();
+
+    int referenceInk = -1;
+    for (auto *field : fields) {
+        QCOMPARE(field->height(), 32);
+        const QImage image = field->grab().toImage();
+        int firstInk = image.width();
+        for (int y = image.height() / 4; y < image.height() * 3 / 4; ++y) {
+            for (int x = 0; x < image.width() / 2; ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.alpha() > 200 && pixel.lightness() < 100)
+                    firstInk = qMin(firstInk, x);
+            }
+        }
+        QVERIFY(firstInk < image.width() / 2);
+        if (referenceInk < 0) {
+            referenceInk = firstInk;
+            // The first visible pixel includes the glyph's own side bearing.
+            QVERIFY(qAbs(firstInk / image.devicePixelRatio() - 6) <= 2);
+        }
+        QCOMPARE(firstInk, referenceInk);
+    }
+}
+
 void ThemeServiceTest::scrollBarHandlesHavePointedEnds()
 {
     darkeye::ThemeService service(*qApp);
@@ -354,6 +410,70 @@ void ThemeServiceTest::scrollBarHandlesHavePointedEnds()
             QCOMPARE(colour(bar.grab().toImage(), bounds.center()), QColor(tokens.primaryHover));
             QTest::mouseRelease(&bar, Qt::LeftButton, Qt::NoModifier, handle.center());
         }
+    }
+}
+
+void ThemeServiceTest::selectionIndicatorsUseThemedDiamonds()
+{
+    darkeye::ThemeService service(*qApp);
+    QWidget surface;
+    QVBoxLayout layout(&surface);
+    QCheckBox checkBox;
+    darkeye::TokenRadioButton radioButton;
+    QListWidget list;
+    list.setObjectName(QStringLiteral("DesignListWidget"));
+    auto *item = new QListWidgetItem(&list);
+    item->setCheckState(Qt::Unchecked);
+    layout.addWidget(&checkBox);
+    layout.addWidget(&radioButton);
+    layout.addWidget(&list);
+    surface.setAttribute(Qt::WA_DontShowOnScreen);
+    surface.show();
+
+    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark,
+                             darkeye::ThemeId::Red}) {
+        QVERIFY(service.setTheme(theme, QStringLiteral("#aa3366")));
+        const QColor primary(service.currentTokens().primary);
+        QApplication::processEvents();
+
+        const auto verify = [&](QWidget &widget, QStyle::SubElement element,
+                                QStyleOption &option, const auto &setChecked) {
+            const QRect indicator = widget.style()->subElementRect(element, &option, &widget);
+            QVERIFY(!indicator.isEmpty());
+            const QPoint center = indicator.center();
+            const auto pixel = [](const QImage &image, QPoint point) {
+                return image.pixelColor(point * image.devicePixelRatio());
+            };
+            setChecked(false);
+            const QImage unchecked = widget.grab().toImage();
+            setChecked(true);
+            const QImage checked = widget.grab().toImage();
+            QVERIFY(pixel(unchecked, center) != primary);
+            QCOMPARE(pixel(checked, center), primary);
+            QCOMPARE(pixel(unchecked, indicator.topLeft()), pixel(checked, indicator.topLeft()));
+            QVERIFY(pixel(checked, center + QPoint(4, 4)) != primary);
+            QCOMPARE(pixel(checked, center + QPoint(4, 0)), primary);
+            const int radius = qMin(indicator.width(), indicator.height()) / 2;
+            const QColor outline = pixel(unchecked, center + QPoint(radius - 2, 0));
+            QCOMPARE(outline.red(), outline.green());
+            QCOMPARE(outline.green(), outline.blue());
+            QVERIFY(outline != pixel(unchecked, center));
+        };
+
+        QStyleOptionButton buttonOption;
+        buttonOption.initFrom(&checkBox);
+        verify(checkBox, QStyle::SE_CheckBoxIndicator, buttonOption,
+               [&](bool checked) { checkBox.setChecked(checked); });
+        buttonOption.initFrom(&radioButton);
+        verify(radioButton, QStyle::SE_RadioButtonIndicator, buttonOption,
+               [&](bool checked) { radioButton.setChecked(checked); });
+
+        QStyleOptionViewItem itemOption;
+        itemOption.initFrom(&list);
+        itemOption.rect = list.visualItemRect(item);
+        itemOption.features = QStyleOptionViewItem::HasCheckIndicator;
+        verify(*list.viewport(), QStyle::SE_ItemViewItemCheckIndicator, itemOption,
+               [&](bool checked) { item->setCheckState(checked ? Qt::Checked : Qt::Unchecked); });
     }
 }
 

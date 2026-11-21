@@ -32,6 +32,7 @@ public:
     bool openWork(qint64 workId, bool restoreCameraOnClose = false);
     void refreshCurrentFavorite();
     [[nodiscard]] qint64 currentWorkId() const;
+    [[nodiscard]] qint64 focusedWorkId() const { return m_focusedWorkId; }
     [[nodiscard]] qint64 expandedWorkId() const;
     [[nodiscard]] QSet<qint64> displayedWorkIds() const;
     [[nodiscard]] const QList<WorkSummary> &displayedWorks() const { return m_works; }
@@ -95,6 +96,7 @@ public:
 
 signals:
     void currentWorkChanged();
+    void focusedWorkChanged();
     void expandedWorkChanged();
     void editRequested(qint64 workId);
     void workDeleted(qint64 workId);
@@ -136,6 +138,7 @@ private:
     QString m_coverDirectory;
     QString m_fanartDirectory;
     QList<WorkSummary> m_works;
+    qint64 m_focusedWorkId = 0;
     std::optional<qreal> m_returnCameraX;
     qreal m_cameraX = 0.0;
     qreal m_cameraTargetX = 0.0;

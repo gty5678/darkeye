@@ -57,7 +57,8 @@ class TimelineHoverPopup final : public QWidget
 {
 public:
     TimelineHoverPopup()
-        : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
+        : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint
+                               | Qt::NoDropShadowWindowHint)
     {
         setAttribute(Qt::WA_ShowWithoutActivating);
         setAttribute(Qt::WA_TranslucentBackground);
@@ -383,7 +384,6 @@ private:
         summary.highlightTagId = marker.work.highlightTagId;
         summary.standard = marker.work.standard;
         auto *card = new WorkCard(summary, m_coverDirectory, false, m_popup);
-        card->setUntaggedBackground(palette().color(QPalette::Window));
         connect(card, &WorkCard::activated, this, [this](qint64 workId) {
             hidePopup();
             if (activate) activate(workId);

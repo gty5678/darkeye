@@ -50,7 +50,6 @@ signals:
     void stateChanged(const QString &state);
     void expandedChanged(bool expanded);
     void cameraPositionChanged();
-    void discClicked(const QString &stableId);
     void presentationChanged();
     void sceneError(const QString &message);
     void coverWarning(const QString &message);

@@ -11,7 +11,7 @@ public:
     bool select(const QString &id,const render3d::Camera &camera,double now);
     void returnToShelf(double now,float closeSpeed=1.0f);
     void toggleOpen(double now);
-    void toggleBackFold(double now);
+    void closeToBack(double now);
     void hover(const QString &id,double now);
     void setDiscHasLocalVideo(DvdCaseInstance &instance,bool hasLocalVideo,double now);
     [[nodiscard]] render3d::Transform shelfPose(const DvdCaseInstance &instance) const;

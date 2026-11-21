@@ -36,12 +36,12 @@ public:
     void filterByDirector(const QString &director);
     void filterByActor(qint64 id, const QString &name);
     void filterByTag(qint64 id);
+    void resetToPublicLibrary();
 
 signals:
     void changed();
 
 protected:
-    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void lazyLoad() override;

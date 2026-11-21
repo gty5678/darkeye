@@ -49,7 +49,9 @@ QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput {
     background-color: @BACKGROUND@;
     border: 2px solid @PRIMARY@;
     font-size: 20px;
-    padding: 4px 10px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 5px;
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults {
@@ -98,25 +100,62 @@ QWidget#ShelfFilterBar > QPushButton:pressed {
     background-color: #dfe4ea;
 }
 
-QComboBox#themeSelector,
-QComboBox#DesignComboBox,
-QComboBox#ShelfScopeSelector,
-QComboBox#ShelfSortSelector,
-QComboBox#DesignMakerSelector,
-QComboBox#WorkSortSelector,
-QComboBox#PaginationPageSize,
-QLineEdit#DesignInput,
-QLineEdit#WorkSearchInput,
-QTextEdit#DesignTextEdit,
-QPlainTextEdit#DesignPlainTextEdit {
+/* Single-line fields share a 32 px outer height and a 6 px text origin
+ * matching the cut in ChamferStyle. Qt adds a 2 px inset to line edits. */
+QLineEdit[frame="true"],
+QLineEdit#DesignKeySequenceEditLineEdit,
+QComboBox,
+QAbstractSpinBox {
     background-color: @BACKGROUND@;
     border: 2px solid @BORDER@;
     border-radius: @RADIUS_MD@;
+    min-height: 20px;
+    max-height: 20px;
     padding: 4px 8px;
     color: @TEXT@;
     selection-background-color: @PRIMARY@;
 }
 
+QLineEdit[frame="true"],
+QLineEdit#DesignKeySequenceEditLineEdit {
+    padding-left: 2px;
+}
+
+QComboBox {
+    padding-left: 4px;
+}
+
+QComboBox:editable {
+    padding-left: 2px;
+}
+
+QAbstractSpinBox {
+    padding-right: 24px;
+}
+
+QAbstractSpinBox > QLineEdit,
+QComboBox > QLineEdit {
+    border: none;
+    min-height: 0;
+    max-height: 16777215px;
+    padding: 0;
+    background-color: transparent;
+    selection-background-color: @PRIMARY@;
+}
+
+QTextEdit#DesignTextEdit,
+QPlainTextEdit#DesignPlainTextEdit {
+    background-color: @BACKGROUND@;
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    padding: 6px 8px;
+    color: @TEXT@;
+    selection-background-color: @PRIMARY@;
+}
+
+QLineEdit[frame="true"]:focus,
+QAbstractSpinBox:focus,
+QComboBox:focus,
 QComboBox#themeSelector:hover,
 QComboBox#DesignComboBox:hover,
 QComboBox#DesignComboBox:focus,
@@ -143,7 +182,6 @@ QComboBox#DesignMakerSelector {
 QComboBox#DesignComboBox[compactFilter="true"],
 QComboBox#ShelfScopeSelector[compactFilter="true"],
 QComboBox#ShelfSortSelector[compactFilter="true"] {
-    padding-left: 4px;
     padding-right: 18px;
 }
 
@@ -171,11 +209,6 @@ QTextEdit#DesignTextEdit:disabled,
 QPlainTextEdit#DesignPlainTextEdit:disabled {
     color: @TEXT_DISABLED@;
     background-color: @INPUT_BACKGROUND@;
-}
-
-QTextEdit#DesignTextEdit,
-QPlainTextEdit#DesignPlainTextEdit {
-    padding: 6px 8px;
 }
 
 QPushButton#DesignButton,
@@ -327,39 +360,6 @@ QGroupBox#DesignGroupBox {
     background-color: transparent;
 }
 
-QCheckBox#DesignCheckBox::indicator,
-QRadioButton#DesignRadioButton::indicator {
-    width: 16px;
-    height: 16px;
-    border: 2px solid @BORDER@;
-    background-color: @BACKGROUND@;
-}
-
-QCheckBox#DesignCheckBox::indicator { border-radius: 4px; }
-QRadioButton#DesignRadioButton::indicator { border-radius: 10px; }
-QCheckBox#DesignCheckBox::indicator:checked,
-QRadioButton#DesignRadioButton::indicator:checked {
-    border-color: @PRIMARY@;
-    background-color: @PRIMARY@;
-}
-
-/* Python's TokenCheckBox represents a selection as a solid theme-colour
- * square.  Suppress the platform checkmark so the C++ control has the same
- * visual language. */
-QCheckBox#DesignCheckBox::indicator:checked {
-    image: none;
-}
-
-QSpinBox#DesignSpinBox {
-    background-color: @BACKGROUND@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 8px;
-    padding-right: 24px;
-    color: @TEXT@;
-    min-height: 1.2em;
-    selection-background-color: @PRIMARY@;
-}
 QSpinBox#DesignSpinBox:hover {
     border-color: @PRIMARY@;
     background-color: @INPUT_BACKGROUND@;
@@ -559,6 +559,7 @@ QPushButton#DesignShakeButton:hover {
 }
 
 QTableView#DesignTableView,
+QTableView#personalRecordTable,
 QTableWidget#DesignTableWidget,
 QTreeView#DesignTreeView,
 QListView#DesignListView,
@@ -648,7 +649,6 @@ QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit {
     color: @TEXT@;
     border: 2px solid @BORDER_FOCUS@;
     border-radius: @RADIUS_MD@;
-    padding: 4px 6px;
     selection-background-color: @PRIMARY@;
 }
 QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit:focus {
@@ -660,18 +660,6 @@ QKeySequenceEdit#DesignKeySequenceEdit {
     border: none;
 }
 
-QDateTimeEdit#DesignDateTimeEdit,
-QLineEdit#DesignKeySequenceEditLineEdit {
-    color: @TEXT@;
-    background-color: @BACKGROUND@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 8px;
-}
-QLineEdit#DesignKeySequenceEditLineEdit {
-    min-height: 1.2em;
-    selection-background-color: @PRIMARY@;
-}
 QLineEdit#DesignKeySequenceEditLineEdit:hover {
     border-color: @PRIMARY@;
     background-color: @INPUT_BACKGROUND@;

@@ -148,11 +148,9 @@ void TagManagementWidget::buildUi()
     root->addWidget(editorColumn);
 
     m_tagSelector = new WorkTagSelector({}, &m_themes, this);
-    // Python narrows the view while retaining the original 154px left container.
-    m_tagSelector->setSelectedColumnWidth(116, 154);
-    m_tagSelector->setAvailablePanelWidth(400);
+    m_tagSelector->setSelectedColumnLayout(WorkTagSelector::SelectedColumnLayout::ThreeColumns);
+    m_tagSelector->useResponsiveLayout(400);
     m_tagSelector->setMutexCheckEnabled(false);
-    m_tagSelector->setAvailablePanelExpanded(true);
     m_tagSelector->setLoader(
         [this]
         {
@@ -165,7 +163,7 @@ void TagManagementWidget::buildUi()
             }
             return toTagOptions(m_records);
         });
-    root->addWidget(m_tagSelector, 1, Qt::AlignLeft);
+    root->addWidget(m_tagSelector, 1);
 
     m_multiSelectGroup = new TokenGroupBox(QStringLiteral("多选操作"), this);
     m_multiSelectGroup->setMaximumWidth(240);

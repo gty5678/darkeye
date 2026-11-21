@@ -32,7 +32,8 @@ void ShelfPage::lazyLoad()
     m_shelfView = new DvdShelfView(m_database, m_privateDatabase, m_coverDirectory,
                                    m_fanartDirectory, content);
     root->addWidget(m_shelfView, 1);
-    connect(m_shelfView, &DvdShelfView::currentWorkChanged, this, &ShelfPage::graphContextChanged);
+    connect(m_shelfView, &DvdShelfView::focusedWorkChanged, this, &ShelfPage::graphContextChanged);
+    connect(m_shelfView, &DvdShelfView::focusedWorkChanged, this, &ShelfPage::focusedWorkChanged);
     connect(m_shelfView, &DvdShelfView::expandedWorkChanged, this, &ShelfPage::expandedWorkChanged);
     connect(m_shelfView, &DvdShelfView::editRequested, this, &ShelfPage::editRequested);
     connect(m_shelfView, &DvdShelfView::favoriteChanged, this, &ShelfPage::favoriteChanged);
@@ -127,6 +128,12 @@ void ShelfPage::filterByTag(qint64 tagId)
     m_filter->filterByTag(tagId);
 }
 
+void ShelfPage::resetWorkFilters()
+{
+    initialize();
+    m_filter->resetToPublicLibrary();
+}
+
 bool ShelfPage::containsWork(qint64 workId)
 {
     initialize();
@@ -144,6 +151,11 @@ bool ShelfPage::showWork(qint64 workId)
 qint64 ShelfPage::currentWorkId() const
 {
     return m_shelfView ? m_shelfView->currentWorkId() : 0;
+}
+
+qint64 ShelfPage::focusedWorkId() const
+{
+    return m_shelfView ? m_shelfView->focusedWorkId() : 0;
 }
 
 qint64 ShelfPage::expandedWorkId() const

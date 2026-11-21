@@ -27,7 +27,7 @@ HexColorLineEdit::HexColorLineEdit(QWidget *parent)
     setMaxLength(7);
     QRegularExpression regex("[0-9a-fA-F]{0,6}");
     setValidator(new QRegularExpressionValidator(regex, this));
-    setStyleSheet("border-radius: 6px; font-size: 16px; padding: 6px; font-family: 'Consolas';");
+    setStyleSheet("border-radius: 6px; font-size: 16px; font-family: 'Consolas';");
     connect(this, &QLineEdit::textChanged, this, &HexColorLineEdit::onTextChanged);
 }
 

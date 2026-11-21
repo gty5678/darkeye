@@ -37,15 +37,18 @@ public:
     void filterByLabel(qint64 labelId);
     void filterBySeries(qint64 seriesId);
     void filterByTag(qint64 tagId);
+    void resetWorkFilters();
     [[nodiscard]] bool containsWork(qint64 workId);
     bool showWork(qint64 workId);
     [[nodiscard]] qint64 currentWorkId() const;
+    [[nodiscard]] qint64 focusedWorkId() const;
     [[nodiscard]] qint64 expandedWorkId() const;
     [[nodiscard]] QSet<qint64> filteredWorkIds() const;
     [[nodiscard]] QList<WorkSummary> filteredWorks() const;
 
 signals:
     void graphContextChanged();
+    void focusedWorkChanged();
     void expandedWorkChanged();
     void filteredWorksChanged();
     void editRequested(qint64 workId);

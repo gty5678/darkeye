@@ -5,6 +5,7 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
@@ -39,7 +40,7 @@ public:
     {
         m_background = theme.background;
         m_line = theme.text;
-        m_line.setAlphaF(0.12);
+        m_line.setAlphaF(0.17);
         m_hover = theme.primary;
         m_pressed = theme.primaryHover;
         for (int i = 1; i < count(); ++i) handle(i)->update();
@@ -206,6 +207,7 @@ WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool w
         if (sidebarWidth <= 0 || sidebarWidth >= totalWidth) return;
         auto &ratio = handle == 1 ? m_leftWidthRatio : m_rightWidthRatio;
         ratio = static_cast<double>(sidebarWidth) / totalWidth;
+        emit layoutPreferencesChanged();
     });
     m_tree.addPaneToRoot(QStringLiteral("pane_1"));
     rebuild(false);
@@ -448,7 +450,13 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
                 });
         }
     }
-    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::FocusIn) {
+    const bool mousePress = event->type() == QEvent::MouseButtonPress;
+    const bool focusIn = event->type() == QEvent::FocusIn;
+    const bool skipMouseActivation = (mousePress || focusIn) && receiver
+        && receiver->property("skipPaneActivationOnMouseFocus").toBool()
+        && (mousePress ? static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton
+                       : static_cast<QFocusEvent *>(event)->reason() == Qt::MouseFocusReason);
+    if ((mousePress || focusIn) && !skipMouseActivation) {
         // A page can contain its own workspace. Keep walking until we reach a pane owned here.
         for (auto *widget = receiver; widget && widget != this; widget = widget->parentWidget()) {
             auto *target = qobject_cast<PaneWidget *>(widget);
@@ -525,6 +533,7 @@ void WorkspaceWidget::connectPane(PaneWidget *result)
     });
     connect(result, &PaneWidget::currentContentChanged, this, [this, result] {
         if (result == activePane()) emit activeContentChanged();
+        emit layoutPreferencesChanged();
     });
     connect(result, &PaneWidget::tabContextMenuCreated, this, &WorkspaceWidget::tabContextMenuCreated);
     connect(result, &PaneWidget::tabContextMenuCreated, this,
@@ -596,10 +605,13 @@ QWidget *WorkspaceWidget::buildNode(const std::shared_ptr<LayoutNode> &node, boo
         });
     }
     connect(splitter, &QSplitter::splitterMoved, this,
-            [splitter, node, validSizes](int, int) {
+            [this, splitter, node, validSizes](int, int) {
                 const QList<int> sizes = splitter->sizes();
                 // 忽略父级重建/隐藏期间的零尺寸通知，不能让它污染可持久化布局。
-                if (validSizes(sizes)) node->sizes = sizes;
+                if (validSizes(sizes)) {
+                    node->sizes = sizes;
+                    emit layoutPreferencesChanged();
+                }
             });
     return splitter;
 }
@@ -609,11 +621,13 @@ void WorkspaceWidget::connectSplitters(QWidget *widget, const std::shared_ptr<La
     if (node->kind != LayoutNode::Kind::Split) return;
     auto *splitter = qobject_cast<QSplitter *>(widget);
     Q_ASSERT(splitter);
-    connect(splitter, &QSplitter::splitterMoved, this, [splitter, node] {
+    connect(splitter, &QSplitter::splitterMoved, this, [this, splitter, node] {
         const QList<int> sizes = splitter->sizes();
         if (sizes.size() == splitter->count() &&
-            std::all_of(sizes.cbegin(), sizes.cend(), [](int size) { return size > 0; }))
+            std::all_of(sizes.cbegin(), sizes.cend(), [](int size) { return size > 0; })) {
             node->sizes = sizes;
+            emit layoutPreferencesChanged();
+        }
     });
     for (int i = 0; i < splitter->count(); ++i)
         connectSplitters(splitter->widget(i), node->children.at(i));

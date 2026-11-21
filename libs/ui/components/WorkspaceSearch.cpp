@@ -28,7 +28,6 @@ WorkspaceSearch::WorkspaceSearch(QSqlDatabase database, QMap<QString, QString> p
     m_input->setObjectName(QStringLiteral("workspaceSearchInput"));
     m_input->setPlaceholderText(QStringLiteral("搜索人物、作品、标签、厂牌、片商、系列或导演"));
     m_input->setClearButtonEnabled(true);
-    m_input->setMinimumHeight(48);
     m_results = new QListWidget(this);
     m_results->setObjectName(QStringLiteral("workspaceSearchResults"));
     m_results->hide();
@@ -103,7 +102,7 @@ void WorkspaceSearch::open(Mode mode, QList<QPair<QString, QString>> recent) {
 
 void WorkspaceSearch::positionPopup() {
     auto *anchor = parentWidget();
-    const int top = anchor->height() / 5;
+    const int edgeMargin = anchor->height() / 6;
     const auto margins = layout()->contentsMargins();
     const int inputHeight = qMax(m_input->minimumHeight(), m_input->sizeHint().height());
     const int fixedHeight = margins.top() + margins.bottom() + 2 * frameWidth()
@@ -111,18 +110,17 @@ void WorkspaceSearch::positionPopup() {
     m_input->setMinimumWidth(qBound(160, anchor->width() - 48, 720));
     const int rowHeight = qMax(0, m_results->sizeHintForRow(0));
     const int listHeight = rowHeight * m_results->count() + 2 * m_results->frameWidth();
-    const int availableHeight = qMax(0, anchor->height() - top - fixedHeight);
-    const bool allPages = m_mode == Mode::Commands && m_resultQuery.isEmpty();
-    const int heightLimit = allPages ? availableHeight : qMin(availableHeight, 420);
-    m_results->setFixedHeight(qMin(listHeight, heightLimit));
+    const int availableHeight = qMax(0, anchor->height() - 2 * edgeMargin - fixedHeight);
+    m_results->setFixedHeight(qMin(listHeight, availableHeight));
     adjustSize();
-    move((anchor->width() - width()) / 2, top);
+    move((anchor->width() - width()) / 2, edgeMargin);
 }
 
 void WorkspaceSearch::focusSearch() {
     if (!m_fullResults && !isVisible()) {
         // Keep the editor in the main window so Cocoa can route IME input to it.
         setFrameShape(QFrame::StyledPanel);
+        layout()->setContentsMargins(12, 12, 12, 12);
         layout()->setSizeConstraint(QLayout::SetFixedSize);
         ensurePolished();
         positionPopup();

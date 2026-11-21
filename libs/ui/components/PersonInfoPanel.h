@@ -31,6 +31,7 @@ public:
     [[nodiscard]] PersonKind kind() const noexcept;
 
 signals:
+    void aliasesToggled(bool expanded);
     void favoriteChanged(bool favorite);
     void editRequested(qint64 personId);
     void workRequested(qint64 workId);

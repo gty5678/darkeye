@@ -101,6 +101,7 @@ public:
 signals:
     void contentClosed(const QString &contentId);
     void layoutChanged();
+    void layoutPreferencesChanged();
     void contentMoved(const QString &contentId, const QString &paneId);
     void activeContentChanged();
     void activePaneChanged(const QString &paneId);

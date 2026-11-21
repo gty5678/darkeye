@@ -74,6 +74,7 @@
 #include <Windows.h>
 #include <psapi.h>
 #elif defined(Q_OS_MACOS)
+#include "MacWorkspaceShortcuts.h"
 #include <mach/mach.h>
 #include <sys/resource.h>
 #include <QThread>
@@ -105,13 +106,6 @@ const auto managementRoutes = {
 
 constexpr qsizetype recentWorkspaceLimit = 9;
 const auto actressSwitchRoute = QStringLiteral("actress_detail/switch");
-
-QString actressDetailTitle(const PersonDetailPage &detail, bool switching)
-{
-    auto name = detail.currentPersonName();
-    if (name.isEmpty()) name = QStringLiteral("女演员详情");
-    return switching ? QStringLiteral("切换页 · ") + name : name;
-}
 
 struct ShelfReferenceRoute
 {
@@ -446,7 +440,7 @@ void MainWindow::buildUi()
     layout->setStackingMode(QStackedLayout::StackAll);
     layout->setContentsMargins(0, 0, 0, 0);
     m_workFilter = new WorkFilter(m_publicDatabase, m_privateDatabase, m_themeService, centralWidget);
-    m_workFilter->setWindowTitle(QStringLiteral("作品筛选器"));
+    m_workFilter->setWindowTitle(QStringLiteral("作品过滤器"));
     m_workFilter->hide();
     m_workspace = new myads::WorkspaceWidget(centralWidget);
     m_workspace->setObjectName(QStringLiteral("mainWorkspace"));
@@ -470,7 +464,7 @@ void MainWindow::buildUi()
     connect(m_workspace, &myads::WorkspaceWidget::tabContextMenuCreated, this,
             [this](QMenu *menu, const QString &route) {
         auto *detail = qobject_cast<PersonDetailPage *>(m_routePages.value(route).data());
-        if (!detail) return;
+        if (!detail || detail->currentPersonId() <= 0) return;
         const auto personRoute = QStringLiteral("actress_detail/%1").arg(detail->currentPersonId());
         menu->addSeparator();
         if (route != actressSwitchRoute) {
@@ -496,7 +490,7 @@ void MainWindow::buildUi()
             this, &MainWindow::updateTimelineFocus);
     setCentralWidget(centralWidget);
 
-    registerPage(QStringLiteral("首页"), QStringLiteral("home"));
+    registerPage(QStringLiteral("商店"), QStringLiteral("home"));
     registerPage(QStringLiteral("作品"), QStringLiteral("mutiwork"));
     registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"));
     registerPage(QStringLiteral("女演员"), QStringLiteral("actress"));
@@ -621,8 +615,13 @@ void MainWindow::registerApplicationActions()
     [[maybe_unused]] auto *commands = addAction(
         QStringLiteral("workspace_commands"), QStringLiteral("打开命令面板"),
         QKeySequence(Qt::CTRL | Qt::Key_P), [this] { openWorkspaceSearch(true); });
-    [[maybe_unused]] auto *settings = addAction(
-              QStringLiteral("open_settings"), QStringLiteral("打开设置"),
+#ifdef Q_OS_MACOS
+    auto *workspaceMenu = menuBar()->addMenu(QStringLiteral("工作区"));
+    workspaceMenu->setObjectName(QStringLiteral("workspaceMenu"));
+    workspaceMenu->addAction(search);
+    workspaceMenu->addAction(commands);
+#endif
+    addAction(QStringLiteral("open_settings"), QStringLiteral("打开设置"),
               QKeySequence(Qt::CTRL | Qt::Key_Comma), [this] {
                   openSettings();
                   m_globalSearch->hide();
@@ -633,8 +632,12 @@ void MainWindow::registerApplicationActions()
     addAction(QStringLiteral("toggle_right_sidebar"), QStringLiteral("打开或关闭右边栏"),
               QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_2),
               [this] { m_workspace->toggleSidebar(myads::SidebarSide::Right); });
-    addAction(QStringLiteral("close_tab"), QStringLiteral("关闭当前标签"),
-              QKeySequence::Close, &MainWindow::closeCurrentTab);
+    [[maybe_unused]] auto *closeTab = addAction(
+        QStringLiteral("close_tab"), QStringLiteral("关闭当前标签"),
+        QKeySequence::Close, &MainWindow::closeCurrentTab);
+#ifdef Q_OS_MACOS
+    workspaceMenu->addAction(closeTab);
+#endif
     const auto cycleActivePaneTab = [this](int offset) {
         auto *pane = m_workspace->activePane();
         if (!pane || pane->contentCount() < 2) return;
@@ -651,24 +654,10 @@ void MainWindow::registerApplicationActions()
     const QKeySequence nextTab(Qt::CTRL | Qt::Key_Tab);
     const QKeySequence previousTab(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab);
 #endif
-    [[maybe_unused]] auto *nextTabAction = addAction(
-              QStringLiteral("next_tab"), QStringLiteral("当前窗格：下一个标签页"),
+    addAction(QStringLiteral("next_tab"), QStringLiteral("当前窗格：下一个标签页"),
               nextTab, [cycleActivePaneTab] { cycleActivePaneTab(1); });
-    [[maybe_unused]] auto *previousTabAction = addAction(
-              QStringLiteral("previous_tab"), QStringLiteral("当前窗格：上一个标签页"),
+    addAction(QStringLiteral("previous_tab"), QStringLiteral("当前窗格：上一个标签页"),
               previousTab, [cycleActivePaneTab] { cycleActivePaneTab(-1); });
-#ifdef Q_OS_MACOS
-    auto *workspaceMenu = menuBar()->addMenu(QStringLiteral("工作区"));
-    workspaceMenu->setObjectName(QStringLiteral("workspaceMenu"));
-    // Register these actions with AppKit so native key equivalents can reach them.
-    workspaceMenu->addAction(search);
-    workspaceMenu->addAction(commands);
-    settings->setMenuRole(QAction::NoRole);
-    workspaceMenu->addAction(settings);
-    workspaceMenu->addSeparator();
-    workspaceMenu->addAction(nextTabAction);
-    workspaceMenu->addAction(previousTabAction);
-#endif
     const auto cyclePane = [this](int offset) {
         const auto panes = m_workspace->visiblePaneIds();
         const auto *active = m_workspace->activePane();
@@ -723,6 +712,9 @@ void MainWindow::registerApplicationActions()
               QStringLiteral("Shift+C"), [this] { captureWidget(this); });
     addAction(QStringLiteral("capture"), QStringLiteral("部分截图"), QStringLiteral("C"),
               [this] { captureWidget(partialCaptureTarget()); });
+#ifdef Q_OS_MACOS
+    installMacWorkspaceShortcuts(*this, *m_shortcutActions);
+#endif
 }
 
 void MainWindow::openWorkspaceSearch(bool commands)
@@ -918,11 +910,13 @@ void MainWindow::updateLocalGraph()
     } else if (auto *people = qobject_cast<PersonPage *>(m_localGraphSource.data())) {
         m_localGraphPage->showFilteredActresses(people->filteredPersonIds());
     } else if (auto *shelf = qobject_cast<ShelfPage *>(m_localGraphSource.data())) {
-        const qint64 id = shelf->currentWorkId();
+        const qint64 id = shelf->focusedWorkId();
         if (id > 0) m_localGraphPage->setEgoGraph(QStringLiteral("w%1").arg(id));
         else m_localGraphPage->showFilteredWorks(shelf->filteredWorkIds());
     } else if (auto *detail = qobject_cast<PersonDetailPage *>(m_localGraphSource.data())) {
-        m_localGraphPage->setEgoGraph(QStringLiteral("a%1").arg(detail->currentPersonId()));
+        const auto id = detail->currentPersonId();
+        if (id > 0) m_localGraphPage->setEgoGraph(QStringLiteral("a%1").arg(id));
+        else m_localGraphPage->showEmptyGraph();
     } else {
         const QString route = m_localGraphSource->property("workspaceRoute").toString();
         const QChar prefix = route.startsWith(QStringLiteral("work_edit/")) ? u'w' : u'a';
@@ -963,7 +957,7 @@ void MainWindow::updateTimeline()
     if (auto *works = qobject_cast<WorkPage *>(source)) {
         m_timelinePage->setFilteredWorks(works->filteredWorks());
     } else if (auto *shelf = qobject_cast<ShelfPage *>(source)) {
-        const qint64 workId = shelf->expandedWorkId();
+        const qint64 workId = shelf->focusedWorkId();
         if (workId <= 0) {
             m_timelinePage->setFilteredWorks(shelf->filteredWorks());
             return;
@@ -996,8 +990,21 @@ void MainWindow::connectShelfPage(ShelfPage *shelf)
     connect(shelf, &ShelfPage::filteredWorksChanged, this, [this, shelf] {
         if (m_timelineSource == shelf) updateTimeline();
     });
-    connect(shelf, &ShelfPage::expandedWorkChanged, this, [this, shelf] {
+    connect(shelf, &ShelfPage::focusedWorkChanged, this, [this, shelf] {
         if (m_timelineSource == shelf) updateTimeline();
+
+        const auto workId = shelf->focusedWorkId();
+        auto *pane = m_workspace->findPaneByContentId(actressSwitchRoute);
+        if (workId <= 0 || !pane) return;
+        auto *detail = static_cast<PersonDetailPage *>(pane->contentWidget(actressSwitchRoute));
+        const auto work = WorkRepository(m_publicDatabase).findDetailsById(workId);
+        if (!work) return;
+        const auto actressId = work->actresses.isEmpty() ? 0 : work->actresses.first().id;
+        if (detail->currentPersonId() == actressId) return;
+        if (actressId == 0) detail->clearPerson();
+        else if (!detail->showPerson(actressId, false)) return;
+        if (m_localGraphSource == detail) updateLocalGraph();
+        if (m_timelineSource == detail) updateTimeline();
     }, Qt::QueuedConnection);
     connect(shelf, &ShelfPage::graphContextChanged, this, [this, shelf] {
         if (m_localGraphSource == shelf) updateLocalGraph();
@@ -1010,7 +1017,9 @@ void MainWindow::connectShelfPage(ShelfPage *shelf)
         queueWorkspaceRefresh(WorkFavoritesChanged);
     });
     connect(shelf, &ShelfPage::actressRequested, this, [this](qint64 personId) {
-        openPerson(PersonKind::Actress, personId);
+        auto *pane = m_workspace->findPaneByContentId(QStringLiteral("shelf"));
+        navigateTo(QStringLiteral("actress_detail/") + QString::number(personId),
+                   true, ActressOpenMode::Automatic, pane);
     });
     connect(shelf, &ShelfPage::actorRequested, this, [this](qint64 personId) {
         openPerson(PersonKind::Actor, personId);
@@ -1086,9 +1095,9 @@ QMap<QString, QString> MainWindow::workspaceCommandPages() const
 {
     auto pages = m_routeTitles;
     pages.insert(QStringLiteral("setting"), QStringLiteral("设置"));
-    pages.insert(QStringLiteral("work_filters"), QStringLiteral("作品筛选器"));
+    pages.insert(QStringLiteral("work_filters"), QStringLiteral("作品过滤器"));
     pages.insert(WorkspaceSearch::independentActressCommand, QStringLiteral("女演员详情（独立页）"));
-    for (const auto &route : {QStringLiteral("fanart"), QStringLiteral("actress_detail"),
+    for (const auto &route : {QStringLiteral("fanart"),
                               QStringLiteral("modify_actress"), QStringLiteral("modify_actor")})
         pages.remove(route);
     return pages;
@@ -1121,14 +1130,15 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
     } else if (base == QStringLiteral("actress_detail")) {
         const bool switching = routeName == actressSwitchRoute;
         const auto personId = switching ? switchActressId : argument.section(u'/', 0, 0).toLongLong();
-        if (personId <= 0) return nullptr;
+        if (!switching && personId <= 0) return nullptr;
         auto *detail = static_cast<PersonDetailPage *>(createPage(title, base, nullptr));
-        if (!detail->showPerson(personId, false)) {
+        const bool loaded = personId > 0 && detail->showPerson(personId, false);
+        if (!switching && !loaded) {
             delete detail;
             return nullptr;
         }
         widget = detail;
-        title = actressDetailTitle(*detail, switching);
+        if (!switching && !detail->currentPersonName().isEmpty()) title = detail->currentPersonName();
     } else if ((base == QStringLiteral("modify_actress") || base == QStringLiteral("modify_actor")) && id > 0) {
         const auto kind = base == QStringLiteral("modify_actress") ? PersonKind::Actress : PersonKind::Actor;
         const auto person = PersonRepository(m_publicDatabase).findDetails(kind, id);
@@ -1383,7 +1393,10 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     {
         auto *graph = new ForceDirectPage(m_themeService, *m_graphManager, parent,
                                           m_paths.actressImageDirectory(), m_paths.workCoverDirectory());
-        connect(graph, &ForceDirectPage::workRequested, this, &MainWindow::showWorkInShelf);
+        connect(graph, &ForceDirectPage::workRequested, this, [this](qint64 workId) {
+            navigateTo(QStringLiteral("work_detail/%1").arg(workId), true,
+                       ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ClearIfExcluded);
+        }, Qt::QueuedConnection);
         connect(graph, &ForceDirectPage::actressRequested, this, [this](qint64 actressId) {
             openPerson(PersonKind::Actress, actressId);
         });
@@ -1414,13 +1427,14 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     return new PlaceholderPage(menuTitle, routeName, parent);
 }
 
-void MainWindow::navigateTo(const QString &routeName, bool recordRecent, ActressOpenMode actressMode)
+void MainWindow::navigateTo(const QString &routeName, bool recordRecent, ActressOpenMode actressMode,
+                            myads::PaneWidget *preferredPane, ShelfFilterPolicy shelfFilter)
 {
     if (routeName == QStringLiteral("setting")) {
         openSettings();
         return;
     }
-    const QPointer<myads::PaneWidget> destination = m_workspace->activePane();
+    const QPointer<myads::PaneWidget> destination = preferredPane ? preferredPane : m_workspace->activePane();
     const auto base = routeName.section(u'/', 0, 0);
     const auto argument = routeName.section(u'/', 1);
     const auto reference = shelfReferenceRoutes.constFind(base);
@@ -1469,7 +1483,9 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
     }
     auto pageRoute = opensShelf ? QStringLiteral("shelf") : routeName;
     qint64 switchActressId = 0;
-    if (recordRecent && base == QStringLiteral("actress_detail")) {
+    if (routeName == QStringLiteral("actress_detail")) {
+        pageRoute = actressSwitchRoute;
+    } else if (recordRecent && base == QStringLiteral("actress_detail")) {
         const auto actressId = argument.toLongLong();
         if (actressId <= 0) return;
         if (actressMode == ActressOpenMode::Switching
@@ -1480,21 +1496,25 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
             pageRoute += u'/' + QUuid::createUuid().toString(QUuid::WithoutBraces);
         }
     }
-    auto *widget = ensurePage(pageRoute, switchActressId);
+    auto *widget = ensurePage(pageRoute);
     if (!widget) return;
-    if (work && !static_cast<ShelfPage *>(widget)->containsWork(work->id)) return;
+    if (work) {
+        auto *shelf = static_cast<ShelfPage *>(widget);
+        if (!shelf->containsWork(work->id)) {
+            if (shelfFilter == ShelfFilterPolicy::Keep) return;
+            shelf->resetWorkFilters();
+            if (!shelf->containsWork(work->id)) return;
+        }
+    }
     auto *pane = m_workspace->findPaneByContentId(pageRoute);
     if (switchActressId > 0) {
         auto *detail = static_cast<PersonDetailPage *>(widget);
         if (detail->currentPersonId() != switchActressId) {
             if (!detail->showPerson(switchActressId)) return;
-            const auto title = actressDetailTitle(*detail, true);
-            detail->setWindowTitle(title);
-            if (pane) pane->setContentTitle(pageRoute, title);
             if (m_localGraphSource == detail) updateLocalGraph();
             if (m_timelineSource == detail) updateTimeline();
         }
-        recentTitle = actressDetailTitle(*detail, false);
+        recentTitle = detail->currentPersonName();
     }
     if (!pane) {
         pane = destination.data();
@@ -1503,8 +1523,8 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         if (widget == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
         if (!m_workspace->fillPane(pane, config)) return;
     }
-    m_workspace->setActivePane(pane);
     pane->setCurrentContentId(pageRoute);
+    m_workspace->setActivePane(pane);
     if (m_workspace->isSidebar(pane)) pane->focusTabBar();
     if (opensShelf) {
         auto *shelf = static_cast<ShelfPage *>(widget);

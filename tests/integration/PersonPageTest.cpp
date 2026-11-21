@@ -56,6 +56,7 @@ private slots:
     void pageSwitchDoesNotFocusNameFilter();
     void filtersActressesAndRespectsFavoriteScope();
     void filterBarsShareGeometry();
+    void actressDetailDatesAlign();
     void detailAndEditorCompletePersonRoundTrip();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
     void actressTimelineFitsAfterLayout();
@@ -488,6 +489,36 @@ void PersonPageTest::filtersActressesAndRespectsFavoriteScope()
     QTRY_COMPARE_WITH_TIMEOUT(area->itemCount(), 1, 500);
 }
 
+void PersonPageTest::actressDetailDatesAlign()
+{
+    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+    darkeye::ThemeService themes(*application);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    darkeye::PersonInfoPanel panel(themes, {});
+    darkeye::PersonDetails details;
+    details.kind = darkeye::PersonKind::Actress;
+    details.birthday = QStringLiteral("1991-11-11");
+    details.debutDate = QStringLiteral("2008-08-28");
+    panel.setDetails(details, false);
+    panel.resize(380, 600);
+    panel.show();
+
+    const QLabel *birthday = nullptr;
+    const QLabel *debutDate = nullptr;
+    for (const auto *label : panel.findChildren<QLabel *>()) {
+        if (label->text() == QStringLiteral("1991年11月11日"))
+            birthday = label;
+        if (label->text() == QStringLiteral("2008年08月28日"))
+            debutDate = label;
+    }
+    QVERIFY(birthday && debutDate);
+    QCOMPARE(birthday->mapTo(&panel, QPoint()).x(), debutDate->mapTo(&panel, QPoint()).x());
+    const QFontMetricsF metrics(birthday->font());
+    for (const QChar digit : QStringLiteral("0123456789"))
+        QCOMPARE(metrics.horizontalAdvance(digit), metrics.horizontalAdvance(QChar(u'0')));
+    QCOMPARE(birthday->font(), debutDate->font());
+}
+
 void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
 {
     QTemporaryDir temporaryDirectory;
@@ -620,9 +651,13 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     auto *emptyAliases = aliases->contentWidget()->findChild<QLabel *>();
     QVERIFY(emptyAliases && emptyAliases->isVisible());
     QCOMPARE(emptyAliases->text(), QStringLiteral("暂无别名"));
-    aliasToggle->click();
+    auto *verticalBar = scroll->verticalScrollBar();
+    verticalBar->setValue(verticalBar->maximum());
+    QVERIFY(verticalBar->value() > 0);
+    QTest::mouseClick(aliasToggle, Qt::LeftButton);
     QVERIFY(!aliases->contentWidget()->isVisible());
-    QTRY_COMPARE(scroll->verticalScrollBar()->maximum(), 0);
+    QCOMPARE(verticalBar->maximum(), 0);
+    QCOMPARE(verticalBar->value(), 0);
     QCOMPARE(QRect(aliasToggle->mapTo(&detail, QPoint()), aliasToggle->size()), collapsedToggle);
     const int wideCardWidth = panel->width();
     detail.resize(340, 330);
@@ -788,12 +823,28 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
         if (label->text() == QStringLiteral("修改后姓名"))
             QVERIFY(aliases->contentWidget()->isAncestorOf(label));
     }
+    QCoreApplication::processEvents();
+    const int collapsedScrollLimit = verticalBar->maximum();
     aliasToggle->click();
     QVERIFY(aliases->contentWidget()->isVisible());
     const auto aliasLabels = aliases->contentWidget()->findChildren<QLabel *>();
     QVERIFY(std::any_of(aliasLabels.cbegin(), aliasLabels.cend(), [](const QLabel *label) {
         return label->isVisible() && label->text() == QStringLiteral("修改后姓名");
     }));
+    QTRY_VERIFY(verticalBar->maximum() > collapsedScrollLimit);
+    const int expandedScrollLimit = verticalBar->maximum();
+    verticalBar->setValue(expandedScrollLimit);
+    QVERIFY(scroll->viewport()->rect().contains(aliasToggle->mapTo(
+        scroll->viewport(), aliasToggle->rect().center())));
+    QTest::mouseClick(aliasToggle, Qt::LeftButton);
+    QVERIFY(!aliases->isExpanded());
+    const int newScrollLimit = verticalBar->maximum();
+    QVERIFY(newScrollLimit < expandedScrollLimit);
+    QCOMPARE(verticalBar->value(), newScrollLimit);
+    QCoreApplication::processEvents();
+    QCOMPARE(verticalBar->value(), newScrollLimit);
+    QCOMPARE(verticalBar->maximum(), newScrollLimit);
+    aliasToggle->click();
     QVERIFY(detail.showPerson(*actressId));
     QVERIFY(aliases->isExpanded());
     QVERIFY(detail.showPerson(*referenceActressId));

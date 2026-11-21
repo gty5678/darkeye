@@ -59,6 +59,7 @@ struct DvdSceneWidget::Impl {
         camera.farPlane=100;
         canvas->setScene(scene);
         canvas->setCamera(camera);
+        canvas->setCursor(Qt::ArrowCursor);
         canvas->setMouseTracking(true);
         canvas->setFocusPolicy(Qt::StrongFocus);
         canvas->installEventFilter(owner);
@@ -259,8 +260,7 @@ struct DvdSceneWidget::Impl {
         interaction.followCamera(camera);
         refreshVisible();
         if(cameraChanged) canvas->setCamera(camera);
-        if(cameraChanged || previousSelection!=interaction.selectedId()
-            || (owner->isExpanded() ? wasAnimating : canvas->cursor().shape()==Qt::PointingHandCursor))
+        if(cameraChanged || previousSelection!=interaction.selectedId() || (owner->isExpanded() && wasAnimating))
             refreshHover();
         if(scene->revision()!=before) canvas->update();
         notify();
@@ -282,30 +282,12 @@ struct DvdSceneWidget::Impl {
         return result?primitiveIds.value(result->node):QString();
     }
 
-    bool isDiscHit(const std::optional<RayHit> &hit,const QString &id) const
-    {
-        if(!hit || !owner->isExpanded()) return false;
-        const auto instance=cases.find(id);
-        const auto *node=scene->node(hit->node);
-        return instance!=cases.end() && node && node->parent==instance->second.disc;
-    }
-
-    bool isBackHit(const std::optional<RayHit> &hit,const QString &id) const
-    {
-        if(!hit || id!=interaction.selectedId() || !owner->isExpanded()
-            || interaction.state()!=DvdInteractionController::State::Focused) return false;
-        const auto instance=cases.find(id);
-        const auto *node=scene->node(hit->node);
-        return instance!=cases.end() && node && node->parent==instance->second.back;
-    }
-
     void refreshHover()
     {
         if(!hoverPositionValid || dragButton!=Qt::NoButton) return;
         const auto result=pick(hoverPosition);
         const auto id=result?primitiveIds.value(result->node):QString();
         interaction.hover(id,now());
-        canvas->setCursor((isDiscHit(result,id) || isBackHit(result,id))?Qt::PointingHandCursor:Qt::ArrowCursor);
     }
 
     void cameraChanged()
@@ -450,7 +432,7 @@ bool DvdSceneWidget::isExpanded() const
 bool DvdSceneWidget::isFullyExpanded() const
 {
     const auto it=d->cases.find(selectedId());
-    return it!=d->cases.end() && it->second.expanded && !it->second.backFolded
+    return it!=d->cases.end() && it->second.expanded
         && d->interaction.state()==DvdInteractionController::State::Focused
         && !d->interaction.active(it->second);
 }
@@ -463,7 +445,11 @@ bool DvdSceneWidget::isNearlyClosed() const
     const float minimumDot=std::cos(8.0f*3.14159265f/360.0f);
     for(const auto hinge:{it->second.back,it->second.spine,it->second.front}) {
         const auto *node=d->scene->node(hinge);
-        if(!node || std::abs(QQuaternion::dotProduct(node->transform.rotation,QQuaternion()))<minimumDot)
+        if(!node) return false;
+        const auto &rotation=node->transform.rotation;
+        const float alignment=hinge==it->second.back && it->second.backFolded
+            ? rotation.y() : rotation.scalar();
+        if(std::abs(alignment)<minimumDot)
             return false;
     }
     return true;
@@ -623,21 +609,32 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
     }
     case QEvent::MouseButtonRelease: {
         const auto *mouse=static_cast<QMouseEvent *>(event);
+        d->dragButton=Qt::NoButton;
         if(mouse->button()==Qt::LeftButton && !d->moved) {
             const auto hit=d->pick(mouse->position());
             const auto id=hit?d->primitiveIds.value(hit->node):QString();
-            if(id.isEmpty()) returnToShelf();
-            else {
-                if(d->isDiscHit(hit,id)) {
-                    emit discClicked(id);
-                    d->dragButton=Qt::NoButton;
+            if(isExpanded()) {
+                const auto &instance=d->cases.at(selectedId());
+                if(id==selectedId()) {
+                    const auto *node=d->scene->node(hit->node);
+                    if(node->parent==instance.front) {
+                        toggleOpen();
+                    } else if(node->parent==instance.back || node->parent==instance.disc) {
+                        d->interaction.closeToBack(d->now());
+                        d->notify();
+                        d->updateTimer();
+                    } else {
+                        return true;
+                    }
+                    emit dvdClicked(id);
                     return true;
                 }
-                if(d->isBackHit(hit,id)) {
-                    d->interaction.toggleBackFold(d->now());
-                    d->notify();
-                    d->updateTimer();
-                } else if(id==selectedId() && state()==DvdInteractionController::State::Focused) {
+                const auto bounds=selectedCaseRect();
+                if(bounds && bounds->contains(mouse->position())) return true;
+            }
+            if(id.isEmpty()) returnToShelf();
+            else {
+                if(id==selectedId() && state()==DvdInteractionController::State::Focused) {
                     toggleOpen();
                 } else {
                     focusItem(id);
@@ -645,10 +642,13 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
                 emit dvdClicked(id);
             }
         }
-        d->dragButton=Qt::NoButton;
         return true;
     }
     case QEvent::MouseButtonDblClick: {
+        if(isExpanded()) {
+            d->moved=true;
+            return true;
+        }
         const auto *mouse=static_cast<QMouseEvent *>(event);
         const auto id=d->hit(mouse->position());
         if(!id.isEmpty()) { focusItem(id); emit dvdDoubleClicked(id); }
@@ -691,7 +691,6 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
     case QEvent::Leave:
         d->hoverPositionValid=false;
         d->interaction.hover({},d->now());
-        d->canvas->setCursor(Qt::ArrowCursor);
         d->updateTimer(); break;
     default:break;
     }

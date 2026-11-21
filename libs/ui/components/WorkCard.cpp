@@ -141,12 +141,6 @@ void WorkCard::setCoverActive(bool active)
     m_cover->setDeferredLoading(!active);
 }
 
-void WorkCard::setUntaggedBackground(const QColor &color)
-{
-    m_untaggedBackground = color;
-    update();
-}
-
 bool WorkCard::eventFilter(QObject *watched, QEvent *event)
 {
     if (m_largeCoverView && event->type() == QEvent::MouseButtonPress) {
@@ -243,7 +237,7 @@ void WorkCard::paintEvent(QPaintEvent *event)
     path.lineTo(0, height() - cut);
     path.lineTo(0, cut);
     path.closeSubpath();
-    painter.fillPath(path, m_backgroundColor.alpha() == 0 ? m_untaggedBackground : m_backgroundColor);
+    painter.fillPath(path, m_backgroundColor);
     painter.end();
     QWidget::paintEvent(event);
 }

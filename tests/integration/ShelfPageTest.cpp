@@ -348,6 +348,15 @@ void ShelfPageTest::nativeRenderingAndActions()
     QCOMPARE(actorLink.count(),1); QCOMPARE(actorLink.first().first().toLongLong(),*actor);
     QVERIFY(clickLink(QStringLiteral("展示标签")));
     QCOMPARE(tagLink.count(),1); QCOMPARE(tagLink.first().first().toLongLong(),tagId);
+    auto *title=info->findChild<QLabel *>("ShelfCoverTitle");
+    QVERIFY(title && title->isVisible());
+    QCOMPARE(title->cursor().shape(),Qt::ArrowCursor);
+    QTest::mouseClick(title,Qt::LeftButton);
+    QVERIFY(!scene->isExpanded());
+    QVERIFY(info->isHidden());
+    QTRY_VERIFY(scene->isNearlyClosed());
+    scene->toggleOpen();
+    QTRY_VERIFY(scene->isFullyExpanded());
     const auto image=scene->renderWidget()->grabFramebuffer();
     QVERIFY(!image.isNull());
     QVERIFY(scene->renderWidget()->lastError().isEmpty());

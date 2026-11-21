@@ -93,6 +93,11 @@
 #include <QtTest>
 #include <algorithm>
 
+#ifdef Q_OS_MACOS
+void postMacShortcut(QWidget &window, unsigned short keyCode, const char *characters,
+                     Qt::KeyboardModifiers modifiers);
+#endif
+
 namespace
 {
 QPushButton *findSettingsButton(QObject *root, const QString &text)
@@ -139,6 +144,9 @@ private slots:
     void exposesAllPrimaryNavigationPages();
     void workspaceSearchShortcutsOpenBothModes();
     void sidebarShortcutsAndAutoCollapseSetting();
+#ifdef Q_OS_MACOS
+    void nativeCommandShortcuts();
+#endif
     void paneTabShortcutsCanBeCustomized();
     void paneShortcutsFollowLayoutOrder();
     void workspaceSearchAndSessionLifecycle();
@@ -1206,7 +1214,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     commandsAction->trigger();
     auto *commandInput = search->findChild<QLineEdit *>();
     QVERIFY(commandInput && search->isVisible());
-    commandInput->setText(QStringLiteral("作品筛选器"));
+    commandInput->setText(QStringLiteral("作品过滤器"));
     QTest::keyClick(commandInput, Qt::Key_Return);
     QCOMPARE(currentWidget(), workFilter);
     auto *tagSelector = workFilter->findChild<darkeye::WorkTagSelector *>();
@@ -1499,6 +1507,8 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     const auto linkedId = works.insertComplete(linked, {*actress}, {}, {}, &error);
     const auto unrelatedId = works.insertComplete(unrelated, {}, {}, {}, &error);
     QVERIFY(linkedId && unrelatedId && sharedId);
+    const auto sharedDetails = works.findDetailsById(*sharedId);
+    QVERIFY(sharedDetails && sharedDetails->actresses.size() == 2);
 
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::MainWindow window(themes, publicDatabase.database(), privateDatabase.database(), paths);
@@ -1514,6 +1524,13 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     auto *detail = sourcePane->contentWidget(detailRoute);
     QVERIFY(detail);
     QVERIFY(!detail->findChild<darkeye::ActressWorkTimeline *>());
+
+    const auto switchRoute = QStringLiteral("actress_detail/switch");
+    search->openRequested(QStringLiteral("actress_detail"));
+    auto *switchDetail = qobject_cast<darkeye::PersonDetailPage *>(sourcePane->contentWidget(switchRoute));
+    QVERIFY(switchDetail);
+    QVERIFY(switchDetail->showPerson(sharedDetails->actresses.last().id));
+    QVERIFY(sourcePane->setCurrentContentId(detailRoute));
 
     const auto timelineRoute = QStringLiteral("timeline");
     search->openRequested(timelineRoute);
@@ -1578,21 +1595,36 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     QVERIFY(splitter);
     splitter->setSizes({1050, 350});
     QTRY_VERIFY(scene->canExpand());
-    search->openRequested(QStringLiteral("work_detail/%1").arg(*sharedId));
-    QTRY_COMPARE(shelf->expandedWorkId(), *sharedId);
+    QTRY_COMPARE(timelineIds(), allWorks);
+    QVERIFY(scene->focusItem(QString::number(*sharedId)));
+    QCOMPARE(scene->state(), darkeye::dvd_scene::DvdInteractionController::State::Focusing);
+    QCOMPARE(shelf->focusedWorkId(), 0);
+    QCOMPARE(timelineIds(), allWorks);
+    QCOMPARE(switchDetail->currentPersonId(), sharedDetails->actresses.last().id);
+    QTRY_COMPARE(shelf->focusedWorkId(), *sharedId);
+    QCOMPARE(shelf->expandedWorkId(), 0);
+    QTRY_COMPARE(switchDetail->currentPersonId(), sharedDetails->actresses.first().id);
+    QCOMPARE(sourcePane->currentContentId(), QStringLiteral("shelf"));
     QTRY_COMPARE(thumbnails().size(), 2);
     QCOMPARE(timelineIds(), actressWorks);
     QCOMPARE(timeline->markerCount(), 3);
     QVERIFY(thumbnails().at(0)->y() < thumbnails().at(1)->y());
 
+    search->openRequested(QStringLiteral("work_detail/%1").arg(*sharedId));
+    QTRY_COMPARE(shelf->expandedWorkId(), *sharedId);
     QTRY_VERIFY(scene->isFullyExpanded());
     scene->toggleOpen();
     QTRY_COMPARE(shelf->expandedWorkId(), 0);
+    QCOMPARE(shelf->focusedWorkId(), *sharedId);
+    QCOMPARE(timelineIds(), actressWorks);
+    scene->returnToShelf();
+    QTRY_COMPARE(shelf->focusedWorkId(), 0);
     QTRY_VERIFY(thumbnails().isEmpty());
     QTRY_COMPARE(timelineIds(), allWorks);
 
     search->openRequested(QStringLiteral("work_detail/%1").arg(*unrelatedId));
     QTRY_COMPARE(shelf->expandedWorkId(), *unrelatedId);
+    QTRY_COMPARE(switchDetail->currentPersonId(), 0);
     QTRY_VERIFY(timelineIds().isEmpty());
     QVERIFY(thumbnails().isEmpty());
     shelf->filterByTag(999);
@@ -1628,6 +1660,39 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     QCOMPARE(serial->text(), unrelated.serialNumber);
     QCOMPARE(shelf->filteredWorkIds(), unrelatedOnly);
 
+    QVERIFY(workspace->findPaneByContentId(filterRoute)->removeContent(filterRoute));
+    serial->clear();
+    QTRY_COMPARE(shelf->filteredWorkIds(), allWorks);
+    workspace->setActivePane(sourcePane);
+    splitter = qobject_cast<QSplitter *>(sourcePane->parentWidget());
+    QVERIFY(splitter);
+    splitter->setSizes({1050, 350});
+    QTRY_VERIFY(scene->canExpand());
+    search->openRequested(QStringLiteral("work_detail/%1").arg(*sharedId));
+    QTRY_COMPARE(shelf->expandedWorkId(), *sharedId);
+    QTRY_VERIFY(scene->isFullyExpanded());
+
+    QVERIFY(workspace->moveContent(sourcePane->paneId(), switchRoute, timelinePane->paneId(),
+                                   darkeye::myads::DropZone::Center));
+    workspace->setActivePane(sourcePane);
+    QVERIFY(switchDetail->showPerson(*actress));
+    QVERIFY(timelinePane->setCurrentContentId(switchRoute));
+    QVERIFY(timelinePane->setCurrentContentId(timelineRoute));
+    QTRY_COMPARE(thumbnails().size(), 1);
+    QCOMPARE(timelineIds(), actressWorks);
+    auto *actressButton = shelf->findChild<QToolButton *>(QStringLiteral("actress%1").arg(*coStar));
+    QVERIFY(actressButton && actressButton->isVisible());
+    QTest::mousePress(actressButton, Qt::LeftButton);
+    QApplication::processEvents();
+    QCOMPARE(thumbnails().size(), 1);
+    QCOMPARE(timelineIds(), actressWorks);
+    QTest::mouseRelease(actressButton, Qt::LeftButton, Qt::NoModifier, QPoint(-1, -1));
+    QCOMPARE(switchDetail->currentPersonId(), *actress);
+    QCOMPARE(timelineIds(), actressWorks);
+    QTest::mouseClick(actressButton, Qt::LeftButton);
+    QCOMPARE(switchDetail->currentPersonId(), *coStar);
+    QCOMPARE(timelineIds(), QSet<qint64>{*sharedId});
+    QCOMPARE(thumbnails().size(), 1);
 }
 
 void MainWindowSmokeTest::localRelationshipGraphFollowsActiveContent()
@@ -1701,9 +1766,36 @@ void MainWindowSmokeTest::localRelationshipGraphFollowsActiveContent()
     search->openRequested(QStringLiteral("modify_actress/%1").arg(*actress));
     QTRY_COMPARE(localGraph->getNodeIds(), sharedWorkNodes);
     search->openRequested(QStringLiteral("shelf"));
-    window.findChild<darkeye::WorkFilter *>()->findChild<darkeye::WorkTagSelector *>()->clearSelection();
+    auto *shelf = qobject_cast<darkeye::ShelfPage *>(sourcePane->contentWidget(QStringLiteral("shelf")));
+    QVERIFY(shelf);
+    auto *scene = shelf->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    auto *splitter = qobject_cast<QSplitter *>(sourcePane->parentWidget());
+    QVERIFY(scene && splitter);
+    window.resize(1400, 650);
+    splitter->setSizes({1050, 350});
+    auto *filter = window.findChild<darkeye::WorkFilter *>();
+    QVERIFY(filter);
+    filter->findChild<darkeye::WorkTagSelector *>()->clearSelection();
+    auto *serialFilter = findWorkControl<QLineEdit>(filter, QStringLiteral("WorkSerialFilter"));
+    QVERIFY(serialFilter);
+    serialFilter->setText(second.serialNumber);
+    QTRY_COMPARE(shelf->filteredWorkIds(), QSet<qint64>{*secondId});
+    QTRY_VERIFY(scene->canExpand());
     search->openRequested(QStringLiteral("work_detail/%1").arg(*secondId));
+    QTRY_COMPARE(shelf->currentWorkId(), *secondId);
+    QTRY_COMPARE(shelf->focusedWorkId(), *secondId);
+    QTRY_COMPARE(shelf->expandedWorkId(), *secondId);
     QTRY_COMPARE(localGraph->getNodeIds(), QStringList{secondNode});
+    QVERIFY(graphPane->setCurrentContentId(QStringLiteral("graph")));
+    workspace->setActivePane(graphPane);
+    emit globalGraph->nodeLeftClicked(firstNode);
+    QTRY_COMPARE(shelf->expandedWorkId(), *firstId);
+    QCOMPARE(workspace->activePane(), sourcePane);
+    QCOMPARE(graphPane->currentContentId(), QStringLiteral("graph"));
+    QVERIFY(serialFilter->text().isEmpty());
+    emit globalGraph->nodeLeftClicked(secondNode);
+    QTRY_COMPARE(shelf->expandedWorkId(), *secondId);
+    QVERIFY(graphPane->setCurrentContentId(QStringLiteral("local_graph")));
 
     // Switching tabs in the same pane updates the graph as well.
     QVERIFY(sourcePane->setCurrentContentId(actressRoute));
@@ -1764,6 +1856,7 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
     QVERIFY(paths.ensureRuntimeDirectories());
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::MainWindow window(themes, {}, {}, paths);
+    window.resize(1200, 800);
     window.show();
     window.raise();
     window.activateWindow();
@@ -1772,13 +1865,10 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
 #ifdef Q_OS_MACOS
     auto *menu = window.findChild<QMenu *>(QStringLiteral("workspaceMenu"));
     QVERIFY(menu);
-    for (const auto *id : {"workspace_search", "workspace_commands", "open_settings",
-                           "next_tab", "previous_tab"}) {
-        auto *action = window.findChild<QAction *>(QString::fromLatin1(id));
-        QVERIFY(action && menu->actions().contains(action));
-    }
-    QCOMPARE(window.findChild<QAction *>(QStringLiteral("open_settings"))->menuRole(),
-             QAction::NoRole);
+    QCOMPARE(menu->actions(), (QList<QAction *>{
+        window.findChild<QAction *>(QStringLiteral("workspace_search")),
+        window.findChild<QAction *>(QStringLiteral("workspace_commands")),
+        window.findChild<QAction *>(QStringLiteral("close_tab"))}));
     QVERIFY(menu->toNSMenu());
 #endif
     auto *search = window.findChild<darkeye::WorkspaceSearch *>();
@@ -1790,10 +1880,73 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
     QTest::keyClick(window.windowHandle(), Qt::Key_O, Qt::ControlModifier);
     QTRY_VERIFY(input->hasFocus());
     QVERIFY(results->isHidden());
+    QCOMPARE(search->y(), window.centralWidget()->height() / 6);
     QTest::keyClick(window.windowHandle(), Qt::Key_P, Qt::ControlModifier);
     QTRY_VERIFY(input->hasFocus() && results->isVisible());
     QVERIFY(results->count() > 0);
+    QCOMPARE(search->y(), window.centralWidget()->height() / 6);
+    QVERIFY(search->y() + search->height() <= window.centralWidget()->height() - search->y());
+
+    window.resize(1200, 600);
+    QTRY_COMPARE(search->y(), window.centralWidget()->height() / 6);
+    QCOMPARE(search->y() + search->height(), window.centralWidget()->height() - search->y());
+    QTRY_VERIFY(results->verticalScrollBar()->maximum() > 0);
 }
+
+#ifdef Q_OS_MACOS
+void MainWindowSmokeTest::nativeCommandShortcuts()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const darkeye::settings::Paths paths(QCoreApplication::applicationDirPath(), temp.path());
+    QVERIFY(paths.ensureRuntimeDirectories());
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, {}, {}, paths);
+    window.show();
+    window.raise();
+    window.activateWindow();
+    QTRY_VERIFY(window.isActiveWindow());
+
+    struct Shortcut {
+        const char *action;
+        unsigned short keyCode;
+        const char *characters;
+        Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+    };
+    // macOS virtual key codes and characters emitted by a US keyboard.
+    const Shortcut shortcuts[] = {
+        {"workspace_search", 31, "o"},
+        {"workspace_commands", 35, "p"},
+        {"toggle_left_sidebar", 18, "!", Qt::ShiftModifier},
+        {"toggle_right_sidebar", 19, "@", Qt::ShiftModifier},
+        {"next_tab", 30, "}", Qt::ShiftModifier},
+        {"previous_tab", 33, "{", Qt::ShiftModifier},
+        {"next_pane", 124, "\uF703", Qt::AltModifier | Qt::KeypadModifier},
+        {"previous_pane", 123, "\uF702", Qt::AltModifier | Qt::KeypadModifier},
+        {"close_tab", 13, "w"},
+        {"open_settings", 43, ","},
+    };
+    for (const auto &shortcut : shortcuts) {
+        auto *action = window.findChild<QAction *>(QString::fromLatin1(shortcut.action));
+        QVERIFY(action);
+        // Observe activation without opening or closing UI during the sequence.
+        action->disconnect(&window);
+        QSignalSpy triggered(action, &QAction::triggered);
+        postMacShortcut(window, shortcut.keyCode, shortcut.characters, shortcut.modifiers);
+        QVERIFY2(triggered.wait(500), shortcut.action);
+        QCOMPARE(triggered.size(), 1);
+    }
+
+    auto *sidebar = window.findChild<QAction *>(QStringLiteral("toggle_left_sidebar"));
+    sidebar->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_7));
+    QSignalSpy triggered(sidebar, &QAction::triggered);
+    postMacShortcut(window, 18, "!", Qt::ShiftModifier);
+    QVERIFY(!triggered.wait(150));
+    postMacShortcut(window, 26, "&", Qt::ShiftModifier);
+    QVERIFY(triggered.wait(500));
+    QCOMPARE(triggered.size(), 1);
+}
+#endif
 
 void MainWindowSmokeTest::sidebarShortcutsAndAutoCollapseSetting()
 {
@@ -2341,39 +2494,56 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         auto *root = workspace->rootPane();
         auto *independent = qobject_cast<darkeye::PersonDetailPage *>(root->contentWidget(firstRoute));
         QVERIFY(independent);
-        std::unique_ptr<QMenu> menu(root->createTabContextMenu(firstRoute));
-        QVERIFY(menu);
-        const auto actions = menu->actions();
-        const auto switching = std::find_if(actions.cbegin(), actions.cend(), [](const QAction *action) {
-            return action->text() == QStringLiteral("在切换页打开");
-        });
-        QVERIFY(switching != actions.cend());
-        (*switching)->trigger();
+        QCOMPARE(root->contentTitle(firstRoute), QStringLiteral("甲"));
+        window.show();
+        window.raise();
+        window.activateWindow();
+        QTRY_VERIFY(window.isActiveWindow());
+        auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
+        auto *results = search->findChild<QListWidget *>(QStringLiteral("workspaceSearchResults"));
+        QVERIFY(input && results);
+        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("女演员详情"));
+        QVERIFY(results->currentItem());
+        QCOMPARE(results->currentItem()->text(), QStringLiteral("打开 · 女演员详情"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(!search->isVisible());
         auto *detail = qobject_cast<darkeye::PersonDetailPage *>(root->contentWidget(switchRoute));
         QVERIFY(detail && detail != independent);
+        QCOMPARE(detail->currentPersonId(), 0);
+        QCOMPARE(root->contentTitle(switchRoute), QStringLiteral("女演员详情"));
+        search->openRequested(firstRoute);
         QCOMPARE(detail->currentPersonId(), *first);
         QVERIFY(workspace->moveContent(root->paneId(), switchRoute, root->paneId(), darkeye::myads::DropZone::Right));
         auto *switchPane = workspace->findPaneByContentId(switchRoute);
         QVERIFY(switchPane && switchPane != root);
         workspace->setActivePane(root);
-        search->openRequested(secondRoute);
+        QTest::keyClick(&window, Qt::Key_O, Qt::ControlModifier);
+        QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("乙"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(!search->isVisible());
         QCOMPARE(workspace->activePane(), switchPane);
         QCOMPARE(switchPane->contentWidget(switchRoute), detail);
         QCOMPARE(detail->currentPersonId(), *second);
         QCOMPARE(independent->currentPersonId(), *first);
-        QCOMPARE(switchPane->contentTitle(switchRoute), QStringLiteral("切换页 · 乙"));
+        QCOMPARE(switchPane->contentTitle(switchRoute), QStringLiteral("女演员详情"));
         QVERIFY(!workspace->findPaneByContentId(secondRoute));
 
-        window.show();
-        window.raise();
-        window.activateWindow();
-        QTRY_VERIFY(window.isActiveWindow());
+        workspace->setActivePane(root);
         QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
-        auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
-        auto *results = search->findChild<QListWidget *>(QStringLiteral("workspaceSearchResults"));
-        QVERIFY(input && results);
         input->setText(QStringLiteral("女演员详情"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(!search->isVisible());
+        QCOMPARE(workspace->activePane(), switchPane);
+        QCOMPARE(switchPane->contentWidget(switchRoute), detail);
+        QCOMPARE(detail->currentPersonId(), *second);
+
+        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("独立页"));
         QVERIFY(results->currentItem());
         QCOMPARE(results->currentItem()->text(), QStringLiteral("打开 · 女演员详情（独立页）"));
         QTest::keyClick(input, Qt::Key_Return);
@@ -2389,6 +2559,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         QVERIFY(duplicateRoute.startsWith(firstRoute + u'/'));
         auto *duplicate = qobject_cast<darkeye::PersonDetailPage *>(switchPane->contentWidget(duplicateRoute));
         QVERIFY(duplicate && duplicate != independent);
+        QCOMPARE(switchPane->contentTitle(duplicateRoute), QStringLiteral("甲"));
         QCOMPARE(duplicate->currentPersonId(), *first);
         QCOMPARE(detail->currentPersonId(), *second);
         QVERIFY(switchPane->setCurrentContentId(switchRoute));
@@ -2408,7 +2579,17 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         QVERIFY(workspace->findPaneByContentId(duplicateRoute));
         QVERIFY(switchPane->removeContent(switchRoute));
         auto *search = window.findChild<darkeye::WorkspaceSearch *>();
-        search->openRequested(secondRoute);
+        window.show();
+        window.raise();
+        window.activateWindow();
+        QTRY_VERIFY(window.isActiveWindow());
+        QTest::keyClick(&window, Qt::Key_O, Qt::ControlModifier);
+        QTRY_VERIFY(search->isVisible());
+        auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
+        QVERIFY(input);
+        input->setText(QStringLiteral("乙"));
+        QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(!search->isVisible());
         QVERIFY(workspace->findPaneByContentId(secondRoute));
         QVERIFY(!workspace->findPaneByContentId(switchRoute));
     }

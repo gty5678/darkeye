@@ -5,8 +5,11 @@
 #include <QColor>
 #include <QFile>
 #include <QHash>
+#include <QPainter>
+#include <QProxyStyle>
 #include <QResource>
 #include <QRegularExpression>
+#include <QStyleOption>
 
 #include <mutex>
 
@@ -72,6 +75,55 @@ ThemeTokens baseTokens(ThemeId theme)
 
 } // namespace
 
+class SelectionIndicatorStyle final : public QProxyStyle
+{
+public:
+    SelectionIndicatorStyle() : QProxyStyle(QStringLiteral("Fusion")) {}
+
+    void setColors(const ThemeTokens &tokens)
+    {
+        m_primary = QColor(tokens.primary);
+        const int gray = qGray(QColor(tokens.border).rgb());
+        m_outline = QColor(gray, gray, gray);
+    }
+
+    void drawPrimitive(PrimitiveElement element, const QStyleOption *option,
+                       QPainter *painter, const QWidget *widget) const override
+    {
+        if (element != PE_IndicatorCheckBox && element != PE_IndicatorRadioButton
+            && element != PE_IndicatorItemViewItemCheck) {
+            QProxyStyle::drawPrimitive(element, option, painter, widget);
+            return;
+        }
+
+        const bool checked = option->state.testFlag(State_On);
+        const bool partial = option->state.testFlag(State_NoChange);
+        const QRectF bounds(option->rect);
+        const QPointF center = bounds.center();
+        const qreal radius = qMin(bounds.width(), bounds.height()) / 2 - 1.5;
+        const QPolygonF diamond{center + QPointF(0, -radius), center + QPointF(radius, 0),
+                                center + QPointF(0, radius), center + QPointF(-radius, 0)};
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (!option->state.testFlag(State_Enabled))
+            painter->setOpacity(painter->opacity() * 0.5);
+        painter->setPen(checked ? QPen(Qt::NoPen) : QPen(m_outline, 1.5));
+        painter->setBrush(checked ? QBrush(m_primary) : QBrush(Qt::NoBrush));
+        painter->drawPolygon(diamond);
+        if (partial) {
+            painter->setPen(QPen(m_primary, 1.5));
+            painter->drawLine(center - QPointF(radius / 2, 0),
+                              center + QPointF(radius / 2, 0));
+        }
+        painter->restore();
+    }
+
+private:
+    QColor m_primary;
+    QColor m_outline;
+};
+
 QMap<QString, QString> ThemeTokens::toMap() const
 {
     return {
@@ -105,7 +157,9 @@ ThemeService::ThemeService(QApplication &application)
     : QObject(&application), m_application(application)
 {
     // Use the same base widget style for every application using our theme.
-    m_application.setStyle(QStringLiteral("Fusion"));
+    m_indicatorStyle = new SelectionIndicatorStyle;
+    m_indicatorStyle->setColors(lightTokens());
+    m_application.setStyle(m_indicatorStyle);
     new ChamferStyle(this);
 }
 
@@ -217,6 +271,7 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
     for (auto iterator = replacements.cbegin(); iterator != replacements.cend(); ++iterator) {
         styleSheet.replace(iterator.key(), iterator.value());
     }
+    if (m_indicatorStyle) m_indicatorStyle->setColors(values);
     if (m_application.styleSheet() != styleSheet) m_application.setStyleSheet(styleSheet);
     const bool changed = m_current != theme || m_customPrimary != nextPrimary;
     m_current = theme;

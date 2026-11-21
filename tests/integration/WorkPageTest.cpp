@@ -35,9 +35,12 @@
 #include <QGraphicsSceneHoverEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QMimeData>
 #include <QLabel>
 #include <QListWidget>
@@ -50,6 +53,7 @@
 #include <QSqlQuery>
 #include <QTabWidget>
 #include <QTemporaryDir>
+#include <QWheelEvent>
 #include <QtTest>
 #include <algorithm>
 
@@ -92,7 +96,8 @@ class WorkPageTest final : public QObject
     void persistsViewPreferences();
     void groupsAndSelectsTags();
     void tagSelectorMatchesPythonGeometryAndNavigation();
-    void tagSelectorMatchesPythonPageWidthsAndSearchStyle();
+    void tagSelectionInsetsMatchAvailableInEditorAndManagement();
+    void tagSelectorPageWidthsAndSearchStyle();
     void importsCoverAndRollsBackOnDatabaseFailure();
     void loadingCrLfStoriesDoesNotMarkWorkModified();
     void personSelectionChangesRenderWarningFrame();
@@ -105,6 +110,7 @@ class WorkPageTest final : public QObject
     void addWorkBasicInfoSerialMatchesPythonBehavior();
     void editorCompletesExistingDirectorsAndRefreshes();
     void addWorkBasicInfoKeepsRowsHorizontalWhenNarrow();
+    void editorAutomaticallySavesLayoutWithoutSettings();
     void workCardCopiesSerialAndActivatesOnlyCover();
     void matchesPythonWorkListSqlContract();
     void loadsConfiguredRealDatabaseWhenAvailable();
@@ -318,7 +324,7 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     auto *countLabel = findWorkControl<QLabel>(&page, QStringLiteral("WorkCountLabel"));
     QVERIFY(sortSelector != nullptr);
     QVERIFY(tagList != nullptr);
-    QCOMPARE(tagList->width(), 84);
+    QCOMPARE(tagList->width(), 76);
     QVERIFY(notesFilter != nullptr);
     QVERIFY(coverButton != nullptr);
     QVERIFY(refreshButton != nullptr);
@@ -572,31 +578,51 @@ void WorkPageTest::groupsAndSelectsTags()
     QCOMPARE(availableLists.size(), 2);
     auto *search = findWorkControl<QLineEdit>(&selector, QStringLiteral("WorkTagSearch"));
     auto *searchResult = findWorkControl<QLabel>(&selector, QStringLiteral("WorkTagSearchResult"));
+    auto *searchPrevious = findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagSearchPrevious"));
     auto *searchNext = findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagSearchNext"));
-    auto *expand = findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagExpandButton"));
+    auto *clear = findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagClearButton"));
+    auto *reload = findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagReloadButton"));
+    auto *selectedView = selector.findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
+    auto *availablePanel = selector.findChild<QWidget *>(QStringLiteral("WorkTagAvailablePanel"));
     QVERIFY(search != nullptr);
     QVERIFY(searchResult != nullptr);
+    QVERIFY(searchPrevious != nullptr);
     QVERIFY(searchNext != nullptr);
-    QVERIFY(expand != nullptr);
+    QVERIFY(clear != nullptr);
+    QVERIFY(reload != nullptr);
+    QVERIFY(selectedView != nullptr);
+    QVERIFY(availablePanel != nullptr);
+    QVERIFY(availablePanel->isVisible());
+    QVERIFY(findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagExpandButton")) == nullptr);
+    QCOMPARE(selectedView->geometry().top(), availablePanel->geometry().top());
+    QCOMPARE(selectedView->geometry().left(), 8);
+    QCOMPARE(availablePanel->geometry().left() - selectedView->geometry().right() - 1, 10);
+    QCOMPARE(selector.rect().right() - availablePanel->geometry().right(), 8);
+    QCOMPARE(selector.rect().bottom() - selectedView->geometry().bottom(), 8);
+    const QWidget *toolbar = clear->parentWidget();
+    QCOMPARE(toolbar->geometry().left(), selectedView->geometry().left());
+    QCOMPARE(toolbar->geometry().right(), availablePanel->geometry().right());
+    QVERIFY(toolbar->geometry().bottom() < selectedView->geometry().top());
+    const QList<QWidget *> controls{clear, reload, search, searchPrevious, searchNext, searchResult};
+    for (qsizetype i = 0; i < controls.size(); ++i)
+    {
+        const QWidget *control = controls.at(i);
+        QCOMPARE(control->parentWidget(), toolbar);
+        QVERIFY(qAbs(control->geometry().center().y() - search->geometry().center().y()) <= 1);
+        if (i > 0)
+            QCOMPARE(control->geometry().left() - controls.at(i - 1)->geometry().right() - 1, 4);
+    }
     search->setText(QStringLiteral("标签"));
     QCOMPARE(searchResult->text(), QStringLiteral("结果 1/2"));
     searchNext->click();
     QCOMPARE(searchResult->text(), QStringLiteral("结果 2/2"));
+    searchPrevious->click();
+    QCOMPARE(searchResult->text(), QStringLiteral("结果 1/2"));
+    searchNext->click();
     search->setText(QStringLiteral("旧标签"));
     QCOMPARE(searchResult->text(), QStringLiteral("结果 1/1"));
     search->setText(QStringLiteral("类型一"));
     QCOMPARE(searchResult->text(), QStringLiteral("无匹配结果"));
-    expand->click();
-    QTest::qWait(350);
-    QCOMPARE(selector.width(), 409);
-    QCOMPARE(selector.pos().x(), 0);
-    expand->click();
-    QTest::qWait(350);
-    QCOMPARE(selector.width(), 154);
-    QCOMPARE(selector.pos().x(), 0);
-    expand->click();
-    QTest::qWait(350);
-    QCOMPARE(selector.pos().x(), 0);
     QSignalSpy selectionChanged(&selector, &darkeye::WorkTagSelector::selectionChanged);
     QGraphicsObject *firstTag = nullptr;
     QGraphicsView *firstTagView = nullptr;
@@ -615,21 +641,19 @@ void WorkPageTest::groupsAndSelectsTags()
     QCOMPARE(selector.selectedIds(), QList<qint64>{1});
     QCOMPARE(selectionChanged.count(), 1);
     QVERIFY(!firstTag->isVisible());
-    auto *selectedView = selector.findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
-    QVERIFY(selectedView != nullptr);
     const auto selectedItems = selectedView->scene()->items();
     QVERIFY(std::any_of(selectedItems.cbegin(), selectedItems.cend(), [](QGraphicsItem *item) {
         auto *object = item->toGraphicsObject();
         return object && object->objectName() == QStringLiteral("WorkTag_1");
     }));
-    selector.clearSelection();
+    clear->click();
     QVERIFY(selector.selectedIds().isEmpty());
     QCOMPARE(selectionChanged.count(), 2);
     QVERIFY(firstTag->isVisible());
 
     selector.setLoader(
         [] { return QList<darkeye::TagOption>{{3, QStringLiteral("新标签"), QStringLiteral("新类型"), {}, {}}}; });
-    selector.reloadTags();
+    reload->click();
     QCOMPARE(tabs->count(), 1);
     QCOMPARE(tabs->tabText(0), QStringLiteral("新类型"));
 }
@@ -644,7 +668,6 @@ void WorkPageTest::tagSelectorMatchesPythonGeometryAndNavigation()
         tags.append({i, QStringLiteral("较长的标签%1").arg(i), QStringLiteral("类型一"), QStringLiteral("#ff0000")});
     darkeye::WorkTagSelector selector(tags);
     selector.setMutexCheckEnabled(false); // Python's tag management allows batch selection of conflicting tags.
-    selector.setAvailablePanelExpanded(true);
     selector.resize(selector.width(), 220);
     selector.show();
     QTest::qWait(20);
@@ -694,8 +717,21 @@ void WorkPageTest::tagSelectorMatchesPythonGeometryAndNavigation()
                           view->mapFromScene(card->sceneBoundingRect().center()));
     }
     QCOMPARE(selector.selectedIds(), (QList<qint64>{1, 2}));
-    view->verticalScrollBar()->setValue(view->verticalScrollBar()->maximum());
-    QVERIFY(view->verticalScrollBar()->value() > 0);
+    auto *scrollBar = view->verticalScrollBar();
+    QVERIFY(scrollBar->maximum() > 0);
+    QVERIFY(!scrollBar->isVisible());
+    const QPoint wheelPosition = view->viewport()->rect().center();
+    const auto scrollWithWheel = [&](int angle) {
+        QWheelEvent wheel(wheelPosition, view->viewport()->mapToGlobal(wheelPosition),
+                          {}, QPoint(0, angle), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(view->viewport(), &wheel);
+    };
+    for (int step = 0; step < 100 && scrollBar->value() < scrollBar->maximum(); ++step)
+        scrollWithWheel(-120);
+    QCOMPARE(scrollBar->value(), scrollBar->maximum());
+    scrollWithWheel(120);
+    QVERIFY(scrollBar->value() < scrollBar->maximum());
+    QVERIFY(scrollBar->value() > 0);
     tabs->setCurrentIndex(1);
     tabs->setCurrentIndex(0);
     QCOMPARE(view->verticalScrollBar()->value(), 0);
@@ -712,7 +748,7 @@ void WorkPageTest::tagSelectorMatchesPythonGeometryAndNavigation()
     QCOMPARE(selector.selectedIds(), (QList<qint64>{1, 2}));
 }
 
-void WorkPageTest::tagSelectorMatchesPythonPageWidthsAndSearchStyle()
+void WorkPageTest::tagSelectionInsetsMatchAvailableInEditorAndManagement()
 {
     const QString previousStyle = qApp->styleSheet();
     const auto restoreStyle = qScopeGuard([previousStyle] { qApp->setStyleSheet(previousStyle); });
@@ -728,22 +764,86 @@ void WorkPageTest::tagSelectorMatchesPythonPageWidthsAndSearchStyle()
     editor.initialize();
     auto *editorSelector = editor.findChild<darkeye::WorkTagSelector *>();
     QVERIFY(editorSelector != nullptr);
-    QCOMPARE(editorSelector->findChild<QGraphicsView *>(QStringLiteral("WorkTagList"))->width(), 116);
-    QCOMPARE(editorSelector->width(), 140 + 255);
+    auto *editorSelected = editorSelector->findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
+    QVERIFY(editorSelected != nullptr);
+    auto *editorScroll = qobject_cast<QScrollArea *>(editorSelector->parentWidget()->parentWidget());
+    QVERIFY(editorScroll != nullptr);
+    QCOMPARE(editorScroll->widget(), editorSelector);
+    QCOMPARE(editorScroll->parentWidget()->layout()->contentsMargins(), QMargins());
+    editor.resize(1200, 800);
+    editor.show();
+    auto *editorAvailable = editorSelector->findChild<QWidget *>(QStringLiteral("WorkTagAvailablePanel"));
+    QVERIFY(editorAvailable != nullptr);
+    QCOMPARE(editorAvailable->minimumWidth(), 200);
+    QTRY_COMPARE(editorAvailable->width(),
+                 qBound(200, editorScroll->viewport()->width() - editorSelected->width() - 26, 700));
+    QCOMPARE(editorAvailable->x() - editorSelected->geometry().right() - 1, 10);
     darkeye::TagManagementWidget management(connection.database(), themes);
     auto *managementSelector = management.findChild<darkeye::WorkTagSelector *>();
     QVERIFY(managementSelector != nullptr);
-    QCOMPARE(managementSelector->findChild<QGraphicsView *>(QStringLiteral("WorkTagList"))->width(), 116);
-    QCOMPARE(managementSelector->width(), 154 + 400);
-    QCOMPARE(managementSelector->findChild<QWidget *>(QStringLiteral("WorkTagAvailablePanel"))->width(), 400);
+    auto *managementAvailable = managementSelector->findChild<QWidget *>(QStringLiteral("WorkTagAvailablePanel"));
+    QVERIFY(managementAvailable != nullptr);
+    QCOMPARE(managementAvailable->minimumWidth(), 200);
+    QCOMPARE(managementAvailable->maximumWidth(), 400);
 
+    QList<darkeye::TagOption> layoutTags;
+    QList<qint64> selectedIds;
+    for (qint64 id = 1; id <= 60; ++id)
+    {
+        layoutTags.append({id, QStringLiteral("测试标签%1").arg(id), QStringLiteral("类型一"), {}});
+        selectedIds.append(id);
+    }
+    management.resize(management.minimumSizeHint().width(), 600);
+    management.show();
+    QTRY_COMPARE(managementAvailable->width(), 200);
+    management.resize(1200, 600);
+    for (auto *testedSelector : {editorSelector, managementSelector})
+    {
+        testedSelector->setLoader([layoutTags] { return layoutTags; });
+        testedSelector->reloadTags();
+        auto *availableView = testedSelector->findChild<QGraphicsView *>(QStringLiteral("WorkAvailableTagList"));
+        auto *selectedView = testedSelector->findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
+        QVERIFY(availableView != nullptr);
+        QVERIFY(selectedView != nullptr);
+        const qreal availableTop = availableView->scene()->itemsBoundingRect().top();
+        QVERIFY(availableTop > 0);
+        QSet<qreal> availableColumns;
+        for (const auto *item : availableView->scene()->items())
+            availableColumns.insert(item->pos().x());
+        auto availablePositions = availableColumns.values();
+        std::sort(availablePositions.begin(), availablePositions.end());
+        QVERIFY(availablePositions.size() > 1);
+        const qreal columnStep = availablePositions[1] - availablePositions[0];
+        for (const bool withScrollbar : {false, true})
+        {
+            // Leave some tags available when filling the selected view enough to scroll.
+            testedSelector->setSelectedIds(selectedIds.mid(0, withScrollbar ? 55 : 3));
+            QTRY_COMPARE(selectedView->verticalScrollBar()->isVisible(), withScrollbar);
+            const auto bounds = selectedView->scene()->itemsBoundingRect();
+            QSet<qreal> columns;
+            for (const auto *item : selectedView->scene()->items())
+                columns.insert(item->pos().x());
+            QCOMPARE(columns.size(), 3);
+            QCOMPARE(bounds.left(), availableTop);
+            QCOMPARE(bounds.top(), availableTop);
+            QTRY_COMPARE(selectedView->viewport()->width() - bounds.right(), availableTop);
+            QVERIFY(columns.contains(bounds.left() + columnStep));
+            QVERIFY(columns.contains(bounds.left() + 2 * columnStep));
+        }
+    }
+}
+
+void WorkPageTest::tagSelectorPageWidthsAndSearchStyle()
+{
+    const QString previousStyle = qApp->styleSheet();
+    const auto restoreStyle = qScopeGuard([previousStyle] { qApp->setStyleSheet(previousStyle); });
+    darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
     const QList<darkeye::TagOption> tags{
         {1, QStringLiteral("标签甲"), QStringLiteral("类型一"), QStringLiteral("#bcf547")},
         {2, QStringLiteral("标签乙"), QStringLiteral("类型一"), QStringLiteral("#aaaaff")},
         {3, QStringLiteral("标签丙"), QStringLiteral("类型一"), QStringLiteral("#f7ec81")}};
     darkeye::WorkTagSelector selector(tags, &themes);
-    selector.setSelectedColumnWidth(116);
-    selector.setAvailablePanelExpanded(true);
     selector.resize(selector.width(), 500);
     selector.setSelectedIds({1, 2, 3});
     selector.show();
@@ -757,7 +857,6 @@ void WorkPageTest::tagSelectorMatchesPythonPageWidthsAndSearchStyle()
     QWidget referenceHost;
     referenceHost.resize(400, 100);
     QLineEdit reference(&referenceHost);
-    reference.setObjectName(QStringLiteral("PythonSearchReference"));
     reference.setPlaceholderText(QStringLiteral("搜索"));
     reference.setClearButtonEnabled(true);
     search->setFocusPolicy(Qt::NoFocus);
@@ -765,12 +864,6 @@ void WorkPageTest::tagSelectorMatchesPythonPageWidthsAndSearchStyle()
     for (auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark})
     {
         QVERIFY(themes.setTheme(theme));
-        const auto tokens = themes.currentTokens();
-        // The Python LineEdit rule, independent of the C++ DesignInput selector.
-        reference.setStyleSheet(QStringLiteral(
-            "QLineEdit#PythonSearchReference { background-color:%1; border:2px solid %2;"
-            "border-radius:8px; padding:4px 8px; font-size:14px; color:%3;"
-            "selection-background-color:%4; }").arg(tokens.background, tokens.border, tokens.text, tokens.primary));
         QTest::qWait(20);
         reference.resize(search->size());
         referenceHost.show();
@@ -784,9 +877,18 @@ void WorkPageTest::tagSelectorMatchesPythonPageWidthsAndSearchStyle()
         referenceHost.hide();
         auto *selected = selector.findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
         QSet<qreal> columns;
+        QRectF cardBounds;
         for (auto *item : selected->scene()->items())
-            if (item->isVisible()) columns.insert(item->pos().x());
+        {
+            if (item->isVisible())
+            {
+                columns.insert(item->pos().x());
+                cardBounds = cardBounds.united(item->sceneBoundingRect());
+            }
+        }
         QCOMPARE(columns.size(), 3);
+        QCOMPARE(cardBounds.left(), cardBounds.top());
+        QCOMPARE(selected->viewport()->width() - cardBounds.right(), cardBounds.top());
         const QString output = qEnvironmentVariable("DARKEYE_TAG_SELECTOR_PREVIEW_DIR");
         if (!output.isEmpty())
         {
@@ -1040,46 +1142,51 @@ void WorkPageTest::tagSelectionChangesRenderWarningFrame()
     QVERIFY(selected != nullptr);
     auto *save = editor.findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
     QVERIFY(save != nullptr);
-    const auto hasWarningBorder = [](QWidget *widget, const QColor &warning) {
+    const auto hasBorderColor = [](QWidget *widget, const QColor &color) {
         const QImage image = widget->grab().toImage();
         if (image.isNull()) return false;
         for (int y = 0; y < image.height(); ++y)
-            if (image.pixelColor(0, y) == warning || image.pixelColor(image.width() - 1, y) == warning)
+            if (image.pixelColor(0, y) == color || image.pixelColor(image.width() - 1, y) == color)
                 return true;
         for (int x = 0; x < image.width(); ++x)
-            if (image.pixelColor(x, 0) == warning || image.pixelColor(x, image.height() - 1) == warning)
+            if (image.pixelColor(x, 0) == color || image.pixelColor(x, image.height() - 1) == color)
                 return true;
         return false;
     };
-    const QSize originalSize = selector->size();
     for (auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark})
     {
         QVERIFY(themes.setTheme(theme));
         const QColor warning(themes.currentTokens().warning);
+        const QColor normal(themes.currentTokens().border);
         QVERIFY(editor.loadWork(*workId));
         QApplication::processEvents();
-        QVERIFY(!hasWarningBorder(selected, warning));
+        QVERIFY(!hasBorderColor(selected, warning));
+        QVERIFY(hasBorderColor(selected, normal));
+        const QSize originalSize = selector->size();
         selector->setSelectedIds({90001, 90002});
         QVERIFY(selector->property("addWorkModified").toBool());
         QVERIFY(selected->property("addWorkModified").toBool());
         QVERIFY(save->isEnabled());
         selected->setFocus();
         QApplication::processEvents();
-        QVERIFY(hasWarningBorder(selected, warning));
+        QVERIFY(hasBorderColor(selected, warning));
         QCOMPARE(selector->size(), originalSize);
         for (auto *view : selector->findChildren<QGraphicsView *>(QStringLiteral("WorkAvailableTagList")))
-            QVERIFY(!hasWarningBorder(view, warning));
+        {
+            QVERIFY(hasBorderColor(view, normal));
+            QVERIFY(!hasBorderColor(view, warning));
+        }
         // Reloading the theme must retain the warning on the selected view.
         QVERIFY(themes.setTheme(theme));
-        QVERIFY(hasWarningBorder(selected, warning));
+        QVERIFY(hasBorderColor(selected, warning));
         selector->setSelectedIds({90001});
-        QVERIFY(!hasWarningBorder(selected, warning));
+        QVERIFY(!hasBorderColor(selected, warning));
         QVERIFY(!save->isEnabled());
         selector->clearSelection();
-        QVERIFY(hasWarningBorder(selected, warning));
+        QVERIFY(hasBorderColor(selected, warning));
         QVERIFY(save->isEnabled());
         QVERIFY(editor.loadWork(*workId));
-        QVERIFY(!hasWarningBorder(selected, warning));
+        QVERIFY(!hasBorderColor(selected, warning));
         QVERIFY(!selected->property("addWorkModified").toBool());
         QVERIFY(!save->isEnabled());
     }
@@ -1349,6 +1456,84 @@ void WorkPageTest::addWorkBasicInfoKeepsRowsHorizontalWhenNarrow()
     auto *form = basicPane->findChild<QFormLayout *>();
     QVERIFY(form != nullptr);
     QCOMPARE(form->rowWrapPolicy(), QFormLayout::DontWrapRows);
+}
+
+void WorkPageTest::editorAutomaticallySavesLayoutWithoutSettings()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QByteArray previousDataDir = qgetenv("DARKEYE_DATA_DIR");
+    qputenv("DARKEYE_DATA_DIR", QFile::encodeName(directory.path()));
+    const auto restoreDataDir = qScopeGuard([previousDataDir] {
+        if (previousDataDir.isNull())
+            qunsetenv("DARKEYE_DATA_DIR");
+        else
+            qputenv("DARKEYE_DATA_DIR", previousDataDir);
+    });
+    const QString path = darkeye::settings::Paths().addWorkWorkspaceLayoutFile();
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY2(connection.open(QDir(directory.path()).filePath(QStringLiteral("public.db")), false, &error),
+             qPrintable(error));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error),
+             qPrintable(error));
+    darkeye::ThemeService themes(*qApp);
+    darkeye::CrawlerScheduler scheduler(QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/work")));
+    const QString settingsId = QStringLiteral("addwork_settings");
+    const QString navigationId = QStringLiteral("addwork_nav");
+    const QString basicId = QStringLiteral("addwork_basic");
+    QString destinationId;
+    {
+        darkeye::AddWorkTabPage3 editor(connection.database(), themes, scheduler);
+        editor.initialize();
+        auto *workspace = editor.findChild<darkeye::myads::WorkspaceWidget *>();
+        QVERIFY(workspace);
+        QVERIFY(!workspace->findPaneByContentId(settingsId));
+        auto *navigation = workspace->findPaneByContentId(navigationId);
+        auto *basic = workspace->findPaneByContentId(basicId);
+        QVERIFY(navigation);
+        QVERIFY(basic);
+        destinationId = basic->paneId();
+        QVERIFY(workspace->moveContent(navigation->paneId(), navigationId, destinationId,
+                                       darkeye::myads::DropZone::Center));
+        QTRY_VERIFY(QFileInfo::exists(path));
+    }
+
+    QFile layoutFile(path);
+    QVERIFY(layoutFile.open(QIODevice::ReadOnly));
+    auto saved = QJsonDocument::fromJson(layoutFile.readAll()).object();
+    layoutFile.close();
+    auto contents = saved.value(QStringLiteral("pane_contents")).toObject();
+    auto tabs = contents.value(destinationId).toArray();
+    tabs.prepend(QJsonObject{{QStringLiteral("addwork_slot"), QStringLiteral("settings")},
+                             {QStringLiteral("content_id"), settingsId}});
+    contents.insert(destinationId, tabs);
+    saved.insert(QStringLiteral("pane_contents"), contents);
+    QVERIFY(layoutFile.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    const QByteArray legacyLayout = QJsonDocument(saved).toJson();
+    QCOMPARE(layoutFile.write(legacyLayout), legacyLayout.size());
+    layoutFile.close();
+
+    {
+        darkeye::AddWorkTabPage3 editor(connection.database(), themes, scheduler);
+        editor.initialize();
+        auto *workspace = editor.findChild<darkeye::myads::WorkspaceWidget *>();
+        QVERIFY(workspace);
+        QVERIFY(!workspace->findPaneByContentId(settingsId));
+        auto *destination = workspace->pane(destinationId);
+        QVERIFY(destination);
+        QCOMPARE(workspace->findPaneByContentId(navigationId), destination);
+        QCOMPARE(destination->currentContentId(), navigationId);
+        destination->setCurrentContentId(basicId);
+    }
+
+    QVERIFY(layoutFile.open(QIODevice::ReadOnly));
+    const QByteArray updatedLayout = layoutFile.readAll();
+    QVERIFY(!updatedLayout.contains(settingsId.toUtf8()));
+    const auto metadata = QJsonDocument::fromJson(updatedLayout).object()
+        .value(QStringLiteral("pane_metadata")).toObject();
+    QCOMPARE(metadata.value(destinationId).toObject().value(QStringLiteral("current_content_id")).toString(),
+             basicId);
 }
 
 void WorkPageTest::importsCoverAndRollsBackOnDatabaseFailure()

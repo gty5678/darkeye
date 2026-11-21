@@ -61,7 +61,7 @@ void DvdInteractionController::animateHinges(DvdCaseInstance &instance,double no
             if(id==instance.back) {
                 transform.translation=instance.backHomeTranslation;
                 if(instance.backFolded) transform.rotation=backRotation;
-            } else if(instance.expanded && !instance.backFolded) {
+            } else if(instance.expanded) {
                 // As the back folds, these two hinges counter-rotate so
                 // the front stays facing the viewer on the left.
                 transform.rotation=openRotation;
@@ -106,7 +106,8 @@ void DvdInteractionController::returnToShelf(double now,float closeSpeed)
     if(m_state==State::Returning) return;
     const auto it=m_cases.find(m_selected);
     if(it==m_cases.end()) return;
-    const bool closing=it->second.expanded || m_animator.active(it->second.back) || m_animator.active(it->second.spine)
+    const bool closing=it->second.expanded || it->second.backFolded
+        || m_animator.active(it->second.back) || m_animator.active(it->second.spine)
         || m_animator.active(it->second.front);
     m_animator.advance(m_scene,now);
     m_animator.cancel(it->second.root);
@@ -133,17 +134,19 @@ void DvdInteractionController::toggleOpen(double now)
         close(instance,now,0.5);
     } else {
         instance.expanded=true;
+        instance.backFolded=false;
         if(instance.disc) m_scene.setVisible(instance.disc,true);
         animateHinges(instance,now,0.5);
     }
 }
 
-void DvdInteractionController::toggleBackFold(double now)
+void DvdInteractionController::closeToBack(double now)
 {
     const auto it=m_cases.find(m_selected);
     if(it==m_cases.end() || m_state!=State::Focused || !it->second.expanded || !it->second.back) return;
     auto &instance=it->second;
-    instance.backFolded=!instance.backFolded;
+    instance.expanded=false;
+    instance.backFolded=true;
     animateHinges(instance,now,0.5);
 }
 

@@ -4,7 +4,10 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "ui/components/PersonInfoPanel.h"
 
+#include <QCoreApplication>
+#include <QEvent>
 #include <QDesktopServices>
+#include <QLabel>
 #include <QUrlQuery>
 #include <QVBoxLayout>
 
@@ -24,6 +27,7 @@ void PersonDetailPage::lazyLoad()
 {
     // Keep the card centered in the same viewport when the alias list grows.
     auto *root = new QVBoxLayout(addPageScrollArea(this, nullptr, Qt::ScrollBarAlwaysOn));
+    auto *scroll = findChild<QScrollArea *>(QString{}, Qt::FindDirectChildrenOnly);
     root->setContentsMargins(16, 16, 16, 16);
 
     m_panel = new PersonInfoPanel(m_themes, std::move(m_imageDirectory), this);
@@ -32,7 +36,27 @@ void PersonDetailPage::lazyLoad()
     cardRow->addWidget(m_panel, 1);
     cardRow->addStretch();
     root->addLayout(cardRow);
+    m_emptyHint = new QLabel(QStringLiteral("打开一位女演员后，这里会显示她的详情。"), this);
+    m_emptyHint->setAlignment(Qt::AlignCenter);
+    m_emptyHint->setWordWrap(true);
+    root->addWidget(m_emptyHint);
     root->addStretch();
+    m_panel->hide();
+
+    connect(m_panel, &PersonInfoPanel::aliasesToggled, this, [this, root, scroll](bool expanded) {
+        if (expanded || !scroll->isVisible())
+            return;
+
+        // Finish shrinking the card and clamping the scroll offset before painting either change.
+        auto *viewport = scroll->viewport();
+        const bool updatesEnabled = viewport->updatesEnabled();
+        viewport->setUpdatesEnabled(false);
+        m_panel->layout()->activate();
+        root->activate();
+        QEvent request(QEvent::LayoutRequest);
+        QCoreApplication::sendEvent(scroll, &request);
+        viewport->setUpdatesEnabled(updatesEnabled);
+    });
 
     connect(m_panel, &PersonInfoPanel::favoriteChanged, this, &PersonDetailPage::toggleFavorite);
     connect(m_panel, &PersonInfoPanel::editRequested, this,
@@ -66,13 +90,23 @@ bool PersonDetailPage::showPerson(qint64 personId, bool reportError)
     m_details = details;
     const bool favorite = m_privateRepository.isFavoriteActress(personId, &errorMessage);
     m_panel->setDetails(*details, favorite);
+    m_emptyHint->hide();
+    m_panel->show();
     return true;
 }
 
 QWidget *PersonDetailPage::captureContent()
 {
     initialize();
-    return m_panel;
+    return m_details ? m_panel : nullptr;
+}
+
+void PersonDetailPage::clearPerson()
+{
+    if (!m_details) return;
+    m_details.reset();
+    m_panel->hide();
+    m_emptyHint->show();
 }
 
 qint64 PersonDetailPage::currentPersonId() const noexcept

@@ -192,7 +192,7 @@ private slots:
         QTRY_VERIFY(view.isFullyExpanded());
     }
 
-    void openCaseFoldsBackPanelOverFront()
+    void openCaseClosesToTheClickedSide()
     {
         GltfLoader loader;
         const auto loaded=loadDvdModel(loader,QStringLiteral(DARKEYE_DVD_SOURCE_DIR)+"/libs/dvd/dvd.glb");
@@ -237,30 +237,37 @@ private slots:
         };
         const auto right=panelPoint();
         QVERIFY(right);
-        QSignalSpy discClicked(&view,&DvdSceneWidget::discClicked);
+        const auto spine=view.selectedSpineCenter();
+        QVERIFY(spine);
+        QSignalSpy clicked(&view,&DvdSceneWidget::dvdClicked);
+        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,spine->toPoint());
+        QVERIFY(view.isFullyExpanded());
+        QCOMPARE(clicked.count(),0);
+
         QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,right->toPoint());
-        QVERIFY(view.isExpanded());
-        QVERIFY(!view.isFullyExpanded());
+        QVERIFY(!view.isExpanded());
+        QTRY_VERIFY(view.isNearlyClosed());
         QTRY_VERIFY(std::abs(scene->node(back)->transform.rotation.y())>0.99999f);
-        const auto left=panelPoint();
-        QVERIFY(left);
-        QVERIFY(left->x()<right->x());
-        const auto ray=canvas->camera().ray(*left,canvas->size());
+        const auto folded=panelPoint();
+        QVERIFY(folded);
+        QVERIFY(folded->x()<right->x());
+        const auto ray=canvas->camera().ray(*folded,canvas->size());
         QVERIFY(ray);
         const auto hit=raycast(*scene,*ray,RaycastMode::Triangles);
         QVERIFY(hit);
         QCOMPARE(scene->node(hit->node)->parent,back);
-        QCOMPARE(discClicked.count(),0);
-
-        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,left->toPoint());
-        QTRY_VERIFY(view.isFullyExpanded());
         disconnect(trackFront);
         QVERIFY(movingFrames>0);
         QVERIFY2(maxFrontMovement<1e-5f,qPrintable(QString::number(maxFrontMovement)));
+
+        QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,folded->toPoint());
+        QTRY_VERIFY(view.isFullyExpanded());
         const auto front=view.selectedFrontRect();
         QVERIFY(front);
         QTest::mouseClick(canvas,Qt::LeftButton,Qt::NoModifier,front->center().toPoint());
+        QVERIFY(!view.isExpanded());
         QTRY_VERIFY(view.isNearlyClosed());
+        QTRY_VERIFY(scene->node(back)->transform.rotation.isIdentity());
 
         view.toggleOpen();
         QTRY_VERIFY(view.isFullyExpanded());
@@ -271,7 +278,7 @@ private slots:
         QVERIFY(scene->node(back)->transform.rotation.isIdentity());
     }
 
-    void tiltedDiscClicksKeepCaseOpen()
+    void tiltedDiscClosesToBackWithArrowCursor()
     {
         GltfLoader loader;
         const auto loaded=loadDvdModel(loader,QStringLiteral(DARKEYE_DVD_SOURCE_DIR)+"/libs/dvd/dvd.glb");
@@ -302,13 +309,13 @@ private slots:
             if(parent && parent->name=="disc") { disc=parent->id; break; }
         }
         QVERIFY(disc);
-        QSignalSpy clicked(&view,&DvdSceneWidget::discClicked);
         QSignalSpy boxClicked(&view,&DvdSceneWidget::dvdClicked);
         int boundsMismatch=0;
         for(const bool hasVideo:{false,true}) {
             items[0].hasLocalVideo=hasVideo;
             QVERIFY(view.updateItem(items[0]));
             QTest::qWait(450);
+            std::optional<QPointF> clickPoint;
             for(int i=0;i<8;++i) {
                 const float angle=float(i)*3.14159265f/4;
                 const auto world=scene->worldMatrix(disc).map({0,0.04f*std::cos(angle),0.04f*std::sin(angle)});
@@ -324,14 +331,16 @@ private slots:
                 QMouseEvent move(QEvent::MouseMove,*point,view.renderWidget()->mapToGlobal(point->toPoint()),
                     Qt::NoButton,Qt::NoButton,Qt::NoModifier);
                 QApplication::sendEvent(view.renderWidget(),&move);
-                QCOMPARE(view.renderWidget()->cursor().shape(),Qt::PointingHandCursor);
-                const auto before=clicked.count();
-                QTest::mouseClick(view.renderWidget(),Qt::LeftButton,Qt::NoModifier,point->toPoint());
-                QCOMPARE(clicked.count(),before+1);
-                QCOMPARE(clicked.last().first().toString(),items.first().stableId);
-                QVERIFY(view.isFullyExpanded());
-                QCOMPARE(boxClicked.count(),0);
+                QCOMPARE(view.renderWidget()->cursor().shape(),Qt::ArrowCursor);
+                clickPoint=point;
             }
+            QVERIFY(clickPoint);
+            QTest::mouseClick(view.renderWidget(),Qt::LeftButton,Qt::NoModifier,clickPoint->toPoint());
+            QVERIFY(!view.isExpanded());
+            QTRY_VERIFY(view.isNearlyClosed());
+            QCOMPARE(boxClicked.count(),hasVideo?2:1);
+            view.toggleOpen();
+            QTRY_VERIFY(view.isFullyExpanded());
         }
         QVERIFY(boundsMismatch>0); // reproduce the old shell bounding-box interception
     }

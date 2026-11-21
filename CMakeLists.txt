@@ -6,6 +6,10 @@ if(NOT WIN32 AND NOT APPLE)
     message(FATAL_ERROR "Darkeye supports Windows x64 and macOS ARM64 only.")
 endif()
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(DARKEYE_BUILD_COVER_MAKER_DEMO "Build the standalone cover maker demo" ON)

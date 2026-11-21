@@ -270,9 +270,11 @@ void TokenVerticalTabBar::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     const QColor page(tokens.pageBackground);
+    const QColor primary(tokens.primary);
+    const QColor activeText = qGray(primary.rgb()) >= 128 ? Qt::black : Qt::white;
     const QColor rail = page.lightness() > 128 ? page.darker(103) : page.lighter(115);
     painter.fillRect(rect(), rail);
-    // The active tab opens into the page, with a cut at the left edge and
+    // The active tab has a cut at the left edge and
     // inverse shoulders where it meets the right edge of the rail.
     QRectF active = tabRect(currentIndex());
     active.setRight(width());
@@ -290,7 +292,7 @@ void TokenVerticalTabBar::paintEvent(QPaintEvent *)
         path.lineTo(active.left() + cut, active.bottom());
         path.lineTo(active.left(), active.bottom() - cut);
         path.closeSubpath();
-        painter.fillPath(path, QColor(tokens.pageBackground));
+        painter.fillPath(path, primary);
     }
     for (int index = 0; index < count(); ++index) {
         const QString text = tabText(index);
@@ -303,7 +305,9 @@ void TokenVerticalTabBar::paintEvent(QPaintEvent *)
             painter.drawLine(QPointF(bounds.center().x() - 4, bounds.top()),
                              QPointF(bounds.center().x() + 4, bounds.top()));
         }
-        painter.setPen(QColor(!isTabEnabled(index) ? tokens.textDisabled : tokens.text));
+        const QColor labelColor = selected ? activeText
+                                           : QColor(isTabEnabled(index) ? tokens.text : tokens.textDisabled);
+        painter.setPen(labelColor);
         QFont labelFont = font();
         labelFont.setBold(selected);
         painter.setFont(labelFont);

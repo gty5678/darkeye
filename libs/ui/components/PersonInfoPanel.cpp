@@ -12,6 +12,7 @@
 #include "ui/components/ClickableLabel.h"
 #include "utils/GeneralUtils.h"
 
+#include <QFontDatabase>
 #include <QGridLayout>
 #include <QHash>
 #include <QHeaderView>
@@ -50,6 +51,19 @@ QString valueOrDash(const QString &value)
 QString valueOrDash(const std::optional<int> &value)
 {
     return value.has_value() ? QString::number(*value) : QStringLiteral("----");
+}
+
+QString fixedDateFontFamily()
+{
+    const QString systemFamily = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+    if (QFontDatabase::isFixedPitch(systemFamily))
+        return systemFamily;
+
+    const auto families = QFontDatabase::families(QFontDatabase::Latin);
+    for (const QString &family : families)
+        if (QFontDatabase::isFixedPitch(family))
+            return family;
+    return systemFamily;
 }
 
 QPair<double, double> linearFit(const QList<QPair<double, double>> &pairs)
@@ -143,6 +157,10 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     m_actressAliases->setObjectName(QStringLiteral("PersonAliasSection"));
     m_actressAliases->contentLayout()->setSpacing(10);
     root->addWidget(m_actressAliases);
+    connect(m_actressAliases, &TokenCollapsibleSection::toggled, this, [this](bool expanded) {
+        m_actressAliases->layout()->activate();
+        emit aliasesToggled(expanded);
+    });
 
     m_notes = new DesignLabel({}, this);
     m_notes->setObjectName(QStringLiteral("PersonNotes"));
@@ -420,22 +438,28 @@ void PersonInfoPanel::rebuildFacts(const PersonDetails &details)
 {
     clearLayout(m_facts->layout());
     auto *grid = static_cast<QGridLayout *>(m_facts->layout());
+    const bool isActress = details.kind == PersonKind::Actress;
+    const QString dateFontFamily = isActress ? fixedDateFontFamily() : QString{};
     int row = 0;
-    const auto addFact = [this, grid, &row](const QString &label, const QString &value)
+    const auto addFact = [this, grid, &row, &dateFontFamily](const QString &label,
+                                                            const QString &value,
+                                                            bool fixedWidth = false)
     {
         auto *field = new DesignLabel(label, QStringLiteral("muted"), m_facts);
         field->setAlignment(Qt::AlignRight | Qt::AlignTop);
         auto *content = new DesignLabel(valueOrDash(value), m_facts);
+        if (fixedWidth)
+            content->setStyleSheet(QStringLiteral("font-family: \"%1\";").arg(dateFontFamily));
         content->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         content->setWordWrap(true);
         grid->addWidget(field, row, 0);
         grid->addWidget(content, row, 1);
         ++row;
     };
-    addFact(QStringLiteral("生日"), utils::convertDate(details.birthday));
-    if (details.kind == PersonKind::Actress)
+    addFact(QStringLiteral("生日"), utils::convertDate(details.birthday), isActress);
+    if (isActress)
     {
-        addFact(QStringLiteral("出道日期"), utils::convertDate(details.debutDate));
+        addFact(QStringLiteral("出道日期"), utils::convertDate(details.debutDate), true);
     }
     else
     {

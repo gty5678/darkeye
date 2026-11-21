@@ -7,6 +7,8 @@
 
 #include <optional>
 
+class QLabel;
+
 namespace darkeye
 {
 
@@ -22,6 +24,7 @@ public:
                               QString imageDirectory = {}, QWidget *parent = nullptr);
 
     bool showPerson(qint64 personId, bool reportError = true);
+    void clearPerson();
     [[nodiscard]] QWidget *captureContent();
     [[nodiscard]] qint64 currentPersonId() const noexcept;
     [[nodiscard]] QString currentPersonName() const;
@@ -41,6 +44,7 @@ private:
     QString m_imageDirectory;
     std::optional<PersonDetails> m_details;
     PersonInfoPanel *m_panel = nullptr;
+    QLabel *m_emptyHint = nullptr;
 };
 
 } // namespace darkeye

@@ -34,7 +34,28 @@ namespace {
 
 constexpr int TabBevel = 7;
 constexpr int PreferredTabWidth = 168;
-constexpr int MinimumTabWidth = 76;
+constexpr int MinimumTabWidth = 120;
+
+void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color)
+{
+    const qreal left = bounds.left();
+    const qreal right = bounds.right();
+    const qreal top = bounds.top();
+    const qreal bottom = bounds.bottom();
+    const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
+    const QPolygonF outline{
+        {left, bottom}, {left + bevel, bottom - bevel},
+        {left + bevel, top + bevel}, {left + 2 * bevel, top},
+        {right - 2 * bevel, top}, {right - bevel, top + bevel},
+        {right - bevel, bottom - bevel}, {right, bottom},
+    };
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(color);
+    painter->drawPolygon(outline);
+    painter->restore();
+}
 
 QIcon closeIcon(const QColor &color)
 {
@@ -55,7 +76,14 @@ public:
 
     void setColors(const DockTheme &theme)
     {
+        m_strip = theme.tabBarBackground;
         m_selected = theme.tabSelected;
+    }
+
+    void drawStrip(QPainter *painter, const QRect &area, const QRect &tabs) const
+    {
+        painter->fillRect(area, m_selected);
+        if (!tabs.isEmpty()) drawBeveledTab(painter, QRectF(tabs), m_strip);
     }
 
     void setDragPosition(QStyleOptionTab::TabPosition position)
@@ -105,8 +133,6 @@ public:
         if (!tab->state.testFlag(State_Selected)) return;
 
         const QRectF bounds(tab->rect);
-        const qreal top = bounds.top();
-        const qreal bottom = bounds.bottom();
         const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
         const bool rtl = tab->direction == Qt::RightToLeft;
         const auto position = tab->position == QStyleOptionTab::Moving ? m_dragPosition : tab->position;
@@ -114,23 +140,13 @@ public:
         const bool first = position == QStyleOptionTab::Beginning;
         const bool last = position == QStyleOptionTab::End;
         // Internal shoulders meet at the tab boundary, with the feet overlapping below.
-        const qreal left = bounds.left() - (single || (rtl ? last : first) ? 0 : bevel);
-        const qreal right = bounds.right() + (single || (rtl ? first : last) ? 0 : bevel);
-        const QPolygonF outline{
-            {left, bottom}, {left + bevel, bottom - bevel},
-            {left + bevel, top + bevel}, {left + 2 * bevel, top},
-            {right - 2 * bevel, top}, {right - bevel, top + bevel},
-            {right - bevel, bottom - bevel}, {right, bottom},
-        };
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(m_selected);
-        painter->drawPolygon(outline);
-        painter->restore();
+        const qreal leftOverlap = single || (rtl ? last : first) ? 0 : bevel;
+        const qreal rightOverlap = single || (rtl ? first : last) ? 0 : bevel;
+        drawBeveledTab(painter, bounds.adjusted(-leftOverlap, 0, rightOverlap, 0), m_selected);
     }
 
 private:
+    QColor m_strip;
     QColor m_selected;
     QStyleOptionTab::TabPosition m_dragPosition = QStyleOptionTab::OnlyOneTab;
 };
@@ -146,7 +162,8 @@ public:
         QPoint end;
     };
 
-    explicit TabReorderAnimation(QWidget *parent) : QWidget(parent)
+    TabReorderAnimation(const DockTabStyle &tabStyle, QWidget *parent)
+        : QWidget(parent), m_tabStyle(tabStyle)
     {
         setObjectName(QStringLiteral("MyAdsTabReorderAnimation"));
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -157,12 +174,12 @@ public:
         hide();
     }
 
-    void start(QList<Tab> tabs, QPixmap draggedTab, const QColor &background)
+    void start(QList<Tab> tabs, QPixmap draggedTab, const QRect &stripBounds)
     {
         m_animation.stop();
         m_tabs = std::move(tabs);
         m_draggedTab = std::move(draggedTab);
-        m_background = background;
+        m_stripBounds = stripBounds;
         setGeometry(parentWidget()->rect());
         raise();
         show();
@@ -194,7 +211,7 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.fillRect(rect(), m_background);
+        m_tabStyle.drawStrip(&painter, rect(), m_stripBounds);
         for (const auto &tab : m_tabs)
             painter.drawPixmap(position(tab), tab.pixmap);
         painter.drawPixmap(m_draggedPosition, m_draggedTab);
@@ -207,11 +224,12 @@ private:
         return tab.start + (tab.end - tab.start) * m_slideCurve.valueForProgress(progress);
     }
 
+    const DockTabStyle &m_tabStyle;
     QVariantAnimation m_animation;
     QList<Tab> m_tabs;
     QPixmap m_draggedTab;
     QPoint m_draggedPosition;
-    QColor m_background;
+    QRect m_stripBounds;
     const QEasingCurve m_slideCurve{QEasingCurve::OutCubic};
 };
 
@@ -220,7 +238,7 @@ class DraggableTabBar final : public QTabBar
 public:
     DraggableTabBar(PaneWidget *pane, QScrollArea *scrollArea, const DockTheme &theme)
         : QTabBar(scrollArea), m_pane(pane), m_scrollArea(scrollArea), m_tabStyle(new DockTabStyle),
-          m_reorderAnimation(new TabReorderAnimation(this)), m_background(theme.tabBarBackground)
+          m_reorderAnimation(new TabReorderAnimation(*m_tabStyle, this))
     {
         m_tabStyle->setParent(this);
         m_tabStyle->setColors(theme);
@@ -262,7 +280,6 @@ public:
     {
         m_reorderAnimation->finish();
         m_tabStyle->setColors(theme);
-        m_background = theme.tabBarBackground;
         update();
     }
 
@@ -275,6 +292,20 @@ public:
     }
 
 protected:
+    void initStyleOption(QStyleOptionTab *option, int tabIndex) const override
+    {
+        QTabBar::initStyleOption(option, tabIndex);
+        option->state &= ~QStyle::State_HasFocus;
+    }
+
+    void paintEvent(QPaintEvent *event) override
+    {
+        QPainter painter(this);
+        m_tabStyle->drawStrip(&painter, rect(), stripBounds());
+        painter.end();
+        QTabBar::paintEvent(event);
+    }
+
     bool event(QEvent *event) override
     {
         const bool handled = QTabBar::event(event);
@@ -432,6 +463,15 @@ protected:
     }
 
 private:
+    QRect stripBounds() const
+    {
+        QRect bounds;
+        for (int i = 0; i < count(); ++i) {
+            if (isTabVisible(i)) bounds |= tabRect(i);
+        }
+        return bounds;
+    }
+
     void updateTabDrag(int from, int to, int left)
     {
         const int overlap = style()->pixelMetric(QStyle::PM_TabBarTabOverlap, nullptr, this);
@@ -461,7 +501,7 @@ private:
             tabs.append({id, tabPixmap(i, overlap, false), start, end});
         }
         m_reorderAnimation->moveDraggedTab(draggedPosition);
-        m_reorderAnimation->start(std::move(tabs), tabPixmap(to, overlap, true), m_background);
+        m_reorderAnimation->start(std::move(tabs), tabPixmap(to, overlap, true), stripBounds());
     }
 
     QPixmap tabPixmap(int index, int overlap, bool moving)
@@ -489,7 +529,6 @@ private:
     QScrollArea *m_scrollArea;
     DockTabStyle *m_tabStyle;
     TabReorderAnimation *m_reorderAnimation;
-    QColor m_background;
     std::optional<QPoint> m_hoverPosition;
     QPoint m_pressPosition;
     QPoint m_pressOffset;
@@ -828,14 +867,6 @@ void PaneWidget::switchContent(int index)
 
 QString PaneWidget::contentTitle(const QString &id) const { return m_titles.value(id); }
 
-void PaneWidget::setContentTitle(const QString &id, const QString &title)
-{
-    const int index = indexOf(id);
-    if (index < 0) return;
-    m_titles.insert(id, title);
-    m_tabBar->setTabText(index, m_iconOnly ? QString() : title);
-    m_tabBar->setTabToolTip(index, title);
-}
 QWidget *PaneWidget::contentWidget(const QString &id) const
 {
     const int index = indexOf(id);

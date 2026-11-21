@@ -2,12 +2,15 @@
 
 #include <QObject>
 #include <QMap>
+#include <QPointer>
 #include <QString>
 #include <QVector>
 
 class QApplication;
 
 namespace darkeye {
+
+class SelectionIndicatorStyle;
 
 enum class ThemeId
 {
@@ -80,6 +83,7 @@ signals:
 
 private:
     QApplication &m_application;
+    QPointer<SelectionIndicatorStyle> m_indicatorStyle;
     ThemeId m_current = ThemeId::Light;
     QString m_customPrimary;
 };

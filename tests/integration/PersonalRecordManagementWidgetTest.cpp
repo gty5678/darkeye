@@ -65,7 +65,7 @@ void PersonalRecordManagementWidgetTest::editsSearchesAndSavesPrivateRecords()
     QVERIFY(model->setData(model->index(row, model->record().indexOf(QStringLiteral("rating"))), 4));
     QPushButton *saveButton = nullptr;
     for (QPushButton *button : widget.findChildren<QPushButton *>())
-        if (button->text() == QStringLiteral("保存修改"))
+        if (button->accessibleName() == QStringLiteral("保存修改"))
             saveButton = button;
     QVERIFY(saveButton != nullptr);
     saveButton->click();
@@ -75,6 +75,13 @@ void PersonalRecordManagementWidgetTest::editsSearchesAndSavesPrivateRecords()
     QVERIFY(query.next());
     QCOMPARE(query.value(0).toString(), QStringLiteral("2026-10-01 12:00"));
     QCOMPARE(query.value(1).toInt(), 4);
+
+    const QString primary = QStringLiteral("#a13a59");
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light, primary));
+    table->selectRow(0);
+    table->ensurePolished();
+    QCOMPARE(table->palette().color(QPalette::Active, QPalette::Highlight), QColor(primary));
+    QCOMPARE(table->palette().color(QPalette::Inactive, QPalette::Highlight), QColor(primary));
 
     search->setText(QStringLiteral("不存在"));
     QCOMPARE(table->model()->rowCount(), 1);

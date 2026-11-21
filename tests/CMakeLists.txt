@@ -67,6 +67,9 @@ set_tests_properties(darkeye_ui_smoke_tests PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
 target_link_libraries(darkeye_ui_smoke_tests PRIVATE darkeye::desktop_ui)
+if(APPLE)
+    target_sources(darkeye_ui_smoke_tests PRIVATE integration/MacShortcutEvents.mm)
+endif()
 darkeye_add_qt_test(darkeye_theme_tests unit/ThemeServiceTest.cpp)
 darkeye_add_qt_test(darkeye_layout_tests unit/LayoutTest.cpp)
 darkeye_add_qt_test(darkeye_media_component_tests unit/MediaComponentTest.cpp)

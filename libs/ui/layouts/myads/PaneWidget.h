@@ -58,7 +58,6 @@ public:
     bool setCurrentContentId(const QString &contentId);
     void focusTabBar();
     [[nodiscard]] QString contentTitle(const QString &contentId) const;
-    void setContentTitle(const QString &contentId, const QString &title);
     [[nodiscard]] QWidget *contentWidget(const QString &contentId) const;
     [[nodiscard]] QIcon contentIcon(const QString &contentId) const;
     [[nodiscard]] bool isContentCloseable(const QString &contentId) const;

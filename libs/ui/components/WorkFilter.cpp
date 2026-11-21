@@ -86,13 +86,6 @@ bool WorkFilter::flush()
     return true;
 }
 
-void WorkFilter::resizeEvent(QResizeEvent *event)
-{
-    LazyWidget::resizeEvent(event);
-    if (m_tagSelector)
-        m_tagSelector->setAvailablePanelWidth(qBound(235, width() - 122, 700));
-}
-
 void WorkFilter::updateCount(int total)
 {
     m_countLabel->setText(QStringLiteral("过滤总数:%1").arg(total));
@@ -108,6 +101,12 @@ void WorkFilter::clearFilters()
 {
     clearInputs();
     applyFilters();
+}
+
+void WorkFilter::resetToPublicLibrary()
+{
+    m_scopeSelector->setCurrentIndex(0);
+    clearFilters();
 }
 
 void WorkFilter::refreshOptions(bool tagsChanged, bool referencesChanged)
@@ -192,6 +191,7 @@ void WorkFilter::buildUi()
     auto *filters = new QFormLayout(filterContent);
     filters->setContentsMargins(0, 0, 0, 0);
     filters->setSpacing(6);
+    filters->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     filters->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     const auto addFilter = [filters, filterContent](const QString &label, QWidget *input)
     {
@@ -246,22 +246,12 @@ void WorkFilter::buildUi()
         [loadSuggestions]
         { return loadSuggestions(&WorkRepository::actorSuggestions); }, filterContent);
     m_actorFilter->setProperty("workControlId", QStringLiteral("WorkActorFilter"));
-    addFilter(QStringLiteral("番号"), m_serialFilter);
-    addFilter(QStringLiteral("女优"), m_actressFilter);
-    addFilter(QStringLiteral("标题包含"), m_titleFilter);
-    addFilter(QStringLiteral("故事包含"), m_storyFilter);
-    addFilter(QStringLiteral("笔记包含"), m_searchInput);
-    addFilter(QStringLiteral("导演"), m_directorFilter);
-    addFilter(QStringLiteral("男优"), m_actorFilter);
     m_makerFilter = new MakerSelector({}, filterContent);
     m_makerFilter->setProperty("workControlId", QStringLiteral("WorkMakerFilter"));
     m_labelFilter = new MakerSelector({}, filterContent);
     m_labelFilter->setProperty("workControlId", QStringLiteral("WorkLabelFilter"));
     m_seriesFilter = new MakerSelector({}, filterContent);
     m_seriesFilter->setProperty("workControlId", QStringLiteral("WorkSeriesFilter"));
-    addFilter(QStringLiteral("片商"), m_makerFilter);
-    addFilter(QStringLiteral("厂牌"), m_labelFilter);
-    addFilter(QStringLiteral("系列"), m_seriesFilter);
 
     auto *refreshButton = new RotateButton(QStringLiteral("refresh_cw"), &m_themeService,
                                            filterBar);
@@ -279,6 +269,7 @@ void WorkFilter::buildUi()
     m_countLabel = new DesignLabel({}, filterBar);
     m_countLabel->setProperty("workControlId", QStringLiteral("WorkCountLabel"));
     m_countLabel->setFixedWidth(100);
+    m_countLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
     m_sortSelector = new DesignComboBox(filterBar);
     m_sortSelector->setProperty("compactFilter", true);
@@ -320,11 +311,21 @@ void WorkFilter::buildUi()
     m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏、观看记录或本地视频范围"));
     addFilter(QStringLiteral("范围"), m_scopeSelector);
     addFilter(QStringLiteral("排序"), m_sortSelector);
+    addFilter(QStringLiteral("番号"), m_serialFilter);
+    addFilter(QStringLiteral("女优"), m_actressFilter);
+    addFilter(QStringLiteral("标题包含"), m_titleFilter);
+    addFilter(QStringLiteral("故事包含"), m_storyFilter);
+    addFilter(QStringLiteral("笔记包含"), m_searchInput);
+    addFilter(QStringLiteral("导演"), m_directorFilter);
+    addFilter(QStringLiteral("男优"), m_actorFilter);
+    addFilter(QStringLiteral("片商"), m_makerFilter);
+    addFilter(QStringLiteral("厂牌"), m_labelFilter);
+    addFilter(QStringLiteral("系列"), m_seriesFilter);
     auto *toolbar = new QHBoxLayout;
-    toolbar->addWidget(refreshButton);
-    toolbar->addWidget(clearButton);
-    toolbar->addWidget(m_countLabel);
     toolbar->addStretch();
+    toolbar->addWidget(m_countLabel);
+    toolbar->addWidget(clearButton);
+    toolbar->addWidget(refreshButton);
     filterBarLayout->addLayout(toolbar);
     auto *filterScroll = new QScrollArea(this);
     filterScroll->setObjectName(QStringLiteral("WorkFilterScrollArea"));
@@ -344,12 +345,12 @@ void WorkFilter::buildUi()
     auto *tagScroll = new QScrollArea(tagPanel);
     tagScroll->setWidgetResizable(true);
     tagScroll->setFrameShape(QFrame::NoFrame);
+    tagScroll->setStyleSheet(QStringLiteral("QScrollArea { border: none; outline: none; }"));
     tagScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tagSelector = new WorkTagSelector(tagOptions, &m_themeService);
     tagScroll->setWidget(m_tagSelector);
-    m_tagSelector->setSelectedColumnWidth(84);
-    m_tagSelector->setAvailablePanelWidth(qBound(235, width() - 122, 700));
-    m_tagSelector->setAvailablePanelExpanded(true);
+    m_tagSelector->setSelectedColumnLayout(WorkTagSelector::SelectedColumnLayout::Compact);
+    m_tagSelector->useResponsiveLayout();
     applyInitialDefaultTagFilter(tagOptions);
     m_tagSelector->setLoader(
         [this]

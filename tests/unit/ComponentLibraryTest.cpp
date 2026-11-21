@@ -760,6 +760,22 @@ void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
     tabs.addTab(QStringLiteral("人物AB"));
     QCOMPARE(tabs.objectName(), QStringLiteral("VerticalTabBar"));
     QVERIFY(tabs.tabSizeHint(1).height() > 40);
+    tabs.resize(tabs.sizeHint());
+    const auto tabBackground = [&tabs](int index) {
+        const QImage image = tabs.grab().toImage();
+        const QPoint point(tabs.width() - 2, tabs.tabRect(index).center().y());
+        return image.pixelColor(point * image.devicePixelRatio());
+    };
+    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
+        QVERIFY(themes.setTheme(theme));
+        const QColor primary(themes.currentTokens().primary);
+        tabs.setCurrentIndex(0);
+        QCOMPARE(tabBackground(0), primary);
+        QVERIFY(tabBackground(1) != primary);
+        tabs.setCurrentIndex(1);
+        QCOMPARE(tabBackground(1), primary);
+        QVERIFY(tabBackground(0) != primary);
+    }
 }
 
 void ComponentLibraryTest::softShadowCacheSeparatesContours()

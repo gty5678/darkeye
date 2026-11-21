@@ -105,9 +105,9 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
 
     auto *display = new TokenCollapsibleSection(QStringLiteral("显示"), &themeService, content);
     auto *displayForm = new QFormLayout;
-    auto *showArrow = new ToggleSwitch(48, 24, &themeService, content);
+    auto *showArrow = new ToggleSwitch(40, 24, &themeService, content);
     showArrow->setChecked(true);
-    auto *showImage = new ToggleSwitch(48, 24, &themeService, content);
+    auto *showImage = new ToggleSwitch(40, 24, &themeService, content);
     showImage->setChecked(true);
     auto *arrowSize = slider(3, 30, 10, content);
     auto *textFade = slider(10, 1000, 100, content);

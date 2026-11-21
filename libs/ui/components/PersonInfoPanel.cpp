@@ -1,5 +1,6 @@
 #include "ui/components/PersonInfoPanel.h"
 
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/Charts.h"
@@ -114,8 +115,8 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     setMaximumWidth(380);
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(16, 20, 16, 16);
-    root->setSpacing(16);
+    root->setContentsMargins(6, 6, 6, 6);
+    root->setSpacing(12);
 
     auto *portraitRow = new QGridLayout;
     portraitRow->setContentsMargins(0, 0, 0, 0);
@@ -259,11 +260,15 @@ bool PersonInfoPanel::eventFilter(QObject *watched, QEvent *event)
 void PersonInfoPanel::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
+    constexpr qreal borderWidth = 1;
+    constexpr qreal corner = 4;
+    const QRectF bounds(rect());
+
     QPainter painter(this);
-    painter.setPen(QColor(m_themes.currentTokens().border));
-    QRect border = rect();
-    border.adjust(0, 0, -1, -1);
-    painter.drawRect(border);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(m_themes.currentTokens().border), borderWidth));
+    const qreal inset = borderWidth / 2;
+    painter.drawPath(chamferPath(bounds.adjusted(inset, inset, -inset, -inset), corner));
 }
 
 qint64 PersonInfoPanel::personId() const noexcept

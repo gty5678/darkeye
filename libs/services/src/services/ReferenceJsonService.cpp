@@ -20,6 +20,10 @@
 namespace
 {
 
+using darkeye::reference_schema::extraColumn;
+using darkeye::reference_schema::idColumn;
+using darkeye::reference_schema::tableName;
+
 struct ImportEntry final
 {
     QJsonObject object;
@@ -34,53 +38,6 @@ struct OldEntry final
     qint64 id = 0;
     QString chineseName;
 };
-
-QString tableName(darkeye::ReferenceKind kind)
-{
-    switch (kind)
-    {
-    case darkeye::ReferenceKind::Maker:
-        return QStringLiteral("maker");
-    case darkeye::ReferenceKind::Label:
-        return QStringLiteral("label");
-    case darkeye::ReferenceKind::Series:
-        return QStringLiteral("series");
-    }
-    return {};
-}
-
-QString idColumn(darkeye::ReferenceKind kind)
-{
-    return tableName(kind) + QStringLiteral("_id");
-}
-
-QString extraColumn(darkeye::ReferenceKind kind)
-{
-    switch (kind)
-    {
-    case darkeye::ReferenceKind::Maker:
-        return QStringLiteral("logo_url");
-    case darkeye::ReferenceKind::Series:
-        return QStringLiteral("related_series");
-    case darkeye::ReferenceKind::Label:
-        return {};
-    }
-    return {};
-}
-
-QString extraJsonKey(darkeye::ReferenceKind kind)
-{
-    switch (kind)
-    {
-    case darkeye::ReferenceKind::Maker:
-        return QStringLiteral("logo_url");
-    case darkeye::ReferenceKind::Series:
-        return QStringLiteral("related_series");
-    case darkeye::ReferenceKind::Label:
-        return {};
-    }
-    return {};
-}
 
 QJsonValue jsonValue(const QVariant &value)
 {
@@ -153,7 +110,8 @@ bool bindAndExecuteReference(QSqlDatabase database, darkeye::ReferenceKind kind,
     const QVariant japanese = stringField(entry.object, QStringLiteral("jp_name"), &valid);
     const QVariant aliases = stringField(entry.object, QStringLiteral("aliases"), &valid);
     const QVariant detail = stringField(entry.object, QStringLiteral("detail"), &valid);
-    const QString extraKey = extraJsonKey(kind);
+    // The JSON format uses the database column name for the extra field.
+    const QString extraKey = extraColumn(kind);
     const QVariant extra =
         extraKey.isEmpty() ? QVariant() : stringField(entry.object, extraKey, &valid);
     if (!valid)
@@ -164,7 +122,7 @@ bool bindAndExecuteReference(QSqlDatabase database, darkeye::ReferenceKind kind,
     QList<QVariant> values{chinese, japanese, aliases, detail};
     if (!extraKey.isEmpty())
     {
-        columns.append(extraColumn(kind));
+        columns.append(extraKey);
         values.append(extra);
     }
     QSqlQuery query(database);
@@ -224,9 +182,8 @@ bool ReferenceJsonService::exportToFile(ReferenceKind kind, const QString &path,
         object.insert(QStringLiteral("jp_name"), jsonValue(query.value(2)));
         object.insert(QStringLiteral("aliases"), jsonValue(query.value(3)));
         object.insert(QStringLiteral("detail"), jsonValue(query.value(4)));
-        const QString extraKey = extraJsonKey(kind);
-        if (!extraKey.isEmpty())
-            object.insert(extraKey, jsonValue(query.value(5)));
+        if (!extra.isEmpty())
+            object.insert(extra, jsonValue(query.value(5)));
         if (kind == ReferenceKind::Maker)
         {
             QSqlQuery prefixQuery(m_database);
@@ -279,6 +236,7 @@ bool ReferenceJsonService::importFromFile(ReferenceKind kind, const QString &pat
     if (!document.isArray())
         return setError(errorMessage, QStringLiteral("JSON 顶层结构必须是列表"));
 
+    const QString extraKey = extraColumn(kind);
     QList<ImportEntry> entries;
     for (const QJsonValue &value : document.array())
     {
@@ -291,7 +249,6 @@ bool ReferenceJsonService::importFromFile(ReferenceKind kind, const QString &pat
         const QVariant japanese = stringField(entry.object, QStringLiteral("jp_name"), &valid);
         const QVariant aliases = stringField(entry.object, QStringLiteral("aliases"), &valid);
         stringField(entry.object, QStringLiteral("detail"), &valid);
-        const QString extraKey = extraJsonKey(kind);
         if (!extraKey.isEmpty())
             stringField(entry.object, extraKey, &valid);
         if (!valid)

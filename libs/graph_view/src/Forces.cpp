@@ -250,58 +250,6 @@ void ManyBodyForce::applyBlock(float alpha, int block)
     }
 }
 
-// Parallel kernel (currently not selected by default policy)
-void ManyBodyForce::applyParallel(float alpha)
-{
-    const int    N        = m_state->nNodes;
-    const float* pos      = m_state->pos.data();
-    const float* mass     = m_state->mass.data();
-    float*       vel      = m_state->vel.data();
-    const float  strength = m_strength;
-    const float  cutoff2  = m_cutoff2;
-
-    // Each thread accumulates its own force for node i, then writes.
-    // This avoids race conditions on vel[j] — only vel[i] is written per i.
-
-#ifdef _MSC_VER
-#pragma warning(suppress : 6993) // MSVC code analysis does not model OpenMP execution.
-#endif
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < N; ++i) {
-        float xi = pos[2 * i];
-        float yi = pos[2 * i + 1];
-        float mi = mass[i];
-
-        float fx_sum = 0.0f;
-        float fy_sum = 0.0f;
-
-        for (int j = 0; j < N; ++j) {
-            if (i == j) continue;
-
-            float dx = xi - pos[2 * j];
-            float dy = yi - pos[2 * j + 1];
-            float rawDist2 = dx * dx + dy * dy;
-            float dist2 = rawDist2 + 1e-6f;
-            if (dist2 >= cutoff2) continue;
-
-            float s = strength * mi * mass[j] / std::max(dist2, 1.0f) * alpha;
-            float ux, uy;
-            if (rawDist2 < kOverlapDist2) {
-                overlapFallbackDirection(i, j, ux, uy);
-            } else {
-                float invd = 1.0f / std::sqrt(dist2);
-                ux = dx * invd;
-                uy = dy * invd;
-            }
-            fx_sum += s * ux;
-            fy_sum += s * uy;
-        }
-
-        vel[2 * i]     += fx_sum;
-        vel[2 * i + 1] += fy_sum;
-    }
-}
-
 // Barnes-Hut O(N log N) — serial tree build, parallel force computation
 void ManyBodyForce::applyBarnesHut(float alpha)
 {
@@ -345,7 +293,7 @@ void CollisionForce::apply(float alpha)
     if (N < kGridThreshold) {
         applyBruteForce(alpha);
     } else {
-        applyGrid(alpha);   // O(N) uniform grid; use applyParallel(alpha) for brute-force
+        applyGrid(alpha);
     }
 }
 
@@ -416,47 +364,6 @@ void CollisionForce::applyGrid(float alpha)
                     fy_sum += f * uy;
                 }
             }
-        }
-
-        vel[2 * i]     += fx_sum;
-        vel[2 * i + 1] += fy_sum;
-    }
-}
-
-void CollisionForce::applyParallel(float alpha)
-{
-    const int    N        = m_state->nNodes;
-    const float* pos      = m_state->pos.data();
-    float*       vel      = m_state->vel.data();
-    const float  R        = m_radius;
-    const float  sa       = m_strength * alpha;
-    const float  eps      = 1e-6f;
-
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < N; ++i) {
-        float xi = pos[2 * i];
-        float yi = pos[2 * i + 1];
-        float fx_sum = 0.0f;
-        float fy_sum = 0.0f;
-
-        for (int j = 0; j < N; ++j) {
-            if (i == j) continue;
-            float dx = xi - pos[2 * j];
-            float dy = yi - pos[2 * j + 1];
-            float dist = std::sqrt(dx * dx + dy * dy) + eps;
-            if (dist >= R) continue;
-
-            float overlap = R - dist;
-            float f = sa * overlap;
-            float ux, uy;
-            if (dist < kOverlapDist) {
-                overlapFallbackDirection(i, j, ux, uy);
-            } else {
-                ux = dx / dist;
-                uy = dy / dist;
-            }
-            fx_sum += f * ux;
-            fy_sum += f * uy;
         }
 
         vel[2 * i]     += fx_sum;

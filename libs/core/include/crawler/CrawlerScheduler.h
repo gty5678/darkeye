@@ -27,7 +27,6 @@ struct CrawlTaskSnapshot final
     CrawlWorkflowState state = CrawlWorkflowState::Queued;
     bool withGui = false;
     QSet<QString> selectedFields;
-    bool cancelRequested = false;
 };
 
 class CrawlerScheduler final : public QObject
@@ -42,8 +41,6 @@ public:
                  const QSet<QString> &selectedFields = {}, bool prepend = false);
     void pause(bool clearQueue = false);
     void resume();
-    bool dropPending(const QString &serialNumber);
-    bool requestCancelRunning(const QString &serialNumber);
     void complete(const QString &serialNumber, bool succeeded);
 
     [[nodiscard]] bool isPaused() const noexcept;

@@ -394,7 +394,6 @@ private:
     // 因标签集合变化而清空文字布局缓存并重新启动图集构建。
     void invalidateTextLayoutForLabels();
     // 同步重建 MSDF 字体图集。
-    void rebuildMsdfAtlas();
     // 异步启动 MSDF 字体图集构建。
     void startMsdfAtlasBuildAsync();
     // 如果异步图集构建完成，则应用结果并重建标签布局。

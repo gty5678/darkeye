@@ -3,6 +3,7 @@
 #include "crawler/CrawlerScheduler.h"
 #include "domain/SerialNumber.h"
 #include "darkeye_ui/components/DesignButton.h"
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "darkeye_ui/theme/IconProvider.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -163,16 +164,11 @@ public:
 
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(12, 12, 12, 12);
-        layout->setSpacing(6);
-        auto *title = new QLabel(QStringLiteral("拖入视频"), this);
-        title->setObjectName(QStringLiteral("quickWorkVideoDropZoneTitle"));
-        title->setAlignment(Qt::AlignCenter);
-        auto *hint = new QLabel(QStringLiteral("支持视频文件或文件夹\n根据文件名识别番号\n并追加到左侧列表"), this);
+        auto *hint = new QLabel(QStringLiteral("拖入视频或文件夹，识别番号并加入列表"), this);
         hint->setObjectName(QStringLiteral("quickWorkVideoDropZoneHint"));
         hint->setAlignment(Qt::AlignCenter);
         hint->setWordWrap(true);
         layout->addStretch();
-        layout->addWidget(title);
         layout->addWidget(hint);
         layout->addStretch();
     }
@@ -225,11 +221,10 @@ private:
         setStyleSheet(QStringLiteral(
             "#quickWorkVideoDropZone { border: 2px dashed %1; border-radius: 10px; "
             "background-color: %2; }"
-            "#quickWorkVideoDropZoneTitle { color: %3; font-family: \"%4\"; "
-            "font-size: %5; font-weight: 600; }"
-            "#quickWorkVideoDropZoneHint { color: %6; font-family: \"%4\"; font-size: %5; }")
-                          .arg(tokens.border, tokens.inputBackground, tokens.text,
-                               tokens.fontFamilyBase, tokens.fontSizeBase, tokens.textPlaceholder));
+            "#quickWorkVideoDropZoneHint { background-color: transparent; "
+            "color: %3; font-family: \"%4\"; font-size: %5; }")
+                          .arg(tokens.border, tokens.inputBackground, tokens.textPlaceholder,
+                               tokens.fontFamilyBase, tokens.fontSizeBase));
     }
 
     ThemeService &m_themes;
@@ -245,46 +240,57 @@ AddQuickWorkDialog::AddQuickWorkDialog(QSqlDatabase publicDatabase,
       m_crawlerScheduler(crawlerScheduler), m_themes(themes)
 {
     setObjectName(QStringLiteral("AddQuickWorkDialog"));
-    setWindowTitle(QStringLiteral("快速记录作品番号(W)"));
+    setWindowTitle(QStringLiteral("批量录入与补全作品"));
     setWindowIcon(IconProvider::builtIn(QStringLiteral("film")));
     setMinimumSize(780, 520);
     resize(800, 540);
 
-    auto *add = new DesignButton(QStringLiteral("添加"), this);
-    auto *remove = new DesignButton(QStringLiteral("删除"), this);
-    auto *removeAll = new DesignButton(QStringLiteral("删除全部"), this);
-    auto *clean = new DesignButton(QStringLiteral("去后缀"), this);
-    auto *cleanPrefix = new DesignButton(QStringLiteral("删前缀行"), this);
+    auto *add = new IconButton(QStringLiteral("list_plus"), QStringLiteral("添加番号行"), &m_themes, this);
+    auto *remove = new IconButton(QStringLiteral("list_x"), QStringLiteral("删除选中行"), &m_themes, this);
+    auto *removeAll = new IconButton(QStringLiteral("trash_2"), QStringLiteral("删除全部"), &m_themes, this);
+    auto *clean = new IconButton(QStringLiteral("eraser"), QStringLiteral("去后缀"), &m_themes, this);
+    auto *cleanPrefix = new DesignButton(QStringLiteral("按前缀删除行"), this);
     auto *sort = new DesignButton(QStringLiteral("排序"), this);
+    sort->setToolTip(QStringLiteral("按番号升序排序"));
     auto *csv = new DesignButton(QStringLiteral("从 CSV 导入"), this);
     auto *toolbar = new QHBoxLayout;
-    for (QWidget *button : {static_cast<QWidget *>(add), static_cast<QWidget *>(remove),
-                            static_cast<QWidget *>(removeAll), static_cast<QWidget *>(clean),
-                            static_cast<QWidget *>(cleanPrefix), static_cast<QWidget *>(sort),
-                            static_cast<QWidget *>(csv)})
+    QPushButton *const buttons[] = {add, remove, removeAll, clean, cleanPrefix, sort, csv};
+    for (auto *button : buttons)
         toolbar->addWidget(button);
     toolbar->addStretch();
 
     m_table = new TokenTableWidget(0, 2, this);
     m_table->setHorizontalHeaderLabels({QStringLiteral("选择"), QStringLiteral("番号")});
+    auto *selectionHeader = m_table->horizontalHeaderItem(0);
+    selectionHeader->setData(Qt::AccessibleTextRole, selectionHeader->text());
+    selectionHeader->setToolTip(selectionHeader->text());
+    selectionHeader->setText(QString());
+    const auto updateHeaderIcon = [this, selectionHeader] {
+        selectionHeader->setIcon(IconProvider::builtIn(QStringLiteral("square_check"), QSize(16, 16),
+                                                        QColor(m_themes.currentTokens().icon)));
+    };
+    updateHeaderIcon();
+    connect(&m_themes, &ThemeService::themeChanged, this, updateHeaderIcon);
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
 
-    auto *commit = new DesignButton(QStringLiteral("快速添加"), this);
-    commit->setMinimumHeight(40);
-    commit->setToolTip(QStringLiteral("对左侧勾选番号全量爬取并写入库。"));
-    m_commitButton = commit;
+    m_commitButton = new DesignButton(QString(), this);
+    m_commitButton->setMinimumHeight(40);
+    m_commitButton->setIconSize(QSize(24, 24));
+    updateCommitButtonAppearance();
+    connect(&m_themes, &ThemeService::themeChanged, this,
+            &AddQuickWorkDialog::updateCommitButtonAppearance);
 
     auto *left = new QWidget(this);
     auto *leftLayout = new QVBoxLayout(left);
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->addLayout(toolbar);
     leftLayout->addWidget(m_table);
-    leftLayout->addWidget(commit);
+    leftLayout->addWidget(m_commitButton);
 
     m_fields = new CrawlerFieldSelector(this);
-    auto *filter = new DesignButton(QStringLiteral("按空字段筛选"), this);
+    auto *filter = new IconButton(QStringLiteral("funnel"), QStringLiteral("按空字段筛选"), &m_themes, this);
     filter->setToolTip(QStringLiteral("按右侧勾选字段查询全库，并用结果覆盖左侧列表。提交时仅补充各作品实际缺失的字段。"));
     auto *hint = new QLabel(QStringLiteral("未筛选时提交：对左侧番号全量爬取。\n"
                                            "勾选字段后点击筛选：全库结果覆盖左侧；提交时只补充每部作品实际缺失的勾选字段。"), this);
@@ -298,7 +304,7 @@ AddQuickWorkDialog::AddQuickWorkDialog(QSqlDatabase publicDatabase,
     rightLayout->setContentsMargins(8, 0, 0, 0);
     rightLayout->setSpacing(8);
     rightLayout->addWidget(hint);
-    rightLayout->addWidget(filter);
+    rightLayout->addWidget(filter, 0, Qt::AlignLeft);
     rightLayout->addWidget(m_fields);
     rightLayout->addStretch();
     rightLayout->addWidget(dropZone);
@@ -312,10 +318,16 @@ AddQuickWorkDialog::AddQuickWorkDialog(QSqlDatabase publicDatabase,
     connect(removeAll, &QPushButton::clicked, m_table, [this] { m_table->setRowCount(0); });
     connect(clean, &QPushButton::clicked, this, &AddQuickWorkDialog::cleanSuffixes);
     connect(cleanPrefix, &QPushButton::clicked, this, &AddQuickWorkDialog::deletePrefixRows);
-    connect(sort, &QPushButton::clicked, this, &AddQuickWorkDialog::sortRows);
+    connect(sort, &QPushButton::clicked, this, [this, sort] {
+        sortRows();
+        const QString label = m_sortAscending ? QStringLiteral("按番号升序排序")
+                                              : QStringLiteral("按番号降序排序");
+        sort->setToolTip(label);
+        sort->setAccessibleName(label);
+    });
     connect(csv, &QPushButton::clicked, this, &AddQuickWorkDialog::importCsv);
     connect(filter, &QPushButton::clicked, this, &AddQuickWorkDialog::applyEmptyFieldFilter);
-    connect(commit, &QPushButton::clicked, this, &AddQuickWorkDialog::submit);
+    connect(m_commitButton, &QPushButton::clicked, this, &AddQuickWorkDialog::submit);
     addRow();
 }
 
@@ -336,16 +348,18 @@ void AddQuickWorkDialog::loadSerials(const QStringList &serials)
 
 void AddQuickWorkDialog::updateCommitButtonAppearance()
 {
-    if (m_commitButton == nullptr) return;
+    const QString icon = m_selectiveCrawl ? QStringLiteral("refresh") : QStringLiteral("check");
+    m_commitButton->setIcon(IconProvider::builtIn(icon, m_commitButton->iconSize(),
+                                                 QColor(m_themes.currentTokens().icon)));
     if (m_selectiveCrawl)
     {
-        m_commitButton->setText(QStringLiteral("选择性补充信息"));
-        m_commitButton->setToolTip(QStringLiteral("仅按每部作品实际缺失的勾选字段入队爬取。"));
+        m_commitButton->setAccessibleName(QStringLiteral("补全缺失字段"));
+        m_commitButton->setToolTip(QStringLiteral("补全缺失字段：仅采集每部作品实际缺失的勾选字段。"));
     }
     else
     {
-        m_commitButton->setText(QStringLiteral("快速添加"));
-        m_commitButton->setToolTip(QStringLiteral("对左侧勾选番号全量爬取并写入库。"));
+        m_commitButton->setAccessibleName(QStringLiteral("提交采集"));
+        m_commitButton->setToolTip(QStringLiteral("提交采集：采集左侧勾选番号的完整作品信息并写入资料库。"));
     }
 }
 
@@ -385,7 +399,7 @@ void AddQuickWorkDialog::applyEmptyFieldFilter()
     if (m_selectiveCrawl)
     {
         QMessageBox::information(this, QStringLiteral("筛选完成"),
-                                 QStringLiteral("已从全库筛出 %1 条番号填入左侧。请点击“选择性补充信息”按每条作品的空白字段入队。").arg(serials.size()));
+                                 QStringLiteral("已从全库筛出 %1 条番号填入左侧。点击列表下方的图标即可补全缺失字段。").arg(serials.size()));
     }
     else
     {

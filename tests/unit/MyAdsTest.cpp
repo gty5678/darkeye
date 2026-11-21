@@ -1,6 +1,7 @@
 #include "ui/layouts/myads/PaneWidget.h"
 #include "ui/layouts/myads/WorkspaceWidget.h"
 
+#include <QAbstractAnimation>
 #include <QFile>
 #include <QCloseEvent>
 #include <QDrag>
@@ -57,6 +58,7 @@ private slots:
     void savesAtomically();
     void paneTransfersCompleteContent();
     void tabsShareWidthBeforeScrolling();
+    void appendedTabScrollsIntoView();
     void closeButtonsFollowSelectionAndHover();
     void tabClickSwitchesPageWhenReleaseLeavesTab();
     void selectedTabLooksTheSameWhenPaneFocusChanges();
@@ -247,6 +249,29 @@ void MyAdsTest::tabsShareWidthBeforeScrolling()
 
     pane.resize(800, 200);
     checkWidths(168);
+}
+
+void MyAdsTest::appendedTabScrollsIntoView()
+{
+    PaneWidget pane(QStringLiteral("tabs"));
+    pane.resize(380, 200);
+    pane.show();
+    auto *bar = pane.findChild<QTabBar *>();
+    QVERIFY(bar);
+
+    for (int i = 0; i < 8; ++i)
+        QVERIFY(pane.addContent(QString::number(i), QStringLiteral("Tab"), new QWidget));
+    QCoreApplication::processEvents();
+    QVERIFY(pane.setCurrentContentId(QStringLiteral("0")));
+
+    QVERIFY(pane.addContent(QStringLiteral("new"), QStringLiteral("New tab"), new QWidget));
+    QCOMPARE(pane.currentContentId(), QStringLiteral("new"));
+    const auto currentTabIsVisible = [bar] {
+        const QRect tab = bar->tabRect(bar->currentIndex());
+        return bar->parentWidget()->rect().contains(
+            QRect(bar->mapToParent(tab.topLeft()), tab.size()));
+    };
+    QTRY_VERIFY(currentTabIsVisible());
 }
 
 void MyAdsTest::closeButtonsFollowSelectionAndHover()
@@ -502,31 +527,55 @@ void MyAdsTest::cancelledTabDragReturnsToOriginalPosition()
     auto *animation = bar->findChild<QWidget *>(QStringLiteral("MyAdsTabReorderAnimation"));
     QVERIFY(animation && animation->isVisible());
 
-    // The native drag loop consumes release/Escape; do not send a release to
-    // the tab bar afterwards, since that would conceal the stale drag state.
-    QTimer cancelTimer;
-    QPixmap dockPixmap;
-    QPoint dockHotSpot;
-    const auto captureDockPixmap = [&] {
-        if (auto *drag = bar->findChild<QDrag *>()) {
-            dockPixmap = drag->pixmap();
-            dockHotSpot = drag->hotSpot();
+    // Some offscreen drag backends return immediately. Sample the preview
+    // when it appears and advance its animation without relying on a drag loop.
+    class PreviewCapture final : public QObject
+    {
+    public:
+        QPointer<QWidget> preview;
+        QPixmap start;
+        QPixmap middle;
+        QPixmap end;
+
+        bool eventFilter(QObject *object, QEvent *event) override
+        {
+            if (event->type() != QEvent::Show ||
+                object->objectName() != QStringLiteral("MyAdsDetachedTabPreview")) return false;
+            preview = qobject_cast<QWidget *>(object);
+            auto *morph = object->findChild<QAbstractAnimation *>();
+            if (!preview || !morph) return false;
+            start = preview->grab();
+            morph->setCurrentTime(morph->duration() / 4);
+            middle = preview->grab();
+            morph->setCurrentTime(morph->duration());
+            end = preview->grab();
+            morph->setCurrentTime(0);
+            return false;
         }
-    };
-    connect(&cancelTimer, &QTimer::timeout, &pane, [&] {
-        captureDockPixmap();
-        QDrag::cancel();
-    });
+    } capture;
+    qApp->installEventFilter(&capture);
+    QTimer cancelTimer;
+    cancelTimer.setSingleShot(true);
+    connect(&cancelTimer, &QTimer::timeout, &pane, [] { QDrag::cancel(); });
     cancelTimer.start(10);
     QSignalSpy finished(&pane, &PaneWidget::dragFinished);
     move(QPoint(press.x(), bar->height() + 40));
     cancelTimer.stop();
-    if (dockPixmap.isNull()) captureDockPixmap();
-    QVERIFY(!dockPixmap.isNull());
+    qApp->removeEventFilter(&capture);
+    const auto &dockPixmap = capture.end;
+    QVERIFY(!capture.start.isNull() && !capture.middle.isNull() && !dockPixmap.isNull());
     const QPoint pixmapOffset = QPoint(overlap, 0) - originalTab.topLeft();
-    QCOMPARE(pixelAt(dockPixmap, foot + pixmapOffset), footColor);
+    QCOMPARE(pixelAt(capture.start, foot + pixmapOffset), footColor);
+    QVERIFY(capture.middle.toImage() != capture.start.toImage());
+    QVERIFY(capture.middle.toImage() != dockPixmap.toImage());
+    QCOMPARE(pixelAt(dockPixmap, foot + pixmapOffset).alpha(), 0);
+    QCOMPARE(pixelAt(dockPixmap, originalTab.topLeft() + pixmapOffset + QPoint(1, 1)).alpha(), 0);
+    QCOMPARE(pixelAt(dockPixmap, originalTab.topRight() + pixmapOffset + QPoint(-1, 1)).alpha(), 0);
+    QCOMPARE(pixelAt(dockPixmap, originalTab.bottomLeft() + pixmapOffset + QPoint(1, -1)).alpha(), 0);
+    QCOMPARE(pixelAt(dockPixmap, originalTab.bottomRight() + pixmapOffset + QPoint(-1, -1)).alpha(), 0);
+    QCOMPARE(pixelAt(dockPixmap, QPoint(press.x(), originalTab.bottom()) + pixmapOffset), footColor);
     QCOMPARE(pixelAt(dockPixmap, closeCenter + pixmapOffset), closeColor);
-    QCOMPARE(dockHotSpot, press - originalTab.topLeft() + QPoint(overlap, 0));
+    QVERIFY(capture.preview.isNull());
     QCOMPARE(pane.contentIds(), originalOrder);
     QCOMPARE(pane.currentContentId(), QStringLiteral("first"));
     QCOMPARE(pane.contentWidget("first"), first);

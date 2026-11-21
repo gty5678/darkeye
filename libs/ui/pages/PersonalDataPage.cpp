@@ -282,7 +282,6 @@ void PersonalDataPage::lazyLoad()
         button->setChecked(year == currentYear);
         yearGroup->addButton(button, year);
         yearLayout->addWidget(button);
-        m_yearButtons.append(button);
     }
     yearLayout->addStretch();
     yearList->setWidget(yearContainer);

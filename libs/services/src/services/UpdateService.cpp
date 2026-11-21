@@ -1,5 +1,6 @@
 #include "services/UpdateService.h"
 
+#include "app_config.h"
 #include "settings/Paths.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -25,7 +26,7 @@ QUrl UpdateService::manifestUrl()
                      QSettings::IniFormat);
     QString address = config.value(QStringLiteral("Update/LatestJsonUrl")).toString().trimmed();
     if (address.isEmpty())
-        address = QStringLiteral("https://darkeye.win/updates/stable/{target}/latest.json");
+        address = QString::fromLatin1(kDefaultLatestJsonUrl);
     address.replace(QStringLiteral("{target}"), utils::updateTarget());
     return QUrl(address);
 }

@@ -43,7 +43,6 @@ private:
     int m_rows = 0;
     int m_coverPixels = 0;
     render3d::Camera m_camera;
-    QColor m_outlineColor;
     QPointF m_lastPosition;
     bool m_rotating = false;
     bool m_rightDragged = false;

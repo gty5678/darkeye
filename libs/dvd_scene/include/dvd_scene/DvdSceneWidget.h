@@ -34,6 +34,8 @@ public:
     [[nodiscard]] std::optional<QPointF> selectedInfoAnchor() const;
     void resetCamera();
     void setDarkTheme(bool dark);
+    // Cap physical render pixels during movement. Zero uses native resolution throughout.
+    void setMotionRenderPixelBudget(int maxPixels);
     void setCoverBudget(quint64 bytes);
     [[nodiscard]] QString selectedId() const;
     [[nodiscard]] DvdInteractionController::State state() const;

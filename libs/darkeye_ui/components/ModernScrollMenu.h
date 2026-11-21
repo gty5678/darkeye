@@ -5,7 +5,6 @@
 #include <QWidget>
 
 class QButtonGroup;
-class QFrame;
 class QHBoxLayout;
 class QPropertyAnimation;
 class QPushButton;
@@ -39,7 +38,6 @@ private:
     QVBoxLayout *m_contentLayout = nullptr;
     QList<QWidget *> m_sections;
     QList<QPushButton *> m_buttons;
-    QList<QFrame *> m_separators;
     QPropertyAnimation *m_animation = nullptr;
     bool m_animating = false;
 };

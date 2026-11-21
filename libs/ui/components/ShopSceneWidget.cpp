@@ -93,7 +93,7 @@ ShopSceneWidget::ShopSceneWidget(QWidget *parent)
         if (node.name == QStringLiteral("Cube.002")) m_shelfModel.nodes.push_back(node);
     }
     if (m_coverModel.primitives.empty() || m_shelfModel.nodes.empty() || m_backModel.nodes.empty()) {
-        m_canvas->setProperty("modelError", QStringLiteral("商店模型缺少货架、背板或封面"));
+        m_canvas->setProperty("modelError", QStringLiteral("作品展厅模型缺少货架、背板或封面"));
         return;
     }
     LightingSettings lighting;
@@ -197,7 +197,6 @@ void ShopSceneWidget::updateTextures(bool keepExisting) {
     m_canvas->update();
 }
 void ShopSceneWidget::setOutlineColor(const QColor &color) {
-    m_outlineColor = color;
     static_cast<Outline *>(m_outline)->color = color;
     m_outline->update();
 }

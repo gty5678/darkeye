@@ -106,7 +106,6 @@ void ModernScrollMenu::addSection(const QString &title, QWidget *content)
         separator->setFrameShape(QFrame::NoFrame);
         separator->setFixedHeight(1);
         m_contentLayout->addWidget(separator);
-        m_separators.append(separator);
     }
     m_contentLayout->addWidget(wrapper);
     m_sections.append(wrapper);

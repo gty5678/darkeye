@@ -2151,16 +2151,6 @@ void ForceViewRhiWidget::invalidateTextLayoutForLabels()
     startMsdfAtlasBuildAsync();
 }
 
-void ForceViewRhiWidget::rebuildMsdfAtlas()
-{
-    if (!m_fontAtlas || !m_fontAtlas->isReady()) {
-        return;
-    }
-    m_fontAtlas->buildForLabels(m_labels);
-    rebuildLabelLayoutCache();
-    m_textAtlasUploadedGeneration = -1;
-}
-
 void ForceViewRhiWidget::rebuildLabelLayoutCache()
 {
     m_labelLayoutCache.clear();

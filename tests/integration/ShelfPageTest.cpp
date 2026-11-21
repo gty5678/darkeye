@@ -30,6 +30,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QToolButton>
+#include <QWheelEvent>
 #include <QTextCursor>
 #include <QSqlQuery>
 #include "dvd_scene/DvdSceneWidget.h"
@@ -54,8 +55,10 @@ private slots:
     void initialCameraFramesShelf_data();
     void initialCameraFramesShelf();
     void filtersAndLoadsVirtualizedShelf();
+    void themeChangesPreserveEnvironmentBackground();
     void nativeRenderingAndActions();
     void rightDragRotatesWithoutContextMenu();
+    void wheelReturnDefersGraphRefresh();
     void existingShelfVisualProbe();
     void scrollPerformanceProbe();
     void filtersByPrivateScope();
@@ -67,6 +70,68 @@ private slots:
     void routeJumpKeepsExcludedWorksOutOfResults_data();
     void routeJumpKeepsExcludedWorksOutOfResults();
 };
+
+void ShelfPageTest::themeChangesPreserveEnvironmentBackground()
+{
+    darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    darkeye::DvdShelfView view({}, {}, {}, {});
+    view.bindTheme(themes);
+    view.resize(640, 400);
+    view.show();
+    auto *scene = view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    QVERIFY(scene);
+    auto *renderer = scene->renderWidget();
+    QVERIFY(renderer->lighting().environmentBackground);
+    QVERIFY(renderer->lighting().toneMapping);
+    const auto initialFrame = renderer->grabFramebuffer();
+    QVERIFY2(!initialFrame.isNull(), qPrintable(renderer->lastError()));
+    const auto backgroundPixel = initialFrame.pixelColor(8, 8);
+    QVERIFY(initialFrame.pixelColor(initialFrame.width() / 2, initialFrame.height() / 2) != backgroundPixel);
+    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Green, darkeye::ThemeId::Dark}) {
+        QVERIFY(themes.setTheme(theme));
+        const auto frame = renderer->grabFramebuffer();
+        QVERIFY2(!frame.isNull(), qPrintable(renderer->lastError()));
+        QCOMPARE(frame.pixelColor(8, 8), backgroundPixel);
+    }
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+}
+
+void ShelfPageTest::wheelReturnDefersGraphRefresh()
+{
+    darkeye::DvdShelfView view({}, {}, {}, {});
+    darkeye::WorkSummary work;
+    work.id = 1;
+    view.setWorks({work});
+    view.resize(1280, 800);
+    view.show();
+    auto *scene = view.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    QVERIFY(scene);
+    QVERIFY(view.openWork(work.id));
+    QTRY_VERIFY(scene->isFullyExpanded());
+    QCOMPARE(view.focusedWorkId(), work.id);
+
+    auto *renderer = scene->renderWidget();
+    scene->setMotionRenderPixelBudget(640*400);
+    QTRY_VERIFY(renderer->fixedColorBufferSize().isEmpty());
+    QSignalSpy graphContext(&view, &darkeye::DvdShelfView::graphContextChanged);
+    qint64 selectedAtRefresh = work.id;
+    connect(&view, &darkeye::DvdShelfView::graphContextChanged, &view, [&] {
+        selectedAtRefresh = view.currentWorkId();
+    });
+    const QPoint center = renderer->rect().center();
+    QWheelEvent wheel(center, renderer->mapToGlobal(center), {}, {0, -120},
+                      Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(renderer, &wheel);
+    QVERIFY(view.isReturningToShelf());
+    QVERIFY(!renderer->fixedColorBufferSize().isEmpty());
+    QCOMPARE(view.focusedWorkId(), 0);
+    QCOMPARE(graphContext.count(), 0);
+    QTRY_COMPARE(graphContext.count(), 1);
+    QCOMPARE(selectedAtRefresh, 0);
+    QVERIFY(!view.isReturningToShelf());
+    QTRY_VERIFY(renderer->fixedColorBufferSize().isEmpty());
+}
 
 void ShelfPageTest::rightDragRotatesWithoutContextMenu()
 {
@@ -560,20 +625,23 @@ void ShelfPageTest::scrollPerformanceProbe()
     }
     view.setWorks(works);
     view.show();
-    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QTRY_VERIFY(canvas->statistics().submittedFrames > 0);
     QTest::qWait(600);
     const auto fullLighting=canvas->lighting();
+    const int fullSamples=canvas->sampleCount();
+    const auto fullSize=canvas->statistics().pixelSize;
     QJsonArray measurements;
-    for(const auto &name:QStringList{"full","no-ibl","no-ao","no-shadows","single-sample","half-resolution"}) {
+    for(const auto &name:QStringList{"production","full","no-ibl","no-ao","no-shadows","single-sample","lower-resolution"}) {
+        if(name=="full") scene->setMotionRenderPixelBudget(0);
         auto lighting=fullLighting;
         lighting.imageBasedLighting=name!="no-ibl" && fullLighting.imageBasedLighting;
         lighting.ambientOcclusion=name!="no-ao" && fullLighting.ambientOcclusion;
         lighting.shadows=name!="no-shadows" && fullLighting.shadows;
         canvas->setLighting(lighting);
-        canvas->setSampleCount(name=="single-sample"?1:4);
-        canvas->setFixedColorBufferSize(name=="half-resolution"?QSize(1920,1200):QSize());
-        scene->setCameraX(1.0f,true);
-        QTest::qWait(400);
+        canvas->setSampleCount(name=="single-sample"?1:fullSamples);
+        canvas->setFixedColorBufferSize(name=="lower-resolution"?fullSize*0.67:QSize());
+        QVERIFY(view.openWork(400));
+        QTRY_VERIFY(scene->isFullyExpanded());
         QElapsedTimer clock;
         QVector<double> cpu,intervals;
         qint64 previous=0;
@@ -585,13 +653,19 @@ void ShelfPageTest::scrollPerformanceProbe()
         });
         QTimer driver;
         driver.setTimerType(Qt::PreciseTimer);
-        driver.setInterval(16);
-        connect(&driver,&QTimer::timeout,&view,[&] { scene->setCameraX(1.0f+float(clock.elapsed())*0.0001f); });
+        const QPoint center=canvas->rect().center();
+        const auto wheelDown=[&] {
+            QWheelEvent wheel(center,canvas->mapToGlobal(center),{},{0,-120},
+                Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+            QApplication::sendEvent(canvas,&wheel);
+        };
+        driver.setInterval(65);
+        connect(&driver,&QTimer::timeout,&view,wheelDown);
         const auto firstFrame=canvas->statistics().submittedFrames;
         const auto firstUploads=canvas->statistics().textureUploads;
         const auto firstBytes=canvas->statistics().textureUploadBytes;
         const auto firstBindings=canvas->statistics().materialBindingBuilds;
-        clock.start(); driver.start();
+        clock.start(); wheelDown(); driver.start();
         QTest::qWait(2200);
         driver.stop(); disconnect(connection);
         const double seconds=clock.nsecsElapsed()/1e9;
@@ -608,6 +682,7 @@ void ShelfPageTest::scrollPerformanceProbe()
             {"uploadMiB",(s.textureUploadBytes-firstBytes)/1048576.0},
             {"materialBindingBuilds",double(s.materialBindingBuilds-firstBindings)},
             {"textureMiB",s.textureBytes/1048576.0}});
+        QTRY_VERIFY(!view.isReturningToShelf());
     }
     QFile file(output); QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(QJsonDocument(QJsonObject{{"measurements",measurements},

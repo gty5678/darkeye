@@ -89,6 +89,8 @@ public:
                     QString *errorMessage = nullptr) const;
     bool loadLayout(const QString &path, const ContentFactory &factory = {},
                     QString *errorMessage = nullptr);
+    bool restoreLayout(const QJsonObject &document, const ContentFactory &factory,
+                       QString *errorMessage = nullptr);
     void applyTheme(const DockTheme &theme);
     [[nodiscard]] DockTheme theme() const;
     [[nodiscard]] static DropZone hitTest(const QRect &paneRect,

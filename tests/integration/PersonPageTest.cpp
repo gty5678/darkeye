@@ -12,6 +12,7 @@
 #include "darkeye_ui/components/HeartLabel.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "ui/components/ImageDropWidget.h"
+#include "ui/pages/ModifyActorPage.h"
 #include "ui/pages/ModifyActressPage.h"
 #include "ui/components/PersonInfoPanel.h"
 #include "ui/components/ActressWorkTimeline.h"
@@ -19,6 +20,7 @@
 #include "ui/components/WorkCard.h"
 #include "ui/components/WikiTextEdit.h"
 #include "ui/layouts/myads/PaneWidget.h"
+#include "ui/layouts/myads/WorkspaceWidget.h"
 
 #include <QApplication>
 #include <QComboBox>
@@ -39,6 +41,7 @@
 #include <QSet>
 #include <QSqlQuery>
 #include <QSpinBox>
+#include <QSplitter>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QToolTip>
@@ -58,11 +61,115 @@ private slots:
     void filterBarsShareGeometry();
     void actressDetailDatesAlign();
     void detailAndEditorCompletePersonRoundTrip();
+    void editorLayoutsPersistSeparately();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
     void actressTimelineFitsAfterLayout();
     void actressTimelineStacksSameDayWorksBelowAxis();
     void actressTimelineZoomKeepsPointerAnchor();
+    void actressTimelineFollowsTheme();
 };
+
+void PersonPageTest::editorLayoutsPersistSeparately()
+{
+    using namespace darkeye::myads;
+    QTemporaryDir data;
+    QVERIFY(data.isValid());
+    darkeye::SqliteConnection connection;
+    QVERIFY(connection.open(data.filePath(QStringLiteral("public.db")), false));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public));
+    darkeye::ThemeService themes(*qApp);
+    const QString actorPath = data.filePath(QStringLiteral("actor.json"));
+    const QString actressPath = data.filePath(QStringLiteral("actress.json"));
+    const QString names = QStringLiteral("names");
+    const QString actions = QStringLiteral("actions");
+    const QString notes = QStringLiteral("notes");
+    const QString links = QStringLiteral("external_links");
+    const QString navPath = data.filePath(QStringLiteral("nav.json"));
+
+    QList<int> actorSplitterSizes;
+    {
+        darkeye::ModifyActorPage editor(connection.database(), themes, data.path());
+        editor.enableLayoutPersistence(actorPath);
+        editor.resize(1000, 720);
+        editor.show();
+        QCoreApplication::processEvents();
+
+        auto *workspace = editor.findChild<WorkspaceWidget *>();
+        auto *namesPane = workspace->findPaneByContentId(names);
+        auto *actionsPane = workspace->findPaneByContentId(actions);
+        QVERIFY(workspace->moveContent(namesPane->paneId(), names, actionsPane->paneId(), DropZone::Center));
+        QCoreApplication::processEvents();
+        auto *splitter = qobject_cast<QSplitter *>(workspace->findPaneByContentId(notes)->parentWidget());
+        QVERIFY(splitter);
+        splitter->setSizes({350, 450, 200});
+        const auto defaultLayout = workspace->layoutTree().toJson();
+        QVERIFY(QMetaObject::invokeMethod(splitter, "splitterMoved", Qt::DirectConnection,
+                                          Q_ARG(int, 350), Q_ARG(int, 1)));
+        QVERIFY(workspace->layoutTree().toJson() != defaultLayout);
+        actorSplitterSizes = splitter->sizes();
+    }
+    QVERIFY(QFileInfo::exists(actorPath));
+
+    darkeye::ModifyActressPage actress(connection.database(), themes, data.path(), nullptr, {}, navPath);
+    actress.enableLayoutPersistence(actressPath);
+    auto *actressWorkspace = actress.findChild<WorkspaceWidget *>();
+    QVERIFY(actressWorkspace->findPaneByContentId(names) != actressWorkspace->findPaneByContentId(actions));
+    auto *linksPane = actressWorkspace->findPaneByContentId(links);
+    auto *notesPane = actressWorkspace->findPaneByContentId(notes);
+    QVERIFY(linksPane);
+    QVERIFY(actressWorkspace->moveContent(linksPane->paneId(), links, notesPane->paneId(), DropZone::Center));
+    QTRY_VERIFY(QFileInfo::exists(actressPath));
+
+    darkeye::ModifyActorPage restoredActor(connection.database(), themes, data.path());
+    restoredActor.enableLayoutPersistence(actorPath);
+    restoredActor.resize(1000, 720);
+    restoredActor.show();
+    QCoreApplication::processEvents();
+    auto *actorWorkspace = restoredActor.findChild<WorkspaceWidget *>();
+    QCOMPARE(actorWorkspace->findPaneByContentId(names), actorWorkspace->findPaneByContentId(actions));
+    auto *restoredNotes = actorWorkspace->findPaneByContentId(notes);
+    QVERIFY(restoredNotes);
+    auto *restoredSplitter = qobject_cast<QSplitter *>(restoredNotes->parentWidget());
+    QVERIFY(restoredSplitter);
+    const auto restoredSizes = restoredSplitter->sizes();
+    QCOMPARE(restoredSizes.size(), actorSplitterSizes.size());
+    for (qsizetype i = 0; i < restoredSizes.size(); ++i)
+        QVERIFY(qAbs(restoredSizes.at(i) - actorSplitterSizes.at(i)) <= 2);
+
+    darkeye::ModifyActressPage restoredActress(connection.database(), themes, data.path(), nullptr, {}, navPath);
+    restoredActress.enableLayoutPersistence(actressPath);
+    auto *restoredActressWorkspace = restoredActress.findChild<WorkspaceWidget *>();
+    QVERIFY(restoredActressWorkspace->findPaneByContentId(links));
+    QCOMPARE(restoredActressWorkspace->findPaneByContentId(links),
+             restoredActressWorkspace->findPaneByContentId(notes));
+}
+
+void PersonPageTest::actressTimelineFollowsTheme()
+{
+    darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    darkeye::ActressWorkTimeline timeline(nullptr, {}, {}, &themes);
+    timeline.resize(640, 180);
+    timeline.setWorks({{1, QStringLiteral("TEST"), {}, QStringLiteral("2020-05-01")}});
+    timeline.show();
+    QCoreApplication::processEvents();
+
+    auto *canvas = timeline.findChild<QWidget *>(QStringLiteral("ActressWorkTimelineCanvas"));
+    QVERIFY(canvas);
+    const auto sample = [canvas](const QPoint &point) {
+        return canvas->grab(QRect(point, QSize(1, 1))).toImage().pixelColor(0, 0);
+    };
+    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Red, darkeye::ThemeId::Dark}) {
+        QVERIFY(themes.setTheme(theme));
+        const auto tokens = themes.currentTokens();
+        QCOMPARE(sample(QPoint(2, 2)), QColor(tokens.inputBackground));
+        QCOMPARE(sample(QPoint(2, 70)), QColor(tokens.pageBackground));
+        QCOMPARE(sample(timeline.markerCenter(1)), QColor(tokens.primary));
+    }
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Dark, QStringLiteral("#ab1234")));
+    QCOMPARE(sample(timeline.markerCenter(1)), QColor(QStringLiteral("#ab1234")));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+}
 
 void PersonPageTest::filterBarsShareGeometry()
 {
@@ -106,17 +213,20 @@ void PersonPageTest::filterBarsShareGeometry()
         for (auto *page : {&actress, &actor}) {
             auto *bar = page->findChild<QWidget *>(QStringLiteral("PersonFilterBar"));
             QVERIFY(bar);
-            QCOMPARE(bar->height(), 44);
+            QCOMPARE(bar->y(), 2);
+            QCOMPARE(bar->height(), 36);
             auto *input = page->findChild<darkeye::CompleterLineEdit *>();
             const auto inputRect = rect(input, bar);
             QVERIFY(inputRect.top() > 0);
             QVERIFY(inputRect.bottom() < bar->height() - 1);
+            QVERIFY(qAbs(2 * inputRect.y() + inputRect.height() - bar->height()) <= 1);
             QCOMPARE(input->height(), input->sizeHint().height());
             for (auto *combo : page->findChildren<QComboBox *>()) {
                 if (combo->isHidden()) continue;
                 const auto comboRect = rect(combo, bar);
                 QVERIFY(comboRect.top() > 0);
                 QVERIFY(comboRect.bottom() < bar->height() - 1);
+                QVERIFY(qAbs(2 * comboRect.y() + comboRect.height() - bar->height()) <= 1);
                 QCOMPARE(combo->height(), combo->sizeHint().height());
             }
             const auto preview = qEnvironmentVariable("DARKEYE_PERSON_BAR_PREVIEW");

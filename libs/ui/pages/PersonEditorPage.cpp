@@ -21,6 +21,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QFormLayout>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLineEdit>
@@ -28,9 +29,11 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QPushButton>
+#include <QSet>
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -38,6 +41,8 @@
 
 namespace
 {
+
+QHash<QString, darkeye::PersonEditorPage *> pendingLayoutSaves;
 
 QSpinBox *measurementSpin(QWidget *parent, const QString &objectName)
 {
@@ -75,6 +80,99 @@ PersonEditorPage::PersonEditorPage(QSqlDatabase database, ThemeService &themes,
       m_imageDirectory(std::move(imageDirectory)), m_coverDirectory(std::move(coverDirectory))
 {
     buildUi();
+}
+
+PersonEditorPage::~PersonEditorPage()
+{
+    if (m_workspaceSaveTimer && m_workspaceSaveTimer->isActive())
+        saveWorkspaceLayout();
+}
+
+void PersonEditorPage::enableLayoutPersistence(const QString &path)
+{
+    if (path.isEmpty() || m_workspaceSaveTimer)
+        return;
+
+    m_workspaceLayoutPath = path;
+    // Different people can have editor tabs open at the same time.
+    if (auto *pending = pendingLayoutSaves.value(path))
+        pending->saveWorkspaceLayout();
+    restoreWorkspaceLayout();
+
+    m_workspaceSaveTimer = new QTimer(this);
+    m_workspaceSaveTimer->setSingleShot(true);
+    m_workspaceSaveTimer->setInterval(250);
+    connect(m_workspaceSaveTimer, &QTimer::timeout, this, &PersonEditorPage::saveWorkspaceLayout);
+    connect(m_workspace, &myads::WorkspaceWidget::layoutChanged,
+            this, &PersonEditorPage::scheduleWorkspaceSave);
+    connect(m_workspace, &myads::WorkspaceWidget::layoutPreferencesChanged,
+            this, &PersonEditorPage::scheduleWorkspaceSave);
+}
+
+void PersonEditorPage::restoreWorkspaceLayout()
+{
+    if (!QFileInfo::exists(m_workspaceLayoutPath))
+        return;
+
+    QHash<QString, myads::ContentConfig> panels;
+    for (const auto *pane : m_workspace->panes()) {
+        for (const QString &id : pane->contentIds()) {
+            myads::ContentConfig config(id);
+            config.setWindowTitle(pane->contentTitle(id)).setWidget(pane->contentWidget(id)).setCloseable(false);
+            panels.insert(id, config);
+        }
+    }
+
+    QString error;
+    const QJsonObject document = myads::loadLayoutFile(m_workspaceLayoutPath, &error);
+    if (document.isEmpty()) {
+        qWarning() << "Person editor layout restore:" << m_workspaceLayoutPath << error;
+        return;
+    }
+    // Keep the default layout if the saved one would leave any editor panel missing.
+    QSet<QString> missing(panels.keyBegin(), panels.keyEnd());
+    const auto contents = document.value(QStringLiteral("pane_contents")).toObject();
+    for (const auto &pane : contents) {
+        for (const auto &tab : pane.toArray())
+            missing.remove(tab.toObject().value(QStringLiteral("content_id")).toString());
+    }
+    if (!missing.isEmpty()) {
+        qWarning() << "Person editor layout restore: missing panels in" << m_workspaceLayoutPath;
+        return;
+    }
+
+    const auto restorePanel = [&panels](const QJsonObject &tab) -> std::optional<myads::ContentConfig> {
+        const auto panel = panels.constFind(tab.value(QStringLiteral("content_id")).toString());
+        if (panel == panels.cend())
+            return std::nullopt;
+        return *panel;
+    };
+    if (!m_workspace->restoreLayout(document, restorePanel, &error))
+        qWarning() << "Person editor layout restore:" << m_workspaceLayoutPath << error;
+}
+
+void PersonEditorPage::scheduleWorkspaceSave()
+{
+    if (auto *pending = pendingLayoutSaves.value(m_workspaceLayoutPath); pending && pending != this)
+        pending->m_workspaceSaveTimer->stop();
+    pendingLayoutSaves.insert(m_workspaceLayoutPath, this);
+    m_workspaceSaveTimer->start();
+}
+
+void PersonEditorPage::saveWorkspaceLayout()
+{
+    m_workspaceSaveTimer->stop();
+    pendingLayoutSaves.remove(m_workspaceLayoutPath);
+    if (!QDir().mkpath(QFileInfo(m_workspaceLayoutPath).absolutePath())) {
+        qWarning() << "Person editor layout save: cannot create directory for" << m_workspaceLayoutPath;
+        return;
+    }
+
+    QString error;
+    if (!m_workspace->saveLayout(m_workspaceLayoutPath, [](const myads::PaneWidget *, const QString &id) {
+            return QJsonObject{{QStringLiteral("content_id"), id}};
+        }, {}, &error))
+        qWarning() << "Person editor layout save:" << m_workspaceLayoutPath << error;
 }
 
 void PersonEditorPage::buildUi()
@@ -208,19 +306,19 @@ void PersonEditorPage::buildUi()
     // information on the left; names, notes, and actions in the right panes.
     auto *avatarPane = m_workspace->rootPane();
     auto *rightPane = m_workspace->split(avatarPane, myads::Placement::Right, 68);
-    m_notesPane = m_workspace->split(rightPane, myads::Placement::Right, 40);
+    auto *notesPane = m_workspace->split(rightPane, myads::Placement::Right, 40);
     auto *basePane = m_workspace->split(avatarPane, myads::Placement::Bottom, 60);
     auto *actionsPane = m_workspace->split(rightPane, myads::Placement::Bottom, 22);
-    const auto fill = [this](myads::PaneWidget *pane, const QString &title, QWidget *widget) {
-        auto config = m_workspace->createContentConfig();
+    const auto fill = [this](myads::PaneWidget *pane, const QString &id, const QString &title, QWidget *widget) {
+        auto config = m_workspace->createContentConfig(id);
         config.setWindowTitle(title).setWidget(widget).setCloseable(false);
         m_workspace->fillPane(pane, config);
     };
-    fill(avatarPane, QStringLiteral("头像"), m_imageDrop);
-    fill(basePane, QStringLiteral("基础信息"), basePanel);
-    fill(rightPane, QStringLiteral("名字表"), namePanel);
-    fill(m_notesPane, QStringLiteral("自由记录"), notesPanel);
-    fill(actionsPane, QStringLiteral("操作"), actionsPanel);
+    fill(avatarPane, QStringLiteral("avatar"), QStringLiteral("头像"), m_imageDrop);
+    fill(basePane, QStringLiteral("basic"), QStringLiteral("基础信息"), basePanel);
+    fill(rightPane, QStringLiteral("names"), QStringLiteral("名字表"), namePanel);
+    fill(notesPane, QStringLiteral("notes"), QStringLiteral("自由记录"), notesPanel);
+    fill(actionsPane, QStringLiteral("actions"), QStringLiteral("操作"), actionsPanel);
     connect(addName, &QPushButton::clicked, this, [this] { addNameRow(); });
     connect(removeName, &QPushButton::clicked, this, &PersonEditorPage::removeSelectedNameRows);
     connect(moveNameUp, &QPushButton::clicked, this, [this] { moveSelectedNameRow(-1); });
@@ -254,10 +352,11 @@ void PersonEditorPage::buildUi()
 
 void PersonEditorPage::addActressExternalLinksPanel(QWidget *panel)
 {
-    if (!panel || !m_workspace || !m_notesPane)
+    auto *notesPane = m_workspace->findPaneByContentId(QStringLiteral("notes"));
+    if (!panel || !notesPane)
         return;
-    auto *linksPane = m_workspace->split(m_notesPane, myads::Placement::Top, 42);
-    auto config = m_workspace->createContentConfig();
+    auto *linksPane = m_workspace->split(notesPane, myads::Placement::Top, 42);
+    auto config = m_workspace->createContentConfig(QStringLiteral("external_links"));
     config.setWindowTitle(QStringLiteral("外部链接")).setWidget(panel).setCloseable(false);
     m_workspace->fillPane(linksPane, config);
 }

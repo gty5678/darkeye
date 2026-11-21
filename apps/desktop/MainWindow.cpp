@@ -98,9 +98,9 @@ const auto managementRoutes = {
     ManagementRoute{QStringLiteral("manage_makers"), QStringLiteral("片商管理"), ManagementPage::Section::Makers},
     ManagementRoute{QStringLiteral("manage_labels"), QStringLiteral("厂牌管理"), ManagementPage::Section::Labels},
     ManagementRoute{QStringLiteral("manage_series"), QStringLiteral("系列管理"), ManagementPage::Section::Series},
-    ManagementRoute{QStringLiteral("manage_summary"), QStringLiteral("汇总查询"), ManagementPage::Section::SummaryQuery},
+    ManagementRoute{QStringLiteral("manage_summary"), QStringLiteral("资料汇总"), ManagementPage::Section::SummaryQuery},
     ManagementRoute{QStringLiteral("manage_records"), QStringLiteral("个人记录"), ManagementPage::Section::PersonalRecords},
-    ManagementRoute{QStringLiteral("manage_deleted"), QStringLiteral("软删除"), ManagementPage::Section::SoftDelete},
+    ManagementRoute{QStringLiteral("manage_deleted"), QStringLiteral("批量移入回收站"), ManagementPage::Section::SoftDelete},
     ManagementRoute{QStringLiteral("manage_trash"), QStringLiteral("回收站"), ManagementPage::Section::RecycleBin},
 };
 
@@ -439,8 +439,9 @@ void MainWindow::buildUi()
     auto *layout = new QStackedLayout(centralWidget);
     layout->setStackingMode(QStackedLayout::StackAll);
     layout->setContentsMargins(0, 0, 0, 0);
-    m_workFilter = new WorkFilter(m_publicDatabase, m_privateDatabase, m_themeService, centralWidget);
-    m_workFilter->setWindowTitle(QStringLiteral("作品过滤器"));
+    m_workFilter = new WorkFilter(m_publicDatabase, m_privateDatabase, m_themeService,
+                                  centralWidget, m_paths.settingsFile());
+    m_workFilter->setWindowTitle(QStringLiteral("作品筛选"));
     m_workFilter->hide();
     m_workspace = new myads::WorkspaceWidget(centralWidget);
     m_workspace->setObjectName(QStringLiteral("mainWorkspace"));
@@ -490,22 +491,22 @@ void MainWindow::buildUi()
             this, &MainWindow::updateTimelineFocus);
     setCentralWidget(centralWidget);
 
-    registerPage(QStringLiteral("商店"), QStringLiteral("home"));
-    registerPage(QStringLiteral("作品"), QStringLiteral("mutiwork"));
+    registerPage(QStringLiteral("作品展厅"), QStringLiteral("home"));
+    registerPage(QStringLiteral("作品库"), QStringLiteral("mutiwork"));
     registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"));
     registerPage(QStringLiteral("女演员"), QStringLiteral("actress"));
     registerPage(QStringLiteral("男演员"), QStringLiteral("actor"));
-    registerPage(QStringLiteral("女演员详情"), QStringLiteral("actress_detail"));
+    registerPage(QStringLiteral("女演员详情（跟随切换）"), QStringLiteral("actress_detail"));
     registerPage(QStringLiteral("修改女演员"), QStringLiteral("modify_actress"));
     registerPage(QStringLiteral("修改男演员"), QStringLiteral("modify_actor"));
     registerPage(QStringLiteral("统计"), QStringLiteral("chart"));
-    registerPage(QStringLiteral("信息面板"), QStringLiteral("information"));
+    registerPage(QStringLiteral("个人数据概览"), QStringLiteral("information"));
     registerPage(QStringLiteral("全局关系图"), QStringLiteral("graph"));
     registerPage(QStringLiteral("局部关系图"), QStringLiteral("local_graph"));
-    registerPage(QStringLiteral("时间轴"), QStringLiteral("timeline"));
-    registerPage(QStringLiteral("书架"), QStringLiteral("shelf"));
-    registerPage(QStringLiteral("暗黑界"), QStringLiteral("av"));
-    registerPage(QStringLiteral("通知"), QStringLiteral("inbox"));
+    registerPage(QStringLiteral("作品时间轴"), QStringLiteral("timeline"));
+    registerPage(QStringLiteral("DVD 书架"), QStringLiteral("shelf"));
+    registerPage(QStringLiteral("暗黑界知识库"), QStringLiteral("av"));
+    registerPage(QStringLiteral("采集任务"), QStringLiteral("inbox"));
 
     for (const auto &entry : managementRoutes)
         registerPage(entry.title, entry.route);
@@ -683,7 +684,7 @@ void MainWindow::registerApplicationActions()
                   });
                   dialog.exec();
               });
-    addAction(QStringLiteral("add_quick_work"), QStringLiteral("快速添加番号"),
+    addAction(QStringLiteral("add_quick_work"), QStringLiteral("批量录入与补全作品"),
               QStringLiteral("W"), [this] {
                   AddQuickWorkDialog dialog(m_publicDatabase, *m_crawlerScheduler, m_themeService, this);
                   dialog.exec();
@@ -910,6 +911,7 @@ void MainWindow::updateLocalGraph()
     } else if (auto *people = qobject_cast<PersonPage *>(m_localGraphSource.data())) {
         m_localGraphPage->showFilteredActresses(people->filteredPersonIds());
     } else if (auto *shelf = qobject_cast<ShelfPage *>(m_localGraphSource.data())) {
+        if (shelf->isReturningToShelf()) return;
         const qint64 id = shelf->focusedWorkId();
         if (id > 0) m_localGraphPage->setEgoGraph(QStringLiteral("w%1").arg(id));
         else m_localGraphPage->showFilteredWorks(shelf->filteredWorkIds());
@@ -1095,7 +1097,7 @@ QMap<QString, QString> MainWindow::workspaceCommandPages() const
 {
     auto pages = m_routeTitles;
     pages.insert(QStringLiteral("setting"), QStringLiteral("设置"));
-    pages.insert(QStringLiteral("work_filters"), QStringLiteral("作品过滤器"));
+    pages.insert(QStringLiteral("work_filters"), m_workFilter->windowTitle());
     pages.insert(WorkspaceSearch::independentActressCommand, QStringLiteral("女演员详情（独立页）"));
     for (const auto &route : {QStringLiteral("fanart"),
                               QStringLiteral("modify_actress"), QStringLiteral("modify_actor")})
@@ -1126,7 +1128,7 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
         auto *fanart = static_cast<FanartBrowserPage *>(createPage(QStringLiteral("剧照"), QStringLiteral("fanart"), nullptr));
         fanart->showWork(id);
         widget = fanart;
-        title = QStringLiteral("剧照 · ") + work->serialNumber;
+        title = work->serialNumber + QStringLiteral(" · 剧照");
     } else if (base == QStringLiteral("actress_detail")) {
         const bool switching = routeName == actressSwitchRoute;
         const auto personId = switching ? switchActressId : argument.section(u'/', 0, 0).toLongLong();
@@ -1289,6 +1291,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                 m_paths.workCoverDirectory());
             editor = m_actorEditorPage;
         }
+        editor->enableLayoutPersistence(QDir(m_paths.dataDirectory()).filePath(
+            routeName + QStringLiteral("_workspace_layout.json")));
         connect(editor, &PersonEditorPage::personSaved, this, [this](PersonKind kind, qint64) {
             queueWorkspaceRefresh(kind == PersonKind::Actress ? ActressesChanged : ActorsChanged);
         });
@@ -1383,7 +1387,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     if (routeName == QStringLiteral("timeline"))
     {
         auto *timeline = new ActressWorkTimeline(parent, m_paths.workCoverDirectory(),
-                                                 m_paths.actressImageDirectory());
+                                                 m_paths.actressImageDirectory(), &m_themeService);
         connect(timeline, &ActressWorkTimeline::workRequested, this, &MainWindow::showWorkInShelf);
         m_timelinePage = timeline;
         updateTimeline();
@@ -1479,7 +1483,7 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         const auto matches = PersonRepository(m_publicDatabase).search(query);
         if (matches.isEmpty()) return;
         actor = matches.first();
-        recentTitle = QStringLiteral("男优 · ") + actor->name;
+        recentTitle = QStringLiteral("男演员 · ") + actor->name;
     }
     auto pageRoute = opensShelf ? QStringLiteral("shelf") : routeName;
     qint64 switchActressId = 0;

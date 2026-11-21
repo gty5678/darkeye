@@ -7,41 +7,50 @@
 #include <QSqlError>
 #include <QSqlQuery>
 
-namespace
+namespace darkeye::reference_schema
 {
 
-QString tableName(darkeye::ReferenceKind kind)
+QString tableName(ReferenceKind kind)
 {
     switch (kind)
     {
-    case darkeye::ReferenceKind::Maker:
+    case ReferenceKind::Maker:
         return QStringLiteral("maker");
-    case darkeye::ReferenceKind::Label:
+    case ReferenceKind::Label:
         return QStringLiteral("label");
-    case darkeye::ReferenceKind::Series:
+    case ReferenceKind::Series:
         return QStringLiteral("series");
     }
     return {};
 }
 
-QString idColumn(darkeye::ReferenceKind kind)
+QString idColumn(ReferenceKind kind)
 {
     return tableName(kind) + QStringLiteral("_id");
 }
 
-QString extraColumn(darkeye::ReferenceKind kind)
+QString extraColumn(ReferenceKind kind)
 {
     switch (kind)
     {
-    case darkeye::ReferenceKind::Maker:
+    case ReferenceKind::Maker:
         return QStringLiteral("logo_url");
-    case darkeye::ReferenceKind::Series:
+    case ReferenceKind::Series:
         return QStringLiteral("related_series");
-    case darkeye::ReferenceKind::Label:
+    case ReferenceKind::Label:
         return {};
     }
     return {};
 }
+
+} // namespace darkeye::reference_schema
+
+namespace
+{
+
+using darkeye::reference_schema::extraColumn;
+using darkeye::reference_schema::idColumn;
+using darkeye::reference_schema::tableName;
 
 bool validateRecord(const darkeye::ReferenceRecord &record, QString *errorMessage)
 {

@@ -8,8 +8,10 @@
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/DesignLabel.h"
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/LinkCard.h"
 #include "darkeye_ui/components/TokenControls.h"
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "ui/components/PathManagement.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "services/VideoLibraryService.h"
@@ -50,6 +52,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QSaveFile>
@@ -688,15 +691,27 @@ void CommonSettingsPage::lazyLoad()
     layout->addRow(new DesignLabel(QStringLiteral("主色"), this), m_primaryColorRow);
     layout->addRow(new DesignLabel(QStringLiteral("主题"), this), m_themeSelector);
 
+    const auto appSettings = settings::app(m_settingsFile);
     auto *autoCollapse = new TokenCheckBox(QStringLiteral("焦点离开边栏时自动收起"), this);
     autoCollapse->setObjectName(QStringLiteral("sidebarAutoCollapse"));
-    autoCollapse->setChecked(settings::app(m_settingsFile).sidebarAutoCollapse);
+    autoCollapse->setChecked(appSettings.sidebarAutoCollapse);
     layout->addRow(autoCollapse);
     connect(autoCollapse, &QCheckBox::toggled, this, [this](bool enabled) {
         auto appSettings = settings::app(m_settingsFile);
         appSettings.sidebarAutoCollapse = enabled;
         settings::saveApp(appSettings, m_settingsFile);
         emit sidebarAutoCollapseChanged(enabled);
+    });
+
+    auto *greenCover = new TokenCheckBox(QStringLiteral("初始过滤器添加绿色封面"), this);
+    greenCover->setObjectName(QStringLiteral("workFilterAddGreenCover"));
+    greenCover->setToolTip(QStringLiteral("下次初始化作品筛选面板时生效"));
+    greenCover->setChecked(appSettings.workFilterAddGreenCover);
+    layout->addRow(greenCover);
+    connect(greenCover, &QCheckBox::toggled, this, [this](bool enabled) {
+        auto appSettings = settings::app(m_settingsFile);
+        appSettings.workFilterAddGreenCover = enabled;
+        settings::saveApp(appSettings, m_settingsFile);
     });
 
     connect(m_colorPicker, &ColorPicker::colorConfirmed, this,
@@ -743,8 +758,8 @@ void CommonSettingsPage::savePrimaryColor(const QString &color)
     settings::saveApp(appSettings);
 }
 
-CrawlerSettingsPage::CrawlerSettingsPage(QWidget *parent)
-    : LazyWidget(parent)
+CrawlerSettingsPage::CrawlerSettingsPage(ThemeService &themeService, QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService)
 {
 }
 
@@ -797,7 +812,7 @@ void CrawlerSettingsPage::lazyLoad()
     auto *browse = new DesignButton(QStringLiteral("浏览…"), this);
     collectorRow->addWidget(browse);
     form->addRow(wrappingLabel(QStringLiteral("信息补充器可执行文件")), collectorRow);
-    m_autoStartCollector = new ToggleSwitch(48, 24, nullptr, this);
+    m_autoStartCollector = new ToggleSwitch(40, 24, &m_themeService, this);
     m_autoStartCollector->setChecked(values.autoStartCollector);
     form->addRow(wrappingLabel(QStringLiteral("打开软件自动启动信息补充器")),
                  m_autoStartCollector);
@@ -911,8 +926,8 @@ void CrawlerSettingsPage::testCollector()
     timeout->start(5000);
 }
 
-TranslationSettingsPage::TranslationSettingsPage(QWidget *parent)
-    : LazyWidget(parent)
+TranslationSettingsPage::TranslationSettingsPage(ThemeService &themeService, QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService)
 {
 }
 
@@ -1048,9 +1063,9 @@ void TranslationSettingsPage::lazyLoad()
     llamaForm->addRow(new DesignLabel(QStringLiteral("threads-batch"), this), m_threadsBatch);
     llamaForm->addRow(new DesignLabel(QStringLiteral("batch-size"), this), m_batchSize);
     llamaForm->addRow(new DesignLabel(QStringLiteral("ubatch-size"), this), m_microBatchSize);
-    m_mlock = new ToggleSwitch(48, 24, nullptr, this);
-    m_autoSync = new ToggleSwitch(48, 24, nullptr, this);
-    m_autoStart = new ToggleSwitch(48, 24, nullptr, this);
+    m_mlock = new ToggleSwitch(40, 24, &m_themeService, this);
+    m_autoSync = new ToggleSwitch(40, 24, &m_themeService, this);
+    m_autoStart = new ToggleSwitch(40, 24, &m_themeService, this);
     m_mlock->setChecked(values.llama.mlock);
     m_autoSync->setChecked(values.llama.autoSyncTranslation);
     m_autoStart->setChecked(values.llama.autoStart);
@@ -1304,9 +1319,11 @@ void TranslationSettingsPage::browseModel()
 
 DatabaseSettingsPage::DatabaseSettingsPage(QSqlDatabase publicDatabase,
                                            QSqlDatabase privateDatabase,
-                                           settings::Paths paths, QWidget *parent)
+                                           settings::Paths paths, ThemeService &themeService,
+                                           QWidget *parent)
     : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
-      m_privateDatabase(std::move(privateDatabase)), m_paths(std::move(paths))
+      m_privateDatabase(std::move(privateDatabase)), m_paths(std::move(paths)),
+      m_themeService(themeService)
 {
 }
 
@@ -1347,7 +1364,7 @@ void DatabaseSettingsPage::lazyLoad()
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>WebDAV 云备份</h3>"), this));
     const CrawlerSettings crawler = settings::crawler(m_paths.settingsFile());
     auto *form = new QFormLayout;
-    m_webDavEnabled = new ToggleSwitch(48, 24, nullptr, this); m_webDavEnabled->setChecked(crawler.webDav.enabled);
+    m_webDavEnabled = new ToggleSwitch(40, 24, &m_themeService, this); m_webDavEnabled->setChecked(crawler.webDav.enabled);
     m_webDavProfile = new DesignLineEdit(this);
     m_webDavProfile->setText(crawler.webDav.profileName);
     m_webDavBaseUrl = new DesignLineEdit(this);
@@ -1355,7 +1372,7 @@ void DatabaseSettingsPage::lazyLoad()
     m_webDavRemoteRoot = new DesignLineEdit(this);
     m_webDavRemoteRoot->setText(crawler.webDav.remoteRoot);
     m_webDavTimeout = new TokenSpinBox(this); m_webDavTimeout->setRange(3, 300); m_webDavTimeout->setValue(crawler.webDav.timeoutSeconds);
-    m_webDavAutoUpload = new ToggleSwitch(48, 24, nullptr, this); m_webDavAutoUpload->setChecked(crawler.webDav.autoUploadOnBackup);
+    m_webDavAutoUpload = new ToggleSwitch(40, 24, &m_themeService, this); m_webDavAutoUpload->setChecked(crawler.webDav.autoUploadOnBackup);
     m_webDavCredentialStatus = new DesignLabel(QString{}, this);
     form->addRow(new DesignLabel(QStringLiteral("启用 WebDAV"), this), m_webDavEnabled);
     form->addRow(new DesignLabel(QStringLiteral("Profile"), this), m_webDavProfile);
@@ -1567,13 +1584,14 @@ void DatabaseSettingsPage::restoreWebDavBackup()
 SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &shortcutActions,
                                QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
                                settings::Paths paths, QWidget *parent)
-    : QDialog(parent)
+    : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint), m_themeService(themeService)
 {
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(QStringLiteral("设置"));
-    setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+    setAttribute(Qt::WA_TranslucentBackground);
+    connect(&m_themeService, &ThemeService::themeChanged, this, [this] { update(); });
     const QSize screenSize = (parent ? parent->screen() : screen())->availableGeometry().size();
-    setFixedWidth(qMin(1040, screenSize.width() - 32));
+    setFixedWidth(qMin(920, screenSize.width() - 32));
     resize(width(), qMin(720, screenSize.height() - 48));
 
     m_commonPage = new CommonSettingsPage(themeService, this, paths.settingsFile());
@@ -1581,7 +1599,7 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
             this, &SettingsDialog::sidebarAutoCollapseChanged);
     auto *videoPage = new VideoSettingsPage(publicDatabase, this);
     auto *nfoPage = new NfoSettingsPage(publicDatabase, paths, this);
-    auto *crawlerPage = new CrawlerSettingsPage(this);
+    auto *crawlerPage = new CrawlerSettingsPage(themeService, this);
     struct Section {
         QString title;
         LazyWidget *page;
@@ -1593,7 +1611,7 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
 
     const QList<Section> sections = {
         {QStringLiteral("常规"), m_commonPage, {QStringLiteral("主题"), QStringLiteral("主色"),
-         QStringLiteral("焦点离开边栏时自动收起")}},
+         QStringLiteral("焦点离开边栏时自动收起"), QStringLiteral("初始过滤器添加绿色封面")}},
         {QStringLiteral("视频"), videoPage,
          QStringLiteral("本地播放器（可选）：|视频文件夹路径管理：|扫描本地视频提取番号并录入数据库|同步作品本地视频路径").split(u'|')},
         {QStringLiteral("NFO"), nfoPage,
@@ -1602,12 +1620,12 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
         {QStringLiteral("信息补充器"), crawlerPage,
          QStringLiteral("作品 API 前缀|女优 API 前缀|图片下载 API|热门女优 API|信息补充器可执行文件|"
                         "打开软件自动启动信息补充器|信息服务器控制|运行状态").split(u'|')},
-        {QStringLiteral("翻译"), new TranslationSettingsPage(this),
+        {QStringLiteral("翻译"), new TranslationSettingsPage(themeService, this),
          QStringLiteral("翻译引擎|模型|Base URL|API Key|超时（秒）|重试次数|失败回退|测试输入|测试输出|"
                         "测试翻译|llama-server|GGUF 模型|监听地址|运行模式|参数预设|上下文大小|GPU layers|"
                         "threads|threads-batch|batch-size|ubatch-size|mlock|自动回填翻译配置|打开软件自动启动|"
                         "命令预览|运行状态|日志输出").split(u'|')},
-        {QStringLiteral("数据库"), new DatabaseSettingsPage(publicDatabase, privateDatabase, paths, this),
+        {QStringLiteral("数据库"), new DatabaseSettingsPage(publicDatabase, privateDatabase, paths, themeService, this),
          QStringLiteral("数据库清理碎片|图片数据一致性检查|全量备份公共数据库|全量还原公共数据库|精简备份公共数据库|"
                         "精简还原公共数据库|备份私有数据库|还原私有数据库|重建私有库与公共库的关联|启用 WebDAV|"
                         "Profile|Base URL|Remote Root|超时(秒)|备份后自动上传|凭据管理|云端操作").split(u'|')},
@@ -1622,7 +1640,7 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
     layout->setSpacing(20);
 
     auto *sidebar = new QWidget(this);
-    sidebar->setFixedWidth(208);
+    sidebar->setFixedWidth(176);
     auto *sidebarLayout = new QVBoxLayout(sidebar);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     auto *search = new DesignLineEdit(sidebar);
@@ -1644,7 +1662,17 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
     auto *content = new QVBoxLayout;
     auto *title = new DesignLabel(sections.first().title, this);
     title->setObjectName(QStringLiteral("DesignModalTitle"));
-    content->addWidget(title);
+    auto *closeButton = new IconButton(QStringLiteral("x"), QStringLiteral("关闭设置"),
+                                       &themeService, this);
+    closeButton->setButtonPixelSize(28);
+    closeButton->setIconPixelSize(20);
+    closeButton->setAutoDefault(false);
+    connect(closeButton, &QPushButton::clicked, this, &QDialog::reject);
+
+    auto *heading = new QHBoxLayout;
+    heading->addWidget(title, 1);
+    heading->addWidget(closeButton, 0, Qt::AlignTop | Qt::AlignRight);
+    content->addLayout(heading);
     auto *stack = new QStackedWidget(this);
     for (const auto &section : sections) {
         auto *area = new QScrollArea(stack);
@@ -1742,6 +1770,16 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
     connect(nfoPage, &NfoSettingsPage::actressesChanged, this, &SettingsDialog::actressesChanged);
     connect(nfoPage, &NfoSettingsPage::actorsChanged, this, &SettingsDialog::actorsChanged);
     connect(nfoPage, &NfoSettingsPage::worksChanged, this, &SettingsDialog::worksChanged);
+}
+
+void SettingsDialog::paintEvent(QPaintEvent *)
+{
+    const auto tokens = m_themeService.currentTokens();
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setBrush(QColor(tokens.background));
+    painter.setPen(QPen(QColor(tokens.border), 1));
+    painter.drawPath(chamferPath(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5)));
 }
 
 QComboBox *SettingsDialog::themeSelector() const

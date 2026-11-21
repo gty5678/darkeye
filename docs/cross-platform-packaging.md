@@ -47,7 +47,7 @@ Qt 的最低运行系统随实际使用的 Qt kit 确定。使用更新版本时
 - 各原生平台构建独立更新器，将本平台产物放入 `resources/updater.exe`（Windows）或 `resources/updater`（macOS）。构建和安装会将它部署到主程序旁。
 - 打包前按下文使用 `uv` 安装压缩依赖 `zstandard`。
 - `tools/package.py` 额外生成 `Darkeye-版本-平台-架构-update.tar.zst`和包含 SHA-256 的 `latest.json`。Windows 更新 tar.zst 无包装目录；macOS 更新包只包含顶层 `Darkeye.app/`，整份替换应用并清理旧文件。更新包只包含程序，不包含数据或便携配置；包内保留原有相对符号链接和可执行权限，不重复存储链接目标；更新器在解包完成后恢复安全的内部链接；外部链接、循环链接和空包会拒绝生成。tar.zst 通过完整性校验后才替换正式产物，JSON 中的 SHA-256 自动从最终包体计算；安装和便携模式共用它。不要将首次分发的便携包、系统安装包用作更新包。
-- 默认更新地址为 `https://darkeye.win/updates/stable/{target}/latest.json`，`{target}` 根据当前应用构建目标替换为 `windows-x64`、`macos-arm64`。可以在随包发布的 `config/update.ini` 修改地址模板。
+- 默认更新地址模板由 `apps/desktop/app_config.h` 定义。`{target}` 根据当前应用构建目标替换为 `windows-x64` 或 `macos-arm64`。随包发布的 `config/update.ini` 可填写 `LatestJsonUrl` 以覆盖默认值。
 - 每个平台的清单独立发布，结构为 `latestVersion`、`releaseNotes`、`packages`；`packages` 以目标名为键，每个条目必须有 HTTPS `url` 和真实 `sha256`。发布前填写更新说明，并核对生成的下载地址。
 - 先上传版本化更新 tar.zst，确认可下载后，再将生成的 `latest.json` 上传到对应目标目录（不同平台的本地产物也应分目录保存）。不同平台可停留在不同版本。
 - Windows 更新根目录为 exe 所在目录，Mac 为 `.app` 根目录（从包内 `Darkeye.app/` 取出完整应用内容替换）；更新器先复制到系统临时目录运行，日志为该临时目录内的 `update.log`。

@@ -231,7 +231,7 @@ void WorkspaceSearch::updateResults() {
         const auto persons = PersonRepository(m_database).search(query);
         if (m_fullResults && persons.size() == m_limit) m_more->show();
         for (const auto &person : persons)
-            add((kind == PersonKind::Actress ? QStringLiteral("女优 · ") : QStringLiteral("男优 · ")) + person.name,
+            add((kind == PersonKind::Actress ? QStringLiteral("女演员 · ") : QStringLiteral("男演员 · ")) + person.name,
                 (kind == PersonKind::Actress ? QStringLiteral("actress_detail/") : QStringLiteral("actor_works/")) + QString::number(person.id));
     };
     if (m_mode == Mode::Commands) {
@@ -242,12 +242,22 @@ void WorkspaceSearch::updateResults() {
                 addedPages.insert(route);
             }
         }
-        const QMap<QString, QString> aliases{
+        static const QMap<QString, QString> aliases{
             {QStringLiteral("女优"), QStringLiteral("actress")},
             {QStringLiteral("女优库"), QStringLiteral("actress")},
             {QStringLiteral("男优"), QStringLiteral("actor")},
             {QStringLiteral("男优库"), QStringLiteral("actor")},
-            {QStringLiteral("作品库"), QStringLiteral("mutiwork")},
+            {QStringLiteral("商店"), QStringLiteral("home")},
+            {QStringLiteral("作品"), QStringLiteral("mutiwork")},
+            {QStringLiteral("书架"), QStringLiteral("shelf")},
+            {QStringLiteral("作品过滤器"), QStringLiteral("work_filters")},
+            {QStringLiteral("女演员详情"), QStringLiteral("actress_detail")},
+            {QStringLiteral("信息面板"), QStringLiteral("information")},
+            {QStringLiteral("时间轴"), QStringLiteral("timeline")},
+            {QStringLiteral("暗黑界"), QStringLiteral("av")},
+            {QStringLiteral("通知"), QStringLiteral("inbox")},
+            {QStringLiteral("汇总查询"), QStringLiteral("manage_summary")},
+            {QStringLiteral("软删除"), QStringLiteral("manage_deleted")},
         };
         const auto exactRoute = aliases.value(text);
         for (auto it = m_pages.cbegin(); it != m_pages.cend(); ++it) {

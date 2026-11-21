@@ -16,6 +16,13 @@ enum class ReferenceKind
     Series,
 };
 
+namespace reference_schema
+{
+QString tableName(ReferenceKind kind);
+QString idColumn(ReferenceKind kind);
+QString extraColumn(ReferenceKind kind);
+} // namespace reference_schema
+
 struct ReferenceRecord final
 {
     ReferenceKind kind = ReferenceKind::Maker;

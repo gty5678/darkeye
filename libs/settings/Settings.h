@@ -28,6 +28,7 @@ struct AppSettings final
     QPoint windowPosition{100, 100};
 
     bool sidebarAutoCollapse = false;
+    bool workFilterAddGreenCover = false;
     bool workLargeCoverView = false;
     bool workTagSelectorVisible = true;
     bool shelfTagSelectorVisible = true;

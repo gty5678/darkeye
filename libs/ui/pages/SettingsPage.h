@@ -117,7 +117,7 @@ class CrawlerSettingsPage final : public LazyWidget
     Q_OBJECT
 
 public:
-    explicit CrawlerSettingsPage(QWidget *parent = nullptr);
+    explicit CrawlerSettingsPage(ThemeService &themeService, QWidget *parent = nullptr);
 
 private:
     void lazyLoad() override;
@@ -128,6 +128,7 @@ private:
     void resetCrawlerUrl(QLineEdit *field, const QUrl &value);
     void setCollectorStatus(const QString &status);
 
+    ThemeService &m_themeService;
     QLineEdit *m_workApi = nullptr;
     QLineEdit *m_actressApi = nullptr;
     QLineEdit *m_coverApi = nullptr;
@@ -166,7 +167,7 @@ class TranslationSettingsPage final : public LazyWidget
     Q_OBJECT
 
 public:
-    explicit TranslationSettingsPage(QWidget *parent = nullptr);
+    explicit TranslationSettingsPage(ThemeService &themeService, QWidget *parent = nullptr);
     ~TranslationSettingsPage() override;
 
 private:
@@ -187,6 +188,7 @@ private:
     void applyLlamaPreset();
     void updateLlamaRunButtons();
 
+    ThemeService &m_themeService;
     QComboBox *m_engine = nullptr;
     QLineEdit *m_model = nullptr;
     QLineEdit *m_baseUrl = nullptr;
@@ -226,7 +228,8 @@ class DatabaseSettingsPage final : public LazyWidget
 
 public:
     explicit DatabaseSettingsPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
-                                  settings::Paths paths, QWidget *parent = nullptr);
+                                  settings::Paths paths, ThemeService &themeService,
+                                  QWidget *parent = nullptr);
 
 private:
     void lazyLoad() override;
@@ -250,6 +253,7 @@ private:
     QSqlDatabase m_publicDatabase;
     QSqlDatabase m_privateDatabase;
     settings::Paths m_paths;
+    ThemeService &m_themeService;
     ToggleSwitch *m_webDavEnabled = nullptr;
     QLineEdit *m_webDavProfile = nullptr;
     QLineEdit *m_webDavBaseUrl = nullptr;
@@ -281,6 +285,9 @@ signals:
     void quickWorkRequested(const QStringList &serials);
 
 private:
+    void paintEvent(QPaintEvent *event) override;
+
+    ThemeService &m_themeService;
     CommonSettingsPage *m_commonPage = nullptr;
 };
 

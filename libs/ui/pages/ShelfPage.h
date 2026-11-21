@@ -42,6 +42,7 @@ public:
     bool showWork(qint64 workId);
     [[nodiscard]] qint64 currentWorkId() const;
     [[nodiscard]] qint64 focusedWorkId() const;
+    [[nodiscard]] bool isReturningToShelf() const;
     [[nodiscard]] qint64 expandedWorkId() const;
     [[nodiscard]] QSet<qint64> filteredWorkIds() const;
     [[nodiscard]] QList<WorkSummary> filteredWorks() const;
@@ -64,6 +65,7 @@ private:
 
     QSqlDatabase m_database;
     QSqlDatabase m_privateDatabase;
+    ThemeService &m_themes;
     QString m_coverDirectory;
     QString m_fanartDirectory;
     WorkFilter *m_filter;

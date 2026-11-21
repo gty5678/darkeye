@@ -28,7 +28,7 @@ void PersonDetailPage::lazyLoad()
     // Keep the card centered in the same viewport when the alias list grows.
     auto *root = new QVBoxLayout(addPageScrollArea(this, nullptr, Qt::ScrollBarAlwaysOn));
     auto *scroll = findChild<QScrollArea *>(QString{}, Qt::FindDirectChildrenOnly);
-    root->setContentsMargins(16, 16, 16, 16);
+    root->setContentsMargins(4, 4, 4, 4);
 
     m_panel = new PersonInfoPanel(m_themes, std::move(m_imageDirectory), this);
     auto *cardRow = new QHBoxLayout;

@@ -80,7 +80,6 @@ public:
 
 private:
     void applyBlock(float alpha, int blockSize);
-    void applyParallel(float alpha);
     void applyBarnesHut(float alpha);
 
     float m_strength;
@@ -110,7 +109,6 @@ public:
 
 private:
     void applyBruteForce(float alpha);  // O(N^2) serial
-    void applyParallel(float alpha);    // O(N^2) parallel
     void applyGrid(float alpha);        // O(N) uniform grid acceleration
 
     float m_radius;

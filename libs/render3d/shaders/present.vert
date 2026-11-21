@@ -1,6 +1,6 @@
 #version 440
 layout(location = 0) out vec2 uv;
-layout(std140, binding = 1) uniform Present { vec4 params; };
+layout(std140, binding = 1) uniform Present { vec4 params; vec4 clearColor; };
 void main()
 {
     vec2 position = vec2(float((gl_VertexIndex << 1) & 2), float(gl_VertexIndex & 2));

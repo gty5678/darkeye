@@ -18,7 +18,7 @@ class ToggleSwitch final : public QWidget
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled)
 
 public:
-    explicit ToggleSwitch(int width = 48, int height = 24,
+    explicit ToggleSwitch(int width = 40, int height = 24,
                           ThemeService *themes = nullptr,
                           QWidget *parent = nullptr);
 

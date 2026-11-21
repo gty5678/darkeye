@@ -22,6 +22,7 @@
 #include <QRegularExpression>
 #include <QWidget>
 #include <QSet>
+#include <array>
 
 namespace darkeye {
 namespace {
@@ -135,6 +136,37 @@ private:
     bool m_highlightHover;
 };
 
+struct EdgeCoverage
+{
+    qreal fraction;
+    bool matches;
+};
+
+EdgeCoverage edgeCoverage(const QColor &pixel, const QColor &edge, const QColor &interior)
+{
+    const auto channels = [](const QColor &colour) {
+        return std::array{colour.redF(), colour.greenF(), colour.blueF(), colour.alphaF()};
+    };
+    const auto sample = channels(pixel);
+    const auto border = channels(edge);
+    const auto fill = channels(interior);
+    qreal numerator = 0;
+    qreal denominator = 0;
+    for (std::size_t i = 0; i < sample.size(); ++i) {
+        const qreal delta = border[i] - fill[i];
+        numerator += (sample[i] - fill[i]) * delta;
+        denominator += delta * delta;
+    }
+    if (denominator == 0) return {0, false};
+
+    const qreal fraction = qBound(qreal(0), numerator / denominator, qreal(1));
+    for (std::size_t i = 0; i < sample.size(); ++i) {
+        const qreal blended = fill[i] + fraction * (border[i] - fill[i]);
+        if (qAbs(sample[i] - blended) > 2.0 / 255) return {fraction, false};
+    }
+    return {fraction, true};
+}
+
 // Work with the styled source, so hover/focus/disabled colours and border
 // widths come from Qt's actual rendering rather than an approximation of QSS.
 class ChamferEffect final : public QGraphicsEffect
@@ -163,7 +195,7 @@ protected:
             outer = outer.united(top);
         }
 
-        // Inspect the uninterrupted top edge, away from text and subcontrols.
+        // Inspect the horizontal edges away from text and subcontrols.
         // A solid fill (primary buttons, borderless hover backgrounds) needs
         // only the silhouette; a contrasting edge needs a complete inset ring.
         const int x = result.width() / 2;
@@ -172,30 +204,36 @@ protected:
             const auto edgePixel = [&](int row) {
                 return result.pixelColor(x, bottom ? result.height() - 1 - row : row);
             };
-            const QColor edge = edgePixel(0);
-            int borderPixels = 0;
             const int limit = qMin(result.height(), qCeil(4 * dpr));
-            while (borderPixels < limit && edgePixel(borderPixels) == edge)
-                ++borderPixels;
+            const auto endOfRun = [&](int row, const QColor &colour) {
+                while (row < limit && edgePixel(row) == colour) ++row;
+                return row;
+            };
+            const auto interiorPixel = [&](int row) {
+                return edgePixel(qMin(row + 1, result.height() - 1));
+            };
+            QColor edge = edgePixel(0);
+            int borderPixels = endOfRun(0, edge);
+            qreal outerCoverage = 1;
+            // At fractional scales Qt can blend the outermost border row with
+            // the fill. Recover the solid colour from the run just inside it.
+            if (borderPixels == 1 && limit > 2) {
+                const QColor solid = edgePixel(1);
+                const int end = endOfRun(1, solid);
+                if (end < limit) {
+                    const auto coverage = edgeCoverage(edge, solid, interiorPixel(end));
+                    if (coverage.matches && coverage.fraction > 0 && coverage.fraction < 1) {
+                        edge = solid;
+                        borderPixels = end;
+                        outerCoverage = coverage.fraction;
+                    }
+                }
+            }
             const bool hasBorder = edge.alpha() > 0 && borderPixels > 0 && borderPixels < limit;
             if (hasBorder) {
-                const QColor transition = edgePixel(borderPixels);
-                const QColor interior = edgePixel(qMin(borderPixels + 1, result.height() - 1));
-                const auto channels = [](const QColor &colour) {
-                    return QList<qreal>{colour.redF(), colour.greenF(), colour.blueF(), colour.alphaF()};
-                };
-                const auto edgeChannels = channels(edge);
-                const auto transitionChannels = channels(transition);
-                const auto interiorChannels = channels(interior);
-                qreal numerator = 0;
-                qreal denominator = 0;
-                for (int channel = 0; channel < 4; ++channel) {
-                    const qreal delta = edgeChannels[channel] - interiorChannels[channel];
-                    numerator += (transitionChannels[channel] - interiorChannels[channel]) * delta;
-                    denominator += delta * delta;
-                }
-                const qreal coverage = denominator > 0 ? qBound(qreal(0), numerator / denominator, qreal(1)) : 0;
-                const qreal width = (borderPixels + coverage) / dpr;
+                const qreal innerCoverage = edgeCoverage(
+                    edgePixel(borderPixels), edge, interiorPixel(borderPixels)).fraction;
+                const qreal width = (borderPixels - 1 + outerCoverage + innerCoverage) / dpr;
                 // Offset the diagonal by the same perpendicular distance as the
                 // horizontal edges, keeping all eight sides equally thick.
                 const qreal innerCorner = qMax(qreal(0), corner - (2 - qSqrt(2.0)) * width);

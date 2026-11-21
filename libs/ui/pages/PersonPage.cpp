@@ -44,24 +44,24 @@ void PersonPage::lazyLoad()
 void PersonPage::buildUi()
 {
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(0, 0, 0, 0);
-    root->setSpacing(6);
+    // The card area already adds top padding beneath the filter bar.
+    root->setContentsMargins(0, 2, 0, 0);
+    root->setSpacing(0);
 
     auto *filterBar = new QWidget(this);
     filterBar->setObjectName(QStringLiteral("PersonFilterBar"));
-    // Match WorkPage: a 44px bar with naturally sized, centered controls.
-    filterBar->setFixedHeight(44);
+    filterBar->setFixedHeight(36);
     auto *filters = new QHBoxLayout(filterBar);
     filters->setContentsMargins(10, 0, 10, 0);
     filters->setSpacing(6);
 
     filters->addWidget(new DesignLabel(m_kind == PersonKind::Actress ? QStringLiteral("女优")
                                                                      : QStringLiteral("男优"),
-                                       filterBar));
+                                       filterBar), 0, Qt::AlignVCenter);
     const QStringList nameSuggestions = m_repository.nameSuggestions(m_kind);
     m_nameInput = new CompleterLineEdit([nameSuggestions] { return nameSuggestions; }, filterBar);
     m_nameInput->setFixedWidth(140);
-    filters->addWidget(m_nameInput);
+    filters->addWidget(m_nameInput, 0, Qt::AlignVCenter);
 
     m_cupSelector = new DesignComboBox(filterBar);
     m_cupSelector->setProperty("compactFilter", true);
@@ -73,7 +73,7 @@ void PersonPage::buildUi()
         auto policy = control->sizePolicy();
         policy.setRetainSizeWhenHidden(true);
         control->setSizePolicy(policy);
-        filters->addWidget(control);
+        filters->addWidget(control, 0, Qt::AlignVCenter);
         control->setVisible(m_kind == PersonKind::Actress);
     }
 
@@ -98,9 +98,9 @@ void PersonPage::buildUi()
     m_countLabel = new DesignLabel({}, trailingControls);
     m_countLabel->setFixedWidth(100);
     filters->addStretch();
-    trailingLayout->addWidget(refreshButton);
-    trailingLayout->addWidget(clearButton);
-    trailingLayout->addWidget(m_countLabel);
+    trailingLayout->addWidget(refreshButton, 0, Qt::AlignVCenter);
+    trailingLayout->addWidget(clearButton, 0, Qt::AlignVCenter);
+    trailingLayout->addWidget(m_countLabel, 0, Qt::AlignVCenter);
 
     m_scopeSelector = new DesignComboBox(trailingControls);
     m_scopeSelector->setProperty("compactFilter", true);
@@ -109,7 +109,7 @@ void PersonPage::buildUi()
     auto scopePolicy = m_scopeSelector->sizePolicy();
     scopePolicy.setRetainSizeWhenHidden(true);
     m_scopeSelector->setSizePolicy(scopePolicy);
-    trailingLayout->addWidget(m_scopeSelector);
+    trailingLayout->addWidget(m_scopeSelector, 0, Qt::AlignVCenter);
     m_scopeSelector->setVisible(m_kind == PersonKind::Actress);
 
     m_sortSelector = new DesignComboBox(trailingControls);
@@ -150,13 +150,11 @@ void PersonPage::buildUi()
     }
     m_sortSelector->setCurrentIndex(
         m_sortSelector->findData(static_cast<int>(PersonSortOrder::CreatedDescending)));
-    trailingLayout->addWidget(m_sortSelector);
+    trailingLayout->addWidget(m_sortSelector, 0, Qt::AlignVCenter);
     filters->addWidget(trailingControls, 0, Qt::AlignRight | Qt::AlignVCenter);
-    filters->setAlignment(Qt::AlignVCenter);
-    trailingLayout->setAlignment(Qt::AlignVCenter);
     root->addWidget(filterBar);
 
-    m_lazyArea = new LazyScrollArea(150, this);
+    m_lazyArea = new LazyScrollArea(150, this, 6);
     root->addWidget(m_lazyArea, 1);
 
     m_filterTimer = new QTimer(this);

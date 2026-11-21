@@ -25,7 +25,7 @@ public:
     enum class Reference { Maker, Label, Series };
 
     WorkFilter(QSqlDatabase database, QSqlDatabase privateDatabase,
-               ThemeService &themeService, QWidget *parent = nullptr);
+               ThemeService &themeService, QWidget *parent = nullptr, QString settingsFile = {});
 
     [[nodiscard]] WorkSearch search() const;
     void focusNotes();
@@ -58,6 +58,7 @@ private:
     ThemeService &m_themeService;
     QSqlDatabase m_database;
     QSqlDatabase m_privateDatabase;
+    QString m_settingsFile;
     std::optional<qint64> m_actorId;
     qint64 m_routeTagId = 0;
     DesignLineEdit *m_searchInput = nullptr;

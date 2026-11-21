@@ -12,6 +12,7 @@ class QLineEdit;
 class QPushButton;
 class QSpinBox;
 class QTableWidget;
+class QTimer;
 class QVBoxLayout;
 
 namespace darkeye
@@ -20,7 +21,7 @@ namespace darkeye
 class ThemeService;
 class ImageDropWidget;
 class WikiTextEdit;
-namespace myads { class PaneWidget; class WorkspaceWidget; }
+namespace myads { class WorkspaceWidget; }
 
 class PersonEditorPage : public QWidget
 {
@@ -29,7 +30,9 @@ class PersonEditorPage : public QWidget
 public:
     explicit PersonEditorPage(QSqlDatabase database, ThemeService &themes, QString imageDirectory,
                               QWidget *parent = nullptr, QString coverDirectory = {});
+    ~PersonEditorPage() override;
 
+    void enableLayoutPersistence(const QString &path);
     bool loadPerson(PersonKind kind, qint64 personId);
     bool savePerson();
     [[nodiscard]] qint64 personId() const noexcept;
@@ -60,6 +63,9 @@ protected:
 
 private:
     void buildUi();
+    void restoreWorkspaceLayout();
+    void scheduleWorkspaceSave();
+    void saveWorkspaceLayout();
     void populate(const PersonDetails &details);
     [[nodiscard]] PersonDetails editorDetails() const;
     void updateDirtyState();
@@ -95,7 +101,8 @@ private:
     QWidget *m_actressFields = nullptr;
     QWidget *m_actorFields = nullptr;
     myads::WorkspaceWidget *m_workspace = nullptr;
-    myads::PaneWidget *m_notesPane = nullptr;
+    QString m_workspaceLayoutPath;
+    QTimer *m_workspaceSaveTimer = nullptr;
     QVBoxLayout *m_actionsLayout = nullptr;
     QPushButton *m_saveButton = nullptr;
     QPushButton *m_cancelButton = nullptr;

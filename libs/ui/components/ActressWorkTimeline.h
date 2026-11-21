@@ -11,6 +11,7 @@ class QScrollArea;
 namespace darkeye {
 
 class OctImage;
+class ThemeService;
 class TimelineCanvas;
 
 class ActressWorkTimeline final : public QWidget
@@ -19,7 +20,7 @@ class ActressWorkTimeline final : public QWidget
 
 public:
     explicit ActressWorkTimeline(QWidget *parent = nullptr, QString coverDirectory = {},
-                                 QString actressImageDirectory = {});
+                                 QString actressImageDirectory = {}, ThemeService *themes = nullptr);
 
     void setActress(const PersonDetails &actress);
     void setActresses(const QList<PersonDetails> &actresses);

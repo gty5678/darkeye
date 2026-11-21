@@ -246,9 +246,9 @@ QWidget *buildToggles(ThemeService &themes)
     const TwoColumnPage ui = makeTwoColumnPage();
     ui.left->addWidget(new Label(QStringLiteral("开关 ToggleSwitch（令牌驱动，随主题变色）")));
     auto *switchRow = addHorizontalRow(ui.left);
-    switchRow->addWidget(new ToggleSwitch(48, 24, &themes));
+    switchRow->addWidget(new ToggleSwitch(40, 24, &themes));
     switchRow->addWidget(new Label(QStringLiteral("默认")));
-    auto *checkedSwitch = new ToggleSwitch(48, 24, &themes);
+    auto *checkedSwitch = new ToggleSwitch(40, 24, &themes);
     checkedSwitch->setChecked(true);
     switchRow->addWidget(checkedSwitch);
     switchRow->addWidget(new Label(QStringLiteral("默认开")));

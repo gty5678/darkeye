@@ -262,11 +262,11 @@ void WorkBatchStateWidget::moveCheckedToRecycleBin()
     const QList<qint64> ids = checkedIds();
     if (ids.isEmpty())
     {
-        Toast::showWarning(window(), QStringLiteral("请先勾选要软删除的作品"), &m_themes);
+        Toast::showWarning(window(), QStringLiteral("请先勾选要移入回收站的作品"), &m_themes);
         return;
     }
     if (QMessageBox::question(
-            this, QStringLiteral("确认软删除"),
+            this, QStringLiteral("确认移入回收站"),
             QStringLiteral("确定将选中的 %1 部作品移入回收站？").arg(ids.size())) !=
         QMessageBox::Yes)
         return;

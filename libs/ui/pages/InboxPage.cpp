@@ -61,7 +61,7 @@ void InboxPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(addPageScrollArea(this));
     layout->setContentsMargins(24, 24, 24, 24);
-    auto *title = new DesignLabel(QStringLiteral("通知与爬虫任务"), this);
+    auto *title = new DesignLabel(QStringLiteral("采集任务"), this);
     layout->addWidget(title);
 
     auto *toolbar = new QHBoxLayout;

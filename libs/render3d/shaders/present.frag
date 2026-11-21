@@ -2,7 +2,7 @@
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 fragColor;
 layout(binding = 0) uniform sampler2D linearScene;
-layout(std140,binding=1) uniform Present { vec4 params; };
+layout(std140,binding=1) uniform Present { vec4 params; vec4 clearColor; };
 vec3 linearToSrgb(vec3 c)
 {
     c = max(c, vec3(0.0));
@@ -17,5 +17,6 @@ void main()
         vec3 x=max(straight,vec3(0));
         straight=clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);
     }
-    fragColor = vec4(linearToSrgb(straight) * color.a, color.a);
+    vec4 scene = vec4(linearToSrgb(straight) * color.a, color.a);
+    fragColor = scene + vec4(clearColor.rgb * clearColor.a, clearColor.a) * (1.0 - color.a);
 }

@@ -725,13 +725,13 @@ QLabel#DesignColorPicker {
     border-radius: 3px;
 }
 
-QDialog#DesignModalDialog,
-QDialog#SettingsDialog {
+QDialog#DesignModalDialog {
     color: @TEXT@;
     background-color: @BACKGROUND@;
     border: 1px solid @BORDER@;
     border-radius: @RADIUS_MD@;
 }
+QDialog#SettingsDialog { background-color: transparent; }
 QDialog#SettingsDialog .QWidget { background-color: @BACKGROUND@; }
 QDialog#SettingsDialog QLabel { background-color: transparent; }
 QDialog#SettingsDialog QListWidget#DesignListWidget::item { padding: 0 10px; }

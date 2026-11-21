@@ -19,6 +19,7 @@ namespace darkeye
 {
 
 class FanartStripWidget;
+class ThemeService;
 namespace dvd_scene { class DvdSceneWidget; }
 class DvdShelfView final : public QWidget
 {
@@ -28,11 +29,13 @@ public:
     explicit DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
                           const QString &coverDirectory,
                           const QString &fanartDirectory, QWidget *parent = nullptr);
+    void bindTheme(ThemeService &themes);
     void setWorks(const QList<WorkSummary> &works);
     bool openWork(qint64 workId, bool restoreCameraOnClose = false);
     void refreshCurrentFavorite();
     [[nodiscard]] qint64 currentWorkId() const;
     [[nodiscard]] qint64 focusedWorkId() const { return m_focusedWorkId; }
+    [[nodiscard]] bool isReturningToShelf() const;
     [[nodiscard]] qint64 expandedWorkId() const;
     [[nodiscard]] QSet<qint64> displayedWorkIds() const;
     [[nodiscard]] const QList<WorkSummary> &displayedWorks() const { return m_works; }
@@ -75,8 +78,6 @@ public:
     [[nodiscard]] bool expandedWorkFavorited() const { return m_favorited; }
     [[nodiscard]] bool expandedWorkHasLocalVideo() const { return m_hasLocalVideo; }
 
-    Q_INVOKABLE void selection_changed(int selectedDelegateIndex, int expandedDelegateIndex);
-    Q_INVOKABLE void scroll_camera_by(qreal delta, qreal shelfLength);
     Q_INVOKABLE void set_camera_x(qreal cameraX);
     Q_INVOKABLE void on_cd_clicked(int virtualIndex);
     Q_INVOKABLE void refresh_expanded_work_meta(int virtualIndex);
@@ -97,6 +98,7 @@ public:
 signals:
     void currentWorkChanged();
     void focusedWorkChanged();
+    void graphContextChanged();
     void expandedWorkChanged();
     void editRequested(qint64 workId);
     void workDeleted(qint64 workId);
@@ -139,6 +141,7 @@ private:
     QString m_fanartDirectory;
     QList<WorkSummary> m_works;
     qint64 m_focusedWorkId = 0;
+    bool m_wasReturningToShelf = false;
     std::optional<qreal> m_returnCameraX;
     qreal m_cameraX = 0.0;
     qreal m_cameraTargetX = 0.0;

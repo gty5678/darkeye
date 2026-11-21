@@ -104,8 +104,7 @@ private:
     void markEditorChanged();
     void addManualNavigation(QVBoxLayout *layout);
     void crawlSelectedFields();
-    void translateJapaneseTitle();
-    void translateJapaneseStory();
+    void translateJapanese(const QPlainTextEdit &source, QPlainTextEdit &destination);
     void applyCrawledData(const QString &serialNumber, const QJsonObject &payload,
                           const QSet<QString> &selectedFields, bool withGui);
     void fetchNextCrawledCover();

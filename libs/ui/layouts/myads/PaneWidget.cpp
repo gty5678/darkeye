@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
@@ -23,6 +24,7 @@
 #include <QStyleOptionTab>
 #include <QStylePainter>
 #include <QTabBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
@@ -36,18 +38,21 @@ constexpr int TabBevel = 7;
 constexpr int PreferredTabWidth = 168;
 constexpr int MinimumTabWidth = 120;
 
-void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color)
+void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color,
+                   qreal detached = 0)
 {
-    const qreal left = bounds.left();
-    const qreal right = bounds.right();
     const qreal top = bounds.top();
     const qreal bottom = bounds.bottom();
     const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
+    const qreal shoulderInset = bevel * (1 - detached);
+    const qreal left = bounds.left() + shoulderInset;
+    const qreal right = bounds.right() - shoulderInset;
+    const qreal footInset = bevel * (2 * detached - 1);
     const QPolygonF outline{
-        {left, bottom}, {left + bevel, bottom - bevel},
-        {left + bevel, top + bevel}, {left + 2 * bevel, top},
-        {right - 2 * bevel, top}, {right - bevel, top + bevel},
-        {right - bevel, bottom - bevel}, {right, bottom},
+        {left + footInset, bottom}, {left, bottom - bevel},
+        {left, top + bevel}, {left + bevel, top},
+        {right - bevel, top}, {right, top + bevel},
+        {right, bottom - bevel}, {right - footInset, bottom},
     };
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
@@ -121,6 +126,23 @@ public:
         return visualRect(tab->direction, tab->rect, logicalButton);
     }
 
+    QRectF selectedTabBounds(const QStyleOptionTab &tab) const
+    {
+        const QRectF bounds(tab.rect);
+        const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
+        const bool rtl = tab.direction == Qt::RightToLeft;
+        const auto position = tab.position == QStyleOptionTab::Moving ? m_dragPosition : tab.position;
+        const bool single = position == QStyleOptionTab::OnlyOneTab;
+        const bool first = position == QStyleOptionTab::Beginning;
+        const bool last = position == QStyleOptionTab::End;
+        // Internal shoulders meet at the tab boundary, with the feet overlapping below.
+        const qreal leftOverlap = single || (rtl ? last : first) ? 0 : bevel;
+        const qreal rightOverlap = single || (rtl ? first : last) ? 0 : bevel;
+        return bounds.adjusted(-leftOverlap, 0, rightOverlap, 0);
+    }
+
+    QColor selectedColor() const { return m_selected; }
+
     void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
                      const QWidget *widget) const override
     {
@@ -130,25 +152,70 @@ public:
             return;
         }
 
-        if (!tab->state.testFlag(State_Selected)) return;
-
-        const QRectF bounds(tab->rect);
-        const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
-        const bool rtl = tab->direction == Qt::RightToLeft;
-        const auto position = tab->position == QStyleOptionTab::Moving ? m_dragPosition : tab->position;
-        const bool single = position == QStyleOptionTab::OnlyOneTab;
-        const bool first = position == QStyleOptionTab::Beginning;
-        const bool last = position == QStyleOptionTab::End;
-        // Internal shoulders meet at the tab boundary, with the feet overlapping below.
-        const qreal leftOverlap = single || (rtl ? last : first) ? 0 : bevel;
-        const qreal rightOverlap = single || (rtl ? first : last) ? 0 : bevel;
-        drawBeveledTab(painter, bounds.adjusted(-leftOverlap, 0, rightOverlap, 0), m_selected);
+        if (tab->state.testFlag(State_Selected))
+            drawBeveledTab(painter, selectedTabBounds(*tab), m_selected);
     }
 
 private:
     QColor m_strip;
     QColor m_selected;
     QStyleOptionTab::TabPosition m_dragPosition = QStyleOptionTab::OnlyOneTab;
+};
+
+class DetachedTabPreview final : public QWidget
+{
+public:
+    DetachedTabPreview(QPixmap label, const QRectF &startBounds, const QRect &tabBounds,
+                       const QColor &color, const QPoint &hotSpot)
+        : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowTransparentForInput |
+                               Qt::WindowDoesNotAcceptFocus),
+          m_label(std::move(label)), m_startBounds(startBounds), m_tabBounds(tabBounds),
+          m_color(color), m_hotSpot(hotSpot), m_morph(this)
+    {
+        setObjectName(QStringLiteral("MyAdsDetachedTabPreview"));
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        resize(m_label.deviceIndependentSize().toSize());
+        m_morph.setDuration(160);
+        m_morph.setStartValue(0.0);
+        m_morph.setEndValue(1.0);
+        m_morph.setEasingCurve(QEasingCurve::OutCubic);
+        connect(&m_morph, &QVariantAnimation::valueChanged, this, [this] { update(); });
+        connect(&m_followCursor, &QTimer::timeout, this, [this] {
+            const QPoint position = QCursor::pos() - m_hotSpot;
+            if (pos() != position) move(position);
+        });
+    }
+
+    void start(const QPoint &cursorPosition)
+    {
+        move(cursorPosition - m_hotSpot);
+        show();
+        m_morph.start();
+        m_followCursor.start(16);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        const qreal progress = m_morph.currentValue().toReal();
+        const QPointF topLeft = m_startBounds.topLeft()
+            + (m_tabBounds.topLeft() - m_startBounds.topLeft()) * progress;
+        const QSizeF size = m_startBounds.size()
+            + (m_tabBounds.size() - m_startBounds.size()) * progress;
+        drawBeveledTab(&painter, QRectF(topLeft, size), m_color, progress);
+        painter.drawPixmap(0, 0, m_label);
+    }
+
+private:
+    QPixmap m_label;
+    QRectF m_startBounds;
+    QRectF m_tabBounds;
+    QColor m_color;
+    QPoint m_hotSpot;
+    QVariantAnimation m_morph;
+    QTimer m_followCursor;
 };
 
 class TabReorderAnimation final : public QWidget
@@ -253,12 +320,17 @@ public:
         setFixedHeight(32);
         setAttribute(Qt::WA_Hover);
         connect(this, &QTabBar::currentChanged, this, [this](int index) {
-            if (index >= 0 && m_pressedIndex < 0) {
-                const QRect tab = tabRect(index);
-                m_scrollArea->ensureVisible(tab.center().x(), tab.center().y(), tab.width() / 2, 0);
-            }
+            revealTab(index);
             updateCloseButtons();
         });
+    }
+
+    void revealTab(int index)
+    {
+        if (index < 0 || m_pressedIndex >= 0) return;
+        const QRect tab = tabRect(index);
+        m_scrollArea->ensureVisible(tab.left() + tab.width() / 2, tab.center().y(),
+                                    (tab.width() + 1) / 2, 0);
     }
 
     void updateCloseButtons()
@@ -425,7 +497,11 @@ protected:
 
         const int originalIndex = m_pressedIndex;
         const int overlap = style()->pixelMetric(QStyle::PM_TabBarTabOverlap, nullptr, this);
-        const QPixmap pixmap = tabPixmap(currentIndex, overlap, true);
+        QStyleOptionTab tab = tabPixmapOption(currentIndex, overlap, true);
+        const QPoint hotSpot = m_pressOffset + QPoint(overlap, 0);
+        DetachedTabPreview preview(tabPixmap(currentIndex, tab, overlap, QStyle::CE_TabBarTabLabel),
+                                   m_tabStyle->selectedTabBounds(tab), tab.rect,
+                                   m_tabStyle->selectedColor(), hotSpot);
         // QDrag consumes the real release. Clear the pressed state first.
         const QPoint releasePosition = tabRect(currentIndex).center();
         QMouseEvent release(QEvent::MouseButtonRelease, releasePosition,
@@ -439,10 +515,15 @@ protected:
         mime->setData(MyAdsTabMimeType, QJsonDocument(payload).toJson(QJsonDocument::Compact));
         auto *drag = new QDrag(this);
         drag->setMimeData(mime);
-        drag->setPixmap(pixmap);
-        drag->setHotSpot(m_pressOffset + QPoint(overlap, 0));
+        // Keep the platform drag cursor while the preview window paints the morph.
+        QPixmap transparent(1, 1);
+        transparent.fill(Qt::transparent);
+        drag->setPixmap(transparent);
+        drag->setHotSpot(QPoint(0, 0));
         const QPointer<DraggableTabBar> guard(this);
+        preview.start(event->globalPosition().toPoint());
         const Qt::DropAction action = drag->exec(Qt::MoveAction);
+        preview.hide();
         if (!guard) return;
         if (action == Qt::IgnoreAction) {
             for (int i = 0; i < count(); ++i) {
@@ -504,19 +585,30 @@ private:
         m_reorderAnimation->start(std::move(tabs), tabPixmap(to, overlap, true), stripBounds());
     }
 
-    QPixmap tabPixmap(int index, int overlap, bool moving)
+    QStyleOptionTab tabPixmapOption(int index, int overlap, bool moving) const
     {
         QStyleOptionTab tab;
         initStyleOption(&tab, index);
         if (moving) tab.position = QStyleOptionTab::Moving;
         tab.rect.moveTopLeft(QPoint(overlap, 0));
+        return tab;
+    }
+
+    QPixmap tabPixmap(int index, int overlap, bool moving)
+    {
+        return tabPixmap(index, tabPixmapOption(index, overlap, moving), overlap, QStyle::CE_TabBarTab);
+    }
+
+    QPixmap tabPixmap(int index, const QStyleOptionTab &tab, int overlap,
+                      QStyle::ControlElement element)
+    {
         const QSize size = tab.rect.size() + QSize(2 * overlap, 0);
         QPixmap pixmap(size * devicePixelRatioF());
         pixmap.setDevicePixelRatio(devicePixelRatioF());
         pixmap.fill(Qt::transparent);
         QStylePainter painter(&pixmap, this);
         painter.setFont(font());
-        painter.drawControl(QStyle::CE_TabBarTab, tab);
+        painter.drawControl(element, tab);
         if (QWidget *button = tabButton(index, QTabBar::RightSide); button && button->isVisible()) {
             const QRect buttonRect = style()->subElementRect(QStyle::SE_TabBarTabRightButton, &tab, this);
             button->render(&painter, buttonRect.topLeft(), QRegion(), QWidget::DrawChildren);
@@ -739,6 +831,13 @@ bool PaneWidget::addContent(const QString &contentId, const QString &title, QWid
     updateCloseButton(inserted);
     const bool willEmitCurrentChanged = m_tabBar->currentIndex() != inserted;
     m_tabBar->setCurrentIndex(inserted);
+    // Inserting a tab can extend the scroll range on the next layout pass.
+    auto *tabBar = static_cast<DraggableTabBar *>(m_tabBar);
+    QTimer::singleShot(0, tabBar, [tabBar, contentId] {
+        const int current = tabBar->currentIndex();
+        if (tabBar->tabData(current).toString() == contentId)
+            tabBar->revealTab(current);
+    });
     switchContent(inserted);
     if (!willEmitCurrentChanged) emit currentContentChanged();
     return true;

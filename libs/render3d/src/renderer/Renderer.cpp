@@ -226,7 +226,7 @@ bool Renderer::ensureTargets(QRhiRenderTarget *target, QString &error)
     if (!m_presentBindings)
         m_presentBindings.reset(m_rhi->newShaderResourceBindings());
     if (!m_presentUniform) {
-        m_presentUniform.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16));
+        m_presentUniform.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 32));
         if (!m_presentUniform->create()) {
             m_presentUniform.reset();
             error = QStringLiteral("Failed to create presentation uniform");
@@ -737,9 +737,13 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
     frame[96]=keyLight.x(); frame[97]=keyLight.y(); frame[98]=keyLight.z();
     frame[99]=m_lightingSettings.keyLightIntensity;
     updates->updateDynamicBuffer(m_lighting->uniform(),0,400,frame.data());
-    const std::array<float,4> orientation{m_rhi->isYUpInFramebuffer()?1.0f:0,
-        m_lightingSettings.toneMapping?1.0f:0,m_lightingSettings.exposure,0};
-    updates->updateDynamicBuffer(m_presentUniform.get(),0,16,orientation.data());
+    const bool displayClearColor = m_lightingSettings.displayClearColor
+        && !(m_lightingSettings.environmentBackground && m_environment);
+    const std::array<float,8> presentParams{m_rhi->isYUpInFramebuffer()?1.0f:0,
+        m_lightingSettings.toneMapping?1.0f:0,m_lightingSettings.exposure,0,
+        clearColor.redF(), clearColor.greenF(), clearColor.blueF(),
+        displayClearColor ? clearColor.alphaF() : 0.0f};
+    updates->updateDynamicBuffer(m_presentUniform.get(),0,32,presentParams.data());
     if (!m_items.empty()) {
         QByteArray bytes(qsizetype(m_uniformStride) * m_items.size(), char(0));
         for (std::size_t i = 0; i < m_items.size(); ++i) {
@@ -799,7 +803,7 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
             cb->drawIndexed(geometry.indexCount); ++auxiliaryDraws;
         }
     });
-    const float clearAlpha = float(clearColor.alphaF());
+    const float clearAlpha = displayClearColor ? 0.0f : clearColor.alphaF();
     const auto linearClear = QColor::fromRgbF(linearChannel(float(clearColor.redF())) * clearAlpha,
         linearChannel(float(clearColor.greenF())) * clearAlpha,
         linearChannel(float(clearColor.blueF())) * clearAlpha, clearAlpha);

@@ -376,6 +376,8 @@ void ComponentLibraryTest::searchAndBreadcrumbKeepInteractionContract()
 void ComponentLibraryTest::animatedIndicatorsKeepStateContract()
 {
     darkeye::ThemeService themes(*qApp);
+    const darkeye::ToggleSwitch compactToggle;
+    QCOMPARE(compactToggle.size(), QSize(40, 24));
     darkeye::ToggleSwitch toggle(48, 24, &themes);
     QSignalSpy toggled(&toggle, &darkeye::ToggleSwitch::toggled);
     toggle.setChecked(true);
@@ -384,6 +386,9 @@ void ComponentLibraryTest::animatedIndicatorsKeepStateContract()
     QTRY_VERIFY_WITH_TIMEOUT(toggle.offset() > 20.0, 500);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
     QCOMPARE(toggle.offset(), 26.0);
+    const QString customPrimary = QStringLiteral("#b73971");
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Dark, customPrimary));
+    QCOMPARE(toggle.backgroundColor(), QColor(customPrimary));
 
     darkeye::CircularLoading loading(32, 4, &themes);
     loading.show();

@@ -1,5 +1,6 @@
 #include "database/SchemaManager.h"
 
+#include "app_config.h"
 #include "settings/Paths.h"
 #include "database/SqlScriptRunner.h"
 #include "database/Transaction.h"
@@ -174,7 +175,8 @@ bool importConfigPublicReferences(QSqlDatabase database, QString *errorMessage)
 
 QString SchemaManager::requiredVersion(DatabaseKind kind)
 {
-    return kind == DatabaseKind::Public ? QStringLiteral("2") : QStringLiteral("1.1");
+    return kind == DatabaseKind::Public ? QString::number(kRequiredPublicDbVersion)
+                                         : QString::fromLatin1(kRequiredPrivateDbVersion);
 }
 
 QStringList SchemaManager::requiredTables(DatabaseKind kind)
@@ -402,6 +404,7 @@ bool SchemaManager::migratePublicFromV1(SqliteConnection &connection, QString *e
     }
     versionTableQuery.prepare(QStringLiteral(
         "INSERT INTO db_version(version, description) VALUES(?, ?)"));
+    // Record the schema produced by this migration.
     versionTableQuery.addBindValue(QStringLiteral("2"));
     versionTableQuery.addBindValue(QStringLiteral("C++ 迁移器完成公共库 1.0 → 2"));
     if (!versionTableQuery.exec()) {
@@ -436,6 +439,7 @@ bool SchemaManager::migratePrivateFromV1(SqliteConnection &connection, QString *
     QSqlQuery versionQuery(database);
     versionQuery.prepare(QStringLiteral(
         "INSERT INTO db_version(version, description) VALUES(?, ?)"));
+    // Record the schema produced by this migration.
     versionQuery.addBindValue(QStringLiteral("1.1"));
     versionQuery.addBindValue(QStringLiteral("重建收藏表，取消旧唯一约束"));
     if (!versionQuery.exec()) {

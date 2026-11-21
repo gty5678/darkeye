@@ -2,6 +2,7 @@
 
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/OctImage.h"
+#include "darkeye_ui/theme/ThemeService.h"
 #include "ui/components/WorkCard.h"
 
 #include <QApplication>
@@ -13,6 +14,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPalette>
 #include <QPolygonF>
 #include <QResizeEvent>
 #include <QScrollArea>
@@ -97,7 +99,7 @@ protected:
 class TimelineCanvas final : public QWidget
 {
 public:
-    explicit TimelineCanvas(QScrollArea *scroll, QString coverDirectory,
+    explicit TimelineCanvas(QScrollArea *scroll, QString coverDirectory, ThemeService *themes,
                             QWidget *parent = nullptr)
         : QWidget(parent), m_scroll(scroll), m_coverDirectory(std::move(coverDirectory))
     {
@@ -115,6 +117,12 @@ public:
                 this, [this] { hidePopup(); });
         connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
                 this, [this] { hidePopup(); });
+        applyTheme(themes ? themes->currentTokens() : ThemeService::tokens(ThemeId::Light));
+        if (themes) {
+            connect(themes, &ThemeService::themeChanged, this, [this, themes] {
+                applyTheme(themes->currentTokens());
+            });
+        }
     }
 
     ~TimelineCanvas() override { delete m_popup; }
@@ -158,7 +166,7 @@ protected:
     void paintEvent(QPaintEvent *event) override
     {
         QPainter painter(this);
-        const auto colors = palette();
+        const auto &colors = m_colors;
         const QRect exposed = event->rect();
         painter.fillRect(exposed, colors.color(QPalette::Base));
         painter.fillRect(exposed.intersected(QRect(0, 0, width(), axisY)),
@@ -309,6 +317,17 @@ protected:
 
 private:
     struct Marker { QRect rect; PersonWorkSummary work; };
+
+    void applyTheme(const ThemeTokens &tokens)
+    {
+        m_colors.setColor(QPalette::Base, QColor(tokens.pageBackground));
+        m_colors.setColor(QPalette::AlternateBase, QColor(tokens.inputBackground));
+        m_colors.setColor(QPalette::Mid, QColor(tokens.border));
+        m_colors.setColor(QPalette::Text, QColor(tokens.text));
+        m_colors.setColor(QPalette::PlaceholderText, QColor(tokens.textPlaceholder));
+        m_colors.setColor(QPalette::Highlight, QColor(tokens.primary));
+        update();
+    }
 
     void paintRuler(QPainter &painter, const QRect &exposed, const QPalette &colors) const
     {
@@ -516,6 +535,7 @@ private:
 
     QScrollArea *m_scroll = nullptr;
     QString m_coverDirectory;
+    QPalette m_colors;
     TimelineHoverPopup *m_popup = nullptr;
     QTimer *m_hideTimer = nullptr;
     QList<QList<PersonWorkSummary>> m_tracks;
@@ -533,7 +553,7 @@ private:
 };
 
 ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory,
-                                         QString actressImageDirectory)
+                                         QString actressImageDirectory, ThemeService *themes)
     : QWidget(parent), m_actressImageDirectory(std::move(actressImageDirectory))
 {
     setObjectName(QStringLiteral("ActressWorkTimeline"));
@@ -551,7 +571,7 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
     m_scroll->setWidgetResizable(true);
     m_scroll->setFrameShape(QFrame::NoFrame);
     m_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-    m_canvas = new TimelineCanvas(m_scroll, std::move(coverDirectory), m_scroll);
+    m_canvas = new TimelineCanvas(m_scroll, std::move(coverDirectory), themes, m_scroll);
     m_canvas->activate = [this](qint64 id) { emit workRequested(id); };
     m_scroll->setWidget(m_canvas);
     m_canvas->axesChanged = [this] { positionThumbnails(); };

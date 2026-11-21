@@ -14,7 +14,7 @@ ShelfPage::ShelfPage(QSqlDatabase database, QSqlDatabase privateDatabase,
                      ThemeService &themeService, QString coverDirectory, QString fanartDirectory,
                      QWidget *parent, WorkFilter *filter)
     : LazyWidget(parent), m_database(std::move(database)),
-      m_privateDatabase(std::move(privateDatabase)),
+      m_privateDatabase(std::move(privateDatabase)), m_themes(themeService),
       m_coverDirectory(std::move(coverDirectory)), m_fanartDirectory(std::move(fanartDirectory)),
       m_filter(filter ? filter : new WorkFilter(m_database, m_privateDatabase, themeService, this))
 {
@@ -31,8 +31,9 @@ void ShelfPage::lazyLoad()
     if (m_filter->parentWidget() == this) m_filter->hide();
     m_shelfView = new DvdShelfView(m_database, m_privateDatabase, m_coverDirectory,
                                    m_fanartDirectory, content);
+    m_shelfView->bindTheme(m_themes);
     root->addWidget(m_shelfView, 1);
-    connect(m_shelfView, &DvdShelfView::focusedWorkChanged, this, &ShelfPage::graphContextChanged);
+    connect(m_shelfView, &DvdShelfView::graphContextChanged, this, &ShelfPage::graphContextChanged);
     connect(m_shelfView, &DvdShelfView::focusedWorkChanged, this, &ShelfPage::focusedWorkChanged);
     connect(m_shelfView, &DvdShelfView::expandedWorkChanged, this, &ShelfPage::expandedWorkChanged);
     connect(m_shelfView, &DvdShelfView::editRequested, this, &ShelfPage::editRequested);
@@ -156,6 +157,11 @@ qint64 ShelfPage::currentWorkId() const
 qint64 ShelfPage::focusedWorkId() const
 {
     return m_shelfView ? m_shelfView->focusedWorkId() : 0;
+}
+
+bool ShelfPage::isReturningToShelf() const
+{
+    return m_shelfView && m_shelfView->isReturningToShelf();
 }
 
 qint64 ShelfPage::expandedWorkId() const

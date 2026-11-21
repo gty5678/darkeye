@@ -30,5 +30,6 @@ struct LightingSettings {
     float aoRadius=0.025f; // world units (DVD is 0.19m tall)
     float aoStrength=1;
     int transmissionPassLimit=8; // bounded screen-space layers, clamped to [1,16]
+    bool displayClearColor=false; // composite an sRGB clear color after tone mapping
 };
 } // namespace darkeye::render3d

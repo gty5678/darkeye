@@ -29,11 +29,14 @@ struct DvdSceneWidget::Impl {
     CoverTextureCache covers;
     QHash<NodeId,QString> primitiveIds;
     QHash<QString,QString> coverKeys;
-    QHash<QString,QString> coverSpecs;
+    QHash<QString,int> coverSizes;
     QPointer<QWidget> trackedWindow;
     Camera camera;
     float cameraTargetX=0;
     QTimer timer;
+    QTimer restoreResolutionTimer;
+    int motionRenderPixelBudget=0;
+    QSize motionBufferSize;
     QElapsedTimer clock;
     double lastTick=0;
     QPointF pressPosition,lastPosition;
@@ -70,6 +73,9 @@ struct DvdSceneWidget::Impl {
         timer.setSingleShot(true);
         timer.setTimerType(Qt::PreciseTimer);
         QObject::connect(&timer,&QTimer::timeout,owner,[this] { tick(); });
+        restoreResolutionTimer.setSingleShot(true);
+        restoreResolutionTimer.setInterval(120);
+        QObject::connect(&restoreResolutionTimer,&QTimer::timeout,owner,[this] { restoreResolution(); });
         QObject::connect(canvas,&QRhiWidget::frameSubmitted,owner,[this] {
             // Advance after the previous submission instead of competing with
             // it on an independent 16ms clock. Keep the timer as a fallback
@@ -121,15 +127,58 @@ struct DvdSceneWidget::Impl {
         }
     }
 
+    bool cameraMoving() const
+    {
+        return std::abs(camera.target.x()-cameraTargetX)>1e-5f;
+    }
+
     bool needsAnimationTick() const
     {
-        const bool moving=std::abs(camera.target.x()-cameraTargetX)>1e-5f;
         return owner->isVisible() && !owner->window()->isMinimized()
-            && (interaction.active() || moving || std::any_of(cases.begin(),cases.end(),
+            && (interaction.active() || cameraMoving() || std::any_of(cases.begin(),cases.end(),
                 [](const auto &entry) { return entry.second.hasLocalVideo; }));
     }
+
+    void restoreResolution()
+    {
+        restoreResolutionTimer.stop();
+        if(motionBufferSize.isEmpty()) return;
+        motionBufferSize={};
+        canvas->setFixedColorBufferSize(QSize());
+    }
+
+    void updateMotionResolution()
+    {
+        if(motionRenderPixelBudget<=0 || !owner->isVisible() || owner->window()->isMinimized()) {
+            restoreResolution();
+            return;
+        }
+        const auto selected=cases.find(interaction.selectedId());
+        const bool caseMoving=selected!=cases.end() && interaction.active(selected->second);
+        const bool dragging=moved && (dragButton==Qt::RightButton || dragButton==Qt::MiddleButton);
+        if(!cameraMoving() && !caseMoving && !dragging) {
+            // Keep the same target across short gaps between wheel events.
+            if(!motionBufferSize.isEmpty() && !restoreResolutionTimer.isActive())
+                restoreResolutionTimer.start();
+            return;
+        }
+        restoreResolutionTimer.stop();
+        const QSize fullSize=canvas->size()*canvas->devicePixelRatioF();
+        const double pixels=double(fullSize.width())*fullSize.height();
+        if(pixels<=motionRenderPixelBudget) {
+            restoreResolution();
+            return;
+        }
+        const QSize size=fullSize*std::sqrt(motionRenderPixelBudget/pixels);
+        if(size!=motionBufferSize) {
+            motionBufferSize=size;
+            canvas->setFixedColorBufferSize(size);
+        }
+    }
+
     void updateTimer()
     {
+        updateMotionResolution();
         const bool active=needsAnimationTick();
         if(active && !timer.isActive()) {
             if(lastTick<=0) lastTick=now();
@@ -174,6 +223,7 @@ struct DvdSceneWidget::Impl {
         const float height=viewport.height()*dpr*0.19f
             /(2*std::max(0.08f,camera.distance)*std::tan(camera.verticalFov*3.14159265f/360));
         const int shelfPixels=std::clamp(int(std::ceil(height*1.6f/256))*256,512,2048);
+        const bool scrolling=std::abs(camera.target.x()-cameraTargetX)>DvdShelfController::spacing*0.5f;
         const auto [start,count]=shelf.visibleRange(camera.target.x());
         QSet<QString> desired;
         for(int i=start;i<start+count;++i) desired.insert(shelf.items()[i].stableId);
@@ -183,7 +233,7 @@ struct DvdSceneWidget::Impl {
                 for(const auto primitive:it->second.primitives) primitiveIds.remove(primitive);
                 scene->removeNode(it->second.root);
                 coverKeys.remove(it->first);
-                coverSpecs.remove(it->first);
+                coverSizes.remove(it->first);
                 it=cases.erase(it);
             } else ++it;
         }
@@ -210,12 +260,17 @@ struct DvdSceneWidget::Impl {
             const bool onScreen=!viewport.isEmpty() && clip.w()>0
                 && center.x()>=-64 && center.x()<=viewport.width()+64
                 && center.y()>=-viewport.height() && center.y()<=viewport.height()*2;
-            const int pixels=id==interaction.selectedId()?focusedPixels:(onScreen?shelfPixels:256);
-            const auto spec=item.coverPath+QStringLiteral("|%1").arg(pixels);
-            const bool request=it==cases.end() || coverSpecs.value(id)!=spec;
+            const int previousPixels=coverSizes.value(id);
+            int pixels=id==selected?focusedPixels:(onScreen?shelfPixels:256);
+            if(scrolling && id!=selected) {
+                // Keep resident covers during fast scrolling. Load new visible
+                // covers at preview size and promote them once the shelf settles.
+                pixels=std::max(previousPixels,onScreen?512:0);
+            }
+            const bool request=pixels!=previousPixels;
             const auto cover=request?covers.request(item.coverPath,pixels)
-                :CoverTextureCache::Request{coverKeys.value(id),{}};
-            if(request) coverSpecs.insert(id,spec);
+                :CoverTextureCache::Request{coverKeys.value(id),covers.placeholder()};
+            if(request) coverSizes.insert(id,pixels);
             if(it==cases.end()) {
                 auto instance=factory->create(*scene,item,index,cover.texture);
                 for(const auto primitive:instance.primitives) primitiveIds.insert(primitive,id);
@@ -318,7 +373,7 @@ bool DvdSceneWidget::setModel(std::shared_ptr<const ModelAsset> model)
     d->cases.clear();
     d->primitiveIds.clear();
     d->coverKeys.clear();
-    d->coverSpecs.clear();
+    d->coverSizes.clear();
     d->scene->clear();
     d->closedPoints.clear(); d->openPoints.clear();
     const auto rotation=QQuaternion::fromAxisAndAngle(0,1,0,-90);
@@ -357,7 +412,7 @@ bool DvdSceneWidget::setItems(QList<DvdItemViewModel> items)
     const bool initial=d->shelf.items().isEmpty();
     QString error;
     if(!d->shelf.setItems(std::move(items),&error)) { emit sceneError(error); return false; }
-    d->coverSpecs.clear(); // re-check path versions after an explicit data update
+    d->coverSizes.clear(); // re-check path versions after an explicit data update
     if(!d->interaction.selectedId().isEmpty() && d->shelf.indexOf(d->interaction.selectedId())<0)
         d->interaction.reset();
     for(auto it=d->cases.begin();it!=d->cases.end();) {
@@ -365,7 +420,6 @@ bool DvdSceneWidget::setItems(QList<DvdItemViewModel> items)
             for(const auto primitive:it->second.primitives) d->primitiveIds.remove(primitive);
             d->scene->removeNode(it->second.root);
             d->coverKeys.remove(it->first);
-            d->coverSpecs.remove(it->first);
             it=d->cases.erase(it);
         } else ++it;
     }
@@ -540,6 +594,11 @@ void DvdSceneWidget::setDarkTheme(bool dark)
 {
     d->canvas->setClearColor(QColor(dark?"#151c2b":"#eef1f7"));
 }
+void DvdSceneWidget::setMotionRenderPixelBudget(int maxPixels)
+{
+    d->motionRenderPixelBudget=maxPixels;
+    d->updateMotionResolution();
+}
 void DvdSceneWidget::setCoverBudget(quint64 bytes)
 {
     d->covers.setBudget(bytes);
@@ -564,7 +623,12 @@ void DvdSceneWidget::showEvent(QShowEvent *event)
     }
     d->tick();
 }
-void DvdSceneWidget::hideEvent(QHideEvent *event) { d->timer.stop(); QWidget::hideEvent(event); }
+void DvdSceneWidget::hideEvent(QHideEvent *event)
+{
+    d->timer.stop();
+    d->restoreResolution();
+    QWidget::hideEvent(event);
+}
 
 bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
 {
@@ -610,6 +674,7 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
     case QEvent::MouseButtonRelease: {
         const auto *mouse=static_cast<QMouseEvent *>(event);
         d->dragButton=Qt::NoButton;
+        d->updateMotionResolution();
         if(mouse->button()==Qt::LeftButton && !d->moved) {
             const auto hit=d->pick(mouse->position());
             const auto id=hit?d->primitiveIds.value(hit->node):QString();

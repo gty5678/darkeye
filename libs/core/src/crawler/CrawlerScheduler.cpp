@@ -154,42 +154,6 @@ void CrawlerScheduler::resume()
     }
 }
 
-bool CrawlerScheduler::dropPending(const QString &serialNumber)
-{
-    const QString serial = normalizedSerial(serialNumber);
-    bool removed = false;
-    QQueue<QueueItem> retained;
-    while (!m_queue.isEmpty())
-    {
-        const QueueItem item = m_queue.dequeue();
-        if (!removed && item.serialNumber == serial)
-        {
-            removed = true;
-            continue;
-        }
-        retained.enqueue(item);
-    }
-    m_queue = std::move(retained);
-    if (removed)
-    {
-        m_unfinishedSerials.remove(serial);
-        publishUnfinished();
-        emit queueChanged();
-    }
-    return removed;
-}
-
-bool CrawlerScheduler::requestCancelRunning(const QString &serialNumber)
-{
-    const QString serial = normalizedSerial(serialNumber);
-    auto iterator = m_activeTasks.find(serial);
-    if (iterator == m_activeTasks.end())
-        return false;
-    iterator->cancelRequested = true;
-    emit taskStateChanged(*iterator);
-    return true;
-}
-
 void CrawlerScheduler::complete(const QString &serialNumber, bool succeeded)
 {
     finishCurrent(normalizedSerial(serialNumber), succeeded);
@@ -242,11 +206,6 @@ void CrawlerScheduler::onCollectorFinished(quint64, int kind, bool succeeded,
     auto iterator = m_activeTasks.find(serial);
     if (iterator == m_activeTasks.end())
         return;
-    if (iterator->cancelRequested)
-    {
-        finishCurrent(serial, false);
-        return;
-    }
     const QJsonObject data = payload.value(QStringLiteral("data")).toObject();
     if (!succeeded || !payload.value(QStringLiteral("ok")).toBool() || data.isEmpty())
     {

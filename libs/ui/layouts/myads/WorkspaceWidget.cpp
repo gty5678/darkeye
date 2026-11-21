@@ -1003,6 +1003,12 @@ bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &fact
 {
     const QJsonObject documentData = loadLayoutFile(path, error);
     if (documentData.isEmpty()) return false;
+    return restoreLayout(documentData, factory, error);
+}
+
+bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const ContentFactory &factory,
+                                    QString *error)
+{
     const int version = documentData.contains(QStringLiteral("schema_version"))
         ? documentData.value(QStringLiteral("schema_version")).toInt(-1) : LayoutTree::SchemaVersion;
     if (version != LayoutTree::SchemaVersion) {

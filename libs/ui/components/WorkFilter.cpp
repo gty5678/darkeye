@@ -11,6 +11,7 @@
 #include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/WorkRepository.h"
+#include "settings/Settings.h"
 #include "ui/components/WorkTagSelector.h"
 
 #include <QComboBox>
@@ -59,9 +60,9 @@ void populateSelector(MakerSelector *selector, const QList<NamedIdOption> &optio
 }
 
 WorkFilter::WorkFilter(QSqlDatabase database, QSqlDatabase privateDatabase,
-                       ThemeService &themeService, QWidget *parent)
+                       ThemeService &themeService, QWidget *parent, QString settingsFile)
     : LazyWidget(parent), m_themeService(themeService), m_database(std::move(database)),
-      m_privateDatabase(std::move(privateDatabase))
+      m_privateDatabase(std::move(privateDatabase)), m_settingsFile(std::move(settingsFile))
 {
 }
 
@@ -351,7 +352,8 @@ void WorkFilter::buildUi()
     tagScroll->setWidget(m_tagSelector);
     m_tagSelector->setSelectedColumnLayout(WorkTagSelector::SelectedColumnLayout::Compact);
     m_tagSelector->useResponsiveLayout();
-    applyInitialDefaultTagFilter(tagOptions);
+    if (settings::app(m_settingsFile).workFilterAddGreenCover)
+        applyInitialDefaultTagFilter(tagOptions);
     m_tagSelector->setLoader(
         [this]
         {

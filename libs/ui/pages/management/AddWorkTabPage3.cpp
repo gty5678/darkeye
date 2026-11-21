@@ -546,9 +546,9 @@ void AddWorkTabPage3::lazyLoad()
     jpLayout->addWidget(japaneseStoryRow);
     jpLayout->addWidget(m_japaneseStory, 3);
     connect(m_translateTitleButton, &QPushButton::clicked,
-            this, &AddWorkTabPage3::translateJapaneseTitle);
+            this, [this] { translateJapanese(*m_japaneseTitle, *m_chineseTitle); });
     connect(m_translateStoryButton, &QPushButton::clicked,
-            this, &AddWorkTabPage3::translateJapaneseStory);
+            this, [this] { translateJapanese(*m_japaneseStory, *m_chineseStory); });
     auto *actressLayout = container(QStringLiteral("actress"), QStringLiteral("女优选择器"));
     actressLayout->addWidget(m_actresses);
     auto *actorLayout = container(QStringLiteral("actor"), QStringLiteral("男优选择器"));
@@ -1148,15 +1148,15 @@ QString AddWorkTabPage3::currentSerialNumber() const
     return m_serialNumber == nullptr ? QString() : m_serialNumber->text().trimmed().toUpper();
 }
 
-void AddWorkTabPage3::translateJapaneseTitle()
+void AddWorkTabPage3::translateJapanese(const QPlainTextEdit &source, QPlainTextEdit &destination)
 {
-    const QString source = m_japaneseTitle->toPlainText();
     // Python resolves translation settings at click time, rather than when
     // this persistent editor is constructed.  Do the same so changes saved
     // in Settings take effect immediately without reopening the editor.
     auto *translator = new LlmTranslationService(this);
     connect(translator, &LlmTranslationService::translationFinished, this,
-            [this, translator](quint64, const QString &translation, const QString &errorMessage)
+            [this, translator, &destination](quint64, const QString &translation,
+                                             const QString &errorMessage)
             {
                 translator->deleteLater();
                 if (!errorMessage.isEmpty() || translation.trimmed().isEmpty())
@@ -1166,29 +1166,9 @@ void AddWorkTabPage3::translateJapaneseTitle()
                                        &m_themes);
                     return;
                 }
-                m_chineseTitle->setPlainText(translation);
+                destination.setPlainText(translation);
             });
-    static_cast<void>(translator->translate(source));
-}
-
-void AddWorkTabPage3::translateJapaneseStory()
-{
-    const QString source = m_japaneseStory->toPlainText();
-    auto *translator = new LlmTranslationService(this);
-    connect(translator, &LlmTranslationService::translationFinished, this,
-            [this, translator](quint64, const QString &translation, const QString &errorMessage)
-            {
-                translator->deleteLater();
-                if (!errorMessage.isEmpty() || translation.trimmed().isEmpty())
-                {
-                    Toast::showWarning(window(),
-                                       QStringLiteral("翻译失败：网络/代理不稳定或触发限流，请稍后重试。"),
-                                       &m_themes);
-                    return;
-                }
-                m_chineseStory->setPlainText(translation);
-            });
-    static_cast<void>(translator->translate(source));
+    static_cast<void>(translator->translate(source.toPlainText()));
 }
 
 void AddWorkTabPage3::applyWork(const Work &work)

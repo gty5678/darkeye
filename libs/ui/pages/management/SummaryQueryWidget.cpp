@@ -240,7 +240,7 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
     auto *toolbar = new QHBoxLayout;
     toolbar->addWidget(new DesignLabel(QStringLiteral("查询类型:"), this));
     m_queryType = new DesignComboBox(this);
-    m_queryType->addItems({QStringLiteral("作品汇总"), QStringLiteral("女优汇总"), QStringLiteral("男优汇总")});
+    m_queryType->addItems({QStringLiteral("作品汇总"), QStringLiteral("女演员汇总"), QStringLiteral("男演员汇总")});
     toolbar->addWidget(m_queryType);
     toolbar->addStretch();
     auto *refreshButton = new DesignButton(QStringLiteral("刷新数据"), this);
@@ -298,7 +298,7 @@ void SummaryQueryWidget::loadQuery()
     const QString sql = readSqlResource(m_queryType->currentIndex(), &errorMessage);
     if (sql.isEmpty())
     {
-        Toast::showError(window(), QStringLiteral("读取汇总查询失败: %1").arg(errorMessage), &m_themes);
+        Toast::showError(window(), QStringLiteral("读取资料汇总失败：%1").arg(errorMessage), &m_themes);
         return;
     }
     clearCompletenessPresentation();

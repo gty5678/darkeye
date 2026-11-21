@@ -44,7 +44,6 @@
 #include "ui/components/IdCheckList.h"
 #include "ui/components/WorkTagSelector.h"
 #include "ui/components/PersonTransferSelector.h"
-#include "ui/components/JsonTransferBar.h"
 #include "ui/components/ModelSearchBar.h"
 #include "darkeye_ui/components/Sidebar.h"
 #include "ui/pages/management/MakerManagementWidget.h"
@@ -63,6 +62,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QActionGroup>
 #include <QDialog>
 #include <QDir>
 #include <QFile>
@@ -142,6 +142,7 @@ private slots:
     void histogramShowsPercentileLines();
     void homeAdaptsRandomRowsToHeight();
     void exposesAllPrimaryNavigationPages();
+    void settingsDialogClosesWithoutTitleBar();
     void workspaceSearchShortcutsOpenBothModes();
     void sidebarShortcutsAndAutoCollapseSetting();
 #ifdef Q_OS_MACOS
@@ -936,6 +937,37 @@ void MainWindowSmokeTest::summarySearchKeyboardNavigation()
     QVERIFY(!next->isEnabled());
 }
 
+void MainWindowSmokeTest::settingsDialogClosesWithoutTitleBar()
+{
+    darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
+    QWidget parent;
+    QActionGroup shortcuts(&parent);
+    darkeye::SettingsDialog dialog(themes, shortcuts, {}, {}, {}, &parent);
+    dialog.open();
+
+    QVERIFY(dialog.windowFlags().testFlag(Qt::FramelessWindowHint));
+    QImage frame(dialog.size(), QImage::Format_ARGB32_Premultiplied);
+    frame.fill(Qt::transparent);
+    dialog.render(&frame, {}, {}, QWidget::DrawChildren);
+    for (const auto &corner : {frame.rect().topLeft(), frame.rect().topRight(),
+                               frame.rect().bottomLeft(), frame.rect().bottomRight()})
+        QCOMPARE(frame.pixelColor(corner).alpha(), 0);
+    QCOMPARE(frame.pixelColor(frame.width() / 2, 0), QColor(themes.currentTokens().border));
+    QCOMPARE(frame.pixelColor(frame.width() / 2, 8), QColor(themes.currentTokens().background));
+    auto *closeButton = dialog.findChild<QPushButton *>(QStringLiteral("DesignIconPushButton"),
+                                                      Qt::FindDirectChildrenOnly);
+    QVERIFY(closeButton && closeButton->isVisible());
+    QVERIFY(!closeButton->icon().isNull());
+    QTest::mouseClick(closeButton, Qt::LeftButton);
+    QVERIFY(dialog.isHidden());
+
+    dialog.open();
+    QVERIFY(dialog.isVisible());
+    QTest::keyClick(&dialog, Qt::Key_Escape);
+    QVERIFY(dialog.isHidden());
+}
+
 void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
 {
     // The offscreen plugin needs explicit fonts for readable preview images.
@@ -1231,6 +1263,8 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     commandInput->setText(QStringLiteral("作品过滤器"));
     QTest::keyClick(commandInput, Qt::Key_Return);
     QCOMPARE(currentWidget(), workFilter);
+    QCOMPARE(workspace->activePane()->contentTitle(QStringLiteral("work_filters")),
+             QStringLiteral("作品筛选"));
     auto *tagSelector = workFilter->findChild<darkeye::WorkTagSelector *>();
     QVERIFY(tagSelector && tagSelector->isVisible());
     QVERIFY(!findWorkControl<QPushButton>(workFilter, QStringLiteral("WorkTagPanelButton")));
@@ -1247,9 +1281,9 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
         {QStringLiteral("片商管理"), QStringLiteral("manage_makers")},
         {QStringLiteral("厂牌管理"), QStringLiteral("manage_labels")},
         {QStringLiteral("系列管理"), QStringLiteral("manage_series")},
-        {QStringLiteral("汇总查询"), QStringLiteral("manage_summary")},
+        {QStringLiteral("资料汇总"), QStringLiteral("manage_summary")},
         {QStringLiteral("个人记录"), QStringLiteral("manage_records")},
-        {QStringLiteral("软删除"), QStringLiteral("manage_deleted")},
+        {QStringLiteral("批量移入回收站"), QStringLiteral("manage_deleted")},
         {QStringLiteral("回收站"), QStringLiteral("manage_trash")},
     };
     for (const auto &[title, route] : managementShortcuts)
@@ -1260,6 +1294,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
         input->setText(title);
         QTest::keyClick(input, Qt::Key_Return);
         QCOMPARE(workspace->activePane()->currentContentId(), route);
+        QCOMPARE(workspace->activePane()->contentTitle(route), title);
         auto *page = qobject_cast<darkeye::ManagementPage *>(currentWidget());
         QVERIFY(page);
         QVERIFY(page->isInitialized());
@@ -1300,8 +1335,9 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(!routes.contains(QStringLiteral("manage_batch")));
 
     recentInput->setText(QStringLiteral("批量"));
-    QCOMPARE(recentResults->count(), 6);
-    for (int index = 0; index < recentResults->count(); ++index)
+    QCOMPARE(recentResults->count(), 7);
+    QCOMPARE(recentResults->item(0)->data(Qt::UserRole).toString(), QStringLiteral("manage_deleted"));
+    for (int index = 1; index < recentResults->count(); ++index)
         QVERIFY(recentResults->item(index)->text().startsWith(QStringLiteral("批量操作 · ")));
     recentInput->setText(QStringLiteral("覆盖已有中文"));
     QCOMPARE(recentResults->count(), 1);
@@ -2299,12 +2335,20 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         QCoreApplication::sendEvent(window.windowHandle()->focusObject(), &commit);
         QCOMPARE(input->text(), QStringLiteral("作品"));
         QTest::keyClick(input, Qt::Key_Return);
-        QVERIFY(workspace->findPaneByContentId(QStringLiteral("mutiwork")));
+        auto *worksPane = workspace->findPaneByContentId(QStringLiteral("mutiwork"));
+        QVERIFY(worksPane);
+        QCOMPARE(worksPane->contentTitle(QStringLiteral("mutiwork")), QStringLiteral("作品库"));
         window.findChild<darkeye::WorkFilter *>()->findChild<darkeye::WorkTagSelector *>()->clearSelection();
         QVERIFY(!emptyHint->isVisible());
         QVERIFY(!search->isVisible());
         openSearch(Qt::Key_P);
         QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("商店"));
+        QCOMPARE(results->item(0)->text(), QStringLiteral("打开 · 作品展厅"));
+        QCOMPARE(results->item(0)->data(Qt::UserRole).toString(), QStringLiteral("home"));
+        input->setText(QStringLiteral("软删除"));
+        QCOMPARE(results->item(0)->text(), QStringLiteral("打开 · 批量移入回收站"));
+        QCOMPARE(results->item(0)->data(Qt::UserRole).toString(), QStringLiteral("manage_deleted"));
         input->setText(QStringLiteral("女优"));
         QTRY_VERIFY(results->isVisible() && results->count() > 0
                     && results->item(0)->data(Qt::UserRole).toString() == QStringLiteral("actress"));
@@ -2358,7 +2402,7 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
             {QStringLiteral("片商 · 测试片商"), *workId},
             {QStringLiteral("厂牌 · 测试厂牌"), *otherWorkId},
             {QStringLiteral("系列 · 测试系列"), *workId},
-            {QStringLiteral("男优 · 测试男优"), *workId},
+            {QStringLiteral("男演员 · 测试男优"), *workId},
             {QStringLiteral("导演 · 测试导演/甲"), *otherWorkId},
         };
         for (const auto &[resultText, expectedWorkId] : shelfSearches) {
@@ -2477,6 +2521,7 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         input->setText(QStringLiteral("通知"));
         QTest::keyClick(input, Qt::Key_Return);
         QCOMPARE(workspace->rootPane()->currentContentId(), QStringLiteral("inbox"));
+        QCOMPARE(workspace->rootPane()->contentTitle(QStringLiteral("inbox")), QStringLiteral("采集任务"));
     }
 }
 
@@ -2520,13 +2565,13 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         QTRY_VERIFY(search->isVisible());
         input->setText(QStringLiteral("女演员详情"));
         QVERIFY(results->currentItem());
-        QCOMPARE(results->currentItem()->text(), QStringLiteral("打开 · 女演员详情"));
+        QCOMPARE(results->currentItem()->text(), QStringLiteral("打开 · 女演员详情（跟随切换）"));
         QTest::keyClick(input, Qt::Key_Return);
         QVERIFY(!search->isVisible());
         auto *detail = qobject_cast<darkeye::PersonDetailPage *>(root->contentWidget(switchRoute));
         QVERIFY(detail && detail != independent);
         QCOMPARE(detail->currentPersonId(), 0);
-        QCOMPARE(root->contentTitle(switchRoute), QStringLiteral("女演员详情"));
+        QCOMPARE(root->contentTitle(switchRoute), QStringLiteral("女演员详情（跟随切换）"));
         search->openRequested(firstRoute);
         QCOMPARE(detail->currentPersonId(), *first);
         QVERIFY(workspace->moveContent(root->paneId(), switchRoute, root->paneId(), darkeye::myads::DropZone::Right));
@@ -2542,7 +2587,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         QCOMPARE(switchPane->contentWidget(switchRoute), detail);
         QCOMPARE(detail->currentPersonId(), *second);
         QCOMPARE(independent->currentPersonId(), *first);
-        QCOMPARE(switchPane->contentTitle(switchRoute), QStringLiteral("女演员详情"));
+        QCOMPARE(switchPane->contentTitle(switchRoute), QStringLiteral("女演员详情（跟随切换）"));
         QVERIFY(!workspace->findPaneByContentId(secondRoute));
 
         workspace->setActivePane(root);
@@ -2787,7 +2832,7 @@ void MainWindowSmokeTest::statisticsPanelsOpenIndependentlyAndScroll()
     search->openRequested(QStringLiteral("information"));
     auto *information = pane->contentWidget(QStringLiteral("information"));
     QVERIFY(information && information != plots);
-    QCOMPARE(information->windowTitle(), QStringLiteral("信息面板"));
+    QCOMPARE(information->windowTitle(), QStringLiteral("个人数据概览"));
     QVERIFY(information->findChild<darkeye::PersonalDataPage *>());
     auto *informationScroll = information->findChild<QScrollArea *>(QStringLiteral("StatisticsScrollArea"));
     QVERIFY(informationScroll);

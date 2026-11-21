@@ -6,7 +6,6 @@
 #include <QSqlDatabase>
 
 class QLabel;
-class QPushButton;
 class QStackedWidget;
 
 namespace darkeye
@@ -44,7 +43,6 @@ private:
     StatsOverviewCards *m_overview = nullptr;
     QList<TopActressCard *> m_topActressCards;
     QLabel *m_salesCycle = nullptr;
-    QList<QPushButton *> m_yearButtons;
     int m_currentYear = 0;
     int m_recordKindIndex = 0;
     bool m_heatmapInitialLoadPending = true;

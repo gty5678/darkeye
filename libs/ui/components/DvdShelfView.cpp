@@ -5,6 +5,7 @@
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/ToastNotification.h"
+#include "darkeye_ui/theme/ThemeService.h"
 #include "settings/Settings.h"
 #include "ui/components/FanartStripWidget.h"
 #include "utils/MediaUtils.h"
@@ -102,6 +103,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_scene->setObjectName(QStringLiteral("ShelfDvdScene"));
     m_scene->setMinimumHeight(400);
     m_scene->renderWidget()->setSampleCount(2);
+    m_scene->setMotionRenderPixelBudget(1920*1200);
     m_scene->renderWidget()->setStatisticsVisible(false);
     m_scene->renderWidget()->installEventFilter(this);
     m_scene->setCoverBudget(128ULL*1024*1024);
@@ -290,6 +292,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_scene->renderWidget()->setEnvironment(environment);
     render3d::LightingSettings lighting;
     lighting.environmentBackground=lighting.imageBasedLighting=bool(environment);
+    lighting.displayClearColor=!environment;
     lighting.ambientOcclusion=lighting.shadows=lighting.toneMapping=true;
     // The legacy QML probeOrientation was (0,155,0). Rotate both the sky and
     // IBL together. Lift exposure and fill light so covers and shadowed spines
@@ -303,6 +306,16 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     lighting.keyLightCameraRelative=false;
     m_scene->renderWidget()->setLighting(lighting);
     if(!environment) qWarning().noquote()<<environmentError;
+}
+
+void DvdShelfView::bindTheme(ThemeService &themes)
+{
+    auto *renderer = m_scene->renderWidget();
+    const auto apply = [renderer, &themes] {
+        renderer->setClearColor(QColor(themes.currentTokens().pageBackground));
+    };
+    apply();
+    connect(&themes, &ThemeService::themeChanged, this, apply);
 }
 
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
@@ -358,7 +371,6 @@ void DvdShelfView::set_camera_x(qreal x)
     m_useInitialCamera=false;
     m_scene->setCameraX(float(x));
 }
-void DvdShelfView::scroll_camera_by(qreal delta,qreal) { set_camera_x(m_scene->cameraTargetX()+delta); }
 qint64 DvdShelfView::workIdAt(int index) const { return index>=0 && index<m_works.size()?m_works[index].id:0; }
 int DvdShelfView::selectedIndex() const
 {
@@ -366,19 +378,26 @@ int DvdShelfView::selectedIndex() const
     for(int i=0;i<m_works.size();++i) if(m_works[i].id==id) return i;
     return -1;
 }
-void DvdShelfView::selection_changed(int selected,int expanded)
+bool DvdShelfView::isReturningToShelf() const
 {
-    if(selected<0 && expanded<0) m_scene->returnToShelf();
+    return m_scene->state() == dvd_scene::DvdInteractionController::State::Returning;
 }
+
 void DvdShelfView::updateSelection()
 {
     if(m_settingWorks) return;
     const qint64 focusedWorkId = m_scene->state() == dvd_scene::DvdInteractionController::State::Focused
         ? currentWorkId() : 0;
-    if (m_focusedWorkId != focusedWorkId) {
+    const bool returning = isReturningToShelf();
+    const bool wasReturning = m_wasReturningToShelf;
+    m_wasReturningToShelf = returning;
+    const bool focusChanged = m_focusedWorkId != focusedWorkId;
+    if (focusChanged) {
         m_focusedWorkId = focusedWorkId;
         emit focusedWorkChanged();
     }
+    // Keep the work graph while the case closes and slides back into the shelf.
+    if (!returning && (focusChanged || wasReturning)) emit graphContextChanged();
     const int index=selectedIndex();
     if(index<0) { m_pendingOpen.clear(); clearExpandedMeta(); hideOverlays(); return; }
     refresh_expanded_work_meta(index);

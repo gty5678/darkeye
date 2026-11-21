@@ -22,6 +22,7 @@ HomePage::HomePage(QSqlDatabase database, const QString &coverDirectory, ThemeSe
       m_coverDirectory(coverDirectory)
 {
     setObjectName(QStringLiteral("HomePage"));
+    m_search.order = WorkSortOrder::Random;
     connect(&m_themes, &ThemeService::themeChanged, this, &HomePage::updateOutlineColor);
 }
 
@@ -45,11 +46,11 @@ void HomePage::lazyLoad()
 
     m_view = new ShopSceneWidget(this);
     m_view->setObjectName(QStringLiteral("HomeShopView"));
-    m_view->setMinimumHeight(360);
     root->addWidget(m_view, 0, 0);
     root->addLayout(bar, 0, 0, Qt::AlignTop);
     reload->raise();
     connect(reload, &QPushButton::clicked, this, &HomePage::refresh);
+    connect(m_view, &ShopSceneWidget::coverCapacityChanged, this, &HomePage::loadCovers);
     connect(m_view, &ShopSceneWidget::coverClicked, this, &HomePage::openCover);
     connect(m_view, &ShopSceneWidget::sceneError, this, [this](const QString &message) {
         ToastNotification::showMessage(window(), message, ToastNotification::Level::Error);
@@ -74,13 +75,17 @@ void HomePage::openCover(int index)
 
 void HomePage::refresh()
 {
-    WorkSearch search;
-    search.limit = 18;
-    search.order = WorkSortOrder::Random;
-    search.randomSeed = QRandomGenerator::global()->generate();
-    search.randomSeed2 = QRandomGenerator::global()->generate();
+    m_search.randomSeed = QRandomGenerator::global()->generate();
+    m_search.randomSeed2 = QRandomGenerator::global()->generate();
+    loadCovers();
+}
+
+void HomePage::loadCovers()
+{
+    m_search.limit = m_view->coverCapacity();
+    if (m_search.limit == 0) return;
     QString error;
-    const auto works = WorkRepository(m_database).search(search, &error);
+    const auto works = WorkRepository(m_database).search(m_search, &error);
     if (!error.isEmpty())
     {
         ToastNotification::showMessage(window(), QStringLiteral("刷新失败：%1").arg(error),

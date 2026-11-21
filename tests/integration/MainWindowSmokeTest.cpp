@@ -140,7 +140,7 @@ private slots:
     void makerManagementAddsAndSavesDraftRows();
     void makerManagementSearchMatchesPythonBehavior();
     void histogramShowsPercentileLines();
-    void homeShowsThreeRandomRows();
+    void homeAdaptsRandomRowsToHeight();
     void exposesAllPrimaryNavigationPages();
     void workspaceSearchShortcutsOpenBothModes();
     void sidebarShortcutsAndAutoCollapseSetting();
@@ -558,7 +558,7 @@ void MainWindowSmokeTest::histogramShowsPercentileLines()
     QVERIFY(!hasRedLine(170));
 }
 
-void MainWindowSmokeTest::homeShowsThreeRandomRows()
+void MainWindowSmokeTest::homeAdaptsRandomRowsToHeight()
 {
     QTemporaryDir directory;
     darkeye::SqliteConnection connection;
@@ -586,11 +586,27 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
         QVERIFY(!widget->inherits("QQuickWidget"));
     auto *canvas = view->canvas();
     QVERIFY(canvas->property("modelError").toString().isEmpty());
-    QCOMPARE(view->coverPaths().size(), 18);
-    QCOMPARE(canvas->camera().target, QVector3D(0, 0.865f, 0));
+    page.resize(1100, 250);
+    page.show();
+    QTRY_COMPARE(view->coverPaths().size(), 6);
+    const auto firstRow = view->coverPaths();
+    const auto scene = canvas->scene();
+    for (const auto &[height, rows] : {std::pair{450, 2}, {650, 3}, {850, 4}, {250, 1}, {650, 3}}) {
+        page.resize(1100, height);
+        QTRY_COMPARE(view->coverPaths().size(), rows * 6);
+        QCOMPARE(view->coverPaths().mid(0, 6), firstRow);
+        int visibleCovers = 0;
+        for (const auto &item : scene->renderItems()) {
+            if (!item.material || item.material->name != QStringLiteral("pic")) continue;
+            const auto center = canvas->camera().project(item.world.map(QVector3D()), canvas->size());
+            QVERIFY(center);
+            QVERIFY(QRectF(canvas->rect()).contains(*center));
+            ++visibleCovers;
+        }
+        QCOMPARE(visibleCovers, rows * 6);
+    }
     QCOMPARE(canvas->sampleCount(), 2);
     const auto initial = view->coverPaths();
-    const auto scene = canvas->scene();
     const auto size = scene->size();
     const auto firstMesh = scene->renderItems().back().mesh;
     auto *refresh = page.findChild<QPushButton *>(QStringLiteral("HomeRefreshButton"));
@@ -603,8 +619,6 @@ void MainWindowSmokeTest::homeShowsThreeRandomRows()
     QVERIFY(changed);
     QCOMPARE(scene->size(), size);
     QCOMPARE(scene->renderItems().back().mesh, firstMesh);
-    page.resize(1100, 650);
-    page.show();
     QTRY_VERIFY(canvas->statistics().submittedFrames>0);
     QTRY_VERIFY([&] {
         int ready = 0;

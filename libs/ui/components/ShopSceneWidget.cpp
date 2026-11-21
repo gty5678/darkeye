@@ -7,11 +7,17 @@
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
-#include <functional>
+#include <numbers>
 
 namespace darkeye {
 using namespace render3d;
 namespace {
+constexpr int coversPerRow = 6;
+constexpr int rowHeightPixels = 200;
+constexpr float rowSpacing = 0.25f;
+constexpr float firstShelfY = 1.01f;
+constexpr float firstCoverY = 1.115f;
+
 class Outline final : public QWidget {
 public:
     explicit Outline(QWidget *parent) : QWidget(parent) {
@@ -81,37 +87,14 @@ ShopSceneWidget::ShopSceneWidget(QWidget *parent)
         m_canvas->setProperty("modelError", loaded.error);
         return;
     }
-    ModelNode cover;
     for (const auto &node : loaded.asset->nodes) {
-        if (node.name == QStringLiteral("dvd")) { cover = node; continue; }
-        if (node.name == QStringLiteral("Cube.004")) {
-            ModelAsset back;
-            back.nodes.push_back(node);
-            auto &panel = back.nodes.back();
-            panel.transform.translation.setY(0.51f);
-            (void)back.instantiate(*m_scene);
-        }
-        if (node.name == QStringLiteral("Cube.002")) {
-            for (int row=0; row<3; ++row) {
-                ModelAsset shelf;
-                shelf.nodes.push_back(node);
-                shelf.nodes.back().transform.translation.setY(1.01f-row*0.25f);
-                (void)shelf.instantiate(*m_scene);
-            }
-        }
+        if (node.name == QStringLiteral("dvd")) m_coverModel = node;
+        if (node.name == QStringLiteral("Cube.004")) m_backModel.nodes.push_back(node);
+        if (node.name == QStringLiteral("Cube.002")) m_shelfModel.nodes.push_back(node);
     }
-    for (int i=0; i<18; ++i) {
-        const auto root = m_scene->createNode(0, QStringLiteral("HomeCover%1").arg(i));
-        auto pose = cover.transform;
-        pose.translation = {-0.394006f+(i%6)*0.16f, 1.115f-(i/6)*0.25f, -0.043f};
-        m_scene->setTransform(root, pose);
-        m_roots.append(root);
-        for (const auto &primitive : cover.primitives) {
-            const auto part = m_scene->createNode(root);
-            m_scene->setMesh(part, primitive.mesh, primitive.material);
-            m_indices.insert(part, i);
-        }
-        m_scene->setVisible(root, false);
+    if (m_coverModel.primitives.empty() || m_shelfModel.nodes.empty() || m_backModel.nodes.empty()) {
+        m_canvas->setProperty("modelError", QStringLiteral("商店模型缺少货架、背板或封面"));
+        return;
     }
     LightingSettings lighting;
     lighting.environmentBackground = true;
@@ -122,7 +105,6 @@ ShopSceneWidget::ShopSceneWidget(QWidget *parent)
     lighting.keyLightDirection = {-0.5f,0.8f,1};
     m_canvas->setLighting(lighting);
     m_canvas->setEnvironment(EnvironmentMap::loadHdr(QStringLiteral(":/assets/hdr/lebombo_1k.hdr")));
-    m_camera.target = {0,0.865f,0};
     m_camera.rotationMode = Camera::RotationMode::InPlace;
     m_camera.verticalFov = 50;
     m_camera.nearPlane = 0.06f;
@@ -130,15 +112,59 @@ ShopSceneWidget::ShopSceneWidget(QWidget *parent)
     updateCamera();
 }
 
-void ShopSceneWidget::setCoverPaths(const QStringList &paths) {
-    m_paths = paths.mid(0,18);
+int ShopSceneWidget::coverCapacity() const {
+    return m_rows * coversPerRow;
+}
+
+void ShopSceneWidget::rebuildRows() {
+    m_scene->clear();
+    m_indices.clear();
+    m_roots.clear();
+
+    // The original back panel spans -0.01 to 0.76 in model space.
+    // Keep its top edge in place and extend its bottom to the last shelf.
+    const float panelScale = (m_rows * rowSpacing + 0.02f) / 0.77f;
+    auto &panel = m_backModel.nodes.front().transform;
+    panel.scale.setY(panelScale);
+    panel.translation.setY(firstShelfY + rowSpacing + 0.01f - 0.76f * panelScale);
+    (void)m_backModel.instantiate(*m_scene);
+
+    auto &shelf = m_shelfModel.nodes.front().transform;
+    for (int row = 0; row < m_rows; ++row) {
+        shelf.translation.setY(firstShelfY - row * rowSpacing);
+        (void)m_shelfModel.instantiate(*m_scene);
+    }
+    for (int index = 0; index < coverCapacity(); ++index) {
+        const auto root = m_scene->createNode(0, QStringLiteral("HomeCover%1").arg(index));
+        auto pose = m_coverModel.transform;
+        pose.translation.setX(pose.translation.x() + (index % coversPerRow) * 0.16f);
+        pose.translation.setY(firstCoverY - (index / coversPerRow) * rowSpacing);
+        m_scene->setTransform(root, pose);
+        m_roots.append(root);
+        for (const auto &primitive : m_coverModel.primitives) {
+            const auto part = m_scene->createNode(root);
+            m_scene->setMesh(part, primitive.mesh, primitive.material);
+            m_indices.insert(part, index);
+        }
+    }
+    updateCoverVisibility();
     m_coverPixels = 0;
-    for (int i=0; i<m_roots.size(); ++i) m_scene->setVisible(m_roots[i], i<m_paths.size());
+}
+
+void ShopSceneWidget::setCoverPaths(const QStringList &paths) {
+    m_paths = paths;
+    m_coverPixels = 0;
+    updateCoverVisibility();
     requestCovers();
     updateHover(m_lastPosition);
 }
+void ShopSceneWidget::updateCoverVisibility() {
+    for (qsizetype index = 0; index < m_roots.size(); ++index)
+        m_scene->setVisible(m_roots[index], index < m_paths.size());
+}
+
 void ShopSceneWidget::requestCovers() {
-    // Match the small home covers to their physical screen size. Bucket requests
+    // Match the covers to their physical screen size. Bucket requests
     // to avoid decoding again for every resize, without supersampling them.
     const float projectedHeight = m_canvas->height()*float(m_canvas->devicePixelRatioF())*0.19f
         /(2*std::max(0.06f,m_camera.distance)*std::tan(m_camera.verticalFov*3.14159265f/360));
@@ -146,7 +172,8 @@ void ShopSceneWidget::requestCovers() {
     if (pixels == m_coverPixels) return;
     m_coverPixels = pixels;
     QStringList keys;
-    for (const auto &path : m_paths) keys << m_covers.request(path,pixels).key;
+    for (qsizetype index = 0; index < std::min(m_roots.size(), m_paths.size()); ++index)
+        keys << m_covers.request(m_paths[index], pixels).key;
     const bool samePaths = m_keys.size()==keys.size() && !m_keys.isEmpty();
     m_keys = keys;
     m_covers.retainRequests(QSet<QString>(keys.cbegin(), keys.cend()));
@@ -175,9 +202,20 @@ void ShopSceneWidget::setOutlineColor(const QColor &color) {
     m_outline->update();
 }
 void ShopSceneWidget::updateCamera() {
-    const float aspect = float(std::max(1,m_canvas->width()))/std::max(1,m_canvas->height());
-    m_camera.distance = std::max(0.86f, 0.52f/(std::tan(25.0f*3.14159265f/180)*aspect));
+    if (!m_canvas->property("modelError").toString().isEmpty()) return;
+    const int rows = std::max(1, m_canvas->height() / rowHeightPixels);
+    const bool rowsChanged = rows != m_rows;
+    if (rowsChanged) {
+        m_rows = rows;
+        rebuildRows();
+    }
+    const float aspect = float(std::max(1, m_canvas->width())) / std::max(1, m_canvas->height());
+    const float halfHeight = (m_rows * rowSpacing + 0.05f) / 2;
+    m_camera.target = {0, firstCoverY - (m_rows - 1) * rowSpacing / 2, 0};
+    m_camera.distance = std::max(halfHeight, 0.52f / aspect)
+        / std::tan(m_camera.verticalFov * std::numbers::pi_v<float> / 360);
     m_canvas->setCamera(m_camera);
+    if (rowsChanged) emit coverCapacityChanged();
     requestCovers();
     m_outline->setGeometry(m_canvas->rect());
     updateHover(m_lastPosition);

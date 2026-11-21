@@ -13,6 +13,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPolygonF>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -42,6 +43,12 @@ const QDate timelineEnd(2030, 12, 31);
 const int timelineDays = timelineStart.daysTo(timelineEnd);
 const QDate defaultStart(2016, 1, 1);
 const QDate defaultEnd(2026, 12, 31);
+
+QPolygonF markerDiamond(const QPointF &center, qreal halfSize)
+{
+    return {center + QPointF(0, -halfSize), center + QPointF(halfSize, 0),
+            center + QPointF(0, halfSize), center + QPointF(-halfSize, 0)};
+}
 
 QColor tagColor(int tagId, const QPalette &palette)
 {
@@ -183,9 +190,9 @@ protected:
             const QPointF center = marker.rect.center();
             painter.setPen(Qt::NoPen);
             painter.setBrush(colors.color(QPalette::Base));
-            painter.drawEllipse(center, 6.5, 6.5);
+            painter.drawConvexPolygon(markerDiamond(center, 6.5));
             painter.setBrush(tagColor(marker.work.highlightTagId, colors));
-            painter.drawEllipse(center, 4.5, 4.5);
+            painter.drawConvexPolygon(markerDiamond(center, 4.5));
         }
     }
 

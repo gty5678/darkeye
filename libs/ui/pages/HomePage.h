@@ -26,10 +26,12 @@ private slots:
 private:
     void lazyLoad() override;
     void refresh();
+    void loadCovers();
     void updateOutlineColor();
     ThemeService &m_themes;
     QSqlDatabase m_database;
     QString m_coverDirectory;
+    WorkSearch m_search;
     QList<WorkSummary> m_works;
     ShopSceneWidget *m_view = nullptr;
 };

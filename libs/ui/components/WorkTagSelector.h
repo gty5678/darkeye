@@ -20,6 +20,7 @@ namespace darkeye
 class IconButton;
 class TagCard;
 class TagFlowScene;
+class TagGraphicsView;
 class ThemeService;
 
 // A single-card preview that shares WorkTagSelector's TagCard renderer.  It is
@@ -77,18 +78,18 @@ class WorkTagSelector final : public QWidget
     void updateAvailableVisibility();
     void setTags(const QList<TagOption> &tags);
     [[nodiscard]] const TagOption *tagById(qint64 tagId) const;
-    void applyViewStyle(QWidget *view) const;
+    void applyViewStyle(TagGraphicsView *view) const;
     void applyTabStyle() const;
 
     QList<TagOption> m_tags;
     QHash<qint64, TagCard *> m_items;
     QHash<qint64, TagCard *> m_selectedItems;
     QHash<QString, TagFlowScene *> m_flows;
-    QHash<QString, QGraphicsView *> m_views;
+    QHash<QString, TagGraphicsView *> m_views;
     QSet<qint64> m_selectedIds;
     QList<qint64> m_selectedOrder;
     TagFlowScene *m_selectedFlow = nullptr;
-    QGraphicsView *m_selectedView = nullptr;
+    TagGraphicsView *m_selectedView = nullptr;
     QWidget *m_panel = nullptr;
     QTabWidget *m_tabs = nullptr;
     QLineEdit *m_search = nullptr;

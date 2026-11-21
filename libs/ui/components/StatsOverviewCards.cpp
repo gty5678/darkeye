@@ -64,7 +64,7 @@ StatsOverviewCards::StatsOverviewCards(QSqlDatabase publicDatabase,
 void StatsOverviewCards::refresh()
 {
     StatisticsRepository repository(m_publicDatabase, m_privateDatabase);
-    const std::optional<DashboardStatistics> statistics = repository.dashboard();
+    const std::optional<OverviewStatistics> statistics = repository.overview();
     if (!statistics.has_value())
     {
         return;

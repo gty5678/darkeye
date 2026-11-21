@@ -8,7 +8,6 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "darkeye_ui/theme/ThemeService.h"
-#include "darkeye_ui/theme/IconProvider.h"
 
 #include <QComboBox>
 #include <QDialog>
@@ -153,22 +152,24 @@ LabelManagementWidget::LabelManagementWidget(ReferenceKind kind, QSqlDatabase da
     root->addLayout(searchLayout);
 
     auto *buttons = new QHBoxLayout;
-    auto *newButton = new DesignButton(QStringLiteral("新增行"), this);
-    auto *deleteButton = new DesignButton(QStringLiteral("删除行"), this);
-    auto *saveButton = new DesignButton(QStringLiteral("保存修改"), this);
-    auto *revertButton = new DesignButton(QStringLiteral("撤销修改"), this);
-    auto *refreshButton = new DesignButton(QStringLiteral("读数据库数据"), this);
-    auto *exportButton = new DesignButton(QStringLiteral("导出%1到json文件").arg(kindName), this);
-    auto *importButton = new DesignButton(QStringLiteral("从json文件导入%1").arg(kindName), this);
-    auto *redirectButton = new DesignButton(QStringLiteral("重定向%1").arg(kindName), this);
-    const auto updateTransferIcons = [this, exportButton, importButton] {
-        const auto icon = IconProvider::builtIn(QStringLiteral("database"), QSize(24, 24),
-                                                m_themes.currentTokens().icon);
-        exportButton->setIcon(icon);
-        importButton->setIcon(icon);
-    };
-    updateTransferIcons();
-    connect(&m_themes, &ThemeService::themeChanged, this, updateTransferIcons);
+    auto *newButton = new IconButton(QStringLiteral("list_plus"), QStringLiteral("新增行"),
+                                     &m_themes, this);
+    auto *deleteButton = new IconButton(QStringLiteral("list_x"), QStringLiteral("删除行"),
+                                        &m_themes, this);
+    auto *saveButton = new IconButton(QStringLiteral("save"), QStringLiteral("保存修改"),
+                                      &m_themes, this);
+    auto *revertButton = new IconButton(QStringLiteral("undo"), QStringLiteral("撤销修改"),
+                                        &m_themes, this);
+    auto *refreshButton = new IconButton(QStringLiteral("refresh"), QStringLiteral("读数据库数据"),
+                                         &m_themes, this);
+    auto *exportButton = new IconButton(QStringLiteral("arrow_up_to_line"),
+                                        QStringLiteral("导出%1到 JSON 文件").arg(kindName),
+                                        &m_themes, this);
+    auto *importButton = new IconButton(QStringLiteral("arrow_down_to_line"),
+                                        QStringLiteral("从 JSON 文件导入%1").arg(kindName),
+                                        &m_themes, this);
+    auto *redirectButton = new IconButton(QStringLiteral("share_2"),
+                                          QStringLiteral("重定向%1").arg(kindName), &m_themes, this);
     for (QPushButton *button : {newButton, deleteButton, saveButton, revertButton, refreshButton,
                                 exportButton, importButton})
         buttons->addWidget(button);

@@ -1,3 +1,4 @@
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/components/LoadingFeedback.h"
 
 #include <QLinearGradient>
@@ -51,7 +52,7 @@ void Skeleton::paintEvent(QPaintEvent *)
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(base);
     painter.setBrush(gradient);
-    painter.drawRoundedRect(area, m_radius, m_radius);
+    painter.drawPath(chamferPath(area, m_radius));
 }
 
 CalloutTooltip::CalloutTooltip(ThemeService *themes, QWidget *parent)

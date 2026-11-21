@@ -29,6 +29,7 @@ public:
     void scrollToSection(int index);
 
 private:
+    void addNavigationButton(const QString &title, int index);
     void updateNavigation(int scrollValue);
 
     QHBoxLayout *m_navigationLayout = nullptr;

@@ -260,7 +260,7 @@ void WikiTextEdit::setupCompleterStyle()
         QListView::item:selected { background-color:#d5d5d5; color:#ffffff; }
         QListView::item:hover:!selected { background-color:#d5d5d5; }
         QScrollBar:vertical { border:none; background:#e5e5e5; width:8px; margin:0; }
-        QScrollBar::handle:vertical { background:#cccccc; min-height:20px; border-radius:4px; }
+        QScrollBar::handle:vertical { background:#cccccc; min-height:20px; }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
     )"));
 }

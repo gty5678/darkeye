@@ -10,6 +10,7 @@ class QScrollArea;
 
 namespace darkeye {
 
+class OctImage;
 class TimelineCanvas;
 
 class ActressWorkTimeline final : public QWidget
@@ -17,8 +18,11 @@ class ActressWorkTimeline final : public QWidget
     Q_OBJECT
 
 public:
-    explicit ActressWorkTimeline(QWidget *parent = nullptr, QString coverDirectory = {});
+    explicit ActressWorkTimeline(QWidget *parent = nullptr, QString coverDirectory = {},
+                                 QString actressImageDirectory = {});
 
+    void setActress(const PersonDetails &actress);
+    void setActresses(const QList<PersonDetails> &actresses);
     void setWorks(const QList<PersonWorkSummary> &works);
     void setFilteredWorks(const QList<WorkSummary> &works);
     [[nodiscard]] QList<PersonWorkSummary> works() const;
@@ -35,8 +39,13 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void updateTracks(QList<QList<PersonWorkSummary>> tracks, const QString &emptyMessage);
+    void positionThumbnails();
     void fitDefaultWindow();
 
+    QWidget *m_axisHead = nullptr;
+    QString m_actressImageDirectory;
+    QList<OctImage *> m_actressThumbnails;
     QScrollArea *m_scroll = nullptr;
     TimelineCanvas *m_canvas = nullptr;
     QWidget *m_empty = nullptr;

@@ -79,7 +79,7 @@ void TagManagementWidget::buildUi()
     auto *form = new QFormLayout(editor);
     m_name = new DesignLineEdit(editor);
     m_type = new DesignComboBox(editor);
-    m_color = new ColorPicker(QColor(QStringLiteral("#cccccc")), true, ColorPicker::Shape::Circle,
+    m_color = new ColorPicker(QColor(QStringLiteral("#cccccc")), true, ColorPicker::Shape::Octagon,
                               editor);
     m_color->setMaximumHeight(40);
     m_detail = new DesignLineEdit(editor);
@@ -173,7 +173,7 @@ void TagManagementWidget::buildUi()
     auto *colorGroup = new TokenGroupBox(QStringLiteral("改多个标签颜色"), m_multiSelectGroup);
     auto *colorLayout = new QVBoxLayout(colorGroup);
     m_multiSelectColor = new ColorPicker(QColor(QStringLiteral("#cccccc")), true,
-                                         ColorPicker::Shape::Circle, colorGroup);
+                                         ColorPicker::Shape::Octagon, colorGroup);
     auto *changeColorButton = new DesignButton(QStringLiteral("批量改变标签颜色"), colorGroup);
     colorLayout->addWidget(m_multiSelectColor);
     colorLayout->addWidget(changeColorButton);

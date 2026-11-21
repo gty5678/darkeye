@@ -95,9 +95,9 @@ StatisticsRepository::StatisticsRepository(QSqlDatabase publicDatabase,
 {
 }
 
-std::optional<DashboardStatistics> StatisticsRepository::dashboard(QString *errorMessage) const
+std::optional<OverviewStatistics> StatisticsRepository::overview(QString *errorMessage) const
 {
-    DashboardStatistics statistics;
+    OverviewStatistics statistics;
     const auto queryPublic = [this, errorMessage](const QString &sql)
     {
         return scalarCount(m_publicDatabase, sql, errorMessage);
@@ -131,61 +131,6 @@ std::optional<DashboardStatistics> StatisticsRepository::dashboard(QString *erro
     statistics.favoriteWorkCount = *favoriteWorks;
     statistics.favoriteActressCount = *favoriteActresses;
     return statistics;
-}
-
-std::optional<QVector<DashboardActivity>> StatisticsRepository::recentWatching() const
-{
-    QSqlQuery query(m_privateDatabase);
-    if (!query.exec(QStringLiteral(
-            "SELECT serial_number, start_time FROM masturbation "
-            "WHERE TRIM(serial_number) <> '' AND TRIM(start_time) <> '' "
-            "ORDER BY start_time DESC, masturbation_id DESC LIMIT 6")))
-        return std::nullopt;
-
-    QVector<DashboardActivity> activities;
-    while (query.next())
-        activities.append({DashboardActivity::Kind::Work, query.value(0).toString(),
-                           query.value(1).toString()});
-    return activities;
-}
-
-std::optional<QVector<DashboardActivity>> StatisticsRepository::recentAdditions() const
-{
-    QSqlQuery query(m_publicDatabase);
-    if (!query.exec(QStringLiteral(
-            "SELECT kind, name, created_at FROM ("
-            "SELECT 0 AS kind, serial_number AS name, create_time AS created_at, work_id AS id "
-            "FROM work WHERE IFNULL(is_deleted, 0) = 0 AND TRIM(create_time) <> '' "
-            "UNION ALL "
-            "SELECT 1, COALESCE((SELECT COALESCE(NULLIF(TRIM(n.cn), ''), NULLIF(TRIM(n.jp), ''), "
-            "NULLIF(TRIM(n.en), ''), NULLIF(TRIM(n.kana), '')) FROM actress_name n "
-            "WHERE n.actress_id = a.actress_id AND n.name_type = 1 "
-            "ORDER BY n.actress_name_id DESC LIMIT 1), '#' || a.actress_id), "
-            "a.create_time, a.actress_id FROM actress a WHERE TRIM(a.create_time) <> ''"
-            ") ORDER BY created_at DESC, kind, id DESC LIMIT 6")))
-        return std::nullopt;
-
-    QVector<DashboardActivity> activities;
-    while (query.next())
-    {
-        const auto kind = query.value(0).toInt() == 0 ? DashboardActivity::Kind::Work
-                                                    : DashboardActivity::Kind::Actress;
-        activities.append({kind, query.value(1).toString(), query.value(2).toString()});
-    }
-    return activities;
-}
-
-std::optional<DashboardPendingCounts> StatisticsRepository::dashboardPendingCounts() const
-{
-    QSqlQuery query(m_publicDatabase);
-    if (!query.exec(QStringLiteral(
-            "SELECT COUNT(CASE WHEN COALESCE(TRIM(w.image_url), '') = '' THEN 1 END), "
-            "COUNT(CASE WHEN NOT EXISTS (SELECT 1 FROM work_actress_relation r "
-            "WHERE r.work_id = w.work_id) THEN 1 END) "
-            "FROM work w WHERE IFNULL(w.is_deleted, 0) = 0")) || !query.next())
-        return std::nullopt;
-
-    return DashboardPendingCounts{query.value(0).toInt(), query.value(1).toInt()};
 }
 
 std::optional<TopActressStatistic> StatisticsRepository::topActress(
@@ -307,7 +252,7 @@ int StatisticsRepository::earliestRecordYear(QString *errorMessage) const
     return year > 0 ? year : QDate::currentDate().year();
 }
 
-int StatisticsRepository::favoriteUnwatchedSalesCycle(QString *errorMessage) const
+std::optional<int> StatisticsRepository::favoriteUnwatchedSalesCycle(QString *errorMessage) const
 {
     const auto unwatched = scalarCount(
         m_privateDatabase,
@@ -316,11 +261,12 @@ int StatisticsRepository::favoriteUnwatchedSalesCycle(QString *errorMessage) con
         errorMessage);
     if (!unwatched.has_value())
     {
-        return 0;
+        return std::nullopt;
     }
     const int recentRecords =
         recordCountInDays(90, PersonalRecordKind::Masturbation, errorMessage);
-    return recentRecords == 0 ? 114514 : *unwatched * 90 / recentRecords;
+    if (recentRecords == 0) return std::nullopt;
+    return *unwatched * 90 / recentRecords;
 }
 
 QVector<WeightedChartValue> StatisticsRepository::workActressAges(int scope,

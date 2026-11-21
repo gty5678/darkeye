@@ -9,7 +9,6 @@
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/LinkCard.h"
-#include "darkeye_ui/components/ModernScrollMenu.h"
 #include "darkeye_ui/components/TokenControls.h"
 #include "ui/components/PathManagement.h"
 #include "darkeye_ui/components/TokenViews.h"
@@ -26,6 +25,7 @@
 #include "database/repositories/ReferenceRepository.h"
 #include "database/repositories/WorkRepository.h"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
@@ -45,13 +45,19 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPlainTextEdit>
+#include <QRegularExpression>
 #include <QSaveFile>
+#include <QScreen>
+#include <QScrollArea>
+#include <QShortcut>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QTableWidget>
 #include <QTextCursor>
 #include <QVBoxLayout>
@@ -654,8 +660,8 @@ bool ShortcutSettingsPage::saveShortcut(const QString &actionId, const QJsonValu
 }
 
 CommonSettingsPage::CommonSettingsPage(ThemeService &themeService,
-                                       QWidget *parent)
-    : LazyWidget(parent), m_themeService(themeService)
+                                       QWidget *parent, QString settingsFile)
+    : LazyWidget(parent), m_themeService(themeService), m_settingsFile(std::move(settingsFile))
 {
 }
 
@@ -671,7 +677,7 @@ void CommonSettingsPage::lazyLoad()
     const QString initialPrimary = m_themeService.customPrimary().isEmpty()
         ? ThemeService::tokens(m_themeService.current()).primary
         : m_themeService.customPrimary();
-    m_colorPicker = new ColorPicker(QColor(initialPrimary), false, ColorPicker::Shape::Circle,
+    m_colorPicker = new ColorPicker(QColor(initialPrimary), false, ColorPicker::Shape::Octagon,
                                     m_primaryColorRow);
     primaryLayout->addWidget(m_colorPicker);
     primaryLayout->addStretch();
@@ -681,6 +687,17 @@ void CommonSettingsPage::lazyLoad()
 
     layout->addRow(new DesignLabel(QStringLiteral("主色"), this), m_primaryColorRow);
     layout->addRow(new DesignLabel(QStringLiteral("主题"), this), m_themeSelector);
+
+    auto *autoCollapse = new TokenCheckBox(QStringLiteral("焦点离开边栏时自动收起"), this);
+    autoCollapse->setObjectName(QStringLiteral("sidebarAutoCollapse"));
+    autoCollapse->setChecked(settings::app(m_settingsFile).sidebarAutoCollapse);
+    layout->addRow(autoCollapse);
+    connect(autoCollapse, &QCheckBox::toggled, this, [this](bool enabled) {
+        auto appSettings = settings::app(m_settingsFile);
+        appSettings.sidebarAutoCollapse = enabled;
+        settings::saveApp(appSettings, m_settingsFile);
+        emit sidebarAutoCollapseChanged(enabled);
+    });
 
     connect(m_colorPicker, &ColorPicker::colorConfirmed, this,
             &CommonSettingsPage::savePrimaryColor);
@@ -719,9 +736,10 @@ void CommonSettingsPage::savePrimaryColor(const QString &color)
     {
         return;
     }
-    m_themeService.setTheme(m_themeService.current(), color);
+    if (QColor(color) == QColor(m_themeService.currentTokens().primary)) return;
+    if (!m_themeService.setTheme(m_themeService.current(), color)) return;
     AppSettings appSettings = settings::app();
-    appSettings.customPrimary = color;
+    appSettings.customPrimary = m_themeService.customPrimary();
     settings::saveApp(appSettings);
 }
 
@@ -734,8 +752,15 @@ void CrawlerSettingsPage::lazyLoad()
 {
     const CrawlerSettings values = settings::crawler();
     auto *layout = new QVBoxLayout(this);
-    layout->addWidget(new DesignLabel(QStringLiteral("<h3>信息补充器相关设置</h3>"), this));
+    const auto wrappingLabel = [this](const QString &text) {
+        auto *label = new DesignLabel(text, this);
+        label->setWordWrap(true);
+        return label;
+    };
+    layout->addWidget(wrappingLabel(QStringLiteral("<h3>信息补充器相关设置</h3>")));
     auto *form = new QFormLayout;
+    form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
     const auto addUrlRow = [this, form](const QString &label, const QUrl &value,
                                         const QUrl &defaultValue, QLineEdit **field) {
@@ -760,8 +785,8 @@ void CrawlerSettingsPage::lazyLoad()
     addUrlRow(QStringLiteral("图片下载 API"), values.coverFetchApiUrl, defaults.coverFetchApiUrl, &m_coverApi);
     addUrlRow(QStringLiteral("热门女优 API"), values.topActressesApiUrl, defaults.topActressesApiUrl, &m_topActressesApi);
     form->addRow(new DesignLabel(QStringLiteral("说明"), this),
-                 new DesignLabel(QStringLiteral("作品/女优为完整前缀，程序会追加 /{serial} 或 /{name}；"
-                                                 "图片下载、热门女优请填写完整地址。"), this));
+                 wrappingLabel(QStringLiteral("作品/女优为完整前缀，程序会追加 /{serial} 或 /{name}；"
+                                              "图片下载、热门女优请填写完整地址。")));
 
     m_collectorExecutable = new DesignLineEdit(this);
     m_collectorExecutable->setText(values.collectorExecutable);
@@ -771,10 +796,10 @@ void CrawlerSettingsPage::lazyLoad()
     collectorRow->addWidget(m_collectorExecutable, 1);
     auto *browse = new DesignButton(QStringLiteral("浏览…"), this);
     collectorRow->addWidget(browse);
-    form->addRow(new DesignLabel(QStringLiteral("信息补充器可执行文件"), this), collectorRow);
+    form->addRow(wrappingLabel(QStringLiteral("信息补充器可执行文件")), collectorRow);
     m_autoStartCollector = new ToggleSwitch(48, 24, nullptr, this);
     m_autoStartCollector->setChecked(values.autoStartCollector);
-    form->addRow(new DesignLabel(QStringLiteral("打开软件自动启动信息补充器"), this),
+    form->addRow(wrappingLabel(QStringLiteral("打开软件自动启动信息补充器")),
                  m_autoStartCollector);
     auto *controls = new QWidget(this);
     controls->setProperty("designScrollMenuContent", true);
@@ -788,7 +813,8 @@ void CrawlerSettingsPage::lazyLoad()
     controlsLayout->addWidget(test);
     controlsLayout->addStretch();
     form->addRow(new DesignLabel(QStringLiteral("信息服务器控制"), this), controls);
-    m_collectorStatus = new DesignLabel(QStringLiteral("状态：未检测"), this);
+    m_collectorStatus = wrappingLabel(QStringLiteral("状态：未检测"));
+    m_collectorStatus->setTextFormat(Qt::PlainText);
     form->addRow(new DesignLabel(QStringLiteral("运行状态"), this), m_collectorStatus);
     layout->addLayout(form);
     layout->addStretch();
@@ -834,7 +860,13 @@ void CrawlerSettingsPage::resetCrawlerUrl(QLineEdit *field, const QUrl &value)
 
 void CrawlerSettingsPage::setCollectorStatus(const QString &status)
 {
-    if (m_collectorStatus) m_collectorStatus->setText(QStringLiteral("状态：") + status);
+    if (!m_collectorStatus) return;
+
+    // Network errors can include URLs or hostnames without any spaces.
+    static const QRegularExpression longToken(QStringLiteral("([!-~]{20})(?=[!-~])"));
+    QString displayStatus = status;
+    displayStatus.replace(longToken, QStringLiteral("\\1\u200B"));
+    m_collectorStatus->setText(QStringLiteral("状态：") + displayStatus);
 }
 
 void CrawlerSettingsPage::startCollector()
@@ -1532,51 +1564,188 @@ void DatabaseSettingsPage::restoreWebDavBackup()
     else QMessageBox::critical(this, QStringLiteral("恢复失败"), result.message);
 }
 
-SettingsPage::SettingsPage(ThemeService &themeService, const QActionGroup &shortcutActions,
-                           QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
-                           settings::Paths paths,
-                           QWidget *parent)
-    : LazyWidget(parent), m_themeService(themeService), m_shortcutActions(shortcutActions),
-      m_publicDatabase(std::move(publicDatabase)), m_privateDatabase(std::move(privateDatabase)),
-      m_paths(std::move(paths))
+SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &shortcutActions,
+                               QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                               settings::Paths paths, QWidget *parent)
+    : QDialog(parent)
 {
-    setProperty("designScrollMenuContent", true);
-}
+    setObjectName(QStringLiteral("SettingsDialog"));
+    setWindowTitle(QStringLiteral("设置"));
+    setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+    const QSize screenSize = (parent ? parent->screen() : screen())->availableGeometry().size();
+    setFixedWidth(qMin(1040, screenSize.width() - 32));
+    resize(width(), qMin(720, screenSize.height() - 48));
 
-void SettingsPage::lazyLoad()
-{
-    m_commonPage = new CommonSettingsPage(m_themeService, this);
-    const QList<ModernScrollMenu::Section> sections = {
-        {QStringLiteral("常规"), m_commonPage},
-        {QStringLiteral("视频"), new VideoSettingsPage(m_publicDatabase, this)},
-        {QStringLiteral("NFO"), new NfoSettingsPage(m_publicDatabase, m_paths, this)},
-        {QStringLiteral("信息补充器"), new CrawlerSettingsPage(this)},
-        {QStringLiteral("翻译"), new TranslationSettingsPage(this)},
-        {QStringLiteral("数据库"), new DatabaseSettingsPage(m_publicDatabase, m_privateDatabase, m_paths, this)},
-        {QStringLiteral("快捷键"), new ShortcutSettingsPage(m_paths.shortcutsFile(), m_shortcutActions, this)},
-        {QStringLiteral("关于软件"), new AboutSettingsPage(m_themeService, this, m_paths)},
+    m_commonPage = new CommonSettingsPage(themeService, this, paths.settingsFile());
+    connect(m_commonPage, &CommonSettingsPage::sidebarAutoCollapseChanged,
+            this, &SettingsDialog::sidebarAutoCollapseChanged);
+    auto *videoPage = new VideoSettingsPage(publicDatabase, this);
+    auto *nfoPage = new NfoSettingsPage(publicDatabase, paths, this);
+    auto *crawlerPage = new CrawlerSettingsPage(this);
+    struct Section {
+        QString title;
+        LazyWidget *page;
+        QStringList searchLabels;
     };
-    auto *layout = new QVBoxLayout(this);
-    layout->addWidget(new ModernScrollMenu(sections, this));
-    if (auto *videoPage = findChild<VideoSettingsPage *>())
-    {
-        connect(videoPage, &VideoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
-        connect(videoPage, &VideoSettingsPage::quickWorkRequested, this,
-                &SettingsPage::quickWorkRequested);
+    QStringList shortcutLabels;
+    for (const auto *action : shortcutActions.actions())
+        shortcutLabels.append(action->text());
+
+    const QList<Section> sections = {
+        {QStringLiteral("常规"), m_commonPage, {QStringLiteral("主题"), QStringLiteral("主色"),
+         QStringLiteral("焦点离开边栏时自动收起")}},
+        {QStringLiteral("视频"), videoPage,
+         QStringLiteral("本地播放器（可选）：|视频文件夹路径管理：|扫描本地视频提取番号并录入数据库|同步作品本地视频路径").split(u'|')},
+        {QStringLiteral("NFO"), nfoPage,
+         QStringLiteral("从视频路径扫描并导入 Jvedio NFO|从文件夹导入 Jvedio NFO|从 Jvedio NFO 导入作品|"
+                        "从视频路径扫描并导入 MDCZ NFO|从文件夹导入 MDCZ NFO|从 MDCZ NFO 导入作品").split(u'|')},
+        {QStringLiteral("信息补充器"), crawlerPage,
+         QStringLiteral("作品 API 前缀|女优 API 前缀|图片下载 API|热门女优 API|信息补充器可执行文件|"
+                        "打开软件自动启动信息补充器|信息服务器控制|运行状态").split(u'|')},
+        {QStringLiteral("翻译"), new TranslationSettingsPage(this),
+         QStringLiteral("翻译引擎|模型|Base URL|API Key|超时（秒）|重试次数|失败回退|测试输入|测试输出|"
+                        "测试翻译|llama-server|GGUF 模型|监听地址|运行模式|参数预设|上下文大小|GPU layers|"
+                        "threads|threads-batch|batch-size|ubatch-size|mlock|自动回填翻译配置|打开软件自动启动|"
+                        "命令预览|运行状态|日志输出").split(u'|')},
+        {QStringLiteral("数据库"), new DatabaseSettingsPage(publicDatabase, privateDatabase, paths, this),
+         QStringLiteral("数据库清理碎片|图片数据一致性检查|全量备份公共数据库|全量还原公共数据库|精简备份公共数据库|"
+                        "精简还原公共数据库|备份私有数据库|还原私有数据库|重建私有库与公共库的关联|启用 WebDAV|"
+                        "Profile|Base URL|Remote Root|超时(秒)|备份后自动上传|凭据管理|云端操作").split(u'|')},
+        {QStringLiteral("快捷键"), new ShortcutSettingsPage(paths.shortcutsFile(), shortcutActions, this), shortcutLabels},
+        {QStringLiteral("关于软件"), new AboutSettingsPage(themeService, this, paths),
+         QStringLiteral("检查更新|使用本地安装包更新…|自动检查更新（每周一次）|有新版本时提醒我|意见反馈|"
+                        "版本记录|数据目录（data-dir）|配置目录（config）|知识库目录（avwiki）|项目链接|参考项目").split(u'|')},
+    };
+
+    auto *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(20);
+
+    auto *sidebar = new QWidget(this);
+    sidebar->setFixedWidth(208);
+    auto *sidebarLayout = new QVBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(0, 0, 0, 0);
+    auto *search = new DesignLineEdit(sidebar);
+    search->setAccessibleName(QStringLiteral("搜索设置"));
+    search->setPlaceholderText(QStringLiteral("搜索设置"));
+    search->setClearButtonEnabled(true);
+    sidebarLayout->addWidget(search);
+
+    auto *menu = new QListWidget(sidebar);
+    menu->setObjectName(QStringLiteral("DesignListWidget"));
+    menu->setAccessibleName(QStringLiteral("设置分类与搜索结果"));
+    menu->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    sidebarLayout->addWidget(menu, 1);
+    auto *empty = new DesignLabel(QStringLiteral("未找到匹配的设置"), sidebar);
+    empty->setAlignment(Qt::AlignCenter);
+    sidebarLayout->addWidget(empty, 1);
+    layout->addWidget(sidebar);
+
+    auto *content = new QVBoxLayout;
+    auto *title = new DesignLabel(sections.first().title, this);
+    title->setObjectName(QStringLiteral("DesignModalTitle"));
+    content->addWidget(title);
+    auto *stack = new QStackedWidget(this);
+    for (const auto &section : sections) {
+        auto *area = new QScrollArea(stack);
+        area->setObjectName(QStringLiteral("DesignScrollMenuArea"));
+        area->viewport()->setObjectName(QStringLiteral("DesignScrollMenuViewport"));
+        area->setFrameShape(QFrame::NoFrame);
+        area->setWidgetResizable(true);
+        if (section.page == crawlerPage)
+            area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        auto *body = new QWidget;
+        body->setProperty("designScrollMenuContent", true);
+        auto *bodyLayout = new QVBoxLayout(body);
+        bodyLayout->setContentsMargins(0, 0, 0, 0);
+        bodyLayout->setSizeConstraint(QLayout::SetMinimumSize);
+        bodyLayout->addWidget(section.page);
+        bodyLayout->addStretch();
+        section.page->setProperty("designScrollMenuContent", true);
+        area->setWidget(body);
+        stack->addWidget(area);
     }
-    if (auto *nfoPage = findChild<NfoSettingsPage *>())
-    {
-        connect(nfoPage, &NfoSettingsPage::referencesChanged, this, &SettingsPage::referencesChanged);
-        connect(nfoPage, &NfoSettingsPage::tagsChanged, this, &SettingsPage::tagsChanged);
-        connect(nfoPage, &NfoSettingsPage::actressesChanged, this, &SettingsPage::actressesChanged);
-        connect(nfoPage, &NfoSettingsPage::actorsChanged, this, &SettingsPage::actorsChanged);
-        connect(nfoPage, &NfoSettingsPage::worksChanged, this, &SettingsPage::worksChanged);
+    content->addWidget(stack, 1);
+    layout->addLayout(content, 1);
+
+    const auto populate = [menu, empty, stack, sections](const QString &text) {
+        menu->clear();
+        const auto query = text.simplified();
+        const auto words = query.split(u' ');
+        for (int index = 0; index < sections.size(); ++index) {
+            const auto &section = sections.at(index);
+            const auto addItem = [menu, index](const QString &caption, const QString &anchor = {}) {
+                auto *item = new QListWidgetItem(caption, menu);
+                item->setData(Qt::UserRole, index);
+                item->setData(Qt::UserRole + 1, anchor);
+                item->setToolTip(caption);
+                item->setSizeHint(QSize(0, 34));
+            };
+            if (query.isEmpty() || section.title.contains(query, Qt::CaseInsensitive))
+                addItem(section.title);
+            if (query.isEmpty()) continue;
+            for (const auto &label : section.searchLabels) {
+                const auto searchable = section.title + u' ' + label;
+                if (std::ranges::all_of(words, [&searchable](const QString &word) {
+                        return searchable.contains(word, Qt::CaseInsensitive);
+                    }))
+                    addItem(label + QStringLiteral(" · ") + section.title, label);
+            }
+        }
+        menu->setVisible(menu->count() > 0);
+        empty->setVisible(menu->count() == 0);
+        if (menu->count() > 0)
+            menu->setCurrentRow(query.isEmpty() ? stack->currentIndex() : 0);
+    };
+    const auto openItem = [stack, title, sections](const QListWidgetItem *item) {
+        if (!item) return;
+        const int index = item->data(Qt::UserRole).toInt();
+        const auto &section = sections.at(index);
+        section.page->initialize();
+        auto *area = static_cast<QScrollArea *>(stack->widget(index));
+        area->widget()->layout()->activate();
+        stack->setCurrentIndex(index);
+        title->setText(section.title);
+        const auto anchor = item->data(Qt::UserRole + 1).toString();
+        if (anchor.isEmpty()) return;
+
+        for (auto *widget : section.page->findChildren<QWidget *>()) {
+            const auto *label = qobject_cast<QLabel *>(widget);
+            const auto *button = qobject_cast<QAbstractButton *>(widget);
+            if ((label && label->text() == anchor) || (button && button->text() == anchor)) {
+                QTimer::singleShot(0, area, [area, target = QPointer<QWidget>(widget)] {
+                    if (target) area->ensureWidgetVisible(target, 12, 24);
+                });
+                break;
+            }
+        }
+    };
+    connect(search, &QLineEdit::textChanged, this, populate);
+    connect(search, &QLineEdit::returnPressed, this, [menu, openItem] { openItem(menu->currentItem()); });
+    for (const auto &[key, step] : {std::pair{Qt::Key_Up, -1}, std::pair{Qt::Key_Down, 1}}) {
+        auto *shortcut = new QShortcut(QKeySequence(key), search);
+        shortcut->setContext(Qt::WidgetShortcut);
+        connect(shortcut, &QShortcut::activated, menu, [menu, step] {
+            if (menu->count() > 0)
+                menu->setCurrentRow(qBound(0, menu->currentRow() + step, menu->count() - 1));
+        });
     }
+    connect(menu, &QListWidget::itemClicked, this, openItem);
+    connect(menu, &QListWidget::itemActivated, this, openItem);
+    populate({});
+    search->setFocus();
+
+    connect(videoPage, &VideoSettingsPage::worksChanged, this, &SettingsDialog::worksChanged);
+    connect(videoPage, &VideoSettingsPage::quickWorkRequested, this, &SettingsDialog::quickWorkRequested);
+    connect(nfoPage, &NfoSettingsPage::referencesChanged, this, &SettingsDialog::referencesChanged);
+    connect(nfoPage, &NfoSettingsPage::tagsChanged, this, &SettingsDialog::tagsChanged);
+    connect(nfoPage, &NfoSettingsPage::actressesChanged, this, &SettingsDialog::actressesChanged);
+    connect(nfoPage, &NfoSettingsPage::actorsChanged, this, &SettingsDialog::actorsChanged);
+    connect(nfoPage, &NfoSettingsPage::worksChanged, this, &SettingsDialog::worksChanged);
 }
 
-QComboBox *SettingsPage::themeSelector() const
+QComboBox *SettingsDialog::themeSelector() const
 {
-    const_cast<SettingsPage *>(this)->initialize();
     return m_commonPage->themeSelector();
 }
 

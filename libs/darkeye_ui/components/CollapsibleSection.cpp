@@ -19,12 +19,13 @@ TokenCollapsibleSection::TokenCollapsibleSection(const QString &title,
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     m_toggle = new QToolButton(this);
     m_toggle->setObjectName(QStringLiteral("DesignCollapsibleToggle"));
-    m_toggle->setText(title);
+    setTitle(title);
     m_toggle->setCheckable(true);
     m_toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_toggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_content = new QWidget(this);
     m_content->setObjectName(QStringLiteral("DesignCollapsibleContent"));
+    m_content->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_contentLayout = new QVBoxLayout(m_content);
     m_contentLayout->setContentsMargins(10, 10, 10, 10);
     m_content->hide();
@@ -42,6 +43,7 @@ TokenCollapsibleSection::TokenCollapsibleSection(const QString &title,
     refreshIcon();
 }
 
+void TokenCollapsibleSection::setTitle(const QString &title) { m_toggle->setText(title); }
 bool TokenCollapsibleSection::isExpanded() const { return m_expanded; }
 QWidget *TokenCollapsibleSection::contentWidget() const { return m_content; }
 QVBoxLayout *TokenCollapsibleSection::contentLayout() const { return m_contentLayout; }
@@ -59,8 +61,6 @@ void TokenCollapsibleSection::collapse() { m_toggle->setChecked(false); }
 void TokenCollapsibleSection::toggleContent(bool checked)
 {
     m_expanded = checked;
-    m_content->setSizePolicy(QSizePolicy::Expanding,
-                             checked ? QSizePolicy::Preferred : QSizePolicy::Fixed);
     m_content->setVisible(checked);
     refreshIcon();
     emit toggled(checked);

@@ -6,6 +6,7 @@
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
+#include <QHoverEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeData>
@@ -15,6 +16,8 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QProxyStyle>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyleOptionTab>
@@ -23,6 +26,8 @@
 #include <QToolButton>
 #include <QVariantAnimation>
 #include <QVBoxLayout>
+#include <QWheelEvent>
+#include <optional>
 
 namespace darkeye::myads {
 namespace {
@@ -50,14 +55,7 @@ public:
 
     void setColors(const DockTheme &theme)
     {
-        m_divider = theme.text;
-        m_divider.setAlphaF(0.08);
         m_selected = theme.tabSelected;
-        m_outline = QColor();
-        if (theme.tabSelected == Qt::white || theme.tabSelected == theme.tabBarBackground) {
-            m_outline = theme.text;
-            m_outline.setAlphaF(0.16);
-        }
     }
 
     void setDragPosition(QStyleOptionTab::TabPosition position)
@@ -104,21 +102,10 @@ public:
             return;
         }
 
-        if (!tab->state.testFlag(State_Selected)) {
-            if (tab->position != QStyleOptionTab::End &&
-                tab->position != QStyleOptionTab::OnlyOneTab &&
-                tab->selectedPosition != QStyleOptionTab::NextIsSelected) {
-                const QRect &bounds = tab->rect;
-                const int x = tab->direction == Qt::RightToLeft ? bounds.left() : bounds.right();
-                constexpr int dividerHeight = 10;
-                painter->fillRect(QRect(x, bounds.y() + (bounds.height() - dividerHeight) / 2,
-                                        1, dividerHeight), m_divider);
-            }
-            return;
-        }
+        if (!tab->state.testFlag(State_Selected)) return;
 
         const QRectF bounds(tab->rect);
-        const qreal top = bounds.top() + (m_outline.isValid() ? 0.5 : 0.0);
+        const qreal top = bounds.top();
         const qreal bottom = bounds.bottom();
         const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
         const bool rtl = tab->direction == Qt::RightToLeft;
@@ -140,17 +127,11 @@ public:
         painter->setPen(Qt::NoPen);
         painter->setBrush(m_selected);
         painter->drawPolygon(outline);
-        if (m_outline.isValid()) {
-            painter->setPen(QPen(m_outline, 1));
-            painter->drawPolyline(outline);
-        }
         painter->restore();
     }
 
 private:
-    QColor m_divider;
     QColor m_selected;
-    QColor m_outline;
     QStyleOptionTab::TabPosition m_dragPosition = QStyleOptionTab::OnlyOneTab;
 };
 
@@ -237,8 +218,8 @@ private:
 class DraggableTabBar final : public QTabBar
 {
 public:
-    DraggableTabBar(PaneWidget *pane, const DockTheme &theme)
-        : QTabBar(pane), m_pane(pane), m_tabStyle(new DockTabStyle),
+    DraggableTabBar(PaneWidget *pane, QScrollArea *scrollArea, const DockTheme &theme)
+        : QTabBar(scrollArea), m_pane(pane), m_scrollArea(scrollArea), m_tabStyle(new DockTabStyle),
           m_reorderAnimation(new TabReorderAnimation(this)), m_background(theme.tabBarBackground)
     {
         m_tabStyle->setParent(this);
@@ -250,8 +231,31 @@ public:
         setTabsClosable(true);
         setExpanding(false);
         setElideMode(Qt::ElideRight);
-        setUsesScrollButtons(true);
+        setUsesScrollButtons(false);
         setFixedHeight(32);
+        setAttribute(Qt::WA_Hover);
+        connect(this, &QTabBar::currentChanged, this, [this](int index) {
+            if (index >= 0 && m_pressedIndex < 0) {
+                const QRect tab = tabRect(index);
+                m_scrollArea->ensureVisible(tab.center().x(), tab.center().y(), tab.width() / 2, 0);
+            }
+            updateCloseButtons();
+        });
+    }
+
+    void updateCloseButtons()
+    {
+        int hovered = -1;
+        const QWidget *viewport = m_scrollArea->viewport();
+        if (m_hoverPosition && viewport->rect().contains(viewport->mapFromGlobal(*m_hoverPosition)))
+            hovered = tabAt(mapFromGlobal(*m_hoverPosition));
+
+        for (int i = 0; i < count(); ++i) {
+            if (auto *button = qobject_cast<QToolButton *>(tabButton(i, QTabBar::RightSide))) {
+                // Keep the button's size reserved so hovering never shifts the tab contents.
+                button->setVisible(button->isEnabledTo(this) && (i == currentIndex() || i == hovered));
+            }
+        }
     }
 
     void applyTheme(const DockTheme &theme)
@@ -271,10 +275,54 @@ public:
     }
 
 protected:
+    bool event(QEvent *event) override
+    {
+        const bool handled = QTabBar::event(event);
+        switch (event->type()) {
+        case QEvent::HoverEnter:
+        case QEvent::HoverMove:
+            m_hoverPosition = static_cast<QHoverEvent *>(event)->globalPosition().toPoint();
+            updateCloseButtons();
+            break;
+        case QEvent::HoverLeave:
+        case QEvent::Hide:
+            m_hoverPosition.reset();
+            updateCloseButtons();
+            break;
+        case QEvent::Show:
+            updateCloseButtons();
+            break;
+        case QEvent::Move:
+            if (m_hoverPosition) updateCloseButtons();
+            break;
+        default:
+            break;
+        }
+        return handled;
+    }
+
     QSize minimumTabSizeHint(int index) const override
     {
         if (!m_pane->iconOnly()) return QSize(MinimumTabWidth, height());
         return QTabBar::minimumTabSizeHint(index);
+    }
+
+    void wheelEvent(QWheelEvent *event) override
+    {
+        auto *scrollBar = m_scrollArea->horizontalScrollBar();
+        if (scrollBar->maximum() == 0 || m_pressedIndex >= 0) {
+            event->ignore();
+            return;
+        }
+
+        const QPoint pixels = event->pixelDelta();
+        const QPoint angle = event->angleDelta();
+        const int delta = pixels.isNull()
+            ? (angle.x() != 0 ? angle.x() : angle.y()) * MinimumTabWidth / 120
+            : (pixels.x() != 0 ? pixels.x() : pixels.y());
+        const int direction = layoutDirection() == Qt::RightToLeft ? -1 : 1;
+        scrollBar->setValue(scrollBar->value() - direction * delta);
+        event->accept();
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -321,7 +369,8 @@ protected:
             if (tabData(i).toString() == contentId) { currentIndex = i; break; }
         if (currentIndex < 0) return;
 
-        if (rect().contains(position)) {
+        const QRect visibleTabs(mapFromParent(QPoint()), parentWidget()->size());
+        if (visibleTabs.contains(position)) {
             const int draggedCenter = m_pressTabCenter + position.x() - m_pressPosition.x();
             const QRect currentTab = tabRect(currentIndex);
             const int centerOffset = currentTab.center().x() - currentTab.left();
@@ -329,7 +378,7 @@ protected:
             int distance = qAbs(currentTab.center().x() - draggedCenter);
             for (int i = 0; i < count(); ++i) {
                 const QRect bounds = tabRect(i);
-                if (bounds.isEmpty() || !rect().contains(bounds.center())) continue;
+                if (bounds.isEmpty() || !visibleTabs.contains(bounds.center())) continue;
                 // Use the dragged tab's center after insertion, including for unequal widths.
                 const int candidateLeft = bounds.left() < currentTab.left()
                     ? bounds.left() : bounds.right() + 1 - currentTab.width();
@@ -379,6 +428,7 @@ protected:
     {
         if (m_reorderAnimation) m_reorderAnimation->finish();
         QTabBar::tabLayoutChange();
+        updateCloseButtons();
     }
 
 private:
@@ -412,10 +462,6 @@ private:
         }
         m_reorderAnimation->moveDraggedTab(draggedPosition);
         m_reorderAnimation->start(std::move(tabs), tabPixmap(to, overlap, true), m_background);
-        const auto buttons = findChildren<QToolButton *>(QString(), Qt::FindDirectChildrenOnly);
-        for (QToolButton *button : buttons) {
-            if (button->objectName() != QStringLiteral("MyAdsCloseButton")) button->raise();
-        }
     }
 
     QPixmap tabPixmap(int index, int overlap, bool moving)
@@ -440,9 +486,11 @@ private:
     }
 
     PaneWidget *m_pane;
+    QScrollArea *m_scrollArea;
     DockTabStyle *m_tabStyle;
     TabReorderAnimation *m_reorderAnimation;
     QColor m_background;
+    std::optional<QPoint> m_hoverPosition;
     QPoint m_pressPosition;
     QPoint m_pressOffset;
     int m_pressTabCenter = 0;
@@ -462,15 +510,23 @@ bool decodeTab(const QMimeData *mime, QString *paneId, QString *contentId)
 
 } // namespace
 
-PaneWidget::PaneWidget(const QString &paneId, QWidget *parent)
-    : QWidget(parent), m_paneId(paneId)
+PaneWidget::PaneWidget(const QString &paneId, QWidget *parent, bool retainFocusOnTabChange)
+    : QWidget(parent), m_paneId(paneId), m_retainFocusOnTabChange(retainFocusOnTabChange)
 {
     setProperty("myadsPane", true);
     setAcceptDrops(true);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    m_tabBar = new DraggableTabBar(this, m_theme);
+    auto *tabScrollArea = new QScrollArea(this);
+    tabScrollArea->setFrameShape(QFrame::NoFrame);
+    tabScrollArea->setFocusPolicy(Qt::NoFocus);
+    tabScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tabScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tabScrollArea->setWidgetResizable(true);
+    m_tabBar = new DraggableTabBar(this, tabScrollArea, m_theme);
+    tabScrollArea->setWidget(m_tabBar);
+    tabScrollArea->setFixedHeight(m_tabBar->height());
     m_tabBar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_tabBar, &QWidget::customContextMenuRequested, this, [this](const QPoint &position) {
         const int index = m_tabBar->tabAt(position);
@@ -482,7 +538,7 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent)
     });
     m_stack = new QStackedWidget(this);
     m_stack->setObjectName(QStringLiteral("MyAdsPageStack"));
-    layout->addWidget(m_tabBar);
+    layout->addWidget(tabScrollArea);
     layout->addWidget(m_stack, 1);
     connect(m_tabBar, &QTabBar::currentChanged, this, [this](int index) {
         switchContent(index);
@@ -506,12 +562,9 @@ QString PaneWidget::paneId() const { return m_paneId; }
 
 int PaneWidget::tabInsertionIndex(const QPoint &globalPosition) const
 {
+    const QWidget *viewport = m_tabBar->parentWidget();
+    if (!viewport->rect().contains(viewport->mapFromGlobal(globalPosition))) return -1;
     const QPoint local = m_tabBar->mapFromGlobal(globalPosition);
-    if (!m_tabBar->rect().contains(local)) return -1;
-    // Scroll arrows are controls, not insertion targets. Close buttons remain
-    // part of their tab's drop area.
-    auto *button = qobject_cast<QToolButton *>(m_tabBar->childAt(local));
-    if (button && button->objectName() != QStringLiteral("MyAdsCloseButton")) return -1;
     const bool rtl = m_tabBar->layoutDirection() == Qt::RightToLeft;
     for (int i = 0; i < m_tabBar->count(); ++i) {
         const int center = m_tabBar->tabRect(i).center().x();
@@ -532,10 +585,13 @@ QRect PaneWidget::tabInsertionRect(int index) const
         const QRect tab = m_tabBar->tabRect(index - 1);
         x = rtl ? tab.left() : tab.right() + 1;
     }
-    x = qBound(1, x, qMax(1, m_tabBar->width() - 2));
-    return QRect(m_tabBar->mapTo(this, QPoint(x - 1, 2)),
+    const QWidget *viewport = m_tabBar->parentWidget();
+    x = qBound(1, m_tabBar->mapToParent(QPoint(x, 0)).x(), qMax(1, viewport->width() - 2));
+    return QRect(viewport->mapTo(this, QPoint(x - 1, 2)),
                  QSize(3, qMax(1, m_tabBar->height() - 4)));
 }
+
+QRect PaneWidget::contentRect() const { return m_stack->geometry(); }
 
 QMenu *PaneWidget::createTabContextMenu(const QString &contentId)
 {
@@ -621,9 +677,9 @@ void PaneWidget::updateCloseButton(int index)
     }
     const bool closeable = m_closeable.value(id, true);
     button->setIcon(closeIcon(m_theme.closeIcon));
-    button->setFixedSize(closeable ? QSize(24, 20) : QSize(0, 0));
-    button->setVisible(closeable);
+    button->setFixedSize(closeable ? QSize(20, 20) : QSize(0, 0));
     button->setEnabled(closeable);
+    static_cast<DraggableTabBar *>(m_tabBar)->updateCloseButtons();
 }
 
 bool PaneWidget::addContent(const QString &contentId, const QString &title, QWidget *widget,
@@ -669,6 +725,7 @@ PaneContent PaneWidget::takeContent(const QString &contentId)
     m_titles.remove(contentId);
     m_closeable.remove(contentId);
     m_closePolicies.remove(contentId);
+    static_cast<DraggableTabBar *>(m_tabBar)->updateCloseButtons();
     switchContent(m_tabBar->currentIndex());
     if (content.currentContentId != currentContentId()) emit currentContentChanged();
     return content;
@@ -744,11 +801,21 @@ bool PaneWidget::setCurrentContentId(const QString &contentId)
     return true;
 }
 
+void PaneWidget::focusTabBar()
+{
+    m_tabBar->setFocus(Qt::ShortcutFocusReason);
+}
+
 void PaneWidget::clearWindowFocus()
 {
-    if (isVisible()) {
-        if (auto *focused = window()->focusWidget()) focused->clearFocus();
+    if (!isVisible()) return;
+    auto *focused = window()->focusWidget();
+    if (!focused) return;
+    if (m_retainFocusOnTabChange) {
+        if (isAncestorOf(focused)) focusTabBar();
+        return;
     }
+    focused->clearFocus();
 }
 
 void PaneWidget::switchContent(int index)
@@ -760,6 +827,15 @@ void PaneWidget::switchContent(int index)
 }
 
 QString PaneWidget::contentTitle(const QString &id) const { return m_titles.value(id); }
+
+void PaneWidget::setContentTitle(const QString &id, const QString &title)
+{
+    const int index = indexOf(id);
+    if (index < 0) return;
+    m_titles.insert(id, title);
+    m_tabBar->setTabText(index, m_iconOnly ? QString() : title);
+    m_tabBar->setTabToolTip(index, title);
+}
 QWidget *PaneWidget::contentWidget(const QString &id) const
 {
     const int index = indexOf(id);

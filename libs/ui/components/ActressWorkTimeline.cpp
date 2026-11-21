@@ -1,12 +1,14 @@
 #include "ui/components/ActressWorkTimeline.h"
 
 #include "darkeye_ui/components/DesignLabel.h"
+#include "darkeye_ui/components/OctImage.h"
 #include "ui/components/WorkCard.h"
 
 #include <QApplication>
 #include <QDate>
 #include <QHelpEvent>
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
@@ -27,12 +29,17 @@
 namespace darkeye {
 namespace {
 constexpr int axisY = 38;
+constexpr int thumbnailSize = 32;
 constexpr int markerSize = 16;
 constexpr int laneStride = 20;
 constexpr int trackPad = 14;
 constexpr int unknownWidth = 120;
-constexpr double minPpd = 0.001;
+constexpr int endPad = 30;
+constexpr int unknownGap = 24;
 constexpr double maxPpd = 300.0;
+const QDate timelineStart(2000, 1, 1);
+const QDate timelineEnd(2030, 12, 31);
+const int timelineDays = timelineStart.daysTo(timelineEnd);
 const QDate defaultStart(2016, 1, 1);
 const QDate defaultEnd(2026, 12, 31);
 
@@ -53,6 +60,8 @@ public:
         : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
     {
         setAttribute(Qt::WA_ShowWithoutActivating);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setStyleSheet(QStringLiteral("QWidget { background: transparent; }"));
         setMouseTracking(true);
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
@@ -102,12 +111,18 @@ public:
 
     ~TimelineCanvas() override { delete m_popup; }
 
-    void setWorks(QList<PersonWorkSummary> works)
+    void setTracks(QList<QList<PersonWorkSummary>> tracks)
     {
-        m_works = std::move(works);
+        m_tracks = std::move(tracks);
         rebuild();
     }
-    const QList<PersonWorkSummary> &works() const { return m_works; }
+    QList<PersonWorkSummary> works() const
+    {
+        QList<PersonWorkSummary> result;
+        for (const auto &track : m_tracks) result.append(track);
+        return result;
+    }
+    const QList<int> &axes() const { return m_axes; }
     int markerCount() const { return m_markers.size(); }
     double ppd() const { return m_ppd; }
     QDate dateMinimum() const { return m_dateMin; }
@@ -120,10 +135,16 @@ public:
     bool hoverPreviewVisible() const { return m_popup->isVisible(); }
     void setPpd(double value)
     {
-        m_ppd = qBound(minPpd, value, maxPpd);
+        const int availableWidth = m_scroll->viewport()->width() - trackPad - trailingWidth();
+        const double minimum = qBound(1, availableWidth, qRound(maxPpd * timelineDays))
+            / double(timelineDays);
+        const double scale = qBound(minimum, value, maxPpd);
+        if (scale == m_ppd) return;
+        m_ppd = scale;
         rebuild();
     }
     std::function<void(qint64)> activate;
+    std::function<void()> axesChanged;
 
 protected:
     void paintEvent(QPaintEvent *event) override
@@ -140,7 +161,8 @@ protected:
             paintRuler(painter, exposed, colors);
 
         painter.setPen(colors.color(QPalette::Mid));
-        painter.drawLine(exposed.left(), axisY, exposed.right(), axisY);
+        for (const int y : m_axes)
+            painter.drawLine(exposed.left(), y, exposed.right(), y);
         if (m_unknownX >= 0) {
             painter.setPen(colors.color(QPalette::PlaceholderText));
             const QRect label(m_unknownX - unknownWidth / 2, 0, unknownWidth, axisY);
@@ -150,9 +172,9 @@ protected:
         auto guideColor = colors.color(QPalette::Text);
         guideColor.setAlphaF(0.24);
         painter.setPen(guideColor);
-        for (const QPoint &end : m_stems) {
-            if (end.x() >= exposed.left() && end.x() <= exposed.right())
-                painter.drawLine(end.x(), axisY, end.x(), end.y());
+        for (const QLine &stem : m_stems) {
+            if (stem.x1() >= exposed.left() && stem.x1() <= exposed.right())
+                painter.drawLine(stem);
         }
 
         for (const Marker &marker : std::as_const(m_markers)) {
@@ -298,7 +320,9 @@ private:
             }
             painter.setPen(emphasized ? major : minor);
             painter.drawLine(x, axisY - (emphasized ? 6 : 4), x, axisY);
-            painter.drawText(QRect(x - 60, 0, 120, axisY - 7), Qt::AlignCenter, label);
+            const int labelWidth = painter.fontMetrics().horizontalAdvance(label) + 2;
+            const int labelX = qBound(0, x - labelWidth / 2, width() - labelWidth);
+            painter.drawText(QRect(labelX, 0, labelWidth, axisY - 7), Qt::AlignCenter, label);
         };
 
         const int dayLabelSpacing = painter.fontMetrics().horizontalAdvance(QStringLiteral("0000-00-00")) + 12;
@@ -329,10 +353,9 @@ private:
         }
         if (step == 120)
             step *= qMax(1, qCeil(monthLabelSpacing / (step * 28.0 * m_ppd)));
-        const QDate epoch(2000, 1, 1);
-        const int monthIndex = (firstDate.year() - epoch.year()) * 12 + firstDate.month() - 1;
-        const int aligned = monthIndex - ((monthIndex % step) + step) % step;
-        for (QDate date = epoch.addMonths(aligned); date <= lastDate; date = date.addMonths(step)) {
+        const int monthIndex = (firstDate.year() - timelineStart.year()) * 12 + firstDate.month() - 1;
+        const int aligned = monthIndex - monthIndex % step;
+        for (QDate date = timelineStart.addMonths(aligned); date <= lastDate; date = date.addMonths(step)) {
             if (date < firstDate) continue;
             const bool january = date.month() == 1;
             const QString format = step >= 12 ? QStringLiteral("yyyy") : QStringLiteral("yyyy-MM");
@@ -360,6 +383,7 @@ private:
         summary.highlightTagId = marker.work.highlightTagId;
         summary.standard = marker.work.standard;
         auto *card = new WorkCard(summary, m_coverDirectory, false, m_popup);
+        card->setUntaggedBackground(palette().color(QPalette::Window));
         connect(card, &WorkCard::activated, this, [this](qint64 workId) {
             hidePopup();
             if (activate) activate(workId);
@@ -407,91 +431,115 @@ private:
         hidePopup();
         m_markers.clear();
         m_stems.clear();
-        QMap<QDate, QList<const PersonWorkSummary *>> dates;
-        QList<const PersonWorkSummary *> unknown;
-        for (const auto &work : std::as_const(m_works)) {
-            const QDate date = QDate::fromString(work.releaseDate.left(10), Qt::ISODate);
-            if (date.isValid()) dates[date].append(&work);
-            else unknown.append(&work);
-        }
-        if (!m_works.isEmpty()) {
-            QDate coreMin = defaultStart;
-            QDate coreMax = defaultEnd;
-            if (!dates.isEmpty()) {
-                coreMin = qMin(coreMin, dates.firstKey());
-                coreMax = qMax(coreMax, dates.lastKey());
+        m_axes.clear();
+        bool hasWorks = false;
+        m_hasUnknownDates = false;
+        for (const auto &track : m_tracks) {
+            for (const auto &work : track) {
+                hasWorks = true;
+                if (!releaseDate(work).isValid()) m_hasUnknownDates = true;
             }
-            m_dateMin = coreMin.addDays(-120).addYears(-90);
-            const QDate end = coreMax.addDays(120).addYears(90);
-            m_numDays = m_dateMin.daysTo(end) + 1;
-            // Respect QWidget's width limit, including the unknown-date section.
-            m_ppd = qMin(m_ppd, (QWIDGETSIZE_MAX - unknownWidth - 2.0 * trackPad - 32)
-                                      / m_numDays);
-            // Keep room to pan and preserve the pointer anchor even at minimum zoom.
-            const int extraDays = qMax(0, qCeil((3.0 * m_scroll->viewport()->width()
-                                                / m_ppd - m_numDays) / 2.0));
-            m_dateMin = m_dateMin.addDays(-extraDays);
-            m_numDays += 2 * extraDays;
+        }
+        if (hasWorks) {
+            m_dateMin = timelineStart;
+            m_numDays = timelineDays + 1;
         } else {
             m_dateMin = {};
             m_numDays = 0;
         }
-        m_unknownX = unknown.isEmpty() ? -1 : qRound(trackPad + m_numDays * m_ppd + 24);
-        QList<int> laneEnds;
+        const int endX = qRound(trackPad + qMax(0, m_numDays - 1) * m_ppd);
+        m_unknownX = m_hasUnknownDates ? endX + unknownGap + unknownWidth / 2 : -1;
+        int trackY = axisY;
         int bottom = axisY;
+        for (const auto &track : m_tracks) {
+            m_axes.append(trackY);
+            bottom = layoutTrack(track, trackY);
+            trackY = qMax(trackY + 44, bottom + 32);
+        }
+        setMinimumWidth(qMax(200, endX + trailingWidth()));
+        setMinimumHeight(qMax(96, bottom + 22));
+        if (axesChanged) axesChanged();
+        update();
+    }
+
+    static QDate releaseDate(const PersonWorkSummary &work)
+    {
+        return QDate::fromString(work.releaseDate.left(10), Qt::ISODate);
+    }
+
+    int trailingWidth() const
+    {
+        return m_hasUnknownDates ? unknownGap + unknownWidth : endPad;
+    }
+
+    int layoutTrack(const QList<PersonWorkSummary> &works, int trackY)
+    {
+        QMap<QDate, QList<const PersonWorkSummary *>> dates;
+        QList<const PersonWorkSummary *> unknown;
+        for (const auto &work : works) {
+            const QDate date = releaseDate(work);
+            if (!date.isValid()) unknown.append(&work);
+            else if (date >= timelineStart && date <= timelineEnd) dates[date].append(&work);
+        }
+        QList<int> laneEnds{-markerSize};
+        int bottom = trackY;
         const auto placeGroup = [&](int x, const QList<const PersonWorkSummary *> &group, int lane) {
-            int y = axisY;
+            int y = trackY;
             for (const auto *work : group) {
                 // Near dates can share a rounded x coordinate at low zoom.
                 while (lane < laneEnds.size() && x - laneEnds.at(lane) < markerSize)
                     ++lane;
                 if (lane >= laneEnds.size()) laneEnds.append(x);
                 else laneEnds[lane] = x;
-                y = axisY + lane * laneStride;
+                y = trackY + lane * laneStride;
                 m_markers.append({QRect(x - markerSize / 2 + 1, y - markerSize / 2 + 1,
                                         markerSize, markerSize), *work});
                 ++lane;
             }
             bottom = qMax(bottom, y);
-            if (y > axisY) m_stems.append(QPoint(x, y));
+            if (y > trackY) m_stems.append(QLine(x, trackY, x, y));
         };
-
-        // Reserve the axis lane so same-day groups start below it.
-        laneEnds.append(-markerSize);
-        m_markers.reserve(m_works.size());
         for (auto it = dates.cbegin(); it != dates.cend(); ++it) {
             const int x = qRound(trackPad + m_dateMin.daysTo(it.key()) * m_ppd);
             placeGroup(x, it.value(), it.value().size() == 1 ? 0 : 1);
         }
         if (!unknown.isEmpty()) placeGroup(m_unknownX, unknown, 1);
-        const int width = m_unknownX >= 0 ? m_unknownX + unknownWidth
-                                          : qRound(trackPad + m_numDays * m_ppd + 30);
-        setFixedWidth(qMax(200, width));
-        setMinimumHeight(qMax(96, bottom + 22));
-        update();
+        return bottom;
     }
 
     QScrollArea *m_scroll = nullptr;
     QString m_coverDirectory;
     TimelineHoverPopup *m_popup = nullptr;
     QTimer *m_hideTimer = nullptr;
-    QList<PersonWorkSummary> m_works;
+    QList<QList<PersonWorkSummary>> m_tracks;
+    QList<int> m_axes;
     QList<Marker> m_markers;
-    QList<QPoint> m_stems;
+    QList<QLine> m_stems;
     QDate m_dateMin;
     int m_numDays = 0;
     int m_unknownX = -1;
+    bool m_hasUnknownDates = false;
     double m_ppd = 0.25;
     qint64 m_popupWorkId = 0;
     bool m_middlePanning = false;
     QPointF m_lastGlobalPosition;
 };
 
-ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory) : QWidget(parent)
+ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory,
+                                         QString actressImageDirectory)
+    : QWidget(parent), m_actressImageDirectory(std::move(actressImageDirectory))
 {
     setObjectName(QStringLiteral("ActressWorkTimeline"));
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    auto *root = new QHBoxLayout(this);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->setSpacing(0);
+
+    m_axisHead = new QWidget(this);
+    m_axisHead->setFixedWidth(8 + thumbnailSize + 6);
+    root->addWidget(m_axisHead);
+
+    auto *layout = new QVBoxLayout;
+    root->addLayout(layout, 1);
     m_scroll = new QScrollArea(this);
     m_scroll->setWidgetResizable(true);
     m_scroll->setFrameShape(QFrame::NoFrame);
@@ -499,6 +547,9 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
     m_canvas = new TimelineCanvas(m_scroll, std::move(coverDirectory), m_scroll);
     m_canvas->activate = [this](qint64 id) { emit workRequested(id); };
     m_scroll->setWidget(m_canvas);
+    m_canvas->axesChanged = [this] { positionThumbnails(); };
+    connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
+            this, &ActressWorkTimeline::positionThumbnails);
     m_empty = new DesignLabel(QStringLiteral("暂无关联作品"), this);
     static_cast<DesignLabel *>(m_empty)->setTone(QStringLiteral("muted"));
     layout->addWidget(m_empty, 0, Qt::AlignCenter);
@@ -507,13 +558,65 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
     setWorks({});
 }
 
+void ActressWorkTimeline::setActress(const PersonDetails &actress)
+{
+    setActresses({actress});
+}
+
+void ActressWorkTimeline::setActresses(const QList<PersonDetails> &actresses)
+{
+    QList<QList<PersonWorkSummary>> tracks;
+    tracks.reserve(actresses.size());
+    for (qsizetype i = 0; i < actresses.size(); ++i) {
+        if (i == m_actressThumbnails.size()) {
+            auto *thumbnail = new OctImage({}, m_actressImageDirectory, thumbnailSize, false, m_axisHead, true);
+            thumbnail->setObjectName(QStringLiteral("TimelineActressThumbnail"));
+            m_actressThumbnails.append(thumbnail);
+        }
+        auto *thumbnail = m_actressThumbnails.at(i);
+        const auto &actress = actresses.at(i);
+        const auto name = actress.names.value(0);
+        const auto displayName = !name.chinese.isEmpty() ? name.chinese
+            : !name.japanese.isEmpty() ? name.japanese : name.english;
+        thumbnail->setToolTip(displayName);
+        thumbnail->setAccessibleName(displayName);
+        thumbnail->updateImage(actress.imagePath);
+        thumbnail->setImageActive(true);
+        thumbnail->show();
+        tracks.append(actress.works);
+    }
+    while (m_actressThumbnails.size() > actresses.size())
+        delete m_actressThumbnails.takeLast();
+    m_axisHead->setVisible(!actresses.isEmpty());
+    updateTracks(std::move(tracks), QStringLiteral("这部作品暂无关联女优"));
+}
+
 void ActressWorkTimeline::setWorks(const QList<PersonWorkSummary> &works)
 {
-    m_canvas->setWorks(works);
-    m_empty->setVisible(works.isEmpty());
-    m_scroll->setVisible(!works.isEmpty());
-    m_initialFitPending = !works.isEmpty();
+    m_axisHead->hide();
+    qDeleteAll(m_actressThumbnails);
+    m_actressThumbnails.clear();
+    updateTracks({works}, QStringLiteral("暂无关联作品"));
+}
+
+void ActressWorkTimeline::updateTracks(QList<QList<PersonWorkSummary>> tracks, const QString &emptyMessage)
+{
+    const bool empty = tracks.isEmpty() || (tracks.size() == 1 && tracks.first().isEmpty());
+    static_cast<DesignLabel *>(m_empty)->setText(tracks.isEmpty() ? emptyMessage
+                                                                : QStringLiteral("暂无关联作品"));
+    m_empty->setVisible(empty);
+    m_scroll->setVisible(!empty);
+    m_canvas->setTracks(std::move(tracks));
+    m_initialFitPending = !empty && m_canvas->dateMinimum().isValid();
     if (isVisible()) fitDefaultWindow();
+}
+
+void ActressWorkTimeline::positionThumbnails()
+{
+    const auto &axes = m_canvas->axes();
+    const int offset = m_scroll->verticalScrollBar()->value();
+    for (qsizetype i = 0; i < qMin(axes.size(), m_actressThumbnails.size()); ++i)
+        m_actressThumbnails.at(i)->move(8, axes.at(i) - thumbnailSize / 2 - offset);
 }
 
 void ActressWorkTimeline::setFilteredWorks(const QList<WorkSummary> &works)
@@ -565,8 +668,7 @@ void ActressWorkTimeline::fitDefaultWindow()
         const int viewportWidth = m_scroll->viewport()->width();
         const int span = defaultStart.daysTo(defaultEnd) + 1;
         m_scroll->verticalScrollBar()->setValue(0);
-        m_canvas->setPpd(qBound(minPpd,
-            (viewportWidth - 64.0) / static_cast<double>(span), maxPpd));
+        m_canvas->setPpd((viewportWidth - 64.0) / span);
         m_initialFitScheduled = true;
         // Resizing the canvas can change scrollbar ranges and viewport geometry.
         QTimer::singleShot(0, this, [this, viewportWidth] {

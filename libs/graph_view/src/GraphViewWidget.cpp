@@ -36,7 +36,10 @@ GraphViewWidget::GraphViewWidget(graph::GraphManager &manager, QWidget *parent)
     connect(m_nodeImagePositionTimer, &QTimer::timeout, this,
             &GraphViewWidget::updateNodeImagePosition);
     connect(m_view, &ForceViewRhiWidget::nodeLeftClicked, this,
-            &GraphViewWidget::nodeLeftClicked);
+            [this](const QString &nodeId) {
+                hideNodeImage();
+                emit nodeLeftClicked(nodeId);
+            });
     connect(m_view, &ForceViewRhiWidget::nodeHoveredWithInfo, this,
             [this](const QString &nodeId, float, float, float radius, float, bool dragging) {
                 showNodeImage(nodeId, radius, dragging);

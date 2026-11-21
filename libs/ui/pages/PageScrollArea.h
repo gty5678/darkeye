@@ -6,7 +6,8 @@
 namespace darkeye
 {
 
-inline QWidget *addPageScrollArea(QWidget *page, QWidget *content = nullptr)
+inline QWidget *addPageScrollArea(QWidget *page, QWidget *content = nullptr,
+                                  Qt::ScrollBarPolicy verticalPolicy = Qt::ScrollBarAsNeeded)
 {
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -14,6 +15,7 @@ inline QWidget *addPageScrollArea(QWidget *page, QWidget *content = nullptr)
     auto *scroll = new QScrollArea(page);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
+    scroll->setVerticalScrollBarPolicy(verticalPolicy);
     scroll->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     if (!content)
         content = new QWidget;

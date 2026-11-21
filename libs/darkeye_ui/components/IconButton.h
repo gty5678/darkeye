@@ -14,6 +14,8 @@ public:
     explicit IconButton(const QString &iconName = QStringLiteral("settings"),
                         ThemeService *themeService = nullptr,
                         QWidget *parent = nullptr);
+    IconButton(const QString &iconName, const QString &label,
+               ThemeService *themeService, QWidget *parent);
     IconButton(const QString &iconName, const QString &iconPath, int iconSize,
                int outerSize, bool hoverable = true, bool inverted = false,
                ThemeService *themeService = nullptr, QWidget *parent = nullptr);

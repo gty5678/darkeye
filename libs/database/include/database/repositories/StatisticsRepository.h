@@ -11,7 +11,7 @@
 namespace darkeye
 {
 
-struct DashboardStatistics final
+struct OverviewStatistics final
 {
     int workCount = 0;
     int actressCount = 0;
@@ -20,21 +20,6 @@ struct DashboardStatistics final
     int recentThirtyDays = 0;
     int favoriteWorkCount = 0;
     int favoriteActressCount = 0;
-};
-
-struct DashboardActivity final
-{
-    enum class Kind { Work, Actress };
-
-    Kind kind;
-    QString name;
-    QString time;
-};
-
-struct DashboardPendingCounts final
-{
-    int missingCover;
-    int unlinkedActress;
 };
 
 struct TopActressStatistic final
@@ -71,17 +56,14 @@ class StatisticsRepository final
 public:
     StatisticsRepository(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase);
 
-    [[nodiscard]] std::optional<DashboardStatistics> dashboard(
+    [[nodiscard]] std::optional<OverviewStatistics> overview(
         QString *errorMessage = nullptr) const;
-    [[nodiscard]] std::optional<QVector<DashboardActivity>> recentWatching() const;
-    [[nodiscard]] std::optional<QVector<DashboardActivity>> recentAdditions() const;
-    [[nodiscard]] std::optional<DashboardPendingCounts> dashboardPendingCounts() const;
     [[nodiscard]] std::optional<TopActressStatistic> topActress(
         int days, QString *errorMessage = nullptr) const;
     [[nodiscard]] int recordCountInDays(int days, PersonalRecordKind kind,
                                         QString *errorMessage = nullptr) const;
     [[nodiscard]] int earliestRecordYear(QString *errorMessage = nullptr) const;
-    [[nodiscard]] int favoriteUnwatchedSalesCycle(QString *errorMessage = nullptr) const;
+    [[nodiscard]] std::optional<int> favoriteUnwatchedSalesCycle(QString *errorMessage = nullptr) const;
 
     // Scope matches the Python statistics page: -1 public, 0 favorite,
     // 1 recorded works, and 2 recorded works weighted by record count.

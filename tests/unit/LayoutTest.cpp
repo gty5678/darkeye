@@ -116,6 +116,15 @@ void LayoutTest::waterfallUsesShortestColumn()
     QCOMPARE(second->geometry(), QRect(110, 0, 100, 60));
     QCOMPARE(third->geometry(), QRect(0, 50, 100, 30));
     QCOMPARE(layout->heightForWidth(210), 80);
+
+    layout->setUniformRows(true);
+    layout->setGeometry(QRect(0, 0, 210, 200));
+    QCOMPARE(third->geometry(), QRect(0, 70, 100, 30));
+    QCOMPARE(layout->heightForWidth(210), 100);
+
+    layout->setUniformRows(false);
+    layout->setGeometry(QRect(0, 0, 210, 200));
+    QCOMPARE(third->geometry(), QRect(0, 50, 100, 30));
 }
 
 void LayoutTest::lazyAreaLoadsOnePageAtATime()

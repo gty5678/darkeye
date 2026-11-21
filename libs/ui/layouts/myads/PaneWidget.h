@@ -37,7 +37,8 @@ class PaneWidget final : public QWidget
 {
     Q_OBJECT
 public:
-    explicit PaneWidget(const QString &paneId, QWidget *parent = nullptr);
+    explicit PaneWidget(const QString &paneId, QWidget *parent = nullptr,
+                        bool retainFocusOnTabChange = false);
 
     [[nodiscard]] QString paneId() const;
     void applyTheme(const DockTheme &theme);
@@ -55,7 +56,9 @@ public:
     [[nodiscard]] int contentCount() const;
     [[nodiscard]] QString currentContentId() const;
     bool setCurrentContentId(const QString &contentId);
+    void focusTabBar();
     [[nodiscard]] QString contentTitle(const QString &contentId) const;
+    void setContentTitle(const QString &contentId, const QString &title);
     [[nodiscard]] QWidget *contentWidget(const QString &contentId) const;
     [[nodiscard]] QIcon contentIcon(const QString &contentId) const;
     [[nodiscard]] bool isContentCloseable(const QString &contentId) const;
@@ -65,6 +68,7 @@ public:
     // Returns a gap in [0, contentCount()], or -1 outside the tab strip.
     [[nodiscard]] int tabInsertionIndex(const QPoint &globalPosition) const;
     [[nodiscard]] QRect tabInsertionRect(int index) const;
+    [[nodiscard]] QRect contentRect() const;
 
 signals:
     void currentContentChanged();
@@ -92,6 +96,7 @@ private:
     QString m_paneId;
     QTabBar *m_tabBar = nullptr;
     QStackedWidget *m_stack = nullptr;
+    bool m_retainFocusOnTabChange;
     bool m_iconOnly = false;
     QHash<QString, QString> m_titles;
     QHash<QString, bool> m_closeable;

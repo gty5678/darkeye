@@ -1,3 +1,4 @@
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/components/ToastNotification.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
@@ -102,7 +103,7 @@ void ToastNotification::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addRoundedRect(rect().adjusted(1, 1, -1, -1), 8, 8);
+    path = chamferPath(rect().adjusted(1, 1, -1, -1), 8);
     painter.fillPath(path, QColor(tokens.background));
     painter.setPen(QPen(edge, 2));
     painter.drawPath(path);

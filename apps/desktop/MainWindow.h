@@ -28,11 +28,10 @@ namespace darkeye
 
 namespace myads { class WorkspaceWidget; }
 class WorkspaceSearch;
+class SettingsDialog;
 class Sidebar;
-class DashboardPage;
 class HomePage;
 class ActorPage;
-class ActressDetailPage;
 class ActressWorkTimeline;
 class ActressPage;
 class PersonDetailPage;
@@ -42,6 +41,7 @@ class PersonPage;
 class StatisticsPage;
 class WorkPage;
 class ShelfPage;
+class WorkFilter;
 class ForceDirectPage;
 class FanartBrowserPage;
 class LocalApiServer;
@@ -74,12 +74,15 @@ private:
     void registerPage(const QString &menuTitle, const QString &routeName);
     QWidget *createPage(const QString &menuTitle, const QString &routeName,
                         QWidget *parent);
-    QWidget *ensurePage(const QString &routeName);
+    QWidget *ensurePage(const QString &routeName, qint64 switchActressId = 0);
     QMap<QString, QString> workspaceCommandPages() const;
+    void openSettings();
     void populateThemeSelector();
     void changeTheme(int index);
     void saveWindowState() const;
-    void navigateTo(const QString &routeName, bool recordRecent = true);
+    enum class ActressOpenMode { Automatic, Switching, Independent };
+    void navigateTo(const QString &routeName, bool recordRecent = true,
+                    ActressOpenMode actressMode = ActressOpenMode::Automatic);
     void openPersonEditor(PersonKind kind, qint64 personId);
     enum WorkspaceChange {
         WorksChanged = 0x01,
@@ -119,10 +122,10 @@ private:
     QQueue<qint64> m_pendingActressSyncs;
     QSet<qint64> m_pendingActressSyncIds;
     myads::WorkspaceWidget *m_workspace = nullptr;
+    WorkFilter *m_workFilter = nullptr;
     WorkspaceSearch *m_globalSearch = nullptr;
     QActionGroup *m_shortcutActions = nullptr;
     QPointer<HomePage> m_homePage;
-    QPointer<DashboardPage> m_dashboardPage;
     QPointer<WorkPage> m_workPage;
     QPointer<ShelfPage> m_shelfPage;
     QPointer<ForceDirectPage> m_localGraphPage;
@@ -132,9 +135,9 @@ private:
     QPointer<FanartBrowserPage> m_fanartBrowserPage;
     QPointer<ActressPage> m_actressPage;
     QPointer<ActorPage> m_actorPage;
-    QPointer<ActressDetailPage> m_actressDetailPage;
     QPointer<ModifyActressPage> m_actressEditorPage;
     QPointer<ModifyActorPage> m_actorEditorPage;
+    QPointer<SettingsDialog> m_settingsDialog;
     QPointer<QComboBox> m_themeSelector;
     WorkspaceChanges m_pendingWorkspaceChanges;
     QSet<qint64> m_pendingChangedWorkIds;

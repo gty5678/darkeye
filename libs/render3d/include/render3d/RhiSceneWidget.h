@@ -72,6 +72,7 @@ public:
 
 signals:
     void renderingError(const QString &message);
+    void renderingRecovered();
     void statisticsVisibleChanged(bool visible);
 
 protected:

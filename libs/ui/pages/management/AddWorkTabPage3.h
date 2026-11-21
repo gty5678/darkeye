@@ -95,7 +95,6 @@ private:
     void buildDefaultWorkspace();
     void saveWorkspaceLayout();
     void restoreDefaultWorkspace();
-    void loadWorkBySerial();
     void openCurrentWorkDetail();
     void playLocalVideo();
     void checkSerialAvailability();
@@ -165,7 +164,6 @@ private:
     WorkTagSelector *m_tags = nullptr;
     FanartStripWidget *m_fanart = nullptr;
     CrawlerFieldSelector *m_crawlerFields = nullptr;
-    DesignButton *m_loadButton = nullptr;
     DesignButton *m_saveButton = nullptr;
     IconButton *m_detailButton = nullptr;
     QToolButton *m_playButton = nullptr;

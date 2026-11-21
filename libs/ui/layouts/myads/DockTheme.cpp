@@ -22,19 +22,17 @@ QString DockTheme::styleSheet() const
     return QStringLiteral(
         "#MyAdsWorkspace { background:%1; color:%2; }"
         "QWidget[myadsPane=\"true\"] { background:%1; border:none; }"
-        "QTabBar#MyAdsTabBar { background:%11; color:%2; border:none; "
-        "font-family:\"%6\"; font-size:%7px; }"
-        "QStackedWidget#MyAdsPageStack, QStackedWidget#MyAdsPageStack > QWidget { background:%8; }"
+        "QWidget#MyAdsLeftSidebar { border-right:1px solid %9; }"
+        "QWidget#MyAdsRightSidebar { border-left:1px solid %9; }"
+        "QTabBar#MyAdsTabBar { background:%8; color:%2; border:none; "
+        "font-family:\"%4\"; font-size:%5px; }"
+        "QStackedWidget#MyAdsPageStack, QStackedWidget#MyAdsPageStack > QWidget { background:%6; }"
         "QToolButton#MyAdsCloseButton { padding:0; margin:0; border:none; background:transparent; }"
-        "QToolButton#MyAdsCloseButton:hover { background:%5; border-radius:2px; }"
-        "QToolButton#MyAdsCloseButton:pressed { background:%9; }"
-        "QSplitter::handle { background:%3; width:2px; height:2px; border:none; margin:0; }"
-        "QSplitter::handle:hover { background:qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-        "stop:0 %4,stop:0.5 %10,stop:1 %4); }")
-        .arg(background.name(), text.name(), border.name(), primary.name(),
-             closeHover.name(), fontFamily)
-        .arg(tabFontSize)
-        .arg(tabSelected.name(), closePressed.name(), primaryHover.name(), tabBarBackground.name());
+        "QToolButton#MyAdsCloseButton:hover { background:%3; border-radius:2px; }"
+        "QToolButton#MyAdsCloseButton:pressed { background:%7; }")
+        .arg(background.name(), text.name(), closeHover.name(), fontFamily,
+             QString::number(tabFontSize), tabSelected.name(), closePressed.name(),
+             tabBarBackground.name(), border.name());
 }
 
 } // namespace darkeye::myads

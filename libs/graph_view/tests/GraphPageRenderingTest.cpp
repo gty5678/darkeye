@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QAction>
 #include <QContextMenuEvent>
+#include <QImage>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
@@ -18,6 +19,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStackedWidget>
+#include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <QtTest>
 
@@ -32,7 +34,42 @@ private slots:
     void preparesLatestEgoGraphWhileHidden();
     void changingNodeColorsPreservesLayout();
     void hiddenManagerChangesPreserveLayout();
+    void clickingWorkHidesPreviewBeforeNavigation();
 };
+
+void GraphPageRenderingTest::clickingWorkHidesPreviewBeforeNavigation()
+{
+    QTemporaryDir imageDirectory;
+    QVERIFY(imageDirectory.isValid());
+    QImage cover(140, 200, QImage::Format_RGB32);
+    cover.fill(Qt::red);
+    QVERIFY(cover.save(imageDirectory.filePath(QStringLiteral("cover.png"))));
+
+    auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"));
+    database.setDatabaseName(QStringLiteral(":memory:"));
+    QVERIFY(database.open());
+    QSqlQuery query(database);
+    QVERIFY(query.exec(QStringLiteral("CREATE TABLE work (work_id INTEGER, image_url TEXT)")));
+    QVERIFY(query.exec(QStringLiteral("INSERT INTO work VALUES (1, 'cover.png')")));
+
+    darkeye::graph::GraphManager manager(database, {});
+    darkeye::graph_view::GraphViewWidget graph(manager);
+    graph.setImageDirectories({}, imageDirectory.path());
+    auto *preview = graph.findChild<QLabel *>(QString(), Qt::FindDirectChildrenOnly);
+    QVERIFY(preview);
+
+    const QString workId = QStringLiteral("w1");
+    auto *view = graph.view();
+    emit view->nodeHoveredWithInfo(workId, 0.0f, 0.0f, 7.0f, 1.0f, false);
+    QVERIFY(!preview->isHidden());
+
+    QSignalSpy clicked(&graph, &darkeye::graph_view::GraphViewWidget::nodeLeftClicked);
+    connect(&graph, &darkeye::graph_view::GraphViewWidget::nodeLeftClicked, this,
+            [preview] { QVERIFY(preview->isHidden()); });
+    emit view->nodeLeftClicked(workId);
+    QCOMPARE(clicked.count(), 1);
+    QCOMPARE(clicked.first().first().toString(), workId);
+}
 
 void GraphPageRenderingTest::hiddenManagerChangesPreserveLayout()
 {

@@ -12,7 +12,7 @@ class ColorPicker final : public QLabel
     Q_OBJECT
 
 public:
-    enum class Shape { Rectangle, Circle };
+    enum class Shape { Rectangle, Octagon, Circle = Octagon };
 
     explicit ColorPicker(const QColor &color = QColor(QStringLiteral("#cccccc")),
                          bool showText = true, Shape shape = Shape::Rectangle,

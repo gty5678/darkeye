@@ -25,6 +25,7 @@ ModernScrollMenu::ModernScrollMenu(const QList<Section> &sections, QWidget *pare
     navigation->setObjectName(QStringLiteral("DesignScrollMenuNavigation"));
     m_navigationLayout = new QHBoxLayout(navigation);
     m_navigationLayout->setContentsMargins(20, 10, 20, 0);
+    m_navigationLayout->addStretch();
     m_buttonGroup = new QButtonGroup(this);
     m_buttonGroup->setExclusive(true);
     root->addWidget(navigation);
@@ -47,7 +48,6 @@ ModernScrollMenu::ModernScrollMenu(const QList<Section> &sections, QWidget *pare
     connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged, this,
             &ModernScrollMenu::updateNavigation);
     for (const Section &section : sections) addSection(section.first, section.second);
-    m_navigationLayout->addStretch();
     m_contentLayout->addStretch();
 }
 
@@ -59,26 +59,29 @@ int ModernScrollMenu::currentSection() const
     return -1;
 }
 
+void ModernScrollMenu::addNavigationButton(const QString &title, int index)
+{
+    auto *button = new QPushButton(title, m_navigationLayout->parentWidget());
+    button->setObjectName(QStringLiteral("DesignScrollMenuButton"));
+    button->setCheckable(true);
+    button->setCursor(Qt::PointingHandCursor);
+    button->setChecked(index == 0);
+    m_buttonGroup->addButton(button);
+    m_navigationLayout->insertWidget(index, button);
+    connect(button, &QPushButton::clicked, this,
+            [this, index] { scrollToSection(index); });
+    m_buttons.append(button);
+}
+
 void ModernScrollMenu::addSection(const QString &title, QWidget *content)
 {
     if (content == nullptr) return;
-    if (m_navigationLayout->count() > 0
-        && m_navigationLayout->itemAt(m_navigationLayout->count() - 1)
-               ->spacerItem() != nullptr) {
-        delete m_navigationLayout->takeAt(m_navigationLayout->count() - 1);
-    }
     if (m_contentLayout->count() > 0
         && m_contentLayout->itemAt(m_contentLayout->count() - 1)
                ->spacerItem() != nullptr) {
         delete m_contentLayout->takeAt(m_contentLayout->count() - 1);
     }
-    auto *button = new QPushButton(title, this);
-    button->setObjectName(QStringLiteral("DesignScrollMenuButton"));
-    button->setCheckable(true);
-    button->setCursor(Qt::PointingHandCursor);
-    button->setChecked(m_buttons.isEmpty());
-    m_buttonGroup->addButton(button);
-    m_navigationLayout->addWidget(button);
+    addNavigationButton(title, m_sections.size());
     auto *wrapper = new QWidget(m_scrollContent);
     wrapper->setObjectName(QStringLiteral("DesignScrollMenuSection"));
     auto *outer = new QHBoxLayout(wrapper);
@@ -106,12 +109,7 @@ void ModernScrollMenu::addSection(const QString &title, QWidget *content)
         m_separators.append(separator);
     }
     m_contentLayout->addWidget(wrapper);
-    const int index = m_sections.size();
-    connect(button, &QPushButton::clicked, this,
-            [this, index] { scrollToSection(index); });
-    m_buttons.append(button);
     m_sections.append(wrapper);
-    m_navigationLayout->addStretch();
     m_contentLayout->addStretch();
 }
 

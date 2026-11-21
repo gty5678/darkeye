@@ -23,6 +23,14 @@ IconButton::IconButton(const QString &iconName, ThemeService *themeService,
     refreshIcon();
 }
 
+IconButton::IconButton(const QString &iconName, const QString &label,
+                       ThemeService *themeService, QWidget *parent)
+    : IconButton(iconName, themeService, parent)
+{
+    setToolTip(label);
+    setAccessibleName(label);
+}
+
 IconButton::IconButton(const QString &iconName, const QString &iconPath,
                        int iconSize, int outerSize, bool hoverable,
                        bool inverted, ThemeService *themeService, QWidget *parent)

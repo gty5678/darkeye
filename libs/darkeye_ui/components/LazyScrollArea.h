@@ -36,6 +36,7 @@ public:
 
     int columnWidth() const;
     void setColumnWidth(int columnWidth);
+    void setUniformRows(bool enabled);
     void setPrefetchDistance(int distance);
 
 protected:

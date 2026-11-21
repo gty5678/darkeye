@@ -11,9 +11,12 @@
 #include <functional>
 #include <optional>
 
+class QSplitter;
+
 namespace darkeye::myads {
 
 enum class Placement { Left, Right, Top, Bottom };
+enum class SidebarSide { Left, Right };
 enum class DropZone {
     Center, Left, Right, Top, Bottom,
     RootLeft, RootRight, RootTop, RootBottom
@@ -56,6 +59,13 @@ public:
     [[nodiscard]] PaneWidget *findPaneByContentId(const QString &contentId) const;
     [[nodiscard]] QList<PaneWidget *> panes() const;
 
+    [[nodiscard]] PaneWidget *sidebarPane(SidebarSide side) const;
+    [[nodiscard]] bool isSidebarOpen(SidebarSide side) const;
+    [[nodiscard]] bool isSidebar(const PaneWidget *pane) const;
+    [[nodiscard]] QList<QString> visiblePaneIds() const;
+    void toggleSidebar(SidebarSide side);
+    void setSidebarAutoCollapse(bool enabled);
+
     ContentConfig createContentConfig(const QString &contentId = {});
     bool fillPane(PaneWidget *pane, const ContentConfig &content);
     void beginLayoutUpdate();
@@ -94,15 +104,29 @@ signals:
     void contentMoved(const QString &contentId, const QString &paneId);
     void activeContentChanged();
     void activePaneChanged(const QString &paneId);
+    void tabContextMenuCreated(QMenu *menu, const QString &contentId);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     class PreviewOverlay;
+    WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool createSidebars);
+    struct Sidebar {
+        LayoutTree tree;
+        QWidget *host = nullptr;
+        QWidget *root = nullptr;
+    };
+    void createSidebars(LayoutTree left = {}, LayoutTree right = {});
+    void hideSidebar(QWidget *host);
+    [[nodiscard]] const Sidebar &sidebar(SidebarSide side) const;
+    [[nodiscard]] const Sidebar *sidebarFor(const QString &paneId) const;
+    LayoutTree &treeFor(const QString &paneId);
+    void applySidebarWidths();
     void rebuild(bool preserveContents = true);
-    QWidget *buildNode(const std::shared_ptr<LayoutNode> &node);
-    PaneWidget *createPane(const QString &paneId);
+    void rebuild(LayoutTree &tree, bool preserveContents = true);
+    QWidget *buildNode(const std::shared_ptr<LayoutNode> &node, bool sidebar);
+    PaneWidget *createPane(const QString &paneId, bool sidebar);
     void connectPane(PaneWidget *pane);
     void connectSplitters(QWidget *widget, const std::shared_ptr<LayoutNode> &node);
     QString nextPaneId() const;
@@ -115,7 +139,16 @@ private:
     void removeEmptyPane(const QString &paneId);
 
     LayoutTree m_tree;
+    static constexpr double DefaultSidebarWidthRatio = 0.22;
+
+    QSplitter *m_sidebarSplitter = nullptr;
+    QWidget *m_center = nullptr;
     QWidget *m_rootWidget = nullptr;
+    Sidebar m_leftSidebar;
+    Sidebar m_rightSidebar;
+    double m_leftWidthRatio = DefaultSidebarWidthRatio;
+    double m_rightWidthRatio = DefaultSidebarWidthRatio;
+    bool m_sidebarAutoCollapse = false;
     QHash<QString, PaneWidget *> m_panes;
     QHash<QString, PaneWidget *> m_reusablePanes;
     PreviewOverlay *m_preview = nullptr;
@@ -124,7 +157,7 @@ private:
     QString m_activePaneId;
     int m_contentCounter = 0;
     int m_layoutUpdateDepth = 0;
-    bool m_layoutRebuildPending = false;
+    QSet<LayoutTree *> m_pendingLayoutRebuilds;
 };
 
 } // namespace darkeye::myads

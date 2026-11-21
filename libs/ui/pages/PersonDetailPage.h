@@ -21,9 +21,10 @@ public:
                               QSqlDatabase privateDatabase, ThemeService &themes,
                               QString imageDirectory = {}, QWidget *parent = nullptr);
 
-    bool showPerson(qint64 personId);
+    bool showPerson(qint64 personId, bool reportError = true);
     [[nodiscard]] QWidget *captureContent();
     [[nodiscard]] qint64 currentPersonId() const noexcept;
+    [[nodiscard]] QString currentPersonName() const;
 
 signals:
     void editRequested(PersonKind kind, qint64 personId);

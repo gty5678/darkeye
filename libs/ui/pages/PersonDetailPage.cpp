@@ -4,7 +4,6 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "ui/components/PersonInfoPanel.h"
 
-#include <QSizePolicy>
 #include <QDesktopServices>
 #include <QUrlQuery>
 #include <QVBoxLayout>
@@ -23,12 +22,17 @@ PersonDetailPage::PersonDetailPage(QSqlDatabase publicDatabase,
 
 void PersonDetailPage::lazyLoad()
 {
-    auto *root = new QVBoxLayout(addPageScrollArea(this));
-    root->setContentsMargins(0, 0, 0, 0);
+    // Keep the card centered in the same viewport when the alias list grows.
+    auto *root = new QVBoxLayout(addPageScrollArea(this, nullptr, Qt::ScrollBarAlwaysOn));
+    root->setContentsMargins(16, 16, 16, 16);
 
     m_panel = new PersonInfoPanel(m_themes, std::move(m_imageDirectory), this);
-    m_panel->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
-    root->addWidget(m_panel, 0, Qt::AlignHCenter);
+    auto *cardRow = new QHBoxLayout;
+    cardRow->addStretch();
+    cardRow->addWidget(m_panel, 1);
+    cardRow->addStretch();
+    root->addLayout(cardRow);
+    root->addStretch();
 
     connect(m_panel, &PersonInfoPanel::favoriteChanged, this, &PersonDetailPage::toggleFavorite);
     connect(m_panel, &PersonInfoPanel::editRequested, this,
@@ -46,18 +50,19 @@ void PersonDetailPage::lazyLoad()
     });
 }
 
-bool PersonDetailPage::showPerson(qint64 personId)
+bool PersonDetailPage::showPerson(qint64 personId, bool reportError)
 {
-    initialize();
     QString errorMessage;
     const auto details = m_repository.findDetails(PersonKind::Actress, personId, &errorMessage);
     if (!details.has_value())
     {
-        Toast::showError(window(),
-                         errorMessage.isEmpty() ? QStringLiteral("人物不存在") : errorMessage,
-                         &m_themes);
+        if (reportError)
+            Toast::showError(window(),
+                             errorMessage.isEmpty() ? QStringLiteral("人物不存在") : errorMessage,
+                             &m_themes);
         return false;
     }
+    initialize();
     m_details = details;
     const bool favorite = m_privateRepository.isFavoriteActress(personId, &errorMessage);
     m_panel->setDetails(*details, favorite);
@@ -73,6 +78,13 @@ QWidget *PersonDetailPage::captureContent()
 qint64 PersonDetailPage::currentPersonId() const noexcept
 {
     return m_details.has_value() ? m_details->id : 0;
+}
+
+QString PersonDetailPage::currentPersonName() const
+{
+    if (!m_details || m_details->names.isEmpty()) return {};
+    const auto &name = m_details->names.first();
+    return name.chinese.isEmpty() ? name.japanese : name.chinese;
 }
 
 void PersonDetailPage::toggleFavorite(bool favorite)

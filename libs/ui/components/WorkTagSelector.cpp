@@ -4,6 +4,7 @@
 #include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/InteractionEffects.h"
 #include "darkeye_ui/components/VerticalText.h"
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include <QDateTime>
 #include <QEvent>
@@ -299,7 +300,40 @@ class TagGraphicsView final : public QGraphicsView
         setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     }
 
+    void setDashedFrame(const QColor &border, const QColor &background, const QString &width)
+    {
+        m_border = QPen(border, QStringView(width).chopped(2).toInt(),
+                        Qt::DashLine, Qt::FlatCap, Qt::MiterJoin);
+        m_background = background;
+        // Leave the border space in Qt's frame layout, including around the scroll bar.
+        const QString frameStyle = QStringLiteral("QGraphicsView { border: %1 solid transparent; }").arg(width);
+        if (styleSheet() != frameStyle)
+            setStyleSheet(frameStyle);
+        viewport()->setAutoFillBackground(false);
+        update();
+    }
+
   protected:
+    bool event(QEvent *event) override
+    {
+        const bool handled = QGraphicsView::event(event);
+        // The view's paintEvent paints the scene on the viewport, inside this frame.
+        if (event->type() == QEvent::Paint && m_border.style() != Qt::NoPen)
+        {
+            const qreal inset = m_border.widthF() / 2;
+            const QRectF bounds = QRectF(rect()).adjusted(inset, inset, -inset, -inset);
+            if (!bounds.isEmpty())
+            {
+                QPainter painter(this);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setPen(m_border);
+                painter.setBrush(m_background);
+                painter.drawPath(chamferPath(bounds));
+            }
+        }
+        return handled;
+    }
+
     void showEvent(QShowEvent *e) override
     {
         QGraphicsView::showEvent(e);
@@ -312,6 +346,10 @@ class TagGraphicsView final : public QGraphicsView
         if (auto *flow = dynamic_cast<TagFlowScene *>(scene()))
             flow->relayout(viewport()->width());
     }
+
+  private:
+    QPen m_border{Qt::NoPen};
+    QColor m_background;
 };
 
 TagDisplayPreview::TagDisplayPreview(ThemeService *themes, QWidget *parent)
@@ -780,27 +818,18 @@ const TagOption *WorkTagSelector::tagById(qint64 id) const
             return &t;
     return nullptr;
 }
-void WorkTagSelector::applyViewStyle(QWidget *w) const
+void WorkTagSelector::applyViewStyle(TagGraphicsView *view) const
 {
-    ThemeTokens t = themeTokens(m_themes);
-    const QVariant modified = w->property("addWorkModified");
-    const QString border = modified.toBool() ? t.warning : t.border;
-    const QString radius = modified.isValid() ? QStringLiteral("5px") : t.radiusMd;
-    w->setStyleSheet(QStringLiteral("QGraphicsView{border:%1 dashed "
-                                    "%2;border-radius:%3;background:%4}")
-                         .arg(t.borderWidth, border, radius, t.pageBackground));
+    const ThemeTokens t = themeTokens(m_themes);
+    const bool modified = view->property("addWorkModified").toBool();
+    view->setDashedFrame(QColor(modified ? t.warning : t.border), QColor(t.pageBackground), t.borderWidth);
 }
 void WorkTagSelector::applyTabStyle() const
 {
     ThemeTokens t = themeTokens(m_themes);
-    m_tabs->setStyleSheet(QStringLiteral("QTabWidget::pane{border:none;background:transparent;margin:0;"
-                                         "padding:0}QTabBar::tab{background:%1;color:%2;border:%3 solid "
-                                         "%4;padding:8px "
-                                         "18px;font-size:%5;font-family:'%6';min-width:90px;border-top-left-"
-                                         "radius:%7;border-bottom-left-radius:%7;margin-right:4px}QTabBar::"
-                                         "tab:hover{background:%8;color:%2}QTabBar::tab:selected{background:%"
-                                         "9;color:%10;font-weight:bold}")
-                              .arg(t.pageBackground, t.text, t.borderWidth, t.border, t.fontSizeMiddle,
-                                   t.fontFamilyBase, t.radiusMd, t.inputBackground, t.primary, t.textInverse));
+    m_tabs->setStyleSheet(QStringLiteral(
+        "QTabWidget::pane{border:none;background:%1;margin:0;padding:0}"
+        "QTabBar{background:transparent;border:none;}")
+        .arg(t.pageBackground));
 }
 } // namespace darkeye

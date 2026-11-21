@@ -1,3 +1,4 @@
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/components/Charts.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
@@ -76,7 +77,7 @@ void CalendarHeatmap::paintEvent(QPaintEvent *)
     painter.fillRect(rect(), QColor(tokens.background));
     painter.setPen(QPen(QColor(tokens.border), 2));
     painter.setBrush(Qt::NoBrush);
-    painter.drawRoundedRect(rect().adjusted(10, 10, -10, -10), 12, 12);
+    painter.drawPath(chamferPath(rect().adjusted(10, 10, -10, -10), 8));
     painter.setPen(QColor(tokens.text));
     QFont font = painter.font();
     font.setBold(true);

@@ -154,7 +154,7 @@ public:
     {
         if (!statistic.has_value())
         {
-            m_personCard->updateData(0, QStringLiteral("xxxx"), {});
+            m_personCard->updateData(0, QStringLiteral("暂无记录"), {});
             return;
         }
         m_personCard->updateData(statistic->actressId, statistic->name,
@@ -313,11 +313,12 @@ void PersonalDataPage::refresh()
     {
         card->setStatistic(statistics.topActress(card->property("days").toInt()));
     }
-    const int cycle = statistics.favoriteUnwatchedSalesCycle();
-    m_salesCycle->setText(QStringLiteral("%1天").arg(cycle));
-    m_salesCycle->setStyleSheet(cycle > 30
+    const auto cycle = statistics.favoriteUnwatchedSalesCycle();
+    m_salesCycle->setText(cycle ? QStringLiteral("%1天").arg(*cycle)
+                               : QStringLiteral("数据不足"));
+    m_salesCycle->setStyleSheet(cycle && *cycle > 30
                                     ? QStringLiteral("font-size: 30pt; color: #FF0000;")
-                                    : QStringLiteral("font-size: 30pt; color: #000000;"));
+                                    : QStringLiteral("font-size: 30pt;"));
     refreshHeatmap();
 }
 

@@ -303,16 +303,11 @@ void AddWorkTabPage3::lazyLoad()
     auto *serialLayout = new QHBoxLayout(serialRow);
     serialLayout->setContentsMargins(0, 0, 0, 0);
     serialLayout->addWidget(m_serialNumber, 1);
-    m_loadButton = new DesignButton(QStringLiteral("加载"), serialRow);
-    m_loadButton->setObjectName(QStringLiteral("WorkLoadButton"));
-    auto *loadButton = m_loadButton;
-    loadButton->setMinimumSize(56, kFormControlMinimumHeight);
     m_detailButton = new IconButton(QStringLiteral("eye"), &m_themes, serialRow);
     auto *detailButton = m_detailButton;
     detailButton->setToolTip(QStringLiteral("查看作品详情"));
     detailButton->setIconPixelSize(16);
     detailButton->setButtonPixelSize(28);
-    serialLayout->addWidget(loadButton);
     serialLayout->addWidget(detailButton);
     const auto addFormRow = [form, this](const QString &label, QWidget *field) {
         auto *formLabel = new DesignLabel(label, this);
@@ -334,6 +329,7 @@ void AddWorkTabPage3::lazyLoad()
     localVideoLayout->setContentsMargins(0, 0, 0, 0);
     m_playButton = new QToolButton(localVideoRow);
     auto *playButton = m_playButton;
+    playButton->setObjectName(QStringLiteral("WorkLocalVideoButton"));
     playButton->setAutoRaise(false);
     playButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     playButton->setToolTip(QStringLiteral("播放本地视频（与 DVD 书架相同，按 video_url）"));
@@ -411,7 +407,6 @@ void AddWorkTabPage3::lazyLoad()
     saveButton->setMinimumHeight(kFormControlMinimumHeight);
     saveButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     connect(saveButton, &QPushButton::clicked, this, &AddWorkTabPage3::save);
-    connect(loadButton, &QPushButton::clicked, this, &AddWorkTabPage3::loadWorkBySerial);
     connect(detailButton, &QPushButton::clicked, this, &AddWorkTabPage3::openCurrentWorkDetail);
     connect(playButton, &QToolButton::clicked, this, &AddWorkTabPage3::playLocalVideo);
     connect(crawlButton, &QPushButton::clicked, this, &AddWorkTabPage3::crawlSelectedFields);
@@ -460,8 +455,6 @@ void AddWorkTabPage3::lazyLoad()
         if (!m_loadingEditor)
         {
             m_serialLookupWorkId.reset();
-            // Python checks the number while it is entered, so the add/load
-            // actions always reflect whether the current serial already exists.
             checkSerialAvailability();
         }
         markEditorChanged();
@@ -565,9 +558,7 @@ void AddWorkTabPage3::lazyLoad()
     auto *crawlerLayout = container(QStringLiteral("crawler"), QStringLiteral("信息补充区"));
     crawlerLayout->addWidget(m_crawlerFields);
     auto *editorLayout = container(QStringLiteral("editor"), QStringLiteral("自由记录区"));
-    // Python's editor_container has no outer margin and does not cap the
-    // WikiTextEdit height, so the editor fills its dock pane naturally.
-    editorLayout->setContentsMargins(0, 0, 0, 0);
+    editorLayout->setContentsMargins(3, 3, 3, 3);
     editorLayout->addWidget(m_notes);
     auto *navLayout = container(QStringLiteral("nav"), QStringLiteral("外部导航"), false);
     addManualNavigation(navLayout);
@@ -692,28 +683,6 @@ void AddWorkTabPage3::restoreDefaultWorkspace()
     Toast::showSuccess(window(), QStringLiteral("已恢复初始布局"), &m_themes);
 }
 
-void AddWorkTabPage3::loadWorkBySerial()
-{
-    const QString serial = currentSerialNumber();
-    if (serial.isEmpty())
-    {
-        Toast::showWarning(window(), QStringLiteral("请先输入番号"), &m_themes);
-        return;
-    }
-    QString error;
-    const auto id = withShortDatabase(
-        m_database.databaseName(), true, &error,
-        [&serial, &error](QSqlDatabase connection)
-        { return WorkRepository(connection).findIdBySerial(serial, &error); });
-    if (!id.has_value())
-    {
-        Toast::showWarning(window(), error.isEmpty() ? QStringLiteral("未找到该作品") : error,
-                           &m_themes);
-        return;
-    }
-    loadWork(*id);
-}
-
 void AddWorkTabPage3::checkSerialAvailability()
 {
     if (m_loadingEditor)
@@ -734,9 +703,7 @@ void AddWorkTabPage3::checkSerialAvailability()
         && serial::equal(serial, m_currentWork->serialNumber);
     if (!isCurrentWork)
     {
-        // This follows the Python editor's serialNumberChanged handling: an
-        // unknown serial starts a clean add form (while retaining the serial),
-        // and an existing serial waits for the explicit Load action.
+        // An unknown serial starts a clean add form while retaining the serial.
         m_currentWork = Work{};
         if (!m_serialLookupWorkId.has_value())
             clearEditorExceptSerial();
@@ -1743,11 +1710,6 @@ void AddWorkTabPage3::updateEditorActions()
     m_detailButton->setEnabled(hasSavedWork || hasExistingSerial);
     m_playButton->setEnabled(hasLocalVideo);
     updateLocalVideoButtonStyle();
-    const bool canLoad = hasExistingSerial || hasSavedWork;
-    m_loadButton->setEnabled(canLoad);
-    m_loadButton->setVariant(canLoad
-                                 ? QStringLiteral("warning")
-                                 : QStringLiteral("disabled"));
 
     if (!hasSavedWork)
     {

@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMimeData>
 #include <QMenu>
 #include <QMouseEvent>
@@ -24,6 +25,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QToolButton>
+#include <QWheelEvent>
 #include <QtTest>
 #include <stdexcept>
 
@@ -55,6 +57,7 @@ private slots:
     void savesAtomically();
     void paneTransfersCompleteContent();
     void tabsShareWidthBeforeScrolling();
+    void closeButtonsFollowSelectionAndHover();
     void tabClickSwitchesPageWhenReleaseLeavesTab();
     void draggingTabFollowsPointer();
     void cancelledTabDragReturnsToOriginalPosition_data();
@@ -69,10 +72,16 @@ private slots:
     void closeRequestRejectsReentryAndRevalidatesOwnership();
     void workspacePreservesContentWhileSplitting();
     void workspaceBatchesProgrammaticSplits();
+    void nestedSplitterResizesBeforeRelease();
     void workspaceMovesTabsAcrossPanes();
     void dropsTabsAtInsertionLine_data();
     void dropsTabsAtInsertionLine();
     void workspaceSavesAndRestoresContent();
+    void sidebarsToggleAndCollapseOnFocusLoss();
+    void sidebarTabsSurviveLayoutRestore();
+    void sidebarWidthsAreRestoredAsRatios();
+    void sidebarSplitsVertically_data();
+    void sidebarSplitsVertically();
     void unknownSchemaDoesNotDestroyWorkspace();
     void invalidLayoutDoesNotDestroyWorkspace();
     void factoryFailurePreservesWorkspace_data();
@@ -205,23 +214,94 @@ void MyAdsTest::tabsShareWidthBeforeScrolling()
 
     pane.resize(250, 200);
     checkWidths(76);
-    const auto buttons = scrollButtons();
-    QCOMPARE(buttons.size(), 2);
-    const int beforeScroll = bar->tabRect(0).left();
-    for (auto *button : buttons) {
-        if (!button->isEnabled()) continue;
-        button->click();
-        break;
-    }
-    QVERIFY(bar->tabRect(0).left() < beforeScroll);
+    QVERIFY(scrollButtons().isEmpty());
+    const auto tabLeft = [&pane, bar](int index) {
+        return bar->mapTo(&pane, bar->tabRect(index).topLeft()).x();
+    };
+    const auto scroll = [bar](const QPoint &pixels, const QPoint &angle) {
+        const QPoint pos = bar->mapFromParent(QPoint(100, 16));
+        QWheelEvent event(pos, bar->mapToGlobal(pos), pixels, angle, Qt::NoButton,
+                          Qt::NoModifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(bar, &event);
+    };
+    const int beforeScroll = tabLeft(0);
+    scroll({}, QPoint(0, -120));
+    QVERIFY(tabLeft(0) < beforeScroll);
+    QVERIFY(tabLeft(3) + bar->tabRect(3).width() <= pane.width());
+    QCOMPARE(pane.currentContentId(), QStringLiteral("one"));
+    scroll(QPoint(20, 0), {});
+    QCOMPARE(tabLeft(0), beforeScroll - 34);
+    scroll({}, QPoint(0, 120));
+    QCOMPARE(tabLeft(0), beforeScroll);
+    scroll({}, QPoint(0, -120));
     QCOMPARE(pane.currentContentId(), QStringLiteral("one"));
 
     QVERIFY(pane.removeContent("four"));
     QVERIFY(scrollButtons().isEmpty());
-    QCOMPARE(bar->tabRect(0).left(), beforeScroll);
+    QTRY_COMPARE(tabLeft(0), beforeScroll);
+
+    QVERIFY(pane.addContent("four", "Four", new QWidget));
+    QTRY_VERIFY(tabLeft(3) + bar->tabRect(3).width() <= pane.width());
 
     pane.resize(800, 200);
     checkWidths(168);
+}
+
+void MyAdsTest::closeButtonsFollowSelectionAndHover()
+{
+    PaneWidget pane("tabs");
+    QVERIFY(pane.addContent("first", "First", new QWidget));
+    QVERIFY(pane.addContent("second", "Second", new QWidget));
+    QVERIFY(pane.addContent("pinned", "Pinned", new QWidget, {}, false));
+    QVERIFY(pane.setCurrentContentId("first"));
+    pane.resize(600, 200);
+    pane.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&pane));
+
+    auto *bar = pane.findChild<QTabBar *>();
+    QVERIFY(bar);
+    auto *first = bar->tabButton(0, QTabBar::RightSide);
+    auto *second = bar->tabButton(1, QTabBar::RightSide);
+    auto *pinned = bar->tabButton(2, QTabBar::RightSide);
+    QVERIFY(first && second && pinned);
+    const auto moveOverBar = [&](const QPoint &point) {
+        QTest::mouseMove(pane.windowHandle(), bar->mapTo(&pane, point));
+    };
+
+    moveOverBar(QPoint(10, bar->height() + 10));
+    QVERIFY(first->isVisible());
+    QVERIFY(second->isHidden());
+    QVERIFY(pinned->isHidden());
+
+    const QRect secondTab = bar->tabRect(1);
+    const QRect secondButton = second->geometry();
+    moveOverBar(secondTab.center());
+    QTRY_VERIFY(second->isVisible());
+    QCOMPARE(bar->tabRect(1), secondTab);
+    QCOMPARE(second->geometry(), secondButton);
+    QCOMPARE(pane.currentContentId(), QStringLiteral("first"));
+
+    moveOverBar(secondButton.center());
+    QVERIFY(second->isVisible());
+    moveOverBar(bar->tabRect(2).center());
+    QTRY_VERIFY(second->isHidden());
+    QVERIFY(pinned->isHidden());
+
+    QVERIFY(pane.setCurrentContentId("second"));
+    QVERIFY(first->isHidden());
+    QVERIFY(second->isVisible());
+
+    moveOverBar(bar->tabRect(0).center());
+    QTRY_VERIFY(first->isVisible());
+    moveOverBar(QPoint(10, bar->height() + 10));
+    QTRY_VERIFY(first->isHidden());
+    QVERIFY(second->isVisible());
+
+    moveOverBar(bar->tabRect(0).center());
+    QTRY_VERIFY(first->isVisible());
+    QTest::mouseClick(first, Qt::LeftButton);
+    QCOMPARE(pane.contentIds(), QStringList({"second", "pinned"}));
+    QCOMPARE(pane.currentContentId(), QStringLiteral("second"));
 }
 
 void MyAdsTest::tabClickSwitchesPageWhenReleaseLeavesTab()
@@ -755,6 +835,226 @@ void MyAdsTest::workspaceSavesAndRestoresContent()
     QCOMPARE(restoredDetail->currentContentId(), QStringLiteral("movie_detail"));
 }
 
+void MyAdsTest::sidebarsToggleAndCollapseOnFocusLoss()
+{
+    WorkspaceWidget workspace;
+    workspace.resize(1000, 500);
+    auto *center = workspace.rootPane();
+    auto *left = workspace.sidebarPane(SidebarSide::Left);
+    auto *right = workspace.sidebarPane(SidebarSide::Right);
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Left));
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
+    QCOMPARE(left->contentCount(), 0);
+    QCOMPARE(right->contentCount(), 0);
+
+    auto *editor = new QLineEdit;
+    QVERIFY(workspace.fillPane(left, ContentConfig("editor").setWidget(editor)));
+    workspace.show();
+    workspace.activateWindow();
+    QTRY_VERIFY(workspace.isActiveWindow());
+
+    workspace.toggleSidebar(SidebarSide::Left);
+    QVERIFY(left->isVisible());
+    QCOMPARE(workspace.activePane(), left);
+    center->focusTabBar();
+    QCoreApplication::processEvents();
+    QVERIFY(left->isVisible());
+    workspace.toggleSidebar(SidebarSide::Right);
+    QVERIFY(right->isVisible());
+    QTRY_VERIFY(left->mapTo(&workspace, QPoint(left->width(), 0)).x() <=
+                center->mapTo(&workspace, QPoint()).x());
+    QTRY_VERIFY(center->mapTo(&workspace, QPoint(center->width(), 0)).x() <=
+                right->mapTo(&workspace, QPoint()).x());
+    workspace.toggleSidebar(SidebarSide::Right);
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
+
+    editor->setFocus();
+    QTRY_VERIFY(editor->hasFocus());
+    workspace.setSidebarAutoCollapse(true);
+    left->focusTabBar();
+    QCoreApplication::processEvents();
+    QVERIFY(left->isVisible());
+    center->focusTabBar();
+    QTRY_VERIFY(!workspace.isSidebarOpen(SidebarSide::Left));
+    QCOMPARE(workspace.activePane(), center);
+
+    workspace.toggleSidebar(SidebarSide::Left);
+    QVERIFY(left->isVisible());
+    QCOMPARE(left->contentWidget(QStringLiteral("editor")), editor);
+    workspace.toggleSidebar(SidebarSide::Left);
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Left));
+}
+
+void MyAdsTest::sidebarTabsSurviveLayoutRestore()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto path = directory.filePath(QStringLiteral("layout.json"));
+    WorkspaceWidget workspace;
+    auto *root = workspace.rootPane();
+    auto *right = workspace.sidebarPane(SidebarSide::Right);
+    const auto id = QStringLiteral("sidebar-tab");
+    auto *widget = new QLabel;
+    QVERIFY(workspace.fillPane(root, ContentConfig(id).setWidget(widget)));
+    QVERIFY(workspace.moveContent(root->paneId(), id, right->paneId(), DropZone::Center));
+    QCOMPARE(right->contentWidget(id), widget);
+    QCOMPARE(workspace.layoutTree().paneIds(), QList<QString>{root->paneId()});
+    workspace.toggleSidebar(SidebarSide::Right);
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
+    QVERIFY(workspace.saveLayout(path, [](const PaneWidget *, const QString &contentId) {
+        return QJsonObject{{QStringLiteral("content_id"), contentId}};
+    }));
+
+    QVERIFY(workspace.loadLayout(path, [widget](const QJsonObject &descriptor) {
+        return ContentConfig(descriptor.value(QStringLiteral("content_id")).toString()).setWidget(widget);
+    }));
+    right = workspace.sidebarPane(SidebarSide::Right);
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
+    QCOMPARE(workspace.findPaneByContentId(id), right);
+    QCOMPARE(right->contentWidget(id), widget);
+
+    workspace.toggleSidebar(SidebarSide::Right);
+    root = workspace.rootPane();
+    QVERIFY(workspace.moveContent(right->paneId(), id, root->paneId(), DropZone::Center));
+    QCOMPARE(root->contentWidget(id), widget);
+    QCOMPARE(workspace.sidebarPane(SidebarSide::Right), right);
+    QCOMPARE(right->contentCount(), 0);
+}
+
+void MyAdsTest::sidebarWidthsAreRestoredAsRatios()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto path = directory.filePath(QStringLiteral("layout.json"));
+    WorkspaceWidget workspace;
+    workspace.resize(1000, 500);
+    workspace.show();
+    workspace.toggleSidebar(SidebarSide::Left);
+    workspace.toggleSidebar(SidebarSide::Right);
+    QVERIFY(QTest::qWaitForWindowExposed(&workspace));
+    QCoreApplication::processEvents();
+    auto *splitter = workspace.findChild<QSplitter *>(QStringLiteral("MyAdsSidebarSplitter"));
+    QVERIFY(splitter);
+    const auto widthRatio = [splitter](int index) {
+        const auto sizes = splitter->sizes();
+        return double(sizes.at(index)) / (sizes.at(0) + sizes.at(1) + sizes.at(2));
+    };
+    QTRY_VERIFY(qAbs(widthRatio(0) - 0.22) < 0.01);
+    QTRY_VERIFY(qAbs(widthRatio(2) - 0.22) < 0.01);
+
+    auto *handle = splitter->handle(1);
+    const QPoint start = handle->rect().center();
+    const QPoint globalStart = handle->mapToGlobal(start);
+    QMouseEvent press(QEvent::MouseButtonPress, start, globalStart,
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(handle, &press);
+    QMouseEvent move(QEvent::MouseMove, start + QPoint(100, 0), globalStart + QPoint(100, 0),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(handle, &move);
+    const double savedRatio = widthRatio(0);
+    QVERIFY2(savedRatio > 0.28, qPrintable(QString::number(savedRatio)));
+    QMouseEvent release(QEvent::MouseButtonRelease, handle->rect().center(),
+                        globalStart + QPoint(100, 0), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(handle, &release);
+    workspace.toggleSidebar(SidebarSide::Left);
+    workspace.resize(1400, 500);
+    workspace.toggleSidebar(SidebarSide::Left);
+    QTRY_VERIFY(qAbs(widthRatio(0) - savedRatio) < 0.01);
+    QTRY_VERIFY(qAbs(widthRatio(2) - 0.22) < 0.01);
+
+    QVERIFY(workspace.save(path));
+    WorkspaceWidget restored;
+    QVERIFY(restored.load(path));
+    restored.resize(900, 500);
+    restored.show();
+    restored.toggleSidebar(SidebarSide::Left);
+    auto *restoredLeft = restored.sidebarPane(SidebarSide::Left);
+    QTRY_VERIFY(qAbs(double(restoredLeft->width()) / (restored.width() - splitter->handleWidth())
+                     - savedRatio) < 0.01);
+}
+
+void MyAdsTest::sidebarSplitsVertically_data()
+{
+    QTest::addColumn<bool>("left");
+    QTest::newRow("left-top") << true;
+    QTest::newRow("right-bottom") << false;
+}
+
+void MyAdsTest::sidebarSplitsVertically()
+{
+    QFETCH(bool, left);
+    const auto side = left ? SidebarSide::Left : SidebarSide::Right;
+    const QString residentId = QStringLiteral("resident");
+    const QString movingId = QStringLiteral("moving");
+    WorkspaceWidget workspace;
+    workspace.resize(1000, 600);
+    workspace.show();
+    workspace.activateWindow();
+    QTRY_VERIFY(workspace.isActiveWindow());
+    workspace.toggleSidebar(side);
+    auto *sidebar = workspace.sidebarPane(side);
+    auto *center = workspace.rootPane();
+    auto *editor = new QLineEdit;
+    QVERIFY(workspace.fillPane(sidebar, ContentConfig(residentId).setWidget(editor)));
+    QVERIFY(workspace.fillPane(center, ContentConfig(movingId).setWidget(new QLabel)));
+    QVERIFY(!workspace.split(sidebar, Placement::Left));
+    QVERIFY(!workspace.split(sidebar, Placement::Right));
+    for (const auto zone : {DropZone::Left, DropZone::Right, DropZone::RootLeft, DropZone::RootRight})
+        QVERIFY(!workspace.moveContent(center->paneId(), movingId, sidebar->paneId(), zone));
+    QCOMPARE(workspace.findPaneByContentId(movingId), center);
+
+    const auto body = sidebar->contentRect();
+    const QPoint dropPosition(body.center().x(),
+                              left ? body.top() + body.height() / 8 : body.bottom() - body.height() / 8);
+    QMimeData mime;
+    mime.setData(MyAdsTabMimeType, QJsonDocument(QJsonObject{
+        {"pane_id", center->paneId()}, {"content_id", movingId}}).toJson());
+    QDragEnterEvent enter(QPointF(dropPosition), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(sidebar, &enter);
+    QVERIFY(enter.isAccepted());
+    QDropEvent drop(dropPosition, Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(sidebar, &drop);
+    QVERIFY(drop.isAccepted());
+    auto *moved = workspace.findPaneByContentId(movingId);
+    QVERIFY(moved && moved != sidebar && workspace.isSidebar(moved));
+    QCOMPARE(workspace.panes(), QList<PaneWidget *>{center});
+    QCOMPARE(workspace.sidebarPane(side), left ? moved : sidebar);
+    auto *splitter = qobject_cast<QSplitter *>(moved->parentWidget());
+    QVERIFY(splitter);
+    QCOMPARE(splitter->orientation(), Qt::Vertical);
+    QCOMPARE(splitter->widget(left ? 0 : 1), moved);
+    QTRY_COMPARE(moved->width(), sidebar->width());
+
+    workspace.setSidebarAutoCollapse(true);
+    editor->setFocus();
+    QTRY_VERIFY(editor->hasFocus());
+    QCoreApplication::processEvents();
+    QVERIFY(workspace.isSidebarOpen(side));
+    center->focusTabBar();
+    QTRY_VERIFY(!workspace.isSidebarOpen(side));
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto path = directory.filePath(QStringLiteral("layout.json"));
+    QVERIFY(workspace.saveLayout(path, [](const PaneWidget *, const QString &id) {
+        return QJsonObject{{QStringLiteral("content_id"), id}};
+    }));
+    QVERIFY(workspace.loadLayout(path, [](const QJsonObject &descriptor) {
+        return ContentConfig(descriptor.value(QStringLiteral("content_id")).toString())
+            .setWidget(new QLabel);
+    }));
+    QVERIFY(!workspace.isSidebarOpen(side));
+    workspace.toggleSidebar(side);
+    sidebar = workspace.findPaneByContentId(residentId);
+    moved = workspace.findPaneByContentId(movingId);
+    QVERIFY(sidebar && moved && sidebar != moved);
+    QCOMPARE(workspace.sidebarPane(side), left ? moved : sidebar);
+    QVERIFY(moved->removeContent(movingId));
+    QCOMPARE(workspace.sidebarPane(side), sidebar);
+    QCoreApplication::processEvents();
+    QVERIFY(workspace.isSidebarOpen(side));
+}
+
 void MyAdsTest::unknownSchemaDoesNotDestroyWorkspace()
 {
     QTemporaryDir directory;
@@ -890,7 +1190,7 @@ void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
     QVERIFY(left && right);
     QCOMPARE(left->contentWidget("keep"), page.data());
     QCOMPARE(left->contentClosePolicy("keep"), ClosePolicy::KeepAlive);
-    auto *splitter = workspace.findChild<QSplitter *>();
+    auto *splitter = workspace.findChild<QSplitter *>(QStringLiteral("MyAdsSplitter"));
     QVERIFY(splitter);
     workspace.resize(800, 400);
     workspace.show();
@@ -908,6 +1208,35 @@ void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
     QCOMPARE(moved.count(), 1);
     QCOMPARE(workspace.findPaneByContentId("keep"), right);
     QCOMPARE(right->contentWidget("keep"), page.data());
+}
+
+void MyAdsTest::nestedSplitterResizesBeforeRelease()
+{
+    WorkspaceWidget workspace;
+    PaneWidget *left = workspace.rootPane();
+    QVERIFY(workspace.split(left, Placement::Right));
+    PaneWidget *bottom = workspace.split(left, Placement::Bottom);
+    QVERIFY(bottom);
+    workspace.resize(800, 600);
+    workspace.show();
+    QCoreApplication::processEvents();
+
+    auto *splitter = qobject_cast<QSplitter *>(left->parentWidget());
+    QVERIFY(splitter);
+    QSplitterHandle *handle = splitter->handle(1);
+    QVERIFY(handle);
+    const QPoint press = handle->rect().center();
+    const QPoint global = handle->mapToGlobal(press);
+    const int oldHeight = left->height();
+    QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, press);
+    const QPoint offset(0, 50);
+    QMouseEvent move(QEvent::MouseMove, press + offset, global + offset, Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(handle, &move);
+    QVERIFY(left->height() > oldHeight);
+    QVERIFY(bottom->height() > 0);
+    QCOMPARE(workspace.layoutTree().root()->children.first()->sizes, splitter->sizes());
+    QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, handle->rect().center());
 }
 
 void MyAdsTest::hitTestingMatchesPythonZones()
@@ -1052,7 +1381,9 @@ void MyAdsTest::docksThroughGraphicsView_data()
 void MyAdsTest::docksThroughGraphicsView()
 {
     QFETCH(int, zone);
-    WorkspaceWidget workspace;
+    DockTheme theme;
+    theme.previewAlpha = 255;
+    WorkspaceWidget workspace(nullptr, theme);
     workspace.resize(800, 600);
     PaneWidget *source = workspace.rootPane();
     const QString sourceId = source->paneId();
@@ -1086,10 +1417,21 @@ void MyAdsTest::docksThroughGraphicsView()
     QDragEnterEvent enter(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(receiver, &enter);
     QVERIFY(enter.isAccepted());
+    const QRect originalTargetRect(target->mapTo(&workspace, QPoint()), target->size());
+    const QJsonObject originalLayout = workspace.layoutTree().toJson();
     QDragMoveEvent move(QPointF(local), Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(receiver, &move);
     QVERIFY(move.isAccepted());
     QVERIFY(preview->isVisible());
+    QCOMPARE(QRect(target->mapTo(&workspace, QPoint()), target->size()), originalTargetRect);
+    QCOMPARE(workspace.layoutTree().toJson(), originalLayout);
+    QVERIFY(preview->findChildren<PaneWidget *>().isEmpty());
+    const QImage previewImage = preview->grab().toImage();
+    const QRect area = DropZone(zone) == DropZone::RootBottom ? workspace.rect() : originalTargetRect;
+    const QPoint maskCenter = WorkspaceWidget::previewRectForZone(area, DropZone(zone)).center();
+    QCOMPARE(previewImage.pixelColor(maskCenter * previewImage.devicePixelRatio()),
+             theme.primary);
+    QCOMPARE(workspace.findPaneByContentId("moving"), source);
     QDragLeaveEvent leave;
     QApplication::sendEvent(receiver, &leave);
     QVERIFY(!preview->isVisible());

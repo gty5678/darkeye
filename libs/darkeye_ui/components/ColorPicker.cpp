@@ -1,11 +1,15 @@
 #include "darkeye_ui/components/ColorPicker.h"
 #include "darkeye_ui/components/ColorWheel.h"
+#include "darkeye_ui/theme/ChamferPath.h"
 
-#include <QGuiApplication>
+#include <QtMath>
+
+#include <QApplication>
 #include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
+#include <QSignalBlocker>
 
 namespace darkeye {
 
@@ -25,9 +29,10 @@ QString ColorPicker::color() const { return m_color.name(); }
 void ColorPicker::setColor(const QString &color)
 {
     const QColor candidate(color);
-    if (!candidate.isValid()) return;
+    if (!candidate.isValid() || candidate == m_color) return;
     m_color = candidate;
-    updateDisplay();
+    if (m_shape == Shape::Rectangle && m_showText) setText(m_color.name());
+    update();
     emit colorChanged(m_color.name());
 }
 
@@ -36,15 +41,19 @@ void ColorPicker::setShape(Shape shape) { m_shape = shape; updateDisplay(); }
 
 void ColorPicker::paintEvent(QPaintEvent *event)
 {
-    if (m_shape == Shape::Rectangle) {
-        QLabel::paintEvent(event);
-        return;
-    }
+    Q_UNUSED(event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(m_color);
-    painter.drawEllipse(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+    const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    // A regular octagon has equal horizontal, vertical and diagonal sides.
+    const qreal corner = m_shape == Shape::Octagon
+        ? qMin(bounds.width(), bounds.height()) / (2 + qSqrt(2.0)) : 6;
+    painter.fillPath(chamferPath(bounds, corner), m_color);
+    if (m_shape == Shape::Rectangle && m_showText) {
+        painter.setPen(m_color.lightness() > 128 ? Qt::black : Qt::white);
+        painter.setFont(font());
+        painter.drawText(rect(), alignment(), text());
+    }
 }
 
 void ColorPicker::mousePressEvent(QMouseEvent *event)
@@ -61,9 +70,12 @@ void ColorPicker::mousePressEvent(QMouseEvent *event)
                                          Qt::WindowStaysOnTopHint | Qt::Popup);
             connect(m_colorWheel, &ColorWheelSimple::colorChanged, this,
                     [this](const QColor &color) { setColor(color.name()); });
-            m_colorWheel->installEventFilter(this);
+            qApp->installEventFilter(this);
         }
-        m_colorWheel->setInitialColor(m_color.name(QColor::HexRgb));
+        {
+            const QSignalBlocker blocker(m_colorWheel);
+            m_colorWheel->setInitialColor(m_color.name(QColor::HexRgb));
+        }
         m_colorWheel->adjustSize();
         const QPoint topLeft = mapToGlobal(QPoint(0, 0));
         const QRect available = screen() != nullptr
@@ -90,28 +102,34 @@ bool ColorPicker::eventFilter(QObject *watched, QEvent *event)
     if (watched == m_colorWheel && event->type() == QEvent::Hide) {
         emit colorConfirmed(m_color.name());
     }
+    // Observe clicks before child widgets or native popup handling consume them.
+    if (m_colorWheel != nullptr && m_colorWheel->isVisible()
+        && event->type() == QEvent::MouseButtonPress) {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        const QPoint local = m_colorWheel->mapFromGlobal(mouse->globalPosition().toPoint());
+        if (!m_colorWheel->rect().contains(local)) {
+            m_colorWheel->hide();
+            // Consume the dismissing click, including clicks on the picker itself.
+            return true;
+        }
+    }
     return QLabel::eventFilter(watched, event);
 }
 
 void ColorPicker::updateDisplay()
 {
-    if (m_shape == Shape::Circle) {
+    if (m_shape == Shape::Octagon) {
         setFixedSize(32, 32);
         setText({});
         setStyleSheet({});
-        // The circle is painted directly.  Keep the corners transparent so the
-        // stylesheet border/background for DesignColorPicker cannot show as a
-        // square grey halo around it.
+        // Paint the octagon directly with transparent corners.
         setAttribute(Qt::WA_TranslucentBackground, true);
     } else {
-        setAttribute(Qt::WA_TranslucentBackground, false);
+        setAttribute(Qt::WA_TranslucentBackground, true);
         setMinimumSize(0, 0);
         setMaximumSize(32, 32);
         setText(m_showText ? m_color.name() : QString());
-        const QString foreground = m_color.lightness() > 128 ? QStringLiteral("#000000")
-                                                             : QStringLiteral("#ffffff");
-        setStyleSheet(QStringLiteral("background:%1;border-radius:12px;color:%2;font-size:24px;")
-                          .arg(m_color.name(), foreground));
+        setStyleSheet(QStringLiteral("background:transparent;font-size:24px;"));
     }
     update();
 }

@@ -18,6 +18,7 @@ public:
     explicit TokenCollapsibleSection(const QString &title = QStringLiteral("标题"),
                                      ThemeService *themes = nullptr,
                                      QWidget *parent = nullptr);
+    void setTitle(const QString &title);
     bool isExpanded() const;
     QWidget *contentWidget() const;
     QVBoxLayout *contentLayout() const;

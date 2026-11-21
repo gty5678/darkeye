@@ -1,5 +1,6 @@
 #include "darkeye_ui/components/AnimatedIndicators.h"
 
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
 #include <QMouseEvent>
@@ -72,12 +73,13 @@ void ToggleSwitch::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(m_background);
-    painter.drawRoundedRect(rect(), height() / 2.0, height() / 2.0);
-    painter.setBrush(m_thumb);
+    // Use regular-octagon corners on the thumb and extend the track horizontally.
+    const qreal cornerRatio = 1.0 / (2.0 + std::sqrt(2.0));
+    const QRectF track(rect());
+    painter.fillPath(chamferPath(track, height() * cornerRatio), m_background);
     const int diameter = height() - 4;
-    painter.drawEllipse(QRectF(m_offset, 2.0, diameter, diameter));
+    const QRectF thumb(m_offset, 2.0, diameter, diameter);
+    painter.fillPath(chamferPath(thumb, diameter * cornerRatio), m_thumb);
 }
 
 void ToggleSwitch::mousePressEvent(QMouseEvent *event)

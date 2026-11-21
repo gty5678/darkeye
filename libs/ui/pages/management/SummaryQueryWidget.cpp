@@ -193,7 +193,7 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
     : QWidget(parent), m_database(std::move(database)), m_themes(themes)
 {
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(0, 0, 0, 0);
+    root->setContentsMargins(10, 10, 10, 10);
     m_model = new WorkSummaryQueryModel(this);
     m_filterModel = new SummaryProxyModel(this);
     m_filterModel->setSourceModel(m_model);

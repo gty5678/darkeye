@@ -1,4 +1,6 @@
 qt_add_library(darkeye_theme STATIC
+    ChamferStyle.h
+    ChamferStyle.cpp
     IconProvider.h
     StylesheetLoader.h
     ThemeContext.h

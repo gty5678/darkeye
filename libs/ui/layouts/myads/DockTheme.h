@@ -12,7 +12,7 @@ struct DockTheme
     QColor border = QColor(QStringLiteral("#cccccc"));
     QColor primary = QColor(QStringLiteral("#00aaff"));
     QColor primaryHover = QColor(QStringLiteral("#0099ee"));
-    QColor tabBarBackground = QColor(230, 230, 230);
+    QColor tabBarBackground = QColor(QStringLiteral("#e6e6e6"));
     QColor tabSelected = QColor(QStringLiteral("#ffffff"));
     QColor closeIcon = QColor(QStringLiteral("#333333"));
     QColor closeHover = QColor(QStringLiteral("#f0faff"));

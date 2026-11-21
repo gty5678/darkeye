@@ -252,7 +252,6 @@ bool RhiSceneWidget::setMesh(MeshData mesh)
         material->doubleSided = true;
         m_scene->setMesh(node, std::make_shared<const MeshData>(std::move(mesh)), material);
     }
-    m_lastError.clear();
     update();
     return true;
 }
@@ -260,7 +259,6 @@ bool RhiSceneWidget::setMesh(MeshData mesh)
 void RhiSceneWidget::setScene(std::shared_ptr<Scene> scene)
 {
     m_scene = scene ? std::move(scene) : std::make_shared<Scene>();
-    m_lastError.clear();
     update();
 }
 
@@ -385,6 +383,10 @@ void RhiSceneWidget::render(QRhiCommandBuffer *cb)
     }
     m_renderer->draw(renderTarget(), cb, m_camera, m_rotation, m_clearColor, m_statistics);
     m_statistics.cpuFrameMs = double(frameTimer.nsecsElapsed()) / 1e6;
+    if (!m_lastError.isEmpty()) {
+        m_lastError.clear();
+        emit renderingRecovered();
+    }
     // Requests come from CPU state changes or the demo's animation timer.
 }
 

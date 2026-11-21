@@ -2,10 +2,10 @@
 
 #include "database/CsvExport.h"
 #include "ui/components/ModelSearchBar.h"
-#include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/DesignLabel.h"
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -41,12 +41,18 @@ PersonalRecordManagementWidget::PersonalRecordManagementWidget(QSqlDatabase priv
     m_tableChoice->addItems({QStringLiteral("love_making"), QStringLiteral("masturbation"),
                              QStringLiteral("sexual_arousal")});
     toolbar->addWidget(m_tableChoice);
-    auto *addButton = new DesignButton(QStringLiteral("新增行"), this);
-    auto *deleteButton = new DesignButton(QStringLiteral("删除行"), this);
-    auto *saveButton = new DesignButton(QStringLiteral("保存修改"), this);
-    auto *revertButton = new DesignButton(QStringLiteral("撤销修改"), this);
-    auto *refreshButton = new DesignButton(QStringLiteral("刷新数据"), this);
-    auto *exportButton = new DesignButton(QStringLiteral("导出为 CSV"), this);
+    auto *addButton = new IconButton(QStringLiteral("list_plus"), QStringLiteral("新增行"),
+                                     &m_themes, this);
+    auto *deleteButton = new IconButton(QStringLiteral("list_x"), QStringLiteral("删除行"),
+                                        &m_themes, this);
+    auto *saveButton = new IconButton(QStringLiteral("save"), QStringLiteral("保存修改"),
+                                      &m_themes, this);
+    auto *revertButton = new IconButton(QStringLiteral("undo"), QStringLiteral("撤销修改"),
+                                        &m_themes, this);
+    auto *refreshButton = new IconButton(QStringLiteral("refresh"), QStringLiteral("刷新数据"),
+                                         &m_themes, this);
+    auto *exportButton = new IconButton(QStringLiteral("arrow_up_to_line"),
+                                        QStringLiteral("导出为 CSV"), &m_themes, this);
     for (QPushButton *button : {addButton, deleteButton, saveButton, revertButton, refreshButton,
                                 exportButton})
         toolbar->addWidget(button);

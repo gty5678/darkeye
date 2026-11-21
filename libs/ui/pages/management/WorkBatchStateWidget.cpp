@@ -4,6 +4,7 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignInput.h"
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenViews.h"
 
@@ -155,13 +156,16 @@ WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase data
     root->addWidget(searchBar);
 
     auto *buttons = new QHBoxLayout;
-    auto *refreshButton = new DesignButton(QStringLiteral("刷新数据"), this);
+    auto *refreshButton = new IconButton(QStringLiteral("refresh"), QStringLiteral("刷新数据"),
+                                         &m_themes, this);
     if (m_mode == WorkStateMode::Active)
     {
-        auto *checkAllButton = new DesignButton(QStringLiteral("全选"), this);
-        auto *uncheckAllButton = new DesignButton(QStringLiteral("全不选"), this);
-        auto *removeButton = new DesignButton(QStringLiteral("软删除选中"), this);
-        removeButton->setVariant(QStringLiteral("danger"));
+        auto *checkAllButton = new IconButton(QStringLiteral("square_check"),
+                                              QStringLiteral("全选"), &m_themes, this);
+        auto *uncheckAllButton = new IconButton(QStringLiteral("square"),
+                                                QStringLiteral("取消全选"), &m_themes, this);
+        auto *removeButton = new IconButton(QStringLiteral("trash_2"),
+                                            QStringLiteral("将勾选项移入回收站"), &m_themes, this);
         buttons->addWidget(refreshButton);
         buttons->addWidget(removeButton);
         buttons->addStretch();
@@ -175,14 +179,16 @@ WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase data
     else
     {
         buttons->addWidget(refreshButton);
-        auto *removeButton = new DesignButton(QStringLiteral("彻底删除单项"), this);
-        removeButton->setVariant(QStringLiteral("danger"));
-        auto *restoreButton = new DesignButton(QStringLiteral("恢复单项数据"), this);
+        auto *removeButton = new IconButton(QStringLiteral("trash_2"),
+                                            QStringLiteral("彻底删除选中项"), &m_themes, this);
+        auto *restoreButton = new IconButton(QStringLiteral("undo"), QStringLiteral("恢复选中项"),
+                                             &m_themes, this);
         auto *removeAllButton = new DesignButton(QStringLiteral("删除全部"), this);
         removeAllButton->setVariant(QStringLiteral("danger"));
         auto *restoreAllButton = new DesignButton(QStringLiteral("恢复全部"), this);
         buttons->addWidget(removeButton);
         buttons->addWidget(restoreButton);
+        buttons->addStretch();
         buttons->addWidget(removeAllButton);
         buttons->addWidget(restoreAllButton);
         connect(restoreButton, &QPushButton::clicked, this, [this] { restore(false); });

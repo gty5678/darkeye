@@ -7,6 +7,7 @@
 #include "ui/components/DvdShelfView.h"
 #include "ui/components/FanartStripWidget.h"
 #include "ui/components/WorkTagSelector.h"
+#include "ui/components/WorkFilter.h"
 #include "ui/pages/ShelfPage.h"
 
 #include <QAbstractButton>
@@ -15,6 +16,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QMessageBox>
 #include <QAction>
 #include <QContextMenuEvent>
@@ -35,6 +37,15 @@
 #include <QTimer>
 #include <QtTest>
 
+template<typename T>
+T *findWorkFilterControl(QWidget &page, const char *id)
+{
+    for (auto *control : page.findChildren<T *>())
+        if (control->property("workControlId").toString() == QLatin1String(id))
+            return control;
+    return nullptr;
+}
+
 class ShelfPageTest final : public QObject
 {
     Q_OBJECT
@@ -53,8 +64,8 @@ private slots:
     void deletingExpandedWorkResetsScene_data();
     void deletingExpandedWorkResetsScene();
     void routeJumpReplacesAnAlreadyExpandedWork();
-    void routeJumpClearsFiltersAndKeepsWorkExpanded_data();
-    void routeJumpClearsFiltersAndKeepsWorkExpanded();
+    void routeJumpKeepsExcludedWorksOutOfResults_data();
+    void routeJumpKeepsExcludedWorksOutOfResults();
 };
 
 void ShelfPageTest::rightDragRotatesWithoutContextMenu()
@@ -192,7 +203,7 @@ void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
     page.show();
     page.findChild<darkeye::WorkTagSelector *>()->clearSelection();
     page.refresh();
-    auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
+    auto *count = findWorkFilterControl<QLabel>(page, "WorkCountLabel");
     auto *view = page.findChild<darkeye::DvdShelfView *>(QStringLiteral("DvdShelfView"));
     auto *serial = page.findChild<QLineEdit *>();
     QVERIFY(count != nullptr);
@@ -208,39 +219,10 @@ void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
     serial->setText(QStringLiteral("002"));
     QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
 
-    auto *filterBar = page.findChild<QWidget *>(QStringLiteral("ShelfFilterBar"));
-    QVERIFY(filterBar != nullptr);
-    QVERIFY(filterBar->isVisible());
-    const QRect shelfGeometry = view->geometry();
-    QVERIFY(shelfGeometry.contains(filterBar->geometry()));
-    const auto *topWidget = view->parentWidget()->childAt(filterBar->geometry().center());
-    QVERIFY(topWidget == filterBar || filterBar->isAncestorOf(topWidget));
-    page.toggleFilterBar();
-    QVERIFY(filterBar->isHidden());
-    QCoreApplication::processEvents();
-    QCOMPARE(view->geometry(), shelfGeometry);
-    page.toggleFilterBar();
-    QVERIFY(filterBar->isVisible());
-    QCoreApplication::processEvents();
-    QCOMPARE(view->geometry(), shelfGeometry);
+    auto *filter = page.findChild<darkeye::WorkFilter *>();
+    QVERIFY(filter && filter->isHidden());
     QCOMPARE(serial->text(), QStringLiteral("002"));
-    QCOMPARE(count->text(), QStringLiteral("过滤总数:1"));
 
-    for (const auto theme : {darkeye::ThemeId::Dark, darkeye::ThemeId::Light})
-    {
-        QVERIFY(themes.setTheme(theme));
-        const auto barImage = filterBar->grab().toImage();
-        QVERIFY(!barImage.isNull());
-        const auto dpr = barImage.devicePixelRatio();
-        QCOMPARE(barImage.pixelColor(qRound(4 * dpr), qRound(25 * dpr)), QColor(Qt::white));
-    }
-
-    page.resize(480, 540);
-    QCoreApplication::processEvents();
-    const QRect narrowShelfGeometry = view->geometry();
-    page.toggleFilterBar();
-    QCoreApplication::processEvents();
-    QCOMPARE(view->geometry(), narrowShelfGeometry);
 }
 
 void ShelfPageTest::nativeRenderingAndActions()
@@ -303,6 +285,7 @@ void ShelfPageTest::nativeRenderingAndActions()
     auto *info=view->findChild<QScrollArea *>("ShelfCoverInfo");
     QVERIFY(info);
     const int shelfWidth=scene->width();
+    page.findChild<darkeye::WorkTagSelector *>()->clearSelection();
     QVERIFY(page.showWork(*id));
     QVERIFY(info->isHidden());
     QTRY_VERIFY(scene->isExpanded());
@@ -680,15 +663,15 @@ void ShelfPageTest::filtersByPrivateScope()
     page.initialize();
     page.resize(1280,800);
     page.show();
-    auto *scope = page.findChild<QComboBox *>(QStringLiteral("ShelfScopeSelector"));
-    auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
+    auto *scope = findWorkFilterControl<QComboBox>(page, "WorkScopeSelector");
+    auto *count = findWorkFilterControl<QLabel>(page, "WorkCountLabel");
     QVERIFY(scope != nullptr);
     QVERIFY(count != nullptr);
     page.findChild<darkeye::WorkTagSelector *>()->clearSelection();
     scope->setCurrentText(QStringLiteral("收藏库范围"));
     QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
     scope->setCurrentText(QStringLiteral("已撸过"));
-    QTRY_COMPARE(count->text(), QStringLiteral("没有查询到数据"));
+    QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:0"));
 }
 
 void ShelfPageTest::heartTogglesPersistedFavorite_data()
@@ -815,13 +798,14 @@ void ShelfPageTest::deletingExpandedWorkResetsScene()
     page.resize(1280,800);
     page.show();
     auto *view = page.findChild<darkeye::DvdShelfView *>();
-    auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
+    auto *count = findWorkFilterControl<QLabel>(page, "WorkCountLabel");
     QVERIFY(view != nullptr);
     QVERIFY(count != nullptr);
     auto *scene=view->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
     QVERIFY(scene != nullptr);
+    page.findChild<darkeye::WorkTagSelector *>()->clearSelection();
     QVERIFY(page.showWork(deletedId));
-    auto *sort = page.findChild<QComboBox *>(QStringLiteral("ShelfSortSelector"));
+    auto *sort = findWorkFilterControl<QComboBox>(page, "WorkSortSelector");
     QVERIFY(sort != nullptr);
     sort->setCurrentText(QStringLiteral("番号顺序"));
     page.refresh();
@@ -848,7 +832,7 @@ void ShelfPageTest::deletingExpandedWorkResetsScene()
     QVERIFY(!scene->isExpanded());
     QCOMPARE(view->currentWorkId(), qint64(0));
     QVERIFY(view->expandedWorkCode().isEmpty());
-    QCOMPARE(count->text(), workCount == 1 ? QStringLiteral("没有查询到数据")
+    QCOMPARE(count->text(), workCount == 1 ? QStringLiteral("过滤总数:0")
                                          : QStringLiteral("过滤总数:%1").arg(workCount - 1));
     page.refresh();
     QTest::qWait(700);
@@ -899,8 +883,15 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     auto *view = page.findChild<darkeye::DvdShelfView *>(QStringLiteral("DvdShelfView"));
     QVERIFY(view != nullptr);
 
+    auto *tags = page.findChild<darkeye::WorkTagSelector *>();
+    QVERIFY(tags);
+    tags->clearSelection();
+    QTRY_COMPARE(page.filteredWorks().size(), 100);
+    view->set_camera_x(0);
+    const auto originalOrder = page.filteredWorks();
     QVERIFY(page.showWork(firstId));
     QTRY_COMPARE(view->expandedWorkCode(), firstSerial);
+    QCOMPARE(page.filteredWorks().first().id, originalOrder.first().id);
     QTest::qWait(600);
     QVERIFY(page.showWork(secondId));
     QTRY_COMPARE(view->expandedWorkCode(), secondSerial);
@@ -912,6 +903,21 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     QVERIFY(coverInfo);
     QCOMPARE(coverInfo->findChild<QToolButton *>("ShelfCode")->text(),secondSerial);
 
+    auto *scene = view->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    QVERIFY(scene);
+    auto *renderer = scene->renderWidget();
+    QSignalSpy recovered(renderer, &darkeye::render3d::RhiSceneWidget::renderingRecovered);
+    emit renderer->renderFailed();
+    QVERIFY(!renderer->lastError().isEmpty());
+    QTRY_VERIFY(!recovered.isEmpty());
+    QVERIFY(renderer->lastError().isEmpty());
+    QVERIFY(view->findChild<QLabel *>(QStringLiteral("ShelfSceneError"))->isHidden());
+    scene->returnToShelf();
+    QTRY_COMPARE(view->currentWorkId(), 0);
+    QCOMPARE(view->cameraTargetX(), qreal(0));
+    QVERIFY(page.showWork(secondId));
+    QTRY_COMPARE(view->expandedWorkCode(), secondSerial);
+
     auto updated = repository.findById(secondId, &error);
     QVERIFY(updated.has_value());
     updated->chineseTitle = QStringLiteral("采集后的新标题");
@@ -922,14 +928,14 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     QTRY_COMPARE(view->expandedWorkCode(), secondSerial);
 }
 
-void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded_data()
+void ShelfPageTest::routeJumpKeepsExcludedWorksOutOfResults_data()
 {
     QTest::addColumn<bool>("waitForFilter");
     QTest::newRow("pending-filter") << false;
     QTest::newRow("applied-filter") << true;
 }
 
-void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
+void ShelfPageTest::routeJumpKeepsExcludedWorksOutOfResults()
 {
     QFETCH(bool, waitForFilter);
     QTemporaryDir temporaryDirectory;
@@ -955,9 +961,9 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     page.resize(1280,800);
     page.show();
     auto *serial = page.findChild<QLineEdit *>();
-    auto *scope = page.findChild<QComboBox *>(QStringLiteral("ShelfScopeSelector"));
-    auto *sort = page.findChild<QComboBox *>(QStringLiteral("ShelfSortSelector"));
-    auto *count = page.findChild<QLabel *>(QStringLiteral("ShelfCountLabel"));
+    auto *scope = findWorkFilterControl<QComboBox>(page, "WorkScopeSelector");
+    auto *sort = findWorkFilterControl<QComboBox>(page, "WorkSortSelector");
+    auto *count = findWorkFilterControl<QLabel>(page, "WorkCountLabel");
     auto *view = page.findChild<darkeye::DvdShelfView *>(QStringLiteral("DvdShelfView"));
     QVERIFY(serial != nullptr);
     QVERIFY(scope != nullptr);
@@ -969,23 +975,14 @@ void ShelfPageTest::routeJumpClearsFiltersAndKeepsWorkExpanded()
     serial->setText(QStringLiteral("no-match"));
     if (waitForFilter) QTest::qWait(100);
 
-    QVERIFY(page.showWork(*id));
-    QVERIFY(serial->text().isEmpty());
-    QCOMPARE(scope->currentIndex(), 0);
-    QCOMPARE(sort->currentIndex(), 0);
-    QCOMPARE(count->text(), QStringLiteral("过滤总数:1"));
-    QTRY_COMPARE(view->expandedWorkCode(), work.serialNumber);
-    // Both the 50 ms filter debounce and the 550 ms route expansion must finish
-    // without a stale filter reload discarding the destination selection.
-    QTest::qWait(700);
-    QCOMPARE(view->expandedWorkCode(), work.serialNumber);
-    auto *scene=view->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
-    QVERIFY(scene != nullptr);
-    QTRY_VERIFY(scene->isExpanded());
-    QCOMPARE(scene->selectedId(),QString::number(*id));
-    scene->renderWidget()->setAttribute(Qt::WA_TransparentForMouseEvents);
-    QTRY_VERIFY(scene->isFullyExpanded());
-    QVERIFY(!view->findChild<QWidget *>("ShelfRelationGraphOverlay"));
+    QVERIFY(!page.showWork(*id));
+    QCOMPARE(serial->text(), QStringLiteral("no-match"));
+    QCOMPARE(scope->currentIndex(), 1);
+    QCOMPARE(sort->currentIndex(), 3);
+    QCOMPARE(count->text(), QStringLiteral("过滤总数:0"));
+    QVERIFY(page.filteredWorks().isEmpty());
+    QCOMPARE(page.expandedWorkId(), 0);
+
 }
 
 QTEST_MAIN(ShelfPageTest)

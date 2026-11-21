@@ -3,6 +3,7 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/Charts.h"
+#include "darkeye_ui/components/CollapsibleSection.h"
 #include "darkeye_ui/components/HeartLabel.h"
 #include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/OctImage.h"
@@ -33,7 +34,10 @@ void clearLayout(QLayout *layout)
     while (QLayoutItem *item = layout->takeAt(0))
     {
         if (QWidget *widget = item->widget())
+        {
+            widget->hide();
             widget->deleteLater();
+        }
         delete item;
     }
 }
@@ -93,50 +97,52 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
     : QWidget(parent), m_themes(themes), m_imageDirectory(std::move(imageDirectory))
 {
     setObjectName(QStringLiteral("PersonInfoPanel"));
-    setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    setMaximumWidth(380);
     auto *root = new QVBoxLayout(this);
-    // The application stylesheet gives every QWidget an opaque background.
-    // Keep child containers clear of the hand-painted frame so they cannot
-    // overpaint its top, right, or bottom edge.
-    root->setContentsMargins(10, 2, 2, 2);
-    root->setSpacing(0);
+    root->setContentsMargins(16, 20, 16, 16);
+    root->setSpacing(16);
 
-    auto *summary = new QWidget(this);
-    auto *summaryLayout = new QHBoxLayout(summary);
-    summaryLayout->setContentsMargins(0, 0, 0, 0);
-    auto *left = new QWidget(summary);
-    auto *leftLayout = new QVBoxLayout(left);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    m_names = new QWidget(left);
-    m_names->setFixedHeight(50);
-    m_names->setLayout(new QHBoxLayout);
-    m_names->layout()->setContentsMargins(11, 11, 11, 11);
-    leftLayout->addWidget(m_names);
-    auto *info = new QWidget(left);
-    auto *infoLayout = new QHBoxLayout(info);
-    infoLayout->setContentsMargins(0, 0, 0, 0);
-    m_avatar = new OctImage({}, m_imageDirectory, 150, true, info);
+    auto *portraitRow = new QGridLayout;
+    portraitRow->setContentsMargins(0, 0, 0, 0);
+    m_avatar = new OctImage({}, m_imageDirectory, 150, true, this);
     m_avatar->setObjectName(QStringLiteral("PersonDetailAvatar"));
     m_avatar->installEventFilter(this);
-    infoLayout->addWidget(m_avatar, 0, Qt::AlignTop);
-    m_facts = new QWidget(info);
-    m_facts->setLayout(new QGridLayout);
-    m_facts->layout()->setContentsMargins(0, 0, 0, 0);
-    infoLayout->addWidget(m_facts, 0, Qt::AlignTop);
-    leftLayout->addWidget(info);
-    leftLayout->addStretch();
-    summaryLayout->addWidget(left);
-
-    m_heart = new HeartLabel(m_names);
+    m_heart = new HeartLabel(this);
     m_heart->setObjectName(QStringLiteral("PersonFavoriteButton"));
-    m_edit = new IconButton(QStringLiteral("square_pen"), &m_themes, m_names);
+    m_heart->setToolTip(QStringLiteral("收藏"));
+    m_edit = new IconButton(QStringLiteral("square_pen"), &m_themes, this);
     m_edit->setObjectName(QStringLiteral("PersonEditButton"));
     m_edit->setToolTip(QStringLiteral("修改人物"));
-    m_radar = new RadarChartWidget({}, {}, {}, 5, &m_themes, summary);
+    portraitRow->addWidget(m_avatar, 0, 0, Qt::AlignHCenter);
+    portraitRow->addWidget(m_heart, 0, 0, Qt::AlignTop | Qt::AlignRight);
+    portraitRow->addWidget(m_edit, 0, 0, Qt::AlignTop | Qt::AlignRight);
+    root->addLayout(portraitRow);
+
+    m_names = new QWidget(this);
+    auto *namesLayout = new QVBoxLayout(m_names);
+    namesLayout->setContentsMargins(0, 0, 0, 0);
+    namesLayout->setSpacing(4);
+    root->addWidget(m_names);
+
+    m_facts = new QWidget(this);
+    auto *factsLayout = new QGridLayout(m_facts);
+    factsLayout->setContentsMargins(0, 0, 0, 0);
+    factsLayout->setHorizontalSpacing(14);
+    factsLayout->setVerticalSpacing(6);
+    factsLayout->setColumnStretch(0, 1);
+    factsLayout->setColumnStretch(1, 1);
+    root->addWidget(m_facts);
+
+    m_radar = new RadarChartWidget({}, {}, {}, 5, &m_themes, this);
     m_radar->setFixedSize(250, 220);
-    summaryLayout->addWidget(m_radar, 0, Qt::AlignTop);
-    summaryLayout->addStretch();
-    root->addWidget(summary);
+    root->addWidget(m_radar, 0, Qt::AlignHCenter);
+
+    m_actressAliases = new TokenCollapsibleSection(QStringLiteral("别名（0）"), &m_themes, this);
+    // Paint the resizing list directly.
+    m_actressAliases->setObjectName(QStringLiteral("PersonAliasSection"));
+    m_actressAliases->contentLayout()->setSpacing(10);
+    root->addWidget(m_actressAliases);
 
     m_notes = new DesignLabel({}, this);
     m_notes->setObjectName(QStringLiteral("PersonNotes"));
@@ -187,12 +193,15 @@ PersonInfoPanel::PersonInfoPanel(ThemeService &themes, QString imageDirectory, Q
 
 void PersonInfoPanel::setDetails(const PersonDetails &details, bool favorite)
 {
+    if (m_personId != details.id || m_kind != details.kind)
+        m_actressAliases->collapse();
     m_kind = details.kind;
     m_personId = details.id;
     m_avatar->updateImage(details.imagePath);
     m_heart->setVisible(details.kind == PersonKind::Actress);
     m_edit->setVisible(details.kind == PersonKind::Actor);
     m_notes->setVisible(details.kind == PersonKind::Actor);
+    m_actressAliases->setVisible(details.kind == PersonKind::Actress);
     m_aliasesGroup->setVisible(details.kind == PersonKind::Actor);
     m_worksGroup->setVisible(details.kind == PersonKind::Actor);
     m_heart->setState(favorite);
@@ -233,9 +242,9 @@ void PersonInfoPanel::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
     QPainter painter(this);
-    painter.setPen(QPen(Qt::darkGray, 2));
+    painter.setPen(QColor(m_themes.currentTokens().border));
     QRect border = rect();
-    border.adjust(1, 1, -1, -1);
+    border.adjust(0, 0, -1, -1);
     painter.drawRect(border);
 }
 
@@ -251,37 +260,38 @@ PersonKind PersonInfoPanel::kind() const noexcept
 
 void PersonInfoPanel::rebuildNames(const PersonDetails &details)
 {
-    auto *nameLayout = static_cast<QHBoxLayout *>(m_names->layout());
-    nameLayout->removeWidget(m_heart);
-    nameLayout->removeWidget(m_edit);
+    auto *nameLayout = m_names->layout();
     clearLayout(nameLayout);
+    const auto addName = [this, nameLayout](const QString &name, bool actressJump, bool primary)
+    {
+        auto *label = new ClickableLabel(name, actressJump, m_names);
+        connect(label, &ClickableLabel::actressJumpRequested,
+                this, &PersonInfoPanel::actressExternalSearchRequested);
+        QFont font = label->font();
+        font.setPointSize(primary ? 26 : 14);
+        font.setBold(primary);
+        label->setFont(font);
+        label->setAlignment(Qt::AlignCenter);
+        label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        label->setWordWrap(true);
+        nameLayout->addWidget(label);
+    };
     const PersonName primary = details.names.isEmpty() ? PersonName{} : details.names.first();
-    auto *title = new ClickableLabel(valueOrDash(primary.chinese), false, m_names);
-    QFont titleFont = title->font();
-    titleFont.setPointSize(30);
-    titleFont.setBold(true);
-    title->setFont(titleFont);
-    nameLayout->addWidget(title, 0, Qt::AlignBottom);
+    addName(valueOrDash(primary.chinese), false, true);
     const QList<QPair<QString, bool>> otherNames{
         {primary.japanese, details.kind == PersonKind::Actress},
         {primary.kana, false}, {primary.english, false}};
     for (const auto &[name, actressJump] : otherNames)
     {
         if (!name.trimmed().isEmpty())
-        {
-            auto *label = new ClickableLabel(name.trimmed(), actressJump, m_names);
-            connect(label, &ClickableLabel::actressJumpRequested,
-                    this, &PersonInfoPanel::actressExternalSearchRequested);
-            QFont font = label->font();
-            font.setPointSize(16);
-            label->setFont(font);
-            nameLayout->addWidget(label, 0, Qt::AlignBottom);
-        }
+            addName(name.trimmed(), actressJump, false);
     }
-    nameLayout->addWidget(m_heart, 0, Qt::AlignBottom);
-    if (details.kind == PersonKind::Actor)
-        nameLayout->addWidget(m_edit, 0, Qt::AlignBottom);
-    nameLayout->addStretch();
+
+    if (details.kind == PersonKind::Actress)
+    {
+        rebuildActressAliases(details.names);
+        return;
+    }
 
     m_aliases->setRowCount(details.names.size());
     for (qsizetype row = 0; row < details.names.size(); ++row)
@@ -291,6 +301,55 @@ void PersonInfoPanel::rebuildNames(const PersonDetails &details)
         for (int column = 0; column < values.size(); ++column)
             m_aliases->setItem(row, column, new QTableWidgetItem(values.at(column)));
     }
+}
+
+void PersonInfoPanel::rebuildActressAliases(const QList<PersonName> &names)
+{
+    auto *list = m_actressAliases->contentLayout();
+    clearLayout(list);
+    int aliasCount = 0;
+    for (qsizetype index = 1; index < names.size(); ++index)
+    {
+        const PersonName &name = names.at(index);
+        const QString japanese = name.japanese.trimmed();
+        QStringList variants{japanese, name.chinese.trimmed(), name.kana.trimmed(),
+                             name.english.trimmed()};
+        variants.removeAll(QString());
+        variants.removeDuplicates();
+        if (variants.isEmpty())
+            continue;
+
+        auto *entry = new QWidget(m_actressAliases->contentWidget());
+        auto *entryLayout = new QVBoxLayout(entry);
+        entryLayout->setContentsMargins(0, 0, 0, 0);
+        entryLayout->setSpacing(3);
+        for (const QString &variant : variants)
+        {
+            auto *label = new ClickableLabel(variant, variant == japanese, entry);
+            label->setTextFormat(Qt::PlainText);
+            label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+            label->setWordWrap(true);
+            if (entryLayout->count() == 0)
+            {
+                QFont font = label->font();
+                font.setBold(true);
+                label->setFont(font);
+            }
+            else
+            {
+                label->setTone(QStringLiteral("muted"));
+            }
+            connect(label, &ClickableLabel::actressJumpRequested,
+                    this, &PersonInfoPanel::actressExternalSearchRequested);
+            entryLayout->addWidget(label);
+        }
+        list->addWidget(entry);
+        ++aliasCount;
+    }
+    m_actressAliases->setTitle(QStringLiteral("别名（%1）").arg(aliasCount));
+    if (aliasCount == 0)
+        list->addWidget(new DesignLabel(QStringLiteral("暂无别名"), QStringLiteral("muted"),
+                                        m_actressAliases->contentWidget()));
 }
 
 void PersonInfoPanel::rebuildRadar(const PersonDetails &details)
@@ -364,16 +423,19 @@ void PersonInfoPanel::rebuildFacts(const PersonDetails &details)
     int row = 0;
     const auto addFact = [this, grid, &row](const QString &label, const QString &value)
     {
-        grid->addWidget(new DesignLabel(label, m_facts), row, 0);
-        grid->addWidget(new DesignLabel(valueOrDash(value), m_facts), row, 1);
+        auto *field = new DesignLabel(label, QStringLiteral("muted"), m_facts);
+        field->setAlignment(Qt::AlignRight | Qt::AlignTop);
+        auto *content = new DesignLabel(valueOrDash(value), m_facts);
+        content->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        content->setWordWrap(true);
+        grid->addWidget(field, row, 0);
+        grid->addWidget(content, row, 1);
         ++row;
     };
     addFact(QStringLiteral("生日"), utils::convertDate(details.birthday));
     if (details.kind == PersonKind::Actress)
     {
         addFact(QStringLiteral("出道日期"), utils::convertDate(details.debutDate));
-        for (qsizetype index = 0; index + 1 < details.names.size(); ++index)
-            addFact(QStringLiteral("别名"), valueOrDash(details.names.at(index).japanese));
     }
     else
     {

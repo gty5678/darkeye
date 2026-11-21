@@ -158,6 +158,8 @@ AppSettings app(QString settingsFile)
                                       .value(QStringLiteral("WorkPage/LargeCoverView"),
                                              settings.workLargeCoverView)
                                       .toBool();
+    settings.sidebarAutoCollapse = m_store.value(QStringLiteral("Workspace/SidebarAutoCollapse"),
+                                                settings.sidebarAutoCollapse).toBool();
     settings.workTagSelectorVisible = m_store
                                           .value(QStringLiteral("WorkPage/TagSelectorVisible"),
                                                  settings.workTagSelectorVisible)
@@ -300,6 +302,7 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("window/size"), settings.windowSize},
         {QStringLiteral("window/pos"), settings.windowPosition},
         {QStringLiteral("WorkPage/LargeCoverView"), settings.workLargeCoverView},
+        {QStringLiteral("Workspace/SidebarAutoCollapse"), settings.sidebarAutoCollapse},
         {QStringLiteral("WorkPage/TagSelectorVisible"), settings.workTagSelectorVisible},
         {QStringLiteral("ShelfPage/TagSelectorVisible"), settings.shelfTagSelectorVisible},
         {QStringLiteral("Video/LocalPlayerExe"), settings.localVideoPlayer.trimmed()},

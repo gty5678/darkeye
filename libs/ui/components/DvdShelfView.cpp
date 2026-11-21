@@ -136,7 +136,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         "QScrollArea#ShelfCoverInfo > QWidget { background:transparent; }"
         "QScrollArea#ShelfCoverInfo > QWidget > QWidget { background:transparent; }"
         "QScrollBar:vertical { background:transparent;width:8px;margin:8px 0; }"
-        "QScrollBar::handle:vertical { background:#78808c;border-radius:4px;min-height:24px; }"
+        "QScrollBar::handle:vertical { background:#78808c;min-height:24px; }"
         "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; }"
         "QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical { background:transparent; }"));
     m_coverInfo->viewport()->setAutoFillBackground(false);
@@ -166,7 +166,31 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     m_sceneError->setWordWrap(true);
     m_sceneError->hide();
     connect(m_scene, &dvd_scene::DvdSceneWidget::sceneError, this, [this](const QString &error) {
-        m_sceneError->setText(error); m_sceneError->adjustSize(); m_sceneError->show(); m_sceneError->raise();
+        auto *renderer = m_scene->renderWidget();
+        const bool renderingError = renderer->lastError() == error;
+        const auto showError = [this, error, renderingError] {
+            m_sceneError->setProperty("renderingError", renderingError);
+            m_sceneError->setText(error);
+            m_sceneError->adjustSize();
+            m_sceneError->show();
+            m_sceneError->raise();
+        };
+        if (!renderingError) {
+            showError();
+            return;
+        }
+        // A transient failure during a native surface change or widget grab
+        // can be followed immediately by a valid frame.
+        renderer->update();
+        QTimer::singleShot(250, this, [this, renderer, error, showError] {
+            if (renderer->lastError() == error &&
+                (m_sceneError->isHidden() || m_sceneError->property("renderingError").toBool()))
+                showError();
+        });
+    });
+    connect(m_scene->renderWidget(), &render3d::RhiSceneWidget::renderingRecovered,
+            m_sceneError, [this] {
+        if (m_sceneError->property("renderingError").toBool()) m_sceneError->hide();
     });
     connect(m_scene,&dvd_scene::DvdSceneWidget::coverWarning,this,[](const QString &message) {
         qWarning().noquote()<<"Shelf cover:"<<message;
@@ -175,6 +199,11 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     connect(this, &DvdShelfView::expandedWorkFavoritedChanged, this, &DvdShelfView::updateActions);
     connect(m_scene, &dvd_scene::DvdSceneWidget::selectionChanged, this, [this] {
         if (m_settingWorks) return;
+        if (m_scene->selectedId().isEmpty() && m_returnCameraX) {
+            const qreal cameraX = *m_returnCameraX;
+            m_returnCameraX.reset();
+            set_camera_x(cameraX);
+        }
         updateSelection();
         emit currentWorkChanged();
     });
@@ -186,7 +215,10 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         }
         updateSelection();
     });
-    connect(m_scene, &dvd_scene::DvdSceneWidget::expandedChanged, this, [this] { updateSelection(); });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::expandedChanged, this, [this] {
+        updateSelection();
+        if (!m_settingWorks) emit expandedWorkChanged();
+    });
     connect(m_scene, &dvd_scene::DvdSceneWidget::cameraPositionChanged, this, [this] {
         m_cameraX=m_scene->cameraX(); m_cameraTargetX=m_scene->cameraTargetX();
         emit cameraXChanged(); emit cameraTargetXChanged();
@@ -207,7 +239,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         "QWidget { background:transparent; }"
         "QLabel { background:transparent;color:#354052; }"
         "QScrollBar:horizontal { background:transparent;height:6px;margin:0; }"
-        "QScrollBar::handle:horizontal { background:rgba(53,64,82,110);min-width:24px;border-radius:3px; }"
+        "QScrollBar::handle:horizontal { background:rgba(53,64,82,110);min-width:24px; }"
         "QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal { width:0; }"
         "QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal { background:transparent; }"));
     for(auto *scroll:m_fanartStrip->findChildren<QScrollArea *>()) {
@@ -278,6 +310,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
 void DvdShelfView::setWorks(const QList<WorkSummary> &works)
 {
     m_settingWorks=true;
+    m_returnCameraX.reset();
     m_pendingOpen.clear();
     m_scene->setItems({});
     m_works=works;
@@ -733,6 +766,11 @@ void DvdShelfView::clearFanartOverlay()
 
 qint64 DvdShelfView::currentWorkId() const { return m_scene->selectedId().toLongLong(); }
 
+qint64 DvdShelfView::expandedWorkId() const
+{
+    return m_scene->isExpanded() ? currentWorkId() : 0;
+}
+
 QSet<qint64> DvdShelfView::displayedWorkIds() const
 {
     QSet<qint64> ids;
@@ -741,16 +779,22 @@ QSet<qint64> DvdShelfView::displayedWorkIds() const
     return ids;
 }
 
-bool DvdShelfView::openWork(qint64 workId)
+bool DvdShelfView::openWork(qint64 workId, bool restoreCameraOnClose)
 {
     int index=-1;
     for(int i=0;i<m_works.size();++i) if(m_works[i].id==workId) { index=i; break; }
     if(index<0) return false;
+    if (restoreCameraOnClose && !m_returnCameraX) m_returnCameraX = m_scene->cameraTargetX();
     m_useInitialCamera=false;
     hideOverlays();
     m_scene->setCameraX(float(index*dvdSpacing),true);
     m_pendingOpen=QString::number(workId);
-    if(!m_scene->focusItem(m_pendingOpen)) { m_pendingOpen.clear(); return false; }
+    if(!m_scene->focusItem(m_pendingOpen)) {
+        m_pendingOpen.clear();
+        if (m_returnCameraX) set_camera_x(*m_returnCameraX);
+        m_returnCameraX.reset();
+        return false;
+    }
     if(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused) {
         m_pendingOpen.clear();
         if(!m_scene->isExpanded()) m_scene->toggleOpen();

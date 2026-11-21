@@ -386,9 +386,10 @@ void MakerManagementWidget::refreshMakerChoices()
 
 void MakerManagementWidget::updateActiveTableIndicator()
 {
-    const auto applyBorder = [](QTableWidget *table, bool active) {
-        table->setStyleSheet(active ? QStringLiteral("QTableWidget { border: 2px solid orange; }")
-                                    : QString());
+    const QString activeStyle = QStringLiteral("QTableWidget { border: 2px solid %1; }")
+                                    .arg(m_themes.currentTokens().primary);
+    const auto applyBorder = [&activeStyle](QTableWidget *table, bool active) {
+        table->setStyleSheet(active ? activeStyle : QString());
     };
     applyBorder(m_prefixTable, m_activeTable == ActiveTable::Prefixes);
     applyBorder(m_makerTable, m_activeTable == ActiveTable::Makers);

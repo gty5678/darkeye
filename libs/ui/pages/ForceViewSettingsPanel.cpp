@@ -24,7 +24,7 @@ namespace {
 ColorPicker *makeColorPicker(const QString &group, const QColor &initial,
                              ForceViewSettingsPanel *panel)
 {
-    auto *picker = new ColorPicker(initial, false, ColorPicker::Shape::Circle, panel);
+    auto *picker = new ColorPicker(initial, false, ColorPicker::Shape::Octagon, panel);
     QObject::connect(picker, &ColorPicker::colorChanged, panel, [panel, group](const QString &color) {
         emit panel->nodeColorChanged(group, QColor(color));
     });

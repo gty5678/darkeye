@@ -10,6 +10,21 @@ QComboBox {
     combobox-popup: 0;
 }
 
+QComboBoxPrivateContainer > QAbstractItemView,
+QAbstractItemView#DesignComboBoxPopup {
+    background-color: @BACKGROUND@;
+    color: @TEXT@;
+    border: 1px solid @BORDER@;
+    outline: 0;
+    selection-color: @TEXT_INVERSE@;
+    selection-background-color: @PRIMARY@;
+}
+
+QComboBoxPrivateContainer > QAbstractItemView::item,
+QAbstractItemView#DesignComboBoxPopup::item {
+    padding: 3px 0;
+}
+
 QListWidget#mainSidebar {
     background-color: @BACKGROUND@;
     border: 0;
@@ -31,11 +46,20 @@ QListWidget#mainSidebar::item:selected {
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput {
+    background-color: @BACKGROUND@;
+    border: 2px solid @PRIMARY@;
     font-size: 20px;
     padding: 4px 10px;
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults {
+    background-color: @BACKGROUND@;
+    alternate-background-color: @INPUT_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    padding: 3px;
+    outline: none;
+    selection-background-color: @PRIMARY@;
+    selection-color: @TEXT_INVERSE@;
     font-size: 17px;
 }
 
@@ -675,6 +699,9 @@ QToolButton#DesignCollapsibleToggle {
 QToolButton#DesignCollapsibleToggle:checked {
     background-color: @INPUT_BACKGROUND@;
 }
+QWidget#PersonAliasSection QToolButton#DesignCollapsibleToggle:checked {
+    background-color: @PAGE_BACKGROUND@;
+}
 QWidget#DesignCollapsibleContent { background-color: transparent; }
 
 QScrollArea#ForceViewSettingsPanel {
@@ -703,7 +730,6 @@ QScrollArea#ForceViewSettingsPanel QScrollBar:vertical {
 }
 QScrollArea#ForceViewSettingsPanel QScrollBar::handle:vertical {
     background-color: @BORDER@;
-    border-radius: 4px;
     min-height: 28px;
 }
 QLabel#DesignColorPicker {
@@ -711,11 +737,18 @@ QLabel#DesignColorPicker {
     border-radius: 3px;
 }
 
-QDialog#DesignModalDialog {
+QDialog#DesignModalDialog,
+QDialog#SettingsDialog {
     color: @TEXT@;
     background-color: @BACKGROUND@;
     border: 1px solid @BORDER@;
     border-radius: @RADIUS_MD@;
+}
+QDialog#SettingsDialog .QWidget { background-color: @BACKGROUND@; }
+QDialog#SettingsDialog QLabel { background-color: transparent; }
+QDialog#SettingsDialog QListWidget#DesignListWidget::item { padding: 0 10px; }
+QDialog#SettingsDialog QListWidget#DesignListWidget::item:hover:!selected {
+    background-color: @INPUT_BACKGROUND@;
 }
 QLabel#DesignModalTitle {
     color: @TEXT@;
@@ -771,7 +804,6 @@ QWidget#DesignScrollMenuViewport,
 QWidget#DesignScrollMenuContent,
 QWidget[designScrollMenuContent="true"],
 QWidget#DesignScrollMenuSection { background-color: @BACKGROUND@; }
-QWidget#DesignScrollMenuNavigation { background-color: @BACKGROUND@; }
 QWidget#DesignModernScrollMenu .QWidget,
 QWidget#DesignModernScrollMenu QLabel,
 QWidget#DesignModernScrollMenu QCheckBox { background-color: transparent; }
@@ -781,6 +813,14 @@ QFrame#DesignScrollMenuSeparator {
     max-height: 1px;
     margin: 10px 0;
 }
+QLabel#DesignScrollMenuTitle {
+    color: @TEXT@;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Scroll-menu header and button states. */
+QWidget#DesignScrollMenuNavigation { background-color: @BACKGROUND@; }
 QPushButton#DesignScrollMenuButton {
     color: @TEXT_PLACEHOLDER@;
     background-color: transparent;
@@ -793,11 +833,6 @@ QPushButton#DesignScrollMenuButton:hover { color: @TEXT@; }
 QPushButton#DesignScrollMenuButton:checked {
     color: @PRIMARY@;
     border-bottom-color: @PRIMARY@;
-    font-weight: 600;
-}
-QLabel#DesignScrollMenuTitle {
-    color: @TEXT@;
-    font-size: 18px;
     font-weight: 600;
 }
 
@@ -849,9 +884,7 @@ QScrollBar:vertical {
 
 QScrollBar::handle:vertical {
     background-color: @BORDER@;
-    border-radius: 4px;
     min-height: 30px;
-    margin: 2px 1px;
 }
 
 QScrollBar::handle:vertical:hover { background-color: @PRIMARY@; }
@@ -875,9 +908,7 @@ QScrollBar:horizontal {
 
 QScrollBar::handle:horizontal {
     background-color: @BORDER@;
-    border-radius: 4px;
     min-width: 30px;
-    margin: 1px 2px;
 }
 
 QScrollBar::handle:horizontal:hover { background-color: @PRIMARY@; }
@@ -903,9 +934,7 @@ QScrollArea#DesignLazyScrollArea QScrollBar:vertical {
 
 QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical {
     background-color: @BORDER@;
-    border-radius: 4px;
     min-height: 30px;
-    margin: 2px 1px;
 }
 
 QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical:hover {
@@ -925,4 +954,14 @@ QLabel#WorkCardSerialNumber {
 QLabel#WorkCardTitle {
     font-size: @FONT_SIZE_BASE@;
     font-weight: normal;
+}
+
+
+QPushButton#WorkCoverViewToggle {
+    background-color: @INPUT_BACKGROUND@;
+    border: 1px solid @BORDER@;
+}
+QPushButton#WorkCoverViewToggle:hover,
+QPushButton#WorkCoverViewToggle:focus {
+    border-color: @PRIMARY@;
 }

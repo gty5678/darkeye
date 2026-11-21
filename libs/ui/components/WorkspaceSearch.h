@@ -12,13 +12,15 @@ class WorkspaceSearch final : public QFrame {
     Q_OBJECT
 public:
     WorkspaceSearch(QSqlDatabase database, QMap<QString, QString> pages, QWidget *parent = nullptr);
-    enum class Mode { Entities, Commands };
+    enum class Mode { Entities, Commands, IndependentActress };
+    inline static const auto independentActressCommand = QStringLiteral("actress_detail_independent");
     void open(Mode mode, QList<QPair<QString, QString>> recent);
     void search(const QString &text);
     void setFullResults();
     void setBatchActions(const QList<QAction *> &actions);
 signals:
     void openRequested(const QString &route);
+    void independentActressRequested(qint64 personId);
 protected:
     bool eventFilter(QObject *object, QEvent *event) override;
     void showEvent(QShowEvent *event) override;

@@ -27,6 +27,7 @@ struct AppSettings final
     QSize windowSize{800, 600};
     QPoint windowPosition{100, 100};
 
+    bool sidebarAutoCollapse = false;
     bool workLargeCoverView = false;
     bool workTagSelectorVisible = true;
     bool shelfTagSelectorVisible = true;

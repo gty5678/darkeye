@@ -825,7 +825,7 @@ QWidget *buildColorIcons(ThemeService &themes)
     colorRow->addWidget(new ColorPicker(
         QColor(QStringLiteral("#4CAF50")), false, ColorPicker::Shape::Rectangle));
     colorRow->addWidget(new ColorPicker(
-        QColor(QStringLiteral("#2196F3")), true, ColorPicker::Shape::Circle));
+        QColor(QStringLiteral("#2196F3")), true, ColorPicker::Shape::Octagon));
 
     ui.right->addWidget(new Label(
         QStringLiteral("内置图标（来自 resources/icons 内联，颜色随主题）")));
@@ -912,7 +912,7 @@ QWidget *buildThemePage(ThemeService &themes)
         new Label(QStringLiteral("主色（仅亮色/暗色主题可调）"), primaryRow));
     auto *primary = new ColorPicker(
         QColor(ThemeService::tokens(themes.current(), themes.customPrimary()).primary),
-        true, ColorPicker::Shape::Circle, primaryRow);
+        true, ColorPicker::Shape::Octagon, primaryRow);
     primaryLayout->addWidget(primary);
     ui.left->addWidget(primaryRow);
 

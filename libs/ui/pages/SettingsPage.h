@@ -6,6 +6,7 @@
 #include "darkeye_ui/base/LazyWidget.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
+#include <QDialog>
 #include <QJsonObject>
 #include <QSqlDatabase>
 #include <QStringList>
@@ -92,9 +93,12 @@ class CommonSettingsPage final : public LazyWidget
 
 public:
     explicit CommonSettingsPage(ThemeService &themeService,
-                                QWidget *parent = nullptr);
+                                QWidget *parent = nullptr, QString settingsFile = {});
 
     [[nodiscard]] QComboBox *themeSelector() const;
+
+signals:
+    void sidebarAutoCollapseChanged(bool enabled);
 
 private:
     void lazyLoad() override;
@@ -102,6 +106,7 @@ private:
     void savePrimaryColor(const QString &color);
 
     ThemeService &m_themeService;
+    QString m_settingsFile;
     QWidget *m_primaryColorRow = nullptr;
     ColorPicker *m_colorPicker = nullptr;
     QComboBox *m_themeSelector = nullptr;
@@ -254,12 +259,12 @@ private:
     QLabel *m_webDavCredentialStatus = nullptr;
 };
 
-class SettingsPage final : public LazyWidget
+class SettingsDialog final : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit SettingsPage(ThemeService &themeService, const QActionGroup &shortcutActions,
+    explicit SettingsDialog(ThemeService &themeService, const QActionGroup &shortcutActions,
                           QSqlDatabase publicDatabase = {}, QSqlDatabase privateDatabase = {},
                           settings::Paths paths = {},
                           QWidget *parent = nullptr);
@@ -267,6 +272,7 @@ public:
     [[nodiscard]] QComboBox *themeSelector() const;
 
 signals:
+    void sidebarAutoCollapseChanged(bool enabled);
     void referencesChanged(ReferenceKind kind);
     void tagsChanged();
     void actressesChanged();
@@ -275,13 +281,6 @@ signals:
     void quickWorkRequested(const QStringList &serials);
 
 private:
-    void lazyLoad() override;
-
-    ThemeService &m_themeService;
-    const QActionGroup &m_shortcutActions;
-    QSqlDatabase m_publicDatabase;
-    QSqlDatabase m_privateDatabase;
-    settings::Paths m_paths;
     CommonSettingsPage *m_commonPage = nullptr;
 };
 

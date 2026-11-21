@@ -25,12 +25,14 @@ public:
 
     int columnWidth() const;
     void setColumnWidth(int width);
+    void setUniformRows(bool enabled);
 
 private:
     int layoutHeight(const QRect &rect, bool testOnly) const;
 
     QList<QLayoutItem *> m_items;
     int m_columnWidth;
+    bool m_uniformRows = false;
 };
 
 } // namespace darkeye

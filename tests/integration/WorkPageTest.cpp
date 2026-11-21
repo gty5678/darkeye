@@ -1,3 +1,4 @@
+#include "database/repositories/PrivateRepository.h"
 #include "ui/pages/WorkPage.h"
 #include "settings/Paths.h"
 #include "darkeye_ui/components/DesignInput.h"
@@ -327,7 +328,7 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     QCOMPARE(sortSelector->objectName(), QStringLiteral("DesignComboBox"));
     QCOMPARE(scopeSelector->objectName(), QStringLiteral("DesignComboBox"));
     QCOMPARE(countLabel->objectName(), QStringLiteral("DesignLabel"));
-    QCOMPARE(coverButton->objectName(), QStringLiteral("DesignIconPushButton"));
+    QCOMPARE(coverButton->objectName(), QStringLiteral("WorkCoverViewToggle"));
     QCOMPARE(refreshButton->objectName(), QStringLiteral("DesignRotateButton"));
     QCOMPARE(sortSelector->count(), 13);
     QCOMPARE(sortSelector->currentText(), QStringLiteral("添加逆序"));
@@ -514,7 +515,7 @@ void WorkPageTest::persistsViewPreferences()
     darkeye::ThemeService themeService(*application);
     const darkeye::AppSettings originalSettings = darkeye::settings::app();
     darkeye::AppSettings testSettings = originalSettings;
-    testSettings.workTagSelectorVisible = true;
+    testSettings.workTagSelectorVisible = false;
     testSettings.workLargeCoverView = false;
     darkeye::settings::saveApp(testSettings);
 
@@ -522,20 +523,17 @@ void WorkPageTest::persistsViewPreferences()
         darkeye::WorkPage page(connection.database(), themeService);
         page.initialize();
         auto *tagPanel = page.findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
-        auto *tagButton = findWorkControl<darkeye::IconButton>(
-            &page, QStringLiteral("WorkTagPanelButton"));
+        QVERIFY(!findWorkControl<darkeye::IconButton>(
+            &page, QStringLiteral("WorkTagPanelButton")));
         auto *viewButton = findWorkControl<darkeye::IconButton>(
             &page, QStringLiteral("WorkCoverViewButton"));
         auto *lazyArea = dynamic_cast<darkeye::LazyScrollArea *>(
             page.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea")));
         QVERIFY(tagPanel != nullptr);
-        QVERIFY(tagButton != nullptr);
         QVERIFY(viewButton != nullptr);
         QVERIFY(lazyArea != nullptr);
         QVERIFY(!tagPanel->isHidden());
-        QTest::mouseClick(tagButton, Qt::LeftButton);
         QTest::mouseClick(viewButton, Qt::LeftButton);
-        QVERIFY(!tagPanel->isVisible());
         QCOMPARE(lazyArea->columnWidth(), 250);
     }
 
@@ -546,7 +544,7 @@ void WorkPageTest::persistsViewPreferences()
         restored.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea")));
     QVERIFY(restoredPanel != nullptr);
     QVERIFY(restoredArea != nullptr);
-    QVERIFY(!restoredPanel->isVisible());
+    QVERIFY(!restoredPanel->isHidden());
     QCOMPARE(restoredArea->columnWidth(), 250);
     darkeye::settings::saveApp(originalSettings);
 }

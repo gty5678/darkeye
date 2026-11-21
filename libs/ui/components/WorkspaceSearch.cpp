@@ -83,8 +83,17 @@ void WorkspaceSearch::open(Mode mode, QList<QPair<QString, QString>> recent) {
     m_recent = std::move(recent);
     if (m_mode != mode) {
         m_mode = mode;
-        m_input->setPlaceholderText(mode == Mode::Commands
-            ? QStringLiteral("搜索页面或批量操作") : QStringLiteral("搜索人物、作品、标签或分类"));
+        switch (mode) {
+        case Mode::Commands:
+            m_input->setPlaceholderText(QStringLiteral("搜索页面或批量操作"));
+            break;
+        case Mode::IndependentActress:
+            m_input->setPlaceholderText(QStringLiteral("输入女演员姓名，在独立页打开详情"));
+            break;
+        case Mode::Entities:
+            m_input->setPlaceholderText(QStringLiteral("搜索人物、作品、标签或分类"));
+            break;
+        }
         m_input->clear();
     }
     if (m_input->text().trimmed().isEmpty()) m_results->setCurrentRow(-1);
@@ -94,7 +103,7 @@ void WorkspaceSearch::open(Mode mode, QList<QPair<QString, QString>> recent) {
 
 void WorkspaceSearch::positionPopup() {
     auto *anchor = parentWidget();
-    const int top = anchor->height() / 4;
+    const int top = anchor->height() / 5;
     const auto margins = layout()->contentsMargins();
     const int inputHeight = qMax(m_input->minimumHeight(), m_input->sizeHint().height());
     const int fixedHeight = margins.top() + margins.bottom() + 2 * frameWidth()
@@ -149,8 +158,15 @@ void WorkspaceSearch::activate(QListWidgetItem *item) {
         return;
     }
     const auto route = item->data(Qt::UserRole).toString();
+    if (m_mode == Mode::Commands && route == independentActressCommand) {
+        open(Mode::IndependentActress, {});
+        return;
+    }
     // Resolve the destination while the originating pane is still active.
-    emit openRequested(route);
+    if (m_mode == Mode::IndependentActress)
+        emit independentActressRequested(route.section(u'/', 1).toLongLong());
+    else
+        emit openRequested(route);
     if (!m_fullResults) {
         hide();
         m_input->clear();
@@ -208,6 +224,18 @@ void WorkspaceSearch::updateResults() {
         auto *item = new QListWidgetItem(title, m_results);
         item->setData(Qt::UserRole, route);
     };
+    const auto addPeople = [&](PersonKind kind) {
+        if (!m_database.isOpen()) return;
+        PersonSearch query;
+        query.kind = kind;
+        query.name = text;
+        query.limit = m_fullResults ? m_limit : 12;
+        const auto persons = PersonRepository(m_database).search(query);
+        if (m_fullResults && persons.size() == m_limit) m_more->show();
+        for (const auto &person : persons)
+            add((kind == PersonKind::Actress ? QStringLiteral("女优 · ") : QStringLiteral("男优 · ")) + person.name,
+                (kind == PersonKind::Actress ? QStringLiteral("actress_detail/") : QStringLiteral("actor_works/")) + QString::number(person.id));
+    };
     if (m_mode == Mode::Commands) {
         QSet<QString> addedPages;
         if (text.isEmpty()) {
@@ -255,20 +283,18 @@ void WorkspaceSearch::updateResults() {
             if (!action->isEnabled()) item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
         }
         if (m_results->count() == 0) add(QStringLiteral("没有匹配的命令"), {});
+    } else if (m_mode == Mode::IndependentActress) {
+        if (!text.isEmpty()) {
+            addPeople(PersonKind::Actress);
+            if (m_results->count() == 0) add(QStringLiteral("没有匹配的女演员"), {});
+        }
     } else if (text.isEmpty()) {
         for (const auto &[route, title] : m_recent)
             add(title, route);
     } else {
         if (m_database.isOpen()) {
-            PersonRepository people(m_database);
-            for (auto kind : {PersonKind::Actress, PersonKind::Actor}) {
-                PersonSearch query; query.kind = kind; query.name = text; query.limit = m_fullResults ? m_limit : 12;
-                const auto persons = people.search(query);
-                if (m_fullResults && persons.size() == m_limit) m_more->show();
-                for (const auto &person : persons)
-                    add((kind == PersonKind::Actress ? QStringLiteral("女优 · ") : QStringLiteral("男优 · ")) + person.name,
-                        (kind == PersonKind::Actress ? QStringLiteral("actress_detail/") : QStringLiteral("actor_works/")) + QString::number(person.id));
-            }
+            addPeople(PersonKind::Actress);
+            addPeople(PersonKind::Actor);
             WorkRepository works(m_database);
             const auto matches = [&text](const QString &name) {
                 return name.contains(text, Qt::CaseInsensitive);

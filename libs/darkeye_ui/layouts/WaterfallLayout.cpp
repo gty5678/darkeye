@@ -90,6 +90,13 @@ void WaterfallLayout::setColumnWidth(int width)
     invalidate();
 }
 
+void WaterfallLayout::setUniformRows(bool enabled)
+{
+    if (m_uniformRows == enabled) return;
+    m_uniformRows = enabled;
+    invalidate();
+}
+
 int WaterfallLayout::layoutHeight(const QRect &rect, bool testOnly) const
 {
     const QMargins margins = contentsMargins();
@@ -98,6 +105,24 @@ int WaterfallLayout::layoutHeight(const QRect &rect, bool testOnly) const
         qMax(1, (availableWidth + spacing()) / (m_columnWidth + spacing()));
     const int layoutWidth = columns * m_columnWidth + (columns - 1) * spacing();
     const int offsetX = rect.x() + margins.left() + (availableWidth - layoutWidth) / 2;
+    if (m_uniformRows) {
+        int y = rect.y() + margins.top();
+        for (qsizetype rowStart = 0; rowStart < m_items.size(); rowStart += columns) {
+            const qsizetype rowEnd = qMin(rowStart + columns, m_items.size());
+            int rowHeight = 0;
+            for (qsizetype index = rowStart; index < rowEnd; ++index) {
+                auto *item = m_items.at(index);
+                const int height = item->sizeHint().height();
+                rowHeight = qMax(rowHeight, height);
+                if (!testOnly) {
+                    const int x = offsetX + int(index - rowStart) * (m_columnWidth + spacing());
+                    item->setGeometry(QRect(x, y, m_columnWidth, height));
+                }
+            }
+            y += rowHeight + spacing();
+        }
+        return y - rect.y() + margins.bottom() - (m_items.isEmpty() ? 0 : spacing());
+    }
     QVector<int> heights(columns, rect.y() + margins.top());
 
     for (QLayoutItem *item : m_items) {

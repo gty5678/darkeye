@@ -8,6 +8,7 @@
 #include "ui/pages/PersonDetailPage.h"
 #include "darkeye_ui/components/CompleterLineEdit.h"
 #include "darkeye_ui/components/Charts.h"
+#include "darkeye_ui/components/CollapsibleSection.h"
 #include "darkeye_ui/components/HeartLabel.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "ui/components/ImageDropWidget.h"
@@ -31,6 +32,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -40,8 +42,10 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QToolTip>
+#include <QToolButton>
 #include <QWheelEvent>
 #include <QtTest>
+#include <algorithm>
 
 class PersonPageTest final : public QObject
 {
@@ -229,7 +233,9 @@ void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
     QTRY_VERIFY(scroll->horizontalScrollBar()->value() > 0);
     const QPoint marker = timeline.markerCenter(work.id);
     QVERIFY(!marker.isNull());
-    QTest::mouseMove(canvas, marker);
+    QMouseEvent hover(QEvent::MouseMove, marker, canvas->mapToGlobal(marker),
+                      Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &hover);
     QTRY_VERIFY(timeline.hoverPreviewVisible());
 
     // A delayed Qt tooltip request must keep the standard card, without adding
@@ -249,6 +255,17 @@ void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
     }
     QCOMPARE(visiblePreviews, 1);
     QVERIFY(preview);
+    auto *popup = preview->window();
+    QImage previewImage(popup->size(), QImage::Format_ARGB32_Premultiplied);
+    previewImage.fill(Qt::transparent);
+    popup->render(&previewImage);
+    const QRect previewRect = previewImage.rect();
+    QCOMPARE(previewImage.pixelColor(previewRect.topLeft()).alpha(), 0);
+    QCOMPARE(previewImage.pixelColor(previewRect.topRight()).alpha(), 0);
+    QCOMPARE(previewImage.pixelColor(previewRect.bottomLeft()).alpha(), 0);
+    QCOMPARE(previewImage.pixelColor(previewRect.bottomRight()).alpha(), 0);
+    QCOMPARE(previewImage.pixelColor(QPoint(previewRect.center().x(), 3)),
+             QColor(QStringLiteral("#FFA475")));
     auto *serial = preview->findChild<QLabel *>(QStringLiteral("WorkCardSerialNumber"));
     QVERIFY(serial);
     QCOMPARE(serial->text(), work.serialNumber);
@@ -340,13 +357,28 @@ void PersonPageTest::actressTimelineZoomKeepsPointerAnchor()
     darkeye::PersonWorkSummary work;
     work.id = 42;
     work.releaseDate = QStringLiteral("2020-06-18");
-    timeline.setWorks({work});
+    auto first = work;
+    first.id = 1;
+    first.releaseDate = QStringLiteral("2000-01-01");
+    auto last = work;
+    last.id = 2;
+    last.releaseDate = QStringLiteral("2030-12-31");
+    auto earlier = first;
+    earlier.id = 3;
+    earlier.releaseDate = QStringLiteral("1999-12-31");
+    auto later = last;
+    later.id = 4;
+    later.releaseDate = QStringLiteral("2031-01-01");
+    timeline.setWorks({work, first, last, earlier, later});
     timeline.show();
     auto *scroll = timeline.findChild<QScrollArea *>();
     auto *canvas = timeline.findChild<QWidget *>(QStringLiteral("ActressWorkTimelineCanvas"));
     QVERIFY(scroll);
     QVERIFY(canvas);
     QTRY_VERIFY(scroll->horizontalScrollBar()->value() > 0);
+    QCOMPARE(timeline.markerCount(), 3);
+    QVERIFY(timeline.markerCenter(earlier.id).isNull());
+    QVERIFY(timeline.markerCenter(later.id).isNull());
     QApplication::processEvents();
     const auto visibleX = [&] {
         return timeline.markerCenter(work.id).x() - scroll->horizontalScrollBar()->value();
@@ -372,11 +404,20 @@ void PersonPageTest::actressTimelineZoomKeepsPointerAnchor()
     for (int i = 0; i < 50; ++i) {
         const int anchorX = visibleX();
         zoom(-120);
-        QVERIFY(qAbs(visibleX() - anchorX) <= 2);
+        auto *bar = scroll->horizontalScrollBar();
+        const int markerX = timeline.markerCenter(work.id).x();
+        const int boundedAnchor = qBound(markerX - bar->maximum(), anchorX, markerX);
+        QVERIFY(qAbs(visibleX() - boundedAnchor) <= 2);
         QVERIFY(canvas->width() >= scroll->viewport()->width());
     }
     const double minimumScale = timeline.pixelsPerDay();
-    zoom(0);
+    QCOMPARE(scroll->horizontalScrollBar()->maximum(), 0);
+    const int firstX = timeline.markerCenter(first.id).x();
+    const int lastX = timeline.markerCenter(last.id).x();
+    QVERIFY(firstX >= 0);
+    QVERIFY(lastX > firstX);
+    QVERIFY(lastX < scroll->viewport()->width());
+    zoom(-120);
     QCOMPARE(timeline.pixelsPerDay(), minimumScale);
     for (int i = 0; i < 90; ++i) zoom(120);
     QVERIFY(canvas->width() < QWIDGETSIZE_MAX);
@@ -544,11 +585,52 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
         QStringLiteral("ActressWorkTimeline"));
     auto *heart = detail.findChild<darkeye::HeartLabel *>(QStringLiteral("PersonFavoriteButton"));
     auto *radar = detail.findChild<QWidget *>(QStringLiteral("DesignRadarChart"));
+    auto *portrait = detail.findChild<QWidget *>(QStringLiteral("PersonDetailAvatar"));
+    auto *scroll = detail.findChild<QScrollArea *>();
+    auto *aliases = detail.findChild<darkeye::TokenCollapsibleSection *>();
     QVERIFY(panel != nullptr);
     QVERIFY(workTable != nullptr);
     QVERIFY(timeline == nullptr);
     QVERIFY(heart != nullptr);
     QVERIFY(radar != nullptr);
+    QVERIFY(portrait != nullptr);
+    QVERIFY(scroll != nullptr);
+    QVERIFY(aliases != nullptr);
+    auto *aliasToggle = aliases->findChild<QToolButton *>();
+    QVERIFY(aliasToggle != nullptr);
+    detail.resize(800, 700);
+    detail.show();
+    QCoreApplication::processEvents();
+    QVERIFY(aliases->graphicsEffect() == nullptr);
+    QVERIFY(aliasToggle->graphicsEffect() == nullptr);
+    QVERIFY(panel->height() > panel->width());
+    QVERIFY(qAbs(panel->geometry().center().x() - scroll->widget()->rect().center().x()) <= 1);
+    QVERIFY(portrait->geometry().bottom() < radar->geometry().top());
+    QCOMPARE(portrait->geometry().center().x(), radar->geometry().center().x());
+    QVERIFY(radar->geometry().bottom() < aliases->geometry().top());
+    QCOMPARE(aliasToggle->text(), QStringLiteral("别名（0）"));
+    QVERIFY(!aliases->isExpanded());
+    detail.resize(800, scroll->widget()->sizeHint().height() + 4);
+    QTRY_COMPARE(scroll->verticalScrollBar()->maximum(), 0);
+    const QRect collapsedToggle(aliasToggle->mapTo(&detail, QPoint()), aliasToggle->size());
+    aliasToggle->click();
+    QVERIFY(aliases->contentWidget()->isVisible());
+    QTRY_VERIFY(scroll->verticalScrollBar()->maximum() > 0);
+    QCOMPARE(QRect(aliasToggle->mapTo(&detail, QPoint()), aliasToggle->size()), collapsedToggle);
+    auto *emptyAliases = aliases->contentWidget()->findChild<QLabel *>();
+    QVERIFY(emptyAliases && emptyAliases->isVisible());
+    QCOMPARE(emptyAliases->text(), QStringLiteral("暂无别名"));
+    aliasToggle->click();
+    QVERIFY(!aliases->contentWidget()->isVisible());
+    QTRY_COMPARE(scroll->verticalScrollBar()->maximum(), 0);
+    QCOMPARE(QRect(aliasToggle->mapTo(&detail, QPoint()), aliasToggle->size()), collapsedToggle);
+    const int wideCardWidth = panel->width();
+    detail.resize(340, 330);
+    QCoreApplication::processEvents();
+    QVERIFY(panel->width() < wideCardWidth);
+    QCOMPARE(scroll->horizontalScrollBar()->maximum(), 0);
+    QVERIFY(scroll->verticalScrollBar()->maximum() > 0);
+
     QCOMPARE(workTable->rowCount(), 3);
     auto *radarChart = static_cast<darkeye::RadarChartWidget *>(radar);
     QCOMPARE(radarChart->categories(),
@@ -698,6 +780,25 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     QVERIFY(!QImage(storedImage).isNull());
     QVERIFY(detail.showPerson(*actressId));
     QCOMPARE(workTable->rowCount(), 3);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCOMPARE(aliasToggle->text(), QStringLiteral("别名（1）"));
+    QVERIFY(!aliases->isExpanded());
+    for (const auto *label : panel->findChildren<QLabel *>())
+    {
+        if (label->text() == QStringLiteral("修改后姓名"))
+            QVERIFY(aliases->contentWidget()->isAncestorOf(label));
+    }
+    aliasToggle->click();
+    QVERIFY(aliases->contentWidget()->isVisible());
+    const auto aliasLabels = aliases->contentWidget()->findChildren<QLabel *>();
+    QVERIFY(std::any_of(aliasLabels.cbegin(), aliasLabels.cend(), [](const QLabel *label) {
+        return label->isVisible() && label->text() == QStringLiteral("修改后姓名");
+    }));
+    QVERIFY(detail.showPerson(*actressId));
+    QVERIFY(aliases->isExpanded());
+    QVERIFY(detail.showPerson(*referenceActressId));
+    QVERIFY(!aliases->isExpanded());
+    QCOMPARE(aliasToggle->text(), QStringLiteral("别名（0）"));
 }
 
 QTEST_MAIN(PersonPageTest)

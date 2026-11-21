@@ -4,6 +4,7 @@
 #include "MainWindow.h"
 #include "ui/pages/PersonPage.h"
 #include "ui/pages/WorkPage.h"
+#include "ui/components/WorkFilter.h"
 #include "darkeye_ui/components/ColorWheel.h"
 #include "ui/components/WorkspaceSearch.h"
 #include "ui/pages/management/AddWorkTabPage3.h"
@@ -11,7 +12,6 @@
 #include "ui/components/FanartStripWidget.h"
 #include "ui/components/WorkCard.h"
 #include "ui/pages/ModifyActressPage.h"
-#include "ui/pages/DashboardPage.h"
 
 #include <QApplication>
 #include <QDialog>
@@ -69,7 +69,8 @@ int main(int argc, char *argv[])
     auto *workPage = window.findChild<darkeye::WorkPage *>(QStringLiteral("WorkPage"));
     if (!workPage)
         return 4;
-    auto *workCount = findWorkControl<QLabel>(workPage, QStringLiteral("WorkCountLabel"));
+    auto *workFilter = window.findChild<darkeye::WorkFilter *>();
+    auto *workCount = findWorkControl<QLabel>(workFilter, QStringLiteral("WorkCountLabel"));
     if (workCount == nullptr || workCount->text() == QStringLiteral("过滤总数:0") ||
         workPage->findChildren<darkeye::WorkCard *>().isEmpty())
     {
@@ -86,35 +87,21 @@ int main(int argc, char *argv[])
     {
         return 9;
     }
-    auto *tagPanel = workPage->findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
-    auto *tagPanelButton = findWorkControl<QPushButton>(
-        workPage, QStringLiteral("WorkTagPanelButton"));
-    auto *tagExpand = findWorkControl<QPushButton>(workPage,
-        QStringLiteral("WorkTagExpandButton"));
-    if (tagPanel == nullptr || tagPanelButton == nullptr || tagExpand == nullptr)
+    emit search->openRequested(QStringLiteral("work_filters"));
+    auto *tagPanel = workFilter->findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
+    if (tagPanel == nullptr || !tagPanel->isVisible())
         return 29;
-    if (!tagPanel->isVisible())
-    {
-        tagPanelButton->click();
-        QApplication::processEvents();
-    }
-    tagExpand->click();
     QTest::qWait(150);
     if (!window.grab().save(
             QDir(outputDirectory).filePath(QStringLiteral("work-tag-selector.png"))))
     {
         return 30;
     }
-    tagExpand->click();
+    emit search->openRequested(QStringLiteral("mutiwork"));
 
-    QSqlQuery query(publicConnection.database());
-    if (!query.exec(QStringLiteral("SELECT work_id FROM work WHERE is_deleted=0 AND image_url<>'' "
-                                   "ORDER BY work_id DESC LIMIT 1")) ||
-        !query.next())
-    {
-        return 6;
-    }
-    const auto workId = query.value(0).toLongLong();
+    const auto filtered = workPage->filteredWorks();
+    if (filtered.isEmpty()) return 6;
+    const auto workId = filtered.first().id;
     emit workPage->detailRequested(workId);
     QTest::qWait(250);
     if (!window.grab().save(QDir(outputDirectory).filePath(QStringLiteral("work-detail.png"))))
@@ -217,15 +204,6 @@ int main(int argc, char *argv[])
             QDir(outputDirectory).filePath(QStringLiteral("personal-statistics.png"))))
     {
         return 26;
-    }
-    darkeye::DashboardPage dashboard(publicConnection.database(), privateConnection.database());
-    dashboard.resize(1000, 700);
-    dashboard.show();
-    QTest::qWait(100);
-    if (!dashboard.grab().save(
-            QDir(outputDirectory).filePath(QStringLiteral("dashboard-page.png"))))
-    {
-        return 27;
     }
     darkeye::ColorWheelSimple colorWheel;
     colorWheel.setInitialColor(QStringLiteral("#336699"));

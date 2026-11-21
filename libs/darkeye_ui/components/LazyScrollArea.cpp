@@ -155,6 +155,12 @@ void LazyScrollArea::setColumnWidth(int columnWidth)
     }
 }
 
+void LazyScrollArea::setUniformRows(bool enabled)
+{
+    m_layout->setUniformRows(enabled);
+    updateContentGeometry();
+}
+
 void LazyScrollArea::setPrefetchDistance(int distance)
 {
     m_prefetchDistance = qMax(0, distance);

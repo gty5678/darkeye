@@ -16,6 +16,7 @@ class IconButton;
 class OctImage;
 class ThemeService;
 class RadarChartWidget;
+class TokenCollapsibleSection;
 
 class PersonInfoPanel final : public QWidget
 {
@@ -39,6 +40,7 @@ private:
     void paintEvent(QPaintEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     void rebuildNames(const PersonDetails &details);
+    void rebuildActressAliases(const QList<PersonName> &names);
     void rebuildFacts(const PersonDetails &details);
     void rebuildWorks(const PersonDetails &details);
     void rebuildRadar(const PersonDetails &details);
@@ -53,6 +55,7 @@ private:
     HeartLabel *m_heart = nullptr;
     IconButton *m_edit = nullptr;
     QLabel *m_notes = nullptr;
+    TokenCollapsibleSection *m_actressAliases = nullptr;
     QWidget *m_aliasesGroup = nullptr;
     QWidget *m_worksGroup = nullptr;
     QTableWidget *m_aliases = nullptr;

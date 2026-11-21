@@ -5,14 +5,12 @@
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/Charts.h"
 #include "ui/components/StatsOverviewCards.h"
-#include "ui/pages/DashboardPage.h"
 #include "ui/pages/PersonalDataPage.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
 #include <QApplication>
 #include <QDateTime>
 #include <QDir>
-#include <QListWidget>
 #include <QPushButton>
 #include <QSqlQuery>
 #include <QSqlError>
@@ -24,12 +22,11 @@ class StatisticsRepositoryTest final : public QObject
     Q_OBJECT
 
 private slots:
-    void reproducesDashboardAndPersonalStatistics();
-    void rendersDashboardPage();
+    void reproducesOverviewAndPersonalStatistics();
     void rendersPersonalDataPage();
 };
 
-void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
+void StatisticsRepositoryTest::reproducesOverviewAndPersonalStatistics()
 {
     QTemporaryDir temporaryDirectory;
     QVERIFY(temporaryDirectory.isValid());
@@ -71,21 +68,22 @@ void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
     QVERIFY(privateData.addFavoriteWork(*workId, work.serialNumber, &errorMessage));
     QVERIFY(privateData.addFavoriteWork(*unwatchedId, QStringLiteral("STATS-002"), &errorMessage));
     QVERIFY(privateData.addFavoriteActress(*actressId, QStringLiteral("統計女優"), &errorMessage));
+    darkeye::StatisticsRepository statistics(publicConnection.database(),
+                                              privateConnection.database());
+    QVERIFY(!statistics.favoriteUnwatchedSalesCycle(&errorMessage).has_value());
     const QString now = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
     QVERIFY(privateData.addMasturbationRecord(*workId, work.serialNumber, now,
                                               QStringLiteral("tool"), 5, QString(), &errorMessage));
     QVERIFY(privateData.addSexualArousalRecord(QStringLiteral("2020-01-02 06:00"), QString(),
                                                &errorMessage));
 
-    darkeye::StatisticsRepository statistics(publicConnection.database(),
-                                              privateConnection.database());
-    const auto dashboard = statistics.dashboard(&errorMessage);
-    QVERIFY2(dashboard.has_value(), qPrintable(errorMessage));
-    QCOMPARE(dashboard->workCount, 2);
-    QCOMPARE(dashboard->actressCount, 1);
-    QCOMPARE(dashboard->actorCount, 1);
-    QCOMPARE(dashboard->favoriteWorkCount, 2);
-    QCOMPARE(dashboard->favoriteActressCount, 1);
+    const auto overview = statistics.overview(&errorMessage);
+    QVERIFY2(overview.has_value(), qPrintable(errorMessage));
+    QCOMPARE(overview->workCount, 2);
+    QCOMPARE(overview->actressCount, 1);
+    QCOMPARE(overview->actorCount, 1);
+    QCOMPARE(overview->favoriteWorkCount, 2);
+    QCOMPARE(overview->favoriteActressCount, 1);
     const auto top = statistics.topActress(30, &errorMessage);
     QVERIFY2(top.has_value(), qPrintable(errorMessage));
     QCOMPARE(top->actressId, *actressId);
@@ -94,7 +92,7 @@ void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
     QCOMPARE(statistics.recordCountInDays(90, darkeye::PersonalRecordKind::Masturbation,
                                           &errorMessage),
              1);
-    QCOMPARE(statistics.favoriteUnwatchedSalesCycle(&errorMessage), 90);
+    QCOMPARE(statistics.favoriteUnwatchedSalesCycle(&errorMessage), std::optional<int>(90));
     QCOMPARE(statistics.earliestRecordYear(&errorMessage), 2020);
 
     QSqlQuery fixture(publicConnection.database());
@@ -108,7 +106,7 @@ void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
     for (const bool deleted : {false, true, false})
     {
         QVERIFY(works.setDeleted(*workId, deleted, &errorMessage));
-        const auto current = statistics.dashboard(&errorMessage);
+        const auto current = statistics.overview(&errorMessage);
         QVERIFY2(current.has_value(), qPrintable(errorMessage));
         QCOMPARE(current->workCount, deleted ? 1 : 2);
         QCOMPARE(current->recentThirtyDays, deleted ? 1 : 2);
@@ -129,96 +127,6 @@ void StatisticsRepositoryTest::reproducesDashboardAndPersonalStatistics()
         }
     }
 
-}
-
-void StatisticsRepositoryTest::rendersDashboardPage()
-{
-    QTemporaryDir temporaryDirectory;
-    QVERIFY(temporaryDirectory.isValid());
-    darkeye::SqliteConnection publicConnection;
-    darkeye::SqliteConnection privateConnection;
-    QString errorMessage;
-    QVERIFY2(publicConnection.open(QDir(temporaryDirectory.path()).filePath("public.db"), false,
-                                   &errorMessage),
-             qPrintable(errorMessage));
-    QVERIFY2(privateConnection.open(QDir(temporaryDirectory.path()).filePath("private.db"), false,
-                                    &errorMessage),
-             qPrintable(errorMessage));
-    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
-        publicConnection, darkeye::DatabaseKind::Public, &errorMessage));
-    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(
-        privateConnection, darkeye::DatabaseKind::Private, &errorMessage));
-
-    darkeye::DashboardPage page(publicConnection.database(), privateConnection.database());
-    page.resize(1440, 700);
-    page.show();
-    QApplication::processEvents();
-
-    QVERIFY(page.findChild<QWidget *>(QStringLiteral("StatsOverviewCards")));
-    const auto *recentView =
-        page.findChild<QListWidget *>(QStringLiteral("DashboardRecentViewList"));
-    const auto *recentAdded =
-        page.findChild<QListWidget *>(QStringLiteral("DashboardRecentAddedList"));
-    const auto *pending = page.findChild<QListWidget *>(QStringLiteral("DashboardPendingList"));
-    QVERIFY(recentView);
-    QVERIFY(recentAdded);
-    QVERIFY(pending);
-    const auto *content = page.findChild<QWidget *>(QStringLiteral("DashboardContent"));
-    QVERIFY(content);
-    QCOMPARE(content->width(), 1000);
-    QVERIFY(qAbs(content->mapTo(&page, content->rect().center()).x() -
-                 page.rect().center().x()) < 10);
-    QCOMPARE(recentAdded->width(), recentView->width());
-    QVERIFY(recentAdded->geometry().top() > recentView->geometry().bottom());
-    QVERIFY(pending->geometry().top() > recentAdded->geometry().bottom());
-    QCOMPARE(recentView->item(0)->text(), QStringLiteral("暂无观看记录"));
-    QCOMPARE(recentAdded->item(0)->text(), QStringLiteral("暂无新增记录"));
-    QCOMPARE(pending->item(0)->text(), QStringLiteral("0 部作品没有封面"));
-
-    darkeye::PersonRepository people(publicConnection.database());
-    const auto actressId = people.create(darkeye::PersonKind::Actress, QString(),
-                                         QStringLiteral("测试女优"), &errorMessage);
-    QVERIFY2(actressId.has_value(), qPrintable(errorMessage));
-    darkeye::WorkRepository works(publicConnection.database());
-    darkeye::Work work;
-    work.serialNumber = QStringLiteral("DASH-001");
-    work.imageUrl = QStringLiteral("cover.jpg");
-    const auto workId = works.insertComplete(work, {*actressId}, {}, {}, &errorMessage);
-    QVERIFY2(workId.has_value(), qPrintable(errorMessage));
-    const auto incomplete = works.insertSerial(QStringLiteral("DASH-002"), &errorMessage);
-    QVERIFY2(incomplete.has_value(), qPrintable(errorMessage));
-    const auto deleted = works.insertSerial(QStringLiteral("DASH-003"), &errorMessage);
-    QVERIFY2(deleted.has_value(), qPrintable(errorMessage));
-    QVERIFY2(works.setDeleted(*deleted, true, &errorMessage), qPrintable(errorMessage));
-
-    QSqlQuery fixture(publicConnection.database());
-    QVERIFY(fixture.exec(QStringLiteral("UPDATE actress SET create_time='2025-01-01 10:00:00'")));
-    QVERIFY(fixture.exec(QStringLiteral("UPDATE work SET create_time='2025-01-02 10:00:00'")));
-    QVERIFY(fixture.exec(QStringLiteral("UPDATE work SET create_time='2025-01-03 10:00:00' "
-                                        "WHERE serial_number='DASH-002'")));
-    darkeye::PrivateRepository records(privateConnection.database());
-    QVERIFY(records.addMasturbationRecord(*incomplete, QStringLiteral("DASH-002"),
-                                          QStringLiteral("2025-02-01 10:00"), QStringLiteral("tool"),
-                                          5, QString(), &errorMessage));
-    QVERIFY(records.addMasturbationRecord(*workId, work.serialNumber,
-                                          QStringLiteral("2025-02-02 10:00"), QStringLiteral("tool"),
-                                          5, QString(), &errorMessage));
-    page.refresh();
-    QCOMPARE(recentView->count(), 2);
-    QVERIFY(recentView->item(0)->text().endsWith(QStringLiteral("DASH-001")));
-    QVERIFY(recentView->item(1)->text().endsWith(QStringLiteral("DASH-002")));
-    QCOMPARE(recentAdded->count(), 3);
-    QVERIFY(recentAdded->item(0)->text().endsWith(QStringLiteral("作品 · DASH-002")));
-    QVERIFY(recentAdded->item(2)->text().endsWith(QStringLiteral("女优 · 测试女优")));
-    QCOMPARE(pending->count(), 2);
-    QCOMPARE(pending->item(0)->text(), QStringLiteral("1 部作品没有封面"));
-    QCOMPARE(pending->item(1)->text(), QStringLiteral("1 部作品未绑定女优"));
-
-    page.resize(480, 700);
-    QApplication::processEvents();
-    QCOMPARE(content->width(), page.width());
-    QVERIFY(content->findChild<QWidget *>(QStringLiteral("StatsOverviewCards"))->height() >
-            content->findChild<QWidget *>(QStringLiteral("StatisticsOverviewCard"))->height() + 8);
 }
 
 void StatisticsRepositoryTest::rendersPersonalDataPage()

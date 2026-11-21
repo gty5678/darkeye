@@ -7,8 +7,6 @@
 #include <QFontMetrics>
 #include <QPainter>
 #include <QPainterPath>
-#include <QStyleOptionTab>
-#include <QStylePainter>
 #include <QTimer>
 
 namespace darkeye {
@@ -221,6 +219,7 @@ TokenVerticalTabBar::TokenVerticalTabBar(ThemeService *themes, QWidget *parent)
 {
     setObjectName(QStringLiteral("VerticalTabBar"));
     setShape(QTabBar::RoundedWest);
+    setDrawBase(false);
     const auto applyTokenFont = [this] {
         const ThemeTokens tokens = tokensFor(m_themes);
         QFont tokenFont(tokens.fontFamilyBase);
@@ -244,7 +243,7 @@ QSize TokenVerticalTabBar::tabSizeHint(int index) const
     const int characterWidth = metrics.maxWidth();
     const int verticalPadding = int(characterHeight * 0.2);
     const int horizontalPadding = int(characterWidth * 0.3);
-    qreal totalHeight = verticalPadding * 2;
+    qreal totalHeight = qMax(16, verticalPadding * 2);
     for (const VerticalTextLayout::TextRun &run :
          VerticalTextLayout::splitTextBlocks(text)) {
         if (run.english)
@@ -263,28 +262,60 @@ QSize TokenVerticalTabBar::tabSizeHint(int index) const
         ? maximumCharacterWidth + horizontalPadding * 2 : 60;
     const int maximumWidth = maximumCharacterWidth > 0
         ? int(maximumCharacterWidth * 2.5) : 120;
-    return {qMax(minimumWidth, qMin(idealWidth, maximumWidth)), int(totalHeight)};
+    return {qMax(minimumWidth, qMin(idealWidth, maximumWidth)), int(totalHeight) + (index == 0 ? 14 : 0)};
 }
 void TokenVerticalTabBar::paintEvent(QPaintEvent *)
 {
     const ThemeTokens tokens = tokensFor(m_themes);
-    QStylePainter painter(this);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QColor page(tokens.pageBackground);
+    const QColor rail = page.lightness() > 128 ? page.darker(103) : page.lighter(115);
+    painter.fillRect(rect(), rail);
+    // The active tab opens into the page, with a cut at the left edge and
+    // inverse shoulders where it meets the right edge of the rail.
+    QRectF active = tabRect(currentIndex());
+    active.setRight(width());
+    if (currentIndex() == 0)
+        active.setTop(active.top() + 14);
+    if (currentIndex() >= 0) {
+        const qreal cut = qMin(8.0, active.width() / 3.0);
+        QPainterPath path;
+        path.moveTo(active.left(), active.top() + cut);
+        path.lineTo(active.left() + cut, active.top());
+        path.lineTo(active.right() - cut, active.top());
+        path.lineTo(active.right(), active.top() - cut);
+        path.lineTo(active.right(), active.bottom() + cut);
+        path.lineTo(active.right() - cut, active.bottom());
+        path.lineTo(active.left() + cut, active.bottom());
+        path.lineTo(active.left(), active.bottom() - cut);
+        path.closeSubpath();
+        painter.fillPath(path, QColor(tokens.pageBackground));
+    }
     for (int index = 0; index < count(); ++index) {
-        QStyleOptionTab option;
-        initStyleOption(&option, index);
-        const QString text = option.text;
-        option.text.clear();
-        painter.drawControl(QStyle::CE_TabBarTabShape, option);
-        painter.setPen(QColor(index == currentIndex() ? tokens.textInverse : tokens.text));
-        painter.setFont(font());
+        const QString text = tabText(index);
+        const bool selected = index == currentIndex();
+        // Short dividers keep the inactive tabs on one continuous rail.
+        if (index > 0 && !selected && index - 1 != currentIndex()) {
+            QRect bounds = tabRect(index);
+            bounds.setWidth(width());
+            painter.setPen(QColor(tokens.border));
+            painter.drawLine(QPointF(bounds.center().x() - 4, bounds.top()),
+                             QPointF(bounds.center().x() + 4, bounds.top()));
+        }
+        painter.setPen(QColor(!isTabEnabled(index) ? tokens.textDisabled : tokens.text));
+        QFont labelFont = font();
+        labelFont.setBold(selected);
+        painter.setFont(labelFont);
         painter.setRenderHint(QPainter::TextAntialiasing);
         const QFontMetrics metrics(painter.font());
         const qreal lineSpacing = metrics.height() * .05;
         const qreal charHeight = metrics.height() + lineSpacing;
         const int charWidth = metrics.maxWidth();
-        const QRect rect = tabRect(index);
-        const int x = rect.right() - charWidth;
-        qreal y = rect.top() + int(metrics.height() * .3);
+        QRect rect = tabRect(index);
+        rect.setWidth(width());
+        const int x = rect.left() + (rect.width() - charWidth) / 2;
+        qreal y = rect.top() + int(metrics.height() * .3) + (index == 0 ? 14 : 0);
         for (const auto &run : VerticalTextLayout::splitTextBlocks(VerticalTextLayout::replaceEllipsis(text))) {
             if (run.english) {
                 const QRect bounds = metrics.boundingRect(run.text);

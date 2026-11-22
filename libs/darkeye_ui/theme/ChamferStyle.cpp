@@ -13,9 +13,11 @@
 #include <QPainter>
 #include <QGraphicsEffect>
 #include <QGroupBox>
+#include <QHeaderView>
 #include <QScrollBar>
 #include <QStylePainter>
 #include <QStyledItemDelegate>
+#include <QTableView>
 #include <QTabWidget>
 #include <QtMath>
 #include "ChamferPath.h"
@@ -294,6 +296,20 @@ bool usesCutCorners(QWidget *widget)
 void updateCorners(QWidget *widget)
 {
     if (!widget->graphicsEffect()) widget->setGraphicsEffect(new ChamferEffect(widget));
+
+    auto *table = qobject_cast<QTableView *>(widget);
+    if (!table || !dynamic_cast<ChamferEffect *>(widget->graphicsEffect())) return;
+
+    // The table already paints the background behind its viewports. Keep them
+    // non-opaque so Qt repaints underneath the cut corners, and let Qt paint
+    // each viewport in place inside the table's effect.
+    for (auto *view : {static_cast<QAbstractScrollArea *>(table),
+                      static_cast<QAbstractScrollArea *>(table->horizontalHeader()),
+                      static_cast<QAbstractScrollArea *>(table->verticalHeader())}) {
+        if (!view) continue;
+        view->viewport()->setAutoFillBackground(false);
+        view->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
+    }
 }
 
 void updateSearchResults(QWidget *widget)

@@ -1,4 +1,5 @@
-#include "ui/pages/management/PersonalRecordManagementWidget.h"
+#include "ui/pages/PersonalRecordManagementWidget.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "database/CsvExport.h"
 #include "ui/components/ModelSearchBar.h"
@@ -29,10 +30,15 @@ namespace darkeye
 {
 PersonalRecordManagementWidget::PersonalRecordManagementWidget(QSqlDatabase privateDatabase,
                                                                ThemeService &themes, QWidget *parent)
-    : QWidget(parent), m_privateDatabase(std::move(privateDatabase)), m_themes(themes)
+    : LazyWidget(parent), m_privateDatabase(std::move(privateDatabase)), m_themes(themes)
 {
     setObjectName(QStringLiteral("PersonalRecordManagementWidget"));
-    auto *root = new QVBoxLayout(this);
+}
+
+void PersonalRecordManagementWidget::lazyLoad()
+{
+    auto *root = new QVBoxLayout(addPageScrollArea(this));
+    root->setContentsMargins(0, 0, 0, 0);
 
     auto *toolbar = new QHBoxLayout;
     toolbar->addWidget(new DesignLabel(QStringLiteral("选择表:"), this));
@@ -91,6 +97,7 @@ PersonalRecordManagementWidget::PersonalRecordManagementWidget(QSqlDatabase priv
 
 void PersonalRecordManagementWidget::refresh()
 {
+    if (!m_model) return;
     if (!m_model->select())
         Toast::showError(window(), QStringLiteral("刷新数据失败: %1").arg(m_model->lastError().text()),
                          &m_themes);

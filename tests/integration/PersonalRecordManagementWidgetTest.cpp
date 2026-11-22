@@ -1,7 +1,7 @@
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
 #include "darkeye_ui/theme/ThemeService.h"
-#include "ui/pages/management/PersonalRecordManagementWidget.h"
+#include "ui/pages/PersonalRecordManagementWidget.h"
 #include "ui/components/ModelSearchBar.h"
 
 #include <QApplication>
@@ -43,6 +43,9 @@ void PersonalRecordManagementWidgetTest::editsSearchesAndSavesPrivateRecords()
     QVERIFY(application != nullptr);
     darkeye::ThemeService themes(*application);
     darkeye::PersonalRecordManagementWidget widget(connection.database(), themes);
+    QVERIFY(!widget.findChild<QSqlTableModel *>());
+    widget.show();
+    QVERIFY(widget.isInitialized());
 
     auto *tableChoice = widget.findChild<QComboBox *>(QStringLiteral("DesignComboBox"));
     auto *search = widget.findChild<QLineEdit *>(QStringLiteral("DesignInput"));

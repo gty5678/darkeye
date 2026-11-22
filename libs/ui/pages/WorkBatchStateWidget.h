@@ -1,5 +1,7 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include "database/repositories/WorkRepository.h"
 
 #include <QWidget>
@@ -19,7 +21,7 @@ enum class WorkStateMode
     RecycleBin,
 };
 
-class WorkBatchStateWidget final : public QWidget
+class WorkBatchStateWidget final : public LazyWidget
 {
     Q_OBJECT
 
@@ -34,6 +36,7 @@ signals:
     void worksChanged();
 
 private:
+    void lazyLoad() override;
     [[nodiscard]] QList<qint64> checkedIds() const;
     [[nodiscard]] QList<qint64> selectedIds() const;
     [[nodiscard]] QList<qint64> allIds() const;

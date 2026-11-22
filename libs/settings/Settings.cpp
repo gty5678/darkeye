@@ -162,6 +162,10 @@ AppSettings app(QString settingsFile)
                                                   settings.navigationBarVisible).toBool();
     settings.sidebarAutoCollapse = m_store.value(QStringLiteral("Workspace/SidebarAutoCollapse"),
                                                 settings.sidebarAutoCollapse).toBool();
+    settings.leftSidebarToggleVisible = m_store.value(QStringLiteral("Workspace/LeftSidebarToggleVisible"),
+                                                     settings.leftSidebarToggleVisible).toBool();
+    settings.rightSidebarToggleVisible = m_store.value(QStringLiteral("Workspace/RightSidebarToggleVisible"),
+                                                      settings.rightSidebarToggleVisible).toBool();
     settings.workFilterAddGreenCover = m_store.value(QStringLiteral("WorkFilter/AddGreenCover"),
                                                     settings.workFilterAddGreenCover).toBool();
     settings.workTagSelectorVisible = m_store
@@ -311,6 +315,8 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("WorkPage/LargeCoverView"), settings.workLargeCoverView},
         {QStringLiteral("Workspace/NavigationBarVisible"), settings.navigationBarVisible},
         {QStringLiteral("Workspace/SidebarAutoCollapse"), settings.sidebarAutoCollapse},
+        {QStringLiteral("Workspace/LeftSidebarToggleVisible"), settings.leftSidebarToggleVisible},
+        {QStringLiteral("Workspace/RightSidebarToggleVisible"), settings.rightSidebarToggleVisible},
         {QStringLiteral("WorkFilter/AddGreenCover"), settings.workFilterAddGreenCover},
         {QStringLiteral("WorkPage/TagSelectorVisible"), settings.workTagSelectorVisible},
         {QStringLiteral("ShelfPage/TagSelectorVisible"), settings.shelfTagSelectorVisible},

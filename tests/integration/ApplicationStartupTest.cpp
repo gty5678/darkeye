@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "MainWindow.h"
-#include "ui/components/WorkspaceSearch.h"
+#include "ui/layouts/myads/WorkspaceWidget.h"
 #include "dvd_scene/DvdSceneWidget.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
@@ -13,6 +13,7 @@
 #include <QFileInfo>
 #include <QSettings>
 #include <QFile>
+#include <QScreen>
 #include <QSplashScreen>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -63,6 +64,7 @@ int main(int argc, char **argv)
     config.sync();
     auto appSettings = darkeye::settings::app();
     appSettings.firstLaunch = true;
+    appSettings.maximized = false;
     appSettings.update.checkAndNotify = false;
     darkeye::settings::saveApp(appSettings);
 
@@ -112,18 +114,30 @@ int main(int argc, char **argv)
                 // Check after startup's finish() has returned and the first
                 // background services have had a chance to execute.
                 QTimer::singleShot(1500, qApp, [&, window] {
+                    if (const auto *screen = window->screen()) {
+                        const QSize expected = screen->availableGeometry().size() * 0.85;
+                        if (window->size() != expected) {
+                            qWarning() << "Unexpected visible startup size:" << window->size()
+                                       << "expected" << expected;
+                            failed = true;
+                        }
+                    } else {
+                        failed = true;
+                    }
                     splashClosed = true;
                     for (QWidget *topLevel : QApplication::topLevelWidgets())
                         if (topLevel->objectName() == QStringLiteral("startupSplash"))
                             splashClosed = false;
-                    const auto shelfSceneName = QStringLiteral("ShelfDvdScene");
-                    failed |= window->findChild<darkeye::dvd_scene::DvdSceneWidget *>(shelfSceneName) != nullptr;
-                    auto *search = window->findChild<darkeye::WorkspaceSearch *>();
-                    if (search) emit search->openRequested(QStringLiteral("shelf"));
-                    auto *scene = window->findChild<darkeye::dvd_scene::DvdSceneWidget *>(shelfSceneName);
-                    if (!search || !scene) {
+                    using darkeye::myads::SidebarSide;
+                    auto *workspace = window->findChild<darkeye::myads::WorkspaceWidget *>();
+                    auto *scene = window->findChild<darkeye::dvd_scene::DvdSceneWidget *>(
+                        QStringLiteral("ShelfDvdScene"));
+                    if (!workspace || !scene) {
                         failed = true;
                     } else {
+                        failed |= workspace->activePane()->currentContentId() != QStringLiteral("shelf")
+                            || !workspace->isSidebarOpen(SidebarSide::Left)
+                            || !workspace->isSidebarOpen(SidebarSide::Right);
                         auto *renderer = scene->renderWidget();
                         QElapsedTimer frameWait;
                         frameWait.start();

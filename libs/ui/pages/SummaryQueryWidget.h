@@ -1,5 +1,7 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include <QModelIndex>
 #include <QSqlDatabase>
 #include <QWidget>
@@ -20,7 +22,7 @@ class ThemeService;
 
 /** Read-only work, actress, and actor summary queries, matching Python's
  *  "汇总查询表" management tab. */
-class SummaryQueryWidget final : public QWidget
+class SummaryQueryWidget final : public LazyWidget
 {
     Q_OBJECT
 
@@ -37,6 +39,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    void lazyLoad() override;
     void clearCompletenessPresentation();
     void loadQuery();
     void exportCsv();

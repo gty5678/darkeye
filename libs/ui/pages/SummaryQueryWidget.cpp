@@ -1,4 +1,5 @@
-#include "ui/pages/management/SummaryQueryWidget.h"
+#include "ui/pages/SummaryQueryWidget.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "database/CsvExport.h"
 #include "darkeye_ui/components/DesignButton.h"
@@ -190,10 +191,14 @@ QString readSqlResource(int type, QString *errorMessage)
 } // namespace
 
 SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &themes, QWidget *parent)
-    : QWidget(parent), m_database(std::move(database)), m_themes(themes)
+    : LazyWidget(parent), m_database(std::move(database)), m_themes(themes)
 {
-    auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 10, 10, 10);
+}
+
+void SummaryQueryWidget::lazyLoad()
+{
+    auto *root = new QVBoxLayout(addPageScrollArea(this));
+    root->setContentsMargins(0, 0, 0, 0);
     m_model = new WorkSummaryQueryModel(this);
     m_filterModel = new SummaryProxyModel(this);
     m_filterModel->setSourceModel(m_model);
@@ -260,7 +265,11 @@ SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &them
     loadQuery();
 }
 
-void SummaryQueryWidget::refresh() { loadQuery(); }
+void SummaryQueryWidget::refresh()
+{
+    if (!m_model) return;
+    loadQuery();
+}
 
 bool SummaryQueryWidget::eventFilter(QObject *watched, QEvent *event)
 {
@@ -278,7 +287,7 @@ bool SummaryQueryWidget::eventFilter(QObject *watched, QEvent *event)
             }
         }
     }
-    return QWidget::eventFilter(watched, event);
+    return LazyWidget::eventFilter(watched, event);
 }
 
 void SummaryQueryWidget::clearCompletenessPresentation()

@@ -1,0 +1,45 @@
+{
+    "schema_version": 1,
+    "layout": {
+        "type": "split",
+        "orientation": "vertical",
+        "size_ratios": [0.8, 0.2],
+        "children": [
+            { "type": "pane", "pane_id": "library" },
+            { "type": "pane", "pane_id": "timeline" }
+        ]
+    },
+    "sidebars": {
+        "left": "MyAdsLeftSidebar",
+        "right": {
+            "type": "split",
+            "orientation": "vertical",
+            "size_ratios": [0.3333333333333333, 0.6666666666666667],
+            "children": [
+                { "type": "pane", "pane_id": "MyAdsRightSidebar" },
+                { "type": "pane", "pane_id": "actress_detail" }
+            ]
+        },
+        "left_width_ratio": 0.16,
+        "right_width_ratio": 0.20
+    },
+    "pane_contents": {
+        "MyAdsLeftSidebar": [{ "content_id": "work_filters" }],
+        "MyAdsRightSidebar": [
+            { "content_id": "local_graph" },
+            { "content_id": "inbox" }
+        ],
+        "actress_detail": [{ "content_id": "actress_detail/switch" }],
+        "library": [
+            { "content_id": "shelf" },
+            { "content_id": "mutiwork" },
+            { "content_id": "actress" },
+            { "content_id": "actor" }
+        ],
+        "timeline": [{ "content_id": "timeline" }]
+    },
+    "pane_metadata": {
+        "library": { "current_content_id": "shelf" },
+        "MyAdsRightSidebar": { "current_content_id": "local_graph" }
+    }
+}

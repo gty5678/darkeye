@@ -27,6 +27,8 @@ struct AppSettings final
 
     bool navigationBarVisible = true;
     bool sidebarAutoCollapse = false;
+    bool leftSidebarToggleVisible = true;
+    bool rightSidebarToggleVisible = true;
     bool workFilterAddGreenCover = false;
     bool workLargeCoverView = false;
     bool workTagSelectorVisible = true;

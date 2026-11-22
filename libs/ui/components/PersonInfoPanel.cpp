@@ -261,7 +261,7 @@ void PersonInfoPanel::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
     constexpr qreal borderWidth = 1;
-    constexpr qreal corner = 4;
+    constexpr qreal corner = 6;
     const QRectF bounds(rect());
 
     QPainter painter(this);

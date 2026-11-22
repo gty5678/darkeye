@@ -38,7 +38,7 @@ class DesignButton;
 class CrawlerScheduler;
 class ImageFetchService;
 
-// Python 的 ui/pages/management/AddWorkTabPage3.py 对应页面。它也作为作品页的
+// 对应 Python 的 AddWorkTabPage3.py。它也作为作品页的
 // 共用编辑器使用，因此不再额外维护一套添加作品逻辑。
 class AddWorkTabPage3 final : public LazyWidget
 {
@@ -151,8 +151,8 @@ private:
     CompleterLineEdit *m_director = nullptr;
     QLineEdit *m_releaseDate = nullptr;
     QSpinBox *m_runtime = nullptr;
-    QLineEdit *m_imageUrl = nullptr;
-    QLineEdit *m_videoUrl = nullptr;
+    QString m_imageUrl;
+    QString m_videoUrl;
     QComboBox *m_maker = nullptr;
     QComboBox *m_label = nullptr;
     QComboBox *m_series = nullptr;

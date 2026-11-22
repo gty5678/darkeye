@@ -7,8 +7,8 @@
 #include "ui/components/WorkFilter.h"
 #include "darkeye_ui/components/ColorWheel.h"
 #include "ui/components/WorkspaceSearch.h"
-#include "ui/pages/management/AddWorkTabPage3.h"
-#include "ui/pages/management/TagManagementWidget.h"
+#include "ui/pages/AddWorkTabPage3.h"
+#include "ui/pages/TagManagementWidget.h"
 #include "ui/components/FanartStripWidget.h"
 #include "ui/components/WorkCard.h"
 #include "ui/pages/ModifyActressPage.h"
@@ -198,13 +198,10 @@ int main(int argc, char *argv[])
     {
         return 25;
     }
-    emit search->openRequested(QStringLiteral("information"));
-    QTest::qWait(250);
-    if (!window.grab().save(
-            QDir(outputDirectory).filePath(QStringLiteral("personal-statistics.png"))))
-    {
+    if (!capturePage(QStringLiteral("library_overview"), QStringLiteral("library-overview.png")) ||
+        !capturePage(QStringLiteral("top_actresses"), QStringLiteral("top-actresses.png")) ||
+        !capturePage(QStringLiteral("record_heatmap"), QStringLiteral("record-heatmap.png")))
         return 26;
-    }
     darkeye::ColorWheelSimple colorWheel;
     colorWheel.setInitialColor(QStringLiteral("#336699"));
     colorWheel.show();

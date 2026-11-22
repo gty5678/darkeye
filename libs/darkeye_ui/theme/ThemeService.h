@@ -47,7 +47,11 @@ struct ThemeTokens
     QString fontSizeBase = QStringLiteral("14px");
     QString fontSizeMiddle = QStringLiteral("16px");
     QString fontSizeWorkspaceTab = QStringLiteral("14px");
-    QString borderWidth = QStringLiteral("2px");
+    static constexpr int defaultBorderWidth = 2;
+    QString borderWidth = QString::number(defaultBorderWidth) + QStringLiteral("px");
+
+    QString modified = QStringLiteral("#ffa500");
+    QString imageDropOutline = QStringLiteral("#8a8a8a");
 
     [[nodiscard]] QMap<QString, QString> toMap() const;
 };

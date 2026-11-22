@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QColor>
 #include <QImage>
 #include <QLabel>
 #include <QString>
@@ -18,6 +19,8 @@ enum class ImageFitMode
 class AsyncImageLabel final : public QLabel
 {
     Q_OBJECT
+    Q_PROPERTY(QColor dropOutline MEMBER m_dropOutline)
+    Q_PROPERTY(QColor modifiedDropOutline MEMBER m_modifiedDropOutline)
 
 public:
     explicit AsyncImageLabel(QWidget *parent = nullptr);
@@ -48,6 +51,8 @@ private:
     void startLoad();
     void applyResult(quint64 requestId, const QString &path, const QImage &image);
 
+    QColor m_dropOutline;
+    QColor m_modifiedDropOutline;
     QString m_source;
     QString m_placeholder = QStringLiteral("无图片");
     ImageFitMode m_fitMode = ImageFitMode::Contain;

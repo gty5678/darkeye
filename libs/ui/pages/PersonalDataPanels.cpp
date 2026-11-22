@@ -1,4 +1,6 @@
-#include "ui/pages/PersonalDataPage.h"
+#include "ui/pages/PersonalDataPanels.h"
+
+#include "ui/pages/PageScrollArea.h"
 
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/StatisticsRepository.h"
@@ -9,11 +11,11 @@
 #include "darkeye_ui/components/SoftShadow.h"
 #include "ui/components/PersonCard.h"
 #include "ui/components/StatsOverviewCards.h"
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
 #include <QButtonGroup>
 #include <QDate>
-#include <QDir>
 #include <QFrame>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -21,7 +23,6 @@
 #include <QPainterPath>
 #include <QPointer>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QStackedWidget>
 #include <QTimer>
 #include <QThreadPool>
@@ -33,9 +34,8 @@ namespace darkeye
 class OctagonCard : public QWidget
 {
 public:
-    OctagonCard(ThemeService &themeService, const QMargins &margins, bool drawBorder = true,
-                QWidget *parent = nullptr)
-        : QWidget(parent), m_themeService(themeService), m_drawBorder(drawBorder)
+    OctagonCard(ThemeService &themeService, const QMargins &margins, QWidget *parent)
+        : QWidget(parent), m_themeService(themeService)
     {
         setObjectName(QStringLiteral("PersonalSummaryCard"));
         // Preserve the 170x250 card body and give the shadow its own space.
@@ -70,10 +70,7 @@ protected:
         QPainter painter(this);
         if (!m_shadow.isNull()) painter.drawPixmap(0, 0, m_shadow);
         painter.setRenderHint(QPainter::Antialiasing);
-        if (m_drawBorder)
-            painter.setPen(QPen(QColor(tokens.border), 1));
-        else
-            painter.setPen(Qt::NoPen);
+        painter.setPen(Qt::NoPen);
         painter.setBrush(QColor(tokens.background));
         painter.drawPath(cardPath());
     }
@@ -81,21 +78,8 @@ protected:
 private:
     QPainterPath cardPath() const
     {
-        constexpr int chamfer = 20;
-        const QRectF rectangle = QRectF(rect()).adjusted(kShadowMargin, kShadowMargin,
-                                                        -kShadowMargin, -kShadowMargin);
-        QPainterPath path;
-        path.moveTo(rectangle.left() + chamfer, rectangle.top());
-        path.lineTo(rectangle.right() - chamfer, rectangle.top());
-        path.lineTo(rectangle.right(), rectangle.top() + chamfer);
-        path.lineTo(rectangle.right(), rectangle.bottom() - chamfer);
-        path.lineTo(rectangle.right() - chamfer, rectangle.bottom());
-        path.lineTo(rectangle.left() + chamfer, rectangle.bottom());
-        path.lineTo(rectangle.left(), rectangle.bottom() - chamfer);
-        path.lineTo(rectangle.left(), rectangle.top() + chamfer);
-        path.closeSubpath();
-
-        return path;
+        return chamferPath(QRectF(rect()).adjusted(kShadowMargin, kShadowMargin,
+                                                  -kShadowMargin, -kShadowMargin), 20);
     }
 
     void requestShadow()
@@ -118,7 +102,6 @@ private:
 
     static constexpr int kShadowMargin = 8;
     ThemeService &m_themeService;
-    bool m_drawBorder = true;
     QVBoxLayout *m_layout = nullptr;
     QPixmap m_shadow;
     quint64 m_shadowRequest = 0;
@@ -129,15 +112,17 @@ class TopActressCard final : public OctagonCard
     Q_OBJECT
 
 public:
-    TopActressCard(int days, QString imageDirectory, ThemeService &themeService,
+    TopActressCard(std::optional<int> days, QString imageDirectory, ThemeService &themeService,
                    QWidget *parent = nullptr)
-        : OctagonCard(themeService, QMargins(10, 0, 10, 10), false, parent),
-          m_imageDirectory(std::move(imageDirectory))
+        : OctagonCard(themeService, QMargins(10, 0, 10, 10), parent),
+          m_days(days)
     {
-        auto *title = new DesignLabel(QStringLiteral("过去%1天最喜欢的女优").arg(days), this);
+        const QString titleText = days ? QStringLiteral("过去%1天最喜欢的女优").arg(*days)
+                                       : QStringLiteral("历史最喜欢的女优");
+        auto *title = new DesignLabel(titleText, this);
         title->setAlignment(Qt::AlignCenter);
         m_personCard = new PersonCard(0, QStringLiteral("加载中..."), {},
-                                      m_imageDirectory, this);
+                                      imageDirectory, this);
         contentLayout()->addWidget(title, 0, Qt::AlignCenter);
         contentLayout()->addWidget(m_personCard, 0, Qt::AlignCenter);
         connect(m_personCard, &PersonCard::activated, this, [this](qint64 actressId) {
@@ -149,6 +134,8 @@ public:
                 emit actressEditRequested(actressId);
         });
     }
+
+    std::optional<int> days() const { return m_days; }
 
     void setStatistic(const std::optional<TopActressStatistic> &statistic)
     {
@@ -166,67 +153,100 @@ signals:
     void actressEditRequested(qint64 actressId);
 
 private:
-    QString m_imageDirectory;
+    std::optional<int> m_days;
     PersonCard *m_personCard = nullptr;
 };
 
-PersonalDataPage::PersonalDataPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
-                                   ThemeService &themeService, QString actressImageDirectory,
-                                   QWidget *parent)
+namespace
+{
+QVBoxLayout *createPanelLayout(LazyWidget *page)
+{
+    auto *content = addPageScrollArea(page);
+    content->setObjectName(QStringLiteral("PersonalPanelCanvas"));
+    content->setAttribute(Qt::WA_StyledBackground);
+    auto *layout = new QVBoxLayout(content);
+    layout->setContentsMargins(12, 8, 12, 8);
+    return layout;
+}
+} // namespace
+
+LibraryOverviewPage::LibraryOverviewPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                                         ThemeService &themeService, QWidget *parent)
+    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
+      m_privateDatabase(std::move(privateDatabase)), m_themeService(themeService)
+{
+}
+
+void LibraryOverviewPage::lazyLoad()
+{
+    auto *root = createPanelLayout(this);
+    m_overview = new StatsOverviewCards(m_publicDatabase, m_privateDatabase, m_themeService,
+                                       root->parentWidget());
+    root->addWidget(m_overview);
+    root->addStretch();
+}
+
+void LibraryOverviewPage::refresh()
+{
+    if (isInitialized())
+        m_overview->refresh();
+}
+
+TopActressesPage::TopActressesPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                                 ThemeService &themeService, QString actressImageDirectory,
+                                 QWidget *parent)
     : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase)), m_themeService(themeService),
       m_actressImageDirectory(std::move(actressImageDirectory))
 {
 }
 
-void PersonalDataPage::lazyLoad()
+void TopActressesPage::lazyLoad()
 {
-    setObjectName(QStringLiteral("PersonalDataCanvas"));
-    setAttribute(Qt::WA_StyledBackground);
-    auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(0, 0, 0, 0);
-
-    auto *overviewPanel = new QFrame(this);
-    overviewPanel->setObjectName(QStringLiteral("PersonalDataOverview"));
-    auto *overviewLayout = new QVBoxLayout(overviewPanel);
-    overviewLayout->setContentsMargins(0, 10, 0, 8);
-    m_overview = new StatsOverviewCards(m_publicDatabase, m_privateDatabase, overviewPanel);
-    overviewLayout->addWidget(m_overview);
-    root->addWidget(overviewPanel);
-
+    auto *root = createPanelLayout(this);
     auto *summary = new QHBoxLayout;
     summary->setContentsMargins(0, 0, 0, 0);
     summary->setSpacing(6);
     summary->addStretch();
-    for (const int days : {30, 180, 365})
+    const std::optional<int> periods[] = {30, 180, 365, std::nullopt};
+    for (const auto days : periods)
     {
         auto *card = new TopActressCard(days, m_actressImageDirectory,
-                                        m_themeService, this);
-        card->setProperty("days", days);
+                                        m_themeService, root->parentWidget());
         connect(card, &TopActressCard::actressDetailRequested, this,
-                &PersonalDataPage::actressDetailRequested);
+                &TopActressesPage::actressDetailRequested);
         connect(card, &TopActressCard::actressEditRequested, this,
-                &PersonalDataPage::actressEditRequested);
+                &TopActressesPage::actressEditRequested);
         m_topActressCards.append(card);
         summary->addWidget(card);
     }
-    auto *cycleCard = new OctagonCard(m_themeService, QMargins(), false, this);
-    auto *cycleLayout = cycleCard->contentLayout();
-    auto *cycleTitle =
-        new DesignLabel(QStringLiteral("收藏作品中未观看去化周期"), cycleCard);
-    cycleTitle->setAlignment(Qt::AlignCenter);
-    m_salesCycle = new DesignLabel(QStringLiteral("加载中..."), cycleCard);
-    m_salesCycle->setAlignment(Qt::AlignCenter);
-    m_salesCycle->setStyleSheet(QStringLiteral("font-size: 30pt; color: #999999;"));
-    cycleLayout->addWidget(cycleTitle);
-    cycleLayout->addWidget(m_salesCycle);
-    summary->addWidget(cycleCard);
     summary->addStretch();
     root->addLayout(summary);
 
+    root->addStretch();
+    refresh();
+}
+
+void TopActressesPage::refresh()
+{
+    StatisticsRepository statistics(m_publicDatabase, m_privateDatabase);
+    for (auto *card : m_topActressCards)
+        card->setStatistic(statistics.topActress(card->days()));
+}
+
+RecordHeatmapPage::RecordHeatmapPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                                     ThemeService &themeService, QWidget *parent)
+    : LazyWidget(parent), m_publicDatabase(std::move(publicDatabase)),
+      m_privateDatabase(std::move(privateDatabase)), m_themeService(themeService)
+{
+}
+
+void RecordHeatmapPage::lazyLoad()
+{
+    auto *root = createPanelLayout(this);
     // Keep the heatmap controls inside one centered panel, as in the Python UI:
     // title and record-type arrows on the left, a vertically scrollable year list on the right.
-    auto *heatmapPanel = new QWidget(this);
+    auto *heatmapPanel = new QWidget(root->parentWidget());
     heatmapPanel->setObjectName(QStringLiteral("PersonalRecordPanel"));
     auto *panelLayout = new QHBoxLayout(heatmapPanel);
     panelLayout->setContentsMargins(0, 0, 0, 0);
@@ -293,16 +313,16 @@ void PersonalDataPage::lazyLoad()
     yearLayout->addStretch();
     yearList->setWidget(yearContainer);
     panelLayout->addWidget(yearList);
-    root->addWidget(heatmapPanel, 0, Qt::AlignCenter);
+    root->addWidget(heatmapPanel, 0, Qt::AlignHCenter);
     root->addStretch();
 
     connect(previousKind, &QPushButton::clicked, this, [this] {
         m_recordKindIndex = (m_recordKindIndex + 2) % 3;
-        refreshHeatmap();
+        refresh();
     });
     connect(nextKind, &QPushButton::clicked, this, [this] {
         m_recordKindIndex = (m_recordKindIndex + 1) % 3;
-        refreshHeatmap();
+        refresh();
     });
     connect(yearGroup, &QButtonGroup::idClicked, this, [this](int year) {
         changeYear(year);
@@ -310,26 +330,11 @@ void PersonalDataPage::lazyLoad()
     refresh();
 }
 
-void PersonalDataPage::refresh()
+void RecordHeatmapPage::refresh()
 {
-    initialize();
-    m_overview->refresh();
-    StatisticsRepository statistics(m_publicDatabase, m_privateDatabase);
-    for (TopActressCard *card : m_topActressCards)
-    {
-        card->setStatistic(statistics.topActress(card->property("days").toInt()));
-    }
-    const auto cycle = statistics.favoriteUnwatchedSalesCycle();
-    m_salesCycle->setText(cycle ? QStringLiteral("%1天").arg(*cycle)
-                               : QStringLiteral("数据不足"));
-    m_salesCycle->setStyleSheet(cycle && *cycle > 30
-                                    ? QStringLiteral("font-size: 30pt; color: #FF0000;")
-                                    : QStringLiteral("font-size: 30pt;"));
-    refreshHeatmap();
-}
+    if (!m_heatmap)
+        return;
 
-void PersonalDataPage::refreshHeatmap()
-{
     // Python's SwitchHeapMap keeps its loading page visible while the initial
     // data workers run.  Do the same before the first C++ render: otherwise
     // the transparent heatmap can be shown before its first paint completes.
@@ -338,7 +343,7 @@ void PersonalDataPage::refreshHeatmap()
         m_heatmapInitialLoadPending = false;
         m_heatmapTitle->setText(QStringLiteral("加载中..."));
         m_heatmapContent->setCurrentWidget(m_heatmapPlaceholder);
-        QTimer::singleShot(0, this, [this] { refreshHeatmap(); });
+        QTimer::singleShot(0, this, [this] { refresh(); });
         return;
     }
 
@@ -364,7 +369,7 @@ void PersonalDataPage::refreshHeatmap()
     m_heatmapContent->setCurrentWidget(m_heatmap);
 }
 
-void PersonalDataPage::changeYear(int year)
+void RecordHeatmapPage::changeYear(int year)
 {
     if (year == m_currentYear) return;
 
@@ -375,10 +380,10 @@ void PersonalDataPage::changeYear(int year)
     m_heatmapContent->setCurrentWidget(m_heatmapPlaceholder);
     QTimer::singleShot(0, this, [this, year] {
         // A second year click may arrive while this callback is queued.
-        if (year == m_currentYear) refreshHeatmap();
+        if (year == m_currentYear) refresh();
     });
 }
 
 } // namespace darkeye
 
-#include "PersonalDataPage.moc"
+#include "PersonalDataPanels.moc"

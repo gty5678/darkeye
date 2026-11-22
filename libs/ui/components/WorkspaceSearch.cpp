@@ -18,31 +18,46 @@ namespace {
 constexpr int actionRole = Qt::UserRole + 1;
 }
 
-WorkspaceSearch::WorkspaceSearch(QSqlDatabase database, QMap<QString, QString> pages, QWidget *parent)
-    : QFrame(parent), m_database(database), m_pages(std::move(pages)) {
+WorkspaceSearch::WorkspaceSearch(QSqlDatabase database, QMap<QString, QString> pages, QWidget *parent,
+                                 Presentation presentation)
+    : QFrame(parent), m_database(database), m_entries(std::move(pages)),
+      m_fullResults(presentation == Presentation::ResultsPage) {
     setObjectName(QStringLiteral("WorkspaceSearch"));
-    setProperty("searchPopup", true);
+    setProperty("searchPopup", !m_fullResults);
+    if (!m_fullResults) buildUi();
+}
+
+void WorkspaceSearch::buildUi() {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(12, 8, 12, 8);
+    m_results = new QListWidget(this);
+    m_results->setObjectName(QStringLiteral("workspaceSearchResults"));
+    m_results->hide();
+    connect(m_results, &QListWidget::itemClicked, this, &WorkspaceSearch::activate);
+
+    if (m_fullResults) {
+        m_limit = 100;
+        layout->addWidget(m_results, 1);
+        m_results->installEventFilter(this);
+        m_more = new QPushButton(QStringLiteral("加载更多结果"), this);
+        m_more->hide();
+        layout->addWidget(m_more);
+        connect(m_more, &QPushButton::clicked, this, [this] { m_limit += 100; updateResults(); });
+        return;
+    }
+
     m_input = new QLineEdit(this);
     m_input->setObjectName(QStringLiteral("workspaceSearchInput"));
     m_input->setPlaceholderText(QStringLiteral("搜索人物、作品、标签、厂牌、片商、系列或导演"));
     m_input->setClearButtonEnabled(true);
-    m_results = new QListWidget(this);
-    m_results->setObjectName(QStringLiteral("workspaceSearchResults"));
-    m_results->hide();
     layout->addWidget(m_input);
     layout->addWidget(m_results);
-    m_more = new QPushButton(QStringLiteral("加载更多结果"), this);
-    m_more->hide();
-    layout->addWidget(m_more);
-    connect(m_more, &QPushButton::clicked, this, [this] { m_limit += 100; updateResults(); });
+    setTabOrder(m_input, m_results);
     auto *timer = new QTimer(this);
     timer->setSingleShot(true);
     timer->setInterval(180);
     connect(m_input, &QLineEdit::textChanged, this, [this, timer](const QString &text) {
-        const auto query = text.trimmed();
-        if (query.isEmpty() || m_mode == Mode::Commands) {
+        if (text.trimmed().isEmpty() || m_mode == Mode::Commands) {
             timer->stop();
             updateResults();
         } else {
@@ -51,24 +66,21 @@ WorkspaceSearch::WorkspaceSearch(QSqlDatabase database, QMap<QString, QString> p
     });
     connect(timer, &QTimer::timeout, this, &WorkspaceSearch::updateResults);
     connect(m_input, &QLineEdit::returnPressed, this, [this] {
-        if (m_resultQuery != m_input->text().trimmed()) updateResults();
+        if (m_resultQuery != queryText()) updateResults();
         activate(m_results->currentItem());
     });
-    connect(m_results, &QListWidget::itemClicked, this, &WorkspaceSearch::activate);
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *previous, QWidget *current) {
-        if (!m_fullResults && isVisible() && isAncestorOf(previous) && !isAncestorOf(current))
+        if (isVisible() && isAncestorOf(previous) && !isAncestorOf(current))
             hide();
     });
 }
-void WorkspaceSearch::setFullResults() {
-    m_fullResults = true;
-    setProperty("searchPopup", false);
-    m_limit = 100;
-    m_input->hide();
-    m_results->setMaximumHeight(QWIDGETSIZE_MAX);
-    m_results->installEventFilter(this);
-    static_cast<QVBoxLayout *>(layout())->setStretch(1, 1);
+
+void WorkspaceSearch::addCommands(const QMap<QString, QString> &commands) {
+    m_entries.insert(commands);
+    for (auto it = commands.keyBegin(); it != commands.keyEnd(); ++it)
+        m_commandRoutes.insert(*it);
 }
+
 void WorkspaceSearch::setBatchActions(const QList<QAction *> &actions) {
     m_batchActions = actions;
     for (auto *action : m_batchActions) {
@@ -79,12 +91,14 @@ void WorkspaceSearch::setBatchActions(const QList<QAction *> &actions) {
 }
 
 void WorkspaceSearch::open(Mode mode, QList<QPair<QString, QString>> recent) {
+    if (m_fullResults) return;
     m_recent = std::move(recent);
-    if (m_mode != mode) {
+    const bool modeChanged = m_mode != mode;
+    if (modeChanged) {
         m_mode = mode;
         switch (mode) {
         case Mode::Commands:
-            m_input->setPlaceholderText(QStringLiteral("搜索页面或批量操作"));
+            m_input->setPlaceholderText(QStringLiteral("搜索页面或命令"));
             break;
         case Mode::IndependentActress:
             m_input->setPlaceholderText(QStringLiteral("输入女演员姓名，在独立页打开详情"));
@@ -93,9 +107,9 @@ void WorkspaceSearch::open(Mode mode, QList<QPair<QString, QString>> recent) {
             m_input->setPlaceholderText(QStringLiteral("搜索人物、作品、标签或分类"));
             break;
         }
-        m_input->clear();
     }
-    if (m_input->text().trimmed().isEmpty()) m_results->setCurrentRow(-1);
+    if (m_mode == Mode::Commands || modeChanged) m_input->clear();
+    if (queryText().isEmpty()) m_results->setCurrentRow(-1);
     updateResults();
     focusSearch();
 }
@@ -133,7 +147,12 @@ void WorkspaceSearch::focusSearch() {
 
 void WorkspaceSearch::showEvent(QShowEvent *event) {
     QFrame::showEvent(event);
-    if (!m_fullResults) qApp->installEventFilter(this);
+    if (!m_fullResults) {
+        qApp->installEventFilter(this);
+    } else if (!m_results) {
+        buildUi();
+        updateResults();
+    }
 }
 
 void WorkspaceSearch::hideEvent(QHideEvent *event) {
@@ -142,16 +161,21 @@ void WorkspaceSearch::hideEvent(QHideEvent *event) {
 }
 
 void WorkspaceSearch::search(const QString &text) {
+    if (m_fullResults) {
+        m_pageQuery = text;
+        if (m_results) updateResults();
+        return;
+    }
     m_input->setText(text);
     updateResults();
-    if (!m_fullResults) focusSearch();
+    focusSearch();
 }
 void WorkspaceSearch::activate(QListWidgetItem *item) {
     if (!item || item->data(Qt::UserRole).toString().isEmpty()) return;
     if (auto *action = item->data(actionRole).value<QAction *>()) {
         if (!action->isEnabled()) return;
         hide();
-        m_input->clear();
+        if (m_input) m_input->clear();
         action->trigger();
         return;
     }
@@ -188,13 +212,12 @@ bool WorkspaceSearch::eventFilter(QObject *object, QEvent *event) {
             if (!m_fullResults) {
                 hide();
             } else {
-                for (auto *timer : findChildren<QTimer *>()) timer->stop();
                 m_results->hide();
             }
             return true;
         }
         if (key->key() == Qt::Key_Down || key->key() == Qt::Key_Up) {
-            if (!m_results->isVisible() || m_resultQuery != m_input->text().trimmed()) updateResults();
+            if (!m_results->isVisible() || m_resultQuery != queryText()) updateResults();
             if (m_results->count() == 0) return true;
             const int delta = key->key() == Qt::Key_Down ? 1 : -1;
             for (int row = m_results->currentRow() + delta; row >= 0 && row < m_results->count(); row += delta) {
@@ -211,12 +234,16 @@ bool WorkspaceSearch::eventFilter(QObject *object, QEvent *event) {
     }
     return QFrame::eventFilter(object, event);
 }
+QString WorkspaceSearch::queryText() const {
+    return (m_fullResults ? m_pageQuery : m_input->text()).trimmed();
+}
+
 void WorkspaceSearch::updateResults() {
-    const auto previousRoute = m_resultQuery == m_input->text().trimmed() && m_results->currentItem()
+    const auto text = queryText();
+    const auto previousRoute = m_resultQuery == text && m_results->currentItem()
         ? m_results->currentItem()->data(Qt::UserRole).toString() : QString();
     m_results->clear();
-    m_more->hide();
-    const auto text = m_input->text().trimmed();
+    if (m_more) m_more->hide();
     m_resultQuery = text;
     auto add = [this](const QString &title, const QString &route) {
         auto *item = new QListWidgetItem(title, m_results);
@@ -235,13 +262,12 @@ void WorkspaceSearch::updateResults() {
                 (kind == PersonKind::Actress ? QStringLiteral("actress_detail/") : QStringLiteral("actor_works/")) + QString::number(person.id));
     };
     if (m_mode == Mode::Commands) {
-        QSet<QString> addedPages;
-        if (text.isEmpty()) {
-            for (const auto &[route, title] : m_recent) {
-                add(QStringLiteral("最近 · ") + title, route);
-                addedPages.insert(route);
-            }
-        }
+        const auto pagePrefix = QStringLiteral("页面 · ");
+        const auto commandPrefix = QStringLiteral("命令 · ");
+        const auto entryTitle = [&](const QString &route, const QString &title) {
+            return (m_commandRoutes.contains(route) ? commandPrefix : pagePrefix) + title;
+        };
+        QSet<QString> addedRoutes;
         static const QMap<QString, QString> aliases{
             {QStringLiteral("女优"), QStringLiteral("actress")},
             {QStringLiteral("女优库"), QStringLiteral("actress")},
@@ -252,7 +278,6 @@ void WorkspaceSearch::updateResults() {
             {QStringLiteral("书架"), QStringLiteral("shelf")},
             {QStringLiteral("作品过滤器"), QStringLiteral("work_filters")},
             {QStringLiteral("女演员详情"), QStringLiteral("actress_detail")},
-            {QStringLiteral("信息面板"), QStringLiteral("information")},
             {QStringLiteral("时间轴"), QStringLiteral("timeline")},
             {QStringLiteral("暗黑界"), QStringLiteral("av")},
             {QStringLiteral("通知"), QStringLiteral("inbox")},
@@ -260,26 +285,31 @@ void WorkspaceSearch::updateResults() {
             {QStringLiteral("软删除"), QStringLiteral("manage_deleted")},
         };
         const auto exactRoute = aliases.value(text);
-        for (auto it = m_pages.cbegin(); it != m_pages.cend(); ++it) {
+        for (auto it = m_entries.cbegin(); it != m_entries.cend(); ++it) {
             if (it.value() == text || it.key() == exactRoute) {
-                add(QStringLiteral("打开 · ") + it.value(), it.key());
-                addedPages.insert(it.key());
+                add(entryTitle(it.key(), it.value()), it.key());
+                addedRoutes.insert(it.key());
             }
         }
-        for (const bool management : {false, true}) {
-            for (auto it = m_pages.cbegin(); it != m_pages.cend(); ++it) {
-                if (addedPages.contains(it.key()) || it.key().startsWith(QStringLiteral("manage_")) != management)
+        const auto addMatches = [&](bool commands, bool management) {
+            for (auto it = m_entries.cbegin(); it != m_entries.cend(); ++it) {
+                const bool isCommand = m_commandRoutes.contains(it.key());
+                const bool isManagementPage = !isCommand && it.key().startsWith(QStringLiteral("manage_"));
+                if (isCommand != commands || isManagementPage != management || addedRoutes.contains(it.key()))
                     continue;
-                const auto label = management ? QStringLiteral("管理 · ") : QStringLiteral("打开 · ");
-                const auto title = label + it.value();
-                if (text.isEmpty() || title.contains(text, Qt::CaseInsensitive)
+                const auto title = (isCommand ? commandPrefix : pagePrefix) + it.value();
+                if (title.contains(text, Qt::CaseInsensitive)
+                    || (management && QStringLiteral("管理").contains(text))
                     || it.key().contains(text, Qt::CaseInsensitive)) {
                     add(title, it.key());
                 }
             }
-        }
+        };
+        addMatches(false, false);
+        addMatches(false, true);
+        addMatches(true, false);
         for (auto *action : m_batchActions) {
-            auto title = QStringLiteral("批量操作 · ") + action->text();
+            auto title = commandPrefix + QStringLiteral("批量操作 · ") + action->text();
             if (!title.contains(text, Qt::CaseInsensitive) &&
                 !action->toolTip().contains(text, Qt::CaseInsensitive))
                 continue;

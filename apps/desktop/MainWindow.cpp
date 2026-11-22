@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "app/Resources.h"
 #include "settings/SettingsStore.h"
 #include "utils/Documentation.h"
 
@@ -6,18 +7,25 @@
 #include "ui/pages/ActressDetailPage.h"
 #include "ui/pages/ActressPage.h"
 #include "ui/pages/AvPage.h"
-#include "ui/pages/ManagementPage.h"
 #include "ui/pages/ForceDirectPage.h"
 #include "ui/pages/FanartBrowserPage.h"
 #include "ui/pages/InboxPage.h"
 #include "ui/pages/HomePage.h"
 #include "ui/pages/PersonDetailPage.h"
 #include "ui/pages/PersonPage.h"
-#include "ui/pages/StatisticsPage.h"
+#include "ui/pages/PersonalDataPanels.h"
+#include "ui/pages/StatisticsChartPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/ShelfPage.h"
 #include "ui/pages/PlaceholderPage.h"
 #include "ui/pages/WorkPage.h"
+#include "ui/pages/AddWorkTabPage3.h"
+#include "ui/pages/LabelManagementWidget.h"
+#include "ui/pages/MakerManagementWidget.h"
+#include "ui/pages/PersonalRecordManagementWidget.h"
+#include "ui/pages/SummaryQueryWidget.h"
+#include "ui/pages/TagManagementWidget.h"
+#include "ui/pages/WorkBatchStateWidget.h"
 #include "ui/components/WorkFilter.h"
 #include "crawler/CrawlerScheduler.h"
 #include "http/LocalApiServer.h"
@@ -53,6 +61,7 @@
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
@@ -60,6 +69,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPixmap>
+#include <QScreen>
 #include <QScrollArea>
 #include <QStackedLayout>
 #include <QVBoxLayout>
@@ -75,6 +85,7 @@
 #include <Windows.h>
 #include <psapi.h>
 #elif defined(Q_OS_MACOS)
+#include "MacWindowAppearance.h"
 #include "MacWorkspaceShortcuts.h"
 #include <mach/mach.h>
 #include <sys/resource.h>
@@ -87,26 +98,62 @@ namespace darkeye
 namespace
 {
 
-struct ManagementRoute
-{
-    QString route;
-    QString title;
-    ManagementPage::Section section;
-};
-
-const auto managementRoutes = {
-    ManagementRoute{QStringLiteral("manage_tags"), QStringLiteral("标签管理"), ManagementPage::Section::Tags},
-    ManagementRoute{QStringLiteral("manage_makers"), QStringLiteral("片商管理"), ManagementPage::Section::Makers},
-    ManagementRoute{QStringLiteral("manage_labels"), QStringLiteral("厂牌管理"), ManagementPage::Section::Labels},
-    ManagementRoute{QStringLiteral("manage_series"), QStringLiteral("系列管理"), ManagementPage::Section::Series},
-    ManagementRoute{QStringLiteral("manage_summary"), QStringLiteral("资料汇总"), ManagementPage::Section::SummaryQuery},
-    ManagementRoute{QStringLiteral("manage_records"), QStringLiteral("个人记录"), ManagementPage::Section::PersonalRecords},
-    ManagementRoute{QStringLiteral("manage_deleted"), QStringLiteral("批量移入回收站"), ManagementPage::Section::SoftDelete},
-    ManagementRoute{QStringLiteral("manage_trash"), QStringLiteral("回收站"), ManagementPage::Section::RecycleBin},
-};
-
 constexpr qsizetype recentWorkspaceLimit = 9;
 const auto actressSwitchRoute = QStringLiteral("actress_detail/switch");
+const auto restoreWorkspacePresetCommand = QStringLiteral("restore_workspace_preset");
+
+const auto libraryOverviewRoute = QStringLiteral("library_overview");
+const auto topActressesRoute = QStringLiteral("top_actresses");
+const auto recordHeatmapRoute = QStringLiteral("record_heatmap");
+const auto legacyPersonalDataRoute = QStringLiteral("information");
+
+QJsonObject migratePersonalDataTabs(QJsonObject layout)
+{
+    const auto contentsKey = QStringLiteral("pane_contents");
+    const auto contentIdKey = QStringLiteral("content_id");
+    if (!layout.value(contentsKey).isObject())
+        return layout;
+
+    auto contents = layout.value(contentsKey).toObject();
+    QSet<QString> existingRoutes;
+    for (const auto &pane : std::as_const(contents))
+        for (const auto &tab : pane.toArray())
+            existingRoutes.insert(tab.toObject().value(contentIdKey).toString());
+    if (!existingRoutes.contains(legacyPersonalDataRoute))
+        return layout;
+
+    const auto metadataKey = QStringLiteral("pane_metadata");
+    const auto currentIdKey = QStringLiteral("current_content_id");
+    auto metadata = layout.value(metadataKey).toObject();
+    for (auto pane = contents.begin(); pane != contents.end(); ++pane) {
+        const auto tabs = pane.value().toArray();
+        QJsonArray replacements;
+        bool migrated = false;
+        for (const auto &tab : tabs) {
+            if (tab.toObject().value(contentIdKey).toString() != legacyPersonalDataRoute) {
+                replacements.append(tab);
+                continue;
+            }
+            migrated = true;
+            for (const auto &route : {libraryOverviewRoute, topActressesRoute, recordHeatmapRoute}) {
+                if (!existingRoutes.contains(route)) {
+                    replacements.append(QJsonObject{{contentIdKey, route}});
+                    existingRoutes.insert(route);
+                }
+            }
+        }
+        if (!migrated) continue;
+        pane.value() = replacements;
+        auto selected = metadata.value(pane.key()).toObject();
+        if (selected.value(currentIdKey).toString() == legacyPersonalDataRoute) {
+            selected.insert(currentIdKey, libraryOverviewRoute);
+            metadata.insert(pane.key(), selected);
+        }
+    }
+    layout.insert(contentsKey, contents);
+    layout.insert(metadataKey, metadata);
+    return layout;
+}
 
 struct ShelfReferenceRoute
 {
@@ -121,12 +168,13 @@ const QMap<QString, ShelfReferenceRoute> shelfReferenceRoutes{
     {QStringLiteral("series"), {QStringLiteral("系列"), &WorkRepository::seriesOptions, &ShelfPage::filterBySeries}},
 };
 
-bool isRecentWorkspaceRoute(const QString &route)
+bool isRecentEntityRoute(const QString &route)
 {
     const auto view = QStringView(route);
     const auto slash = view.indexOf(u'/');
-    const auto base = slash < 0 ? view : view.first(slash);
-    return !base.isEmpty() && base != u"new"
+    if (slash <= 0) return false;
+    const auto base = view.first(slash);
+    return base != u"new"
         && base != u"setting" && base != u"search" && base != u"database" && base != u"person_graph"
         && base != u"manage_work" && base != u"actor_detail";
 }
@@ -329,6 +377,16 @@ void MainWindow::updateWindowTitle()
 
 void MainWindow::showInitial()
 {
+    // Apply the initial geometry after Qt creates the native window.
+#ifdef Q_OS_MACOS
+    hideMacTitleBarSeparator(*this);
+#else
+    winId();
+#endif
+    if (const auto *initialScreen = screen()) {
+        const QSize availableSize = initialScreen->availableGeometry().size();
+        if (!availableSize.isEmpty()) resize(availableSize * 0.85);
+    }
     if (settings::app().maximized)
     {
         showMaximized();
@@ -420,6 +478,8 @@ void MainWindow::buildUi()
     m_workspace->setObjectName(QStringLiteral("mainWorkspace"));
     const auto appSettings = settings::app(m_paths.settingsFile());
     m_workspace->setSidebarAutoCollapse(appSettings.sidebarAutoCollapse);
+    m_workspace->setSidebarToggleVisible(myads::SidebarSide::Left, appSettings.leftSidebarToggleVisible);
+    m_workspace->setSidebarToggleVisible(myads::SidebarSide::Right, appSettings.rightSidebarToggleVisible);
     myads::bindDarkeyeTheme(m_workspace, &m_themeService);
     connect(m_workspace, &myads::WorkspaceWidget::contentClosed, this, [this](const QString &route) {
         if (m_routePages.value(route) == m_localGraphSource && m_localGraphSource) {
@@ -474,7 +534,9 @@ void MainWindow::buildUi()
     registerPage(QStringLiteral("修改女演员"), QStringLiteral("modify_actress"));
     registerPage(QStringLiteral("修改男演员"), QStringLiteral("modify_actor"));
     registerPage(QStringLiteral("统计"), QStringLiteral("chart"));
-    registerPage(QStringLiteral("个人数据概览"), QStringLiteral("information"));
+    registerPage(QStringLiteral("库藏概览"), libraryOverviewRoute);
+    registerPage(QStringLiteral("最喜欢的女优"), topActressesRoute);
+    registerPage(QStringLiteral("个人记录热力图"), recordHeatmapRoute);
     registerPage(QStringLiteral("全局关系图"), QStringLiteral("graph"));
     registerPage(QStringLiteral("局部关系图"), QStringLiteral("local_graph"));
     registerPage(QStringLiteral("作品时间轴"), QStringLiteral("timeline"));
@@ -482,9 +544,21 @@ void MainWindow::buildUi()
     registerPage(QStringLiteral("暗黑界知识库"), QStringLiteral("av"));
     registerPage(QStringLiteral("采集任务"), QStringLiteral("inbox"));
 
-    for (const auto &entry : managementRoutes)
-        registerPage(entry.title, entry.route);
+    registerPage(QStringLiteral("标签管理"), QStringLiteral("manage_tags"));
+    registerPage(QStringLiteral("片商管理"), QStringLiteral("manage_makers"));
+    registerPage(QStringLiteral("厂牌管理"), QStringLiteral("manage_labels"));
+    registerPage(QStringLiteral("系列管理"), QStringLiteral("manage_series"));
+    registerPage(QStringLiteral("资料汇总"), QStringLiteral("manage_summary"));
+    registerPage(QStringLiteral("个人记录"), QStringLiteral("manage_records"));
+    registerPage(QStringLiteral("批量移入回收站"), QStringLiteral("manage_deleted"));
+    registerPage(QStringLiteral("回收站"), QStringLiteral("manage_trash"));
     m_globalSearch = new WorkspaceSearch(m_publicDatabase, workspaceCommandPages(), centralWidget);
+    auto commands = SettingsDialog::workspaceCommands();
+    commands.insert(QStringLiteral("open_help"), QStringLiteral("帮助"));
+    commands.insert(QStringLiteral("open_github"), QStringLiteral("GitHub 项目仓库"));
+    commands.insert(QStringLiteral("open_changelog"), QStringLiteral("版本记录"));
+    commands.insert(restoreWorkspacePresetCommand, QStringLiteral("恢复预设工作区布局"));
+    m_globalSearch->addCommands(commands);
     m_globalSearch->hide();
     m_globalSearch->setAutoFillBackground(true);
     connect(m_globalSearch, &WorkspaceSearch::openRequested, this, [this](const QString &route) { navigateTo(route); });
@@ -542,20 +616,22 @@ void MainWindow::buildUi()
     connect(m_workspace, &myads::WorkspaceWidget::activeContentChanged, emptyState, updateEmptyHint);
     connect(m_workspace, &myads::WorkspaceWidget::layoutChanged, emptyState, updateEmptyHint);
     updateEmptyHint();
+    const auto savedLayout = workspaceFile();
+    if (!QFile::exists(savedLayout)) {
+        restoreWorkspacePreset();
+        return;
+    }
     QString error;
-    const bool restored = QFile::exists(workspaceFile()) && m_workspace->loadLayout(workspaceFile(),
-        [this](const QJsonObject &descriptor) -> std::optional<myads::ContentConfig> {
-            const auto route = descriptor.value(QStringLiteral("content_id")).toString();
-            auto *page = ensurePage(route, descriptor.value(QStringLiteral("actress_id")).toString().toLongLong());
-            if (!page) return std::nullopt;
-            auto config = myads::ContentConfig(route).setWidget(page).setWindowTitle(page->windowTitle());
-            if (page == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
-            return config;
-        }, &error);
+    const auto layoutData = myads::loadLayoutFile(savedLayout, &error);
+    const bool restored = !layoutData.isEmpty() &&
+        m_workspace->restoreLayout(migratePersonalDataTabs(layoutData),
+            [this](const QJsonObject &descriptor) { return workspaceContent(descriptor); }, &error);
     if (!restored && !error.isEmpty()) qWarning() << "Workspace restore:" << error;
     if (restored) {
         QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
-        const auto active = settings.value(QStringLiteral("workspace/activeRoute")).toString();
+        auto active = settings.value(QStringLiteral("workspace/activeRoute")).toString();
+        if (active == legacyPersonalDataRoute)
+            active = libraryOverviewRoute;
         if (m_workspace->findPaneByContentId(active) || active.startsWith(QStringLiteral("work_detail/")))
             navigateTo(active, false);
     }
@@ -601,6 +677,7 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         connect(button, &QPushButton::clicked, action, &QAction::trigger);
     };
     addActionButton(pageLayout, QStringLiteral("workspace_search"), QStringLiteral("搜索实体"), QStringLiteral("search"));
+    addActionButton(pageLayout, QStringLiteral("add_quick_work"), QStringLiteral("添加作品"), QStringLiteral("plus"));
 
     const struct { const char *route; const char *icon; } entries[] = {
         {"home", "house"},
@@ -610,7 +687,6 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         {"actor", "mars"},
         {"chart", "chart_line"},
         {"graph", "share_2"},
-        {"information", "scroll_text"},
         {"av", "tv"},
         {"inbox", "arrow_down_to_line"},
     };
@@ -621,7 +697,7 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         connect(button, &QPushButton::clicked, this, [this, route] { navigateTo(route); });
     }
 
-    addActionButton(pageLayout, QStringLiteral("workspace_commands"), QStringLiteral("更多页面与命令"), QStringLiteral("menu"));
+    addActionButton(pageLayout, QStringLiteral("workspace_commands"), QStringLiteral("更多页面与命令"), QStringLiteral("layout_grid"));
     addActionButton(layout, QStringLiteral("open_help"), QStringLiteral("帮助"), QStringLiteral("circle_question"));
     addActionButton(layout, QStringLiteral("open_settings"), QStringLiteral("设置"), QStringLiteral("settings"));
     return bar;
@@ -736,9 +812,8 @@ void MainWindow::registerApplicationActions()
               QStringLiteral("M"), [this]
               {
                   AddMasturbationDialog dialog(m_publicDatabase, m_privateDatabase, this);
-                  connect(&dialog, &AddMasturbationDialog::recordAdded, this, [this] {
-                      refreshStatisticsPages();
-                  });
+                  connect(&dialog, &AddMasturbationDialog::recordAdded, this,
+                          &MainWindow::refreshPersonalRecordPanels);
                   dialog.exec();
               });
     addAction(QStringLiteral("add_quick_work"), QStringLiteral("批量录入与补全作品"),
@@ -750,18 +825,16 @@ void MainWindow::registerApplicationActions()
               QStringLiteral("L"), [this]
               {
                   AddMakeLoveDialog dialog(m_privateDatabase, this);
-                  connect(&dialog, &AddMakeLoveDialog::recordAdded, this, [this] {
-                      refreshStatisticsPages();
-                  });
+                  connect(&dialog, &AddMakeLoveDialog::recordAdded, this,
+                          &MainWindow::refreshPersonalRecordPanels);
                   dialog.exec();
               });
     addAction(QStringLiteral("add_sexual_rousal_record"), QStringLiteral("添加晨勃记录"),
               QStringLiteral("A"), [this]
               {
                   AddSexualArousalDialog dialog(m_privateDatabase, this);
-                  connect(&dialog, &AddSexualArousalDialog::recordAdded, this, [this] {
-                      refreshStatisticsPages();
-                  });
+                  connect(&dialog, &AddSexualArousalDialog::recordAdded, this,
+                          &MainWindow::refreshPersonalRecordPanels);
                   dialog.exec();
               });
     addAction(QStringLiteral("open_help"), QStringLiteral("打开文档"), QStringLiteral("H"),
@@ -777,21 +850,23 @@ void MainWindow::registerApplicationActions()
 
 void MainWindow::openWorkspaceSearch(bool commands)
 {
+    if (commands) {
+        m_globalSearch->open(WorkspaceSearch::Mode::Commands, {});
+        return;
+    }
+
     const QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
     const auto routes = settings.value(QStringLiteral("workspace/recentPages")).toStringList();
-    const auto pages = commands ? workspaceCommandPages() : QMap<QString, QString>{};
     QList<QPair<QString, QString>> recent;
     for (const auto &route : routes) {
-        if (!isRecentWorkspaceRoute(route) || (commands ? !pages.contains(route) : !route.contains(u'/')))
-            continue;
+        if (!isRecentEntityRoute(route)) continue;
         const auto title = settings.value(QStringLiteral("workspace/titles/") + route,
                                           m_routeTitles.value(route)).toString();
         if (title.isEmpty()) continue;
         recent.append({route, title});
         if (recent.size() == recentWorkspaceLimit) break;
     }
-    m_globalSearch->open(commands ? WorkspaceSearch::Mode::Commands : WorkspaceSearch::Mode::Entities,
-                         std::move(recent));
+    m_globalSearch->open(WorkspaceSearch::Mode::Entities, std::move(recent));
 }
 
 QWidget *MainWindow::partialCaptureTarget()
@@ -800,6 +875,8 @@ QWidget *MainWindow::partialCaptureTarget()
     auto *page = pane ? pane->contentWidget(pane->currentContentId()) : nullptr;
     if (auto *detail = qobject_cast<PersonDetailPage *>(page))
         return detail->captureContent();
+    if (auto *chart = qobject_cast<StatisticsChartPage *>(page))
+        return chart->captureContent();
     return page;
 }
 
@@ -854,9 +931,12 @@ void MainWindow::changeTheme(int index)
     settings::saveApp(appSettings);
 }
 
-void MainWindow::refreshStatisticsPages()
+void MainWindow::refreshPersonalRecordPanels()
 {
-    for (auto *page : findChildren<StatisticsPage *>()) page->refresh();
+    if (auto *page = qobject_cast<TopActressesPage *>(m_routePages.value(topActressesRoute).data()))
+        page->refresh();
+    if (auto *page = qobject_cast<RecordHeatmapPage *>(m_routePages.value(recordHeatmapRoute).data()))
+        page->refresh();
 }
 
 void MainWindow::queueWorkspaceRefresh(WorkspaceChanges changes, qint64 workId)
@@ -896,7 +976,10 @@ void MainWindow::refreshWorkspace()
         if (!lazyPage || !lazyPage->isInitialized())
             continue;
 
-        if (auto *list = qobject_cast<WorkPage *>(lazyPage)) {
+        if (auto *workState = qobject_cast<WorkBatchStateWidget *>(lazyPage)) {
+            if (works)
+                workState->refresh();
+        } else if (auto *list = qobject_cast<WorkPage *>(lazyPage)) {
             if (workDataChanged || workFavorites)
                 list->refreshFromWorkspace(tags, references);
         } else if (auto *shelf = qobject_cast<ShelfPage *>(lazyPage)) {
@@ -910,16 +993,19 @@ void MainWindow::refreshWorkspace()
         } else if (auto *detail = qobject_cast<PersonDetailPage *>(lazyPage)) {
             if ((actresses || actressFavorites || works || tags || references) && detail->currentPersonId() > 0)
                 detail->showPerson(detail->currentPersonId());
-        } else if (auto *management = qobject_cast<ManagementPage *>(lazyPage)) {
+        } else if (auto *editor = qobject_cast<AddWorkTabPage3 *>(lazyPage)) {
             if (people || tags)
-                management->refreshPersonSelectors();
+                editor->refreshAssociations();
             if (references)
-                management->refreshReferences();
+                editor->refreshReferences(true);
             if (works)
-                management->refreshWorkLists();
-        } else if (auto *statistics = qobject_cast<StatisticsPage *>(lazyPage)) {
-            if (works || people || workFavorites || actressFavorites)
-                statistics->refresh();
+                editor->refreshCompletions();
+        } else if (auto *overview = qobject_cast<LibraryOverviewPage *>(lazyPage)) {
+            if (works || people || tags || workFavorites || actressFavorites)
+                overview->refresh();
+        } else if (auto *topActresses = qobject_cast<TopActressesPage *>(lazyPage)) {
+            if (works || actresses)
+                topActresses->refresh();
         }
     }
 
@@ -1011,7 +1097,7 @@ void MainWindow::updateTimelineFocus()
 
 void MainWindow::updateTimeline()
 {
-    if (!m_timelinePage) return;
+    if (!m_timelinePage || !m_timelinePage->isInitialized()) return;
     auto *source = m_timelineSource.data();
     if (auto *works = qobject_cast<WorkPage *>(source)) {
         m_timelinePage->setFilteredWorks(works->filteredWorks());
@@ -1137,6 +1223,51 @@ QString MainWindow::workspaceFile() const
     return QDir(QFileInfo(m_paths.settingsFile()).absolutePath()).filePath(QStringLiteral("workspace-v2.json"));
 }
 
+std::optional<myads::ContentConfig> MainWindow::workspaceContent(const QJsonObject &descriptor)
+{
+    const auto route = descriptor.value(QStringLiteral("content_id")).toString();
+    auto *page = ensurePage(route, descriptor.value(QStringLiteral("actress_id")).toString().toLongLong());
+    if (!page) return std::nullopt;
+    auto config = myads::ContentConfig(route).setWidget(page).setWindowTitle(page->windowTitle());
+    if (page == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
+    return config;
+}
+
+void MainWindow::restoreWorkspacePreset()
+{
+    Resources::ensureInitialized();
+    QString error;
+    const auto preset = myads::loadLayoutFile(QStringLiteral(":/workspace/browsing.json"), &error);
+    if (!preset.isEmpty()) {
+        QSet<QString> presetRoutes;
+        const auto contents = preset.value(QStringLiteral("pane_contents")).toObject();
+        for (const auto &tabs : contents) {
+            for (const auto &tab : tabs.toArray())
+                presetRoutes.insert(tab.toObject().value(QStringLiteral("content_id")).toString());
+        }
+
+        QStringList closingRoutes;
+        for (const auto &route : m_routePages.keys()) {
+            auto *page = m_routePages.value(route).data();
+            if (!page || presetRoutes.contains(route)) continue;
+            QCloseEvent check;
+            QCoreApplication::sendEvent(page, &check);
+            if (!check.isAccepted()) return;
+            closingRoutes.append(route);
+        }
+
+        if (m_workspace->restoreLayout(preset, [this](const QJsonObject &descriptor) {
+                return workspaceContent(descriptor);
+            }, &error)) {
+            for (const auto &route : closingRoutes) m_routePages.remove(route);
+            m_workspace->setSidebarOpen(myads::SidebarSide::Left, true);
+            m_workspace->setSidebarOpen(myads::SidebarSide::Right, true);
+            return;
+        }
+    }
+    QMessageBox::warning(this, QStringLiteral("恢复预设工作区布局失败"), error);
+}
+
 void MainWindow::closeCurrentTab()
 {
     auto *pane = m_workspace->activePane();
@@ -1154,10 +1285,6 @@ QMap<QString, QString> MainWindow::workspaceCommandPages() const
 {
     auto pages = m_routeTitles;
     pages.insert(QStringLiteral("setting"), QStringLiteral("设置"));
-    pages.insert(QStringLiteral("open_help"), QStringLiteral("帮助"));
-    pages.insert(QStringLiteral("open_github"), QStringLiteral("GitHub 项目仓库"));
-    pages.insert(QStringLiteral("open_changelog"), QStringLiteral("版本记录"));
-    pages.insert(SettingsDialog::workspaceCommands());
     pages.insert(QStringLiteral("work_filters"), m_workFilter->windowTitle());
     pages.insert(WorkspaceSearch::independentActressCommand, QStringLiteral("女演员详情（独立页）"));
     for (const auto &route : {QStringLiteral("fanart"),
@@ -1176,8 +1303,8 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
     QWidget *widget = nullptr;
     QString title = m_routeTitles.value(base);
     if (base == QStringLiteral("search") && !argument.isEmpty()) {
-        auto *results = new WorkspaceSearch(m_publicDatabase, {});
-        results->setFullResults();
+        auto *results = new WorkspaceSearch(m_publicDatabase, {}, nullptr,
+                                            WorkspaceSearch::Presentation::ResultsPage);
         connect(results, &WorkspaceSearch::openRequested, this, [this](const QString &route) { navigateTo(route); });
         const auto query = QUrl::fromPercentEncoding(argument.toLatin1());
         results->search(query);
@@ -1204,20 +1331,22 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
         if (!switching && !detail->currentPersonName().isEmpty()) title = detail->currentPersonName();
     } else if ((base == QStringLiteral("modify_actress") || base == QStringLiteral("modify_actor")) && id > 0) {
         const auto kind = base == QStringLiteral("modify_actress") ? PersonKind::Actress : PersonKind::Actor;
-        const auto person = PersonRepository(m_publicDatabase).findDetails(kind, id);
-        if (!person) return nullptr;
-        widget = createPage(title, base, nullptr);
-        if (kind == PersonKind::Actress) static_cast<ModifyActressPage *>(widget)->loadActress(id);
-        else static_cast<ModifyActorPage *>(widget)->loadActor(id);
-        if (!person->names.isEmpty()) {
-            const auto &name = person->names.first();
-            title = QStringLiteral("编辑 · ") + (name.chinese.isEmpty() ? name.japanese : name.chinese);
-        }
+        PersonSearch query;
+        query.kind = kind;
+        query.includedIds = {id};
+        query.restrictToIncludedIds = true;
+        query.limit = 1;
+        const auto people = PersonRepository(m_publicDatabase).search(query);
+        if (people.isEmpty()) return nullptr;
+        auto *editor = static_cast<PersonEditorPage *>(createPage(title, base, nullptr));
+        editor->setInitialPerson(kind, id);
+        widget = editor;
+        title = QStringLiteral("编辑 · ") + people.first().name;
     } else if (base == QStringLiteral("work_edit") && id > 0) {
         const auto work = WorkRepository(m_publicDatabase).findById(id);
         if (!work) return nullptr;
-        auto *editor = static_cast<ManagementPage *>(createPage({}, base, nullptr));
-        editor->loadWork(id);
+        auto *editor = static_cast<AddWorkTabPage3 *>(createPage({}, base, nullptr));
+        editor->loadWorkAsync(id);
         title = QStringLiteral("编辑 · ") + work->serialNumber;
         widget = editor;
     } else if ((base == QStringLiteral("tag") || shelfReferenceRoutes.contains(base)) && id > 0) {
@@ -1384,66 +1513,90 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
         });
         return editor;
     }
-    std::optional<ManagementPage::Section> managementSection;
     if (routeName == QStringLiteral("work_edit"))
-        managementSection = ManagementPage::Section::WorkEditor;
-    else
-        for (const auto &entry : managementRoutes)
-            if (entry.route == routeName)
-            {
-                managementSection = entry.section;
-                break;
-            }
-    if (managementSection)
     {
-        auto *management = new ManagementPage(*managementSection, m_publicDatabase, m_themeService,
-                                              *m_crawlerScheduler, m_privateDatabase,
-                                              m_paths.workCoverDirectory(),
-                                              m_paths.fanartDirectory(), settings::crawler().coverFetchApiUrl,
-                                              parent,
-                                              m_paths.actressImageDirectory(), m_paths.actorImageDirectory());
-        connect(management, &ManagementPage::referencesChanged, this,
+        auto *editor = new AddWorkTabPage3(m_publicDatabase, m_themeService, *m_crawlerScheduler,
+                                          m_paths.workCoverDirectory(), m_paths.fanartDirectory(),
+                                          settings::crawler().coverFetchApiUrl, parent,
+                                          m_paths.actressImageDirectory(), m_paths.actorImageDirectory());
+        editor->setWorkCreationEnabled(false);
+        connect(editor, &AddWorkTabPage3::workSaved, this,
+                [this](qint64 workId, bool) { queueWorkspaceRefresh(WorksChanged, workId); });
+        connect(editor, &AddWorkTabPage3::referencesChanged, this,
                 [this] { queueWorkspaceRefresh(ReferencesChanged); });
-        connect(management, &ManagementPage::tagsChanged, this,
+        connect(editor, &AddWorkTabPage3::tagsChanged, this,
                 [this] { queueWorkspaceRefresh(TagsChanged); });
-        connect(management, &ManagementPage::worksChanged, this,
-                [this] { queueWorkspaceRefresh(WorksChanged); });
-        connect(management, &ManagementPage::workChanged, this,
-                [this](qint64 workId) { queueWorkspaceRefresh(WorksChanged, workId); });
-        connect(management, &ManagementPage::peopleChanged, this, [this](PersonKind kind) {
+        connect(editor, &AddWorkTabPage3::peopleChanged, this, [this](PersonKind kind) {
             queueWorkspaceRefresh(kind == PersonKind::Actress ? ActressesChanged : ActorsChanged);
         });
-        connect(management, &ManagementPage::actressesCreated, this,
-                &MainWindow::enqueueActressSyncs);
-        connect(management, &ManagementPage::workRequested, this, &MainWindow::showWorkInShelf);
-        connect(management, &ManagementPage::workEditRequested, this, &MainWindow::openWorkEditor);
-        connect(management, &ManagementPage::personEditRequested, this, &MainWindow::openPersonEditor);
-        connect(management, &ManagementPage::personDetailRequested, this,
-                [this](PersonKind kind, qint64 id) {
-                    openPerson(kind, id);
-                });
-        connect(management, &ManagementPage::actressRequested, this, [this](qint64 actressId) {
+        connect(editor, &AddWorkTabPage3::actressesCreated, this, &MainWindow::enqueueActressSyncs);
+        connect(editor, &AddWorkTabPage3::workLinkRequested, this, &MainWindow::showWorkInShelf);
+        connect(editor, &AddWorkTabPage3::personEditRequested, this, &MainWindow::openPersonEditor);
+        connect(editor, &AddWorkTabPage3::personDetailRequested, this,
+                [this](PersonKind kind, qint64 id) { openPerson(kind, id); });
+        connect(editor, &AddWorkTabPage3::actressLinkRequested, this, [this](qint64 actressId) {
             openPerson(PersonKind::Actress, actressId);
         });
-        return management;
+        return editor;
     }
-    if (routeName == QStringLiteral("chart") || routeName == QStringLiteral("information"))
+    if (routeName == QStringLiteral("manage_tags"))
     {
-        auto *statistics =
-            new StatisticsPage(m_publicDatabase, m_privateDatabase, m_themeService,
-                               m_paths.actressImageDirectory(), parent,
-                               routeName == QStringLiteral("information") ? StatisticsPage::Panel::Information
-                                                                           : StatisticsPage::Panel::Plots);
-        if (routeName == QStringLiteral("information")) statistics->setObjectName(QStringLiteral("InformationPage"));
-        connect(statistics, &StatisticsPage::actressDetailRequested, this,
-                [this](qint64 actressId) {
-                    openPerson(PersonKind::Actress, actressId);
-                });
-        connect(statistics, &StatisticsPage::actressEditRequested, this,
-                [this](qint64 actressId) {
-                    openPersonEditor(PersonKind::Actress, actressId);
-                });
-        return statistics;
+        auto *page = new TagManagementWidget(m_publicDatabase, m_themeService, parent);
+        const auto refreshTags = [this] { queueWorkspaceRefresh(TagsChanged); };
+        connect(page, &TagManagementWidget::tagsChanged, this, refreshTags);
+        connect(page, &TagManagementWidget::tagTypesChanged, this, refreshTags);
+        return page;
+    }
+    if (routeName == QStringLiteral("manage_makers"))
+    {
+        auto *page = new MakerManagementWidget(m_publicDatabase, m_themeService, parent);
+        const auto refreshReferences = [this] { queueWorkspaceRefresh(ReferencesChanged); };
+        connect(page, &MakerManagementWidget::referencesChanged, this, refreshReferences);
+        connect(page, &MakerManagementWidget::prefixesChanged, this, refreshReferences);
+        return page;
+    }
+    if (routeName == QStringLiteral("manage_labels") || routeName == QStringLiteral("manage_series"))
+    {
+        const auto kind = routeName == QStringLiteral("manage_labels") ? ReferenceKind::Label : ReferenceKind::Series;
+        auto *page = new LabelManagementWidget(kind, m_publicDatabase, m_themeService, parent);
+        connect(page, &LabelManagementWidget::referencesChanged, this,
+                [this] { queueWorkspaceRefresh(ReferencesChanged); });
+        return page;
+    }
+    if (routeName == QStringLiteral("manage_summary"))
+    {
+        auto *page = new SummaryQueryWidget(m_publicDatabase, m_themeService, parent);
+        connect(page, &SummaryQueryWidget::workRequested, this, &MainWindow::openWorkEditor);
+        return page;
+    }
+    if (routeName == QStringLiteral("manage_records"))
+        return new PersonalRecordManagementWidget(m_privateDatabase, m_themeService, parent);
+    if (routeName == QStringLiteral("manage_deleted") || routeName == QStringLiteral("manage_trash"))
+    {
+        const bool recycleBin = routeName == QStringLiteral("manage_trash");
+        auto *page = new WorkBatchStateWidget(recycleBin ? WorkStateMode::RecycleBin : WorkStateMode::Active,
+                                              m_publicDatabase, m_themeService,
+                                              recycleBin ? m_paths.workCoverDirectory() : QString(),
+                                              recycleBin ? m_paths.fanartDirectory() : QString(), parent);
+        connect(page, &WorkBatchStateWidget::worksChanged, this,
+                [this] { queueWorkspaceRefresh(WorksChanged); });
+        return page;
+    }
+    if (routeName == QStringLiteral("chart"))
+        return new StatisticsChartPage(m_publicDatabase, m_privateDatabase, m_themeService, parent);
+    if (routeName == libraryOverviewRoute)
+        return new LibraryOverviewPage(m_publicDatabase, m_privateDatabase, m_themeService, parent);
+    if (routeName == recordHeatmapRoute)
+        return new RecordHeatmapPage(m_publicDatabase, m_privateDatabase, m_themeService, parent);
+    if (routeName == topActressesRoute)
+    {
+        auto *page = new TopActressesPage(m_publicDatabase, m_privateDatabase, m_themeService,
+                                          m_paths.actressImageDirectory(), parent);
+        connect(page, &TopActressesPage::actressDetailRequested, this,
+                [this](qint64 actressId) { openPerson(PersonKind::Actress, actressId); });
+        connect(page, &TopActressesPage::actressEditRequested, this,
+                [this](qint64 actressId) { openPersonEditor(PersonKind::Actress, actressId); });
+        return page;
     }
     if (routeName == QStringLiteral("timeline"))
     {
@@ -1451,7 +1604,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
                                                  m_paths.actressImageDirectory(), &m_themeService);
         connect(timeline, &ActressWorkTimeline::workRequested, this, &MainWindow::showWorkInShelf);
         m_timelinePage = timeline;
-        updateTimeline();
+        connect(timeline, &ActressWorkTimeline::initialized, this, &MainWindow::updateTimeline);
         return timeline;
     }
     if (routeName == QStringLiteral("graph") || routeName == QStringLiteral("local_graph"))
@@ -1495,6 +1648,11 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
 void MainWindow::navigateTo(const QString &routeName, bool recordRecent, ActressOpenMode actressMode,
                             myads::PaneWidget *preferredPane, ShelfFilterPolicy shelfFilter)
 {
+    if (routeName == restoreWorkspacePresetCommand) {
+        m_globalSearch->hide();
+        restoreWorkspacePreset();
+        return;
+    }
     if (routeName == QStringLiteral("setting")) {
         openSettings();
         return;
@@ -1514,7 +1672,7 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
     const auto settingsCommandPrefix = SettingsDialog::workspaceCommandPrefix;
     if (routeName.startsWith(settingsCommandPrefix)) {
         m_globalSearch->hide();
-        openSettings();
+        ensureSettingsDialog();
         m_settingsDialog->runWorkspaceCommand(routeName.sliced(settingsCommandPrefix.size()));
         return;
     }
@@ -1602,6 +1760,8 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
     }
     if (!pane) {
         pane = destination.data();
+        if (!preferredPane && pageRoute == QStringLiteral("inbox"))
+            pane = m_workspace->sidebarPane(myads::SidebarSide::Right);
         if (!pane) pane = m_workspace->rootPane();
         auto config = myads::ContentConfig(pageRoute).setWidget(widget).setWindowTitle(widget->windowTitle());
         if (widget == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
@@ -1618,18 +1778,14 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         if (filtersDirector) shelf->filterByDirector(director);
         if (actor) shelf->filterByActor(actor->id, actor->name);
     }
-    if (recordRecent && isRecentWorkspaceRoute(routeName)) {
+    if (recordRecent && isRecentEntityRoute(routeName)) {
         QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
         auto recent = settings.value(QStringLiteral("workspace/recentPages")).toStringList();
-        recent.removeIf([&routeName](const QString &route) {
-            return route == routeName || !isRecentWorkspaceRoute(route);
-        });
+        recent.removeAll(routeName);
         recent.prepend(routeName);
         qsizetype entities = 0;
-        qsizetype pages = 0;
         recent.removeIf([&](const QString &route) {
-            auto &count = route.contains(u'/') ? entities : pages;
-            if (++count <= recentWorkspaceLimit) return false;
+            if (isRecentEntityRoute(route) && ++entities <= recentWorkspaceLimit) return false;
             settings.remove(QStringLiteral("workspace/titles/") + route);
             return true;
         });
@@ -1637,10 +1793,11 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         settings.setValue(QStringLiteral("workspace/titles/") + routeName,
                           recentTitle.isEmpty() ? widget->windowTitle() : recentTitle);
     }
-    if (auto *statistics = qobject_cast<StatisticsPage *>(widget)) statistics->refresh();
+    if (auto *chart = qobject_cast<StatisticsChartPage *>(widget))
+        chart->initialize();
 }
 
-void MainWindow::openSettings()
+void MainWindow::ensureSettingsDialog()
 {
     if (!m_settingsDialog) {
         auto *settings = new SettingsDialog(m_themeService, *m_shortcutActions,
@@ -1653,6 +1810,11 @@ void MainWindow::openSettings()
         });
         connect(settings, &SettingsDialog::sidebarAutoCollapseChanged,
                 m_workspace, &myads::WorkspaceWidget::setSidebarAutoCollapse);
+        connect(settings, &SettingsDialog::sidebarToggleVisibilityChanged,
+                this, [this](bool leftVisible, bool rightVisible) {
+            m_workspace->setSidebarToggleVisible(myads::SidebarSide::Left, leftVisible);
+            m_workspace->setSidebarToggleVisible(myads::SidebarSide::Right, rightVisible);
+        });
         connect(settings, &SettingsDialog::worksChanged, this,
                 [this] { queueWorkspaceRefresh(WorksChanged); });
         connect(settings, &SettingsDialog::quickWorkRequested, this,
@@ -1673,6 +1835,11 @@ void MainWindow::openSettings()
         populateThemeSelector();
         connect(m_themeSelector, &QComboBox::currentIndexChanged, this, &MainWindow::changeTheme);
     }
+}
+
+void MainWindow::openSettings()
+{
+    ensureSettingsDialog();
     if (!m_settingsDialog->isVisible()) m_settingsDialog->open();
     m_settingsDialog->raise();
     m_settingsDialog->activateWindow();

@@ -1,4 +1,5 @@
-#include "ui/pages/management/TagManagementWidget.h"
+#include "ui/pages/TagManagementWidget.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/ColorPicker.h"
@@ -52,7 +53,11 @@ QList<TagOption> toTagOptions(const QList<TagRecord> &records)
 
 TagManagementWidget::TagManagementWidget(QSqlDatabase database, ThemeService &themes,
                                          QWidget *parent)
-    : QWidget(parent), m_database(std::move(database)), m_repository(m_database), m_themes(themes)
+    : LazyWidget(parent), m_database(std::move(database)), m_repository(m_database), m_themes(themes)
+{
+}
+
+void TagManagementWidget::lazyLoad()
 {
     buildUi();
     refreshTagTypes();
@@ -61,7 +66,7 @@ TagManagementWidget::TagManagementWidget(QSqlDatabase database, ThemeService &th
 
 void TagManagementWidget::buildUi()
 {
-    auto *root = new QHBoxLayout(this);
+    auto *root = new QHBoxLayout(addPageScrollArea(this));
     root->setContentsMargins(10, 10, 10, 10);
     root->setSpacing(8);
 
@@ -200,6 +205,7 @@ void TagManagementWidget::buildUi()
 
 void TagManagementWidget::refresh()
 {
+    if (!m_tagSelector) return;
     QString errorMessage;
     m_records = m_repository.listTags(&errorMessage);
     if (!errorMessage.isEmpty())
@@ -479,7 +485,7 @@ TagTypeManagementWidget::TagTypeManagementWidget(QSqlDatabase database, ThemeSer
     : QWidget(parent), m_repository(std::move(database)), m_themes(themes)
 {
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 10, 10, 10);
+    root->setContentsMargins(0, 0, 0, 0);
     setObjectName(QStringLiteral("TagTypeManagementWidget"));
     auto *reorderableTable = new ReorderableTokenTableWidget(this);
     m_table = reorderableTable;

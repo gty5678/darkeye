@@ -95,10 +95,11 @@ def clean_build_directory(build_dir, dry_run=False):
 
 
 def macos_environment(env):
-    """Discover the default Qt kit and optional project-local vcpkg checkout."""
+    """Discover the default Qt kit and user-local vcpkg checkout."""
     env = env.copy()
-    local_vcpkg = PROJECT_ROOT / "build/vcpkg"
-    if not env.get("VCPKG_ROOT") and (local_vcpkg / "scripts/buildsystems/vcpkg.cmake").is_file():
+    local_vcpkg = Path.home() / ".local/share/vcpkg"
+    if (not env.get("VCPKG_ROOT") and not env.get("CMAKE_TOOLCHAIN_FILE")
+            and (local_vcpkg / "scripts/buildsystems/vcpkg.cmake").is_file()):
         env["VCPKG_ROOT"] = str(local_vcpkg)
     qt_dir = Path.home() / "Qt/6.12.0/macos/lib/cmake/Qt6"
     if not env.get("Qt6_DIR") and (qt_dir / "Qt6Config.cmake").is_file():
@@ -113,15 +114,6 @@ def macos_environment(env):
         if not version.startswith("cmake version 3."):
             env["PATH"] = str(bundled_bin) + os.pathsep + env.get("PATH", "")
 
-    # A source archive has no Git registry. Reuse its explicitly installed
-    # dependencies, but never silently disable manifests for a normal checkout.
-    if (not env.get("CMAKE_TOOLCHAIN_FILE")
-            and Path(env.get("VCPKG_ROOT", "/")) == local_vcpkg
-            and not (local_vcpkg / ".git").exists()):
-        installed = local_vcpkg / "installed/arm64-osx/share"
-        if all((installed / name).is_file() for name in (
-                "msdfgen/msdfgenConfig.cmake", "freetype/freetype-config.cmake")):
-            env.setdefault("VCPKG_MANIFEST_MODE", "OFF")
     return env
 
 

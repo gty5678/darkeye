@@ -1,5 +1,7 @@
 #include "ui/layouts/myads/WorkspaceWidget.h"
 
+#include "darkeye_ui/theme/IconProvider.h"
+
 #include <QApplication>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -16,8 +18,10 @@
 #include <QSplitter>
 #include <QScopeGuard>
 #include <QTimer>
+#include <QToolButton>
 #include <QHBoxLayout>
 #include <algorithm>
+#include <cmath>
 #include <numeric>
 #include <stdexcept>
 #include <utility>
@@ -25,6 +29,64 @@
 namespace darkeye::myads {
 
 namespace {
+constexpr int WorkspaceInset = 2;
+
+class SidebarToggleButton final : public QToolButton
+{
+public:
+    SidebarToggleButton(SidebarSide side, QWidget *parent) : QToolButton(parent)
+    {
+        constexpr int size = 26;
+        constexpr int edgeInset = 6;
+        const bool left = side == SidebarSide::Left;
+        setFixedSize(size + edgeInset, size);
+        setContentsMargins(left ? edgeInset : 0, 0, left ? 0 : edgeInset, 0);
+        setIconSize(QSize(18, 18));
+    }
+
+    void applyTheme(const DockTheme &theme)
+    {
+        m_theme = theme;
+        update();
+    }
+
+protected:
+    bool hitButton(const QPoint &position) const override
+    {
+        return contentsRect().contains(position);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        const QRect face = contentsRect();
+        const QRectF shape = QRectF(face).adjusted(1, 1, -1, -1);
+        const qreal left = shape.left();
+        const qreal right = shape.right();
+        const qreal top = shape.top();
+        const qreal bottom = shape.bottom();
+        const qreal corner = shape.width() / (2.0 + std::sqrt(2.0));
+        const QPolygonF octagon{
+            {left + corner, top}, {right - corner, top}, {right, top + corner},
+            {right, bottom - corner}, {right - corner, bottom}, {left + corner, bottom},
+            {left, bottom - corner}, {left, top + corner},
+        };
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(isDown() ? m_theme.closePressed
+                                  : (underMouse() || hasFocus()) ? m_theme.closeHover : m_theme.tabBarBackground);
+        painter.drawPolygon(octagon);
+        const QRect iconRect(face.x() + (face.width() - iconSize().width()) / 2,
+                             face.y() + (face.height() - iconSize().height()) / 2,
+                             iconSize().width(), iconSize().height());
+        icon().paint(&painter, iconRect);
+    }
+
+private:
+    DockTheme m_theme;
+};
+
 class WorkspaceSplitter final : public QSplitter
 {
 public:
@@ -39,6 +101,7 @@ public:
     void applyTheme(const DockTheme &theme)
     {
         m_background = theme.background;
+        m_tabStripBorder = theme.border;
         m_line = theme.text;
         m_line.setAlphaF(0.17);
         m_hover = theme.primary;
@@ -76,6 +139,20 @@ private:
             QColor color = underMouse() ? m_owner->m_hover : m_owner->m_line;
             if (m_dragging) color = m_owner->m_pressed;
             painter.fillRect(line, color);
+            if (orientation() != Qt::Horizontal) return;
+
+            const int center = rect().center().x();
+            for (const auto *pane : m_owner->findChildren<PaneWidget *>()) {
+                if (!pane->isVisibleTo(m_owner)) continue;
+                const QPoint top = pane->mapTo(m_owner, QPoint()) - pos();
+                const int y = top.y() + DockTabBarHeight - 1;
+                if (y < 0 || y >= height()) continue;
+
+                if (top.x() + pane->width() == 0)
+                    painter.fillRect(0, y, center + 1, 1, m_owner->m_tabStripBorder);
+                if (top.x() == width())
+                    painter.fillRect(center, y, width() - center, 1, m_owner->m_tabStripBorder);
+            }
         }
 
         void mousePressEvent(QMouseEvent *event) override
@@ -98,6 +175,7 @@ private:
     };
 
     QColor m_background;
+    QColor m_tabStripBorder;
     QColor m_line;
     QColor m_hover;
     QColor m_pressed;
@@ -189,7 +267,7 @@ WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool w
 {
     setObjectName(QStringLiteral("MyAdsWorkspace"));
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, 2, 0, 0);
+    updateWorkspaceMargins();
     m_sidebarSplitter = new WorkspaceSplitter(Qt::Horizontal, this, theme);
     m_sidebarSplitter->setObjectName(QStringLiteral("MyAdsSidebarSplitter"));
     m_sidebarSplitter->setChildrenCollapsible(false);
@@ -334,21 +412,101 @@ void WorkspaceWidget::toggleSidebar(SidebarSide side)
 {
     auto *item = sidebarPane(side);
     if (!item) return;
-    if (isSidebarOpen(side)) {
+    if (isSidebarOpen(side))
         hideSidebar(sidebar(side).host);
-    } else {
+    else
         setActivePane(item);
-        item->focusTabBar();
+}
+
+void WorkspaceWidget::setSidebarOpen(SidebarSide side, bool open)
+{
+    auto *host = sidebar(side).host;
+    if (!host || open == isSidebarOpen(side)) return;
+    if (!open) {
+        hideSidebar(host);
+        return;
     }
+    host->show();
+    applySidebarWidths();
+    placeSidebarToggles();
+    updateSidebarToggles();
 }
 
 void WorkspaceWidget::hideSidebar(QWidget *host)
 {
     if ((host != m_leftSidebar.host && host != m_rightSidebar.host) || host->isHidden()) return;
     const bool wasActive = containsWidget(host, pane(m_activePaneId));
+    if (containsWidget(host, window()->focusWidget())) {
+        // Move focus before hiding the focused widget triggers Qt's tab-order fallback.
+        if (auto *center = rootPane()) center->focusTabBar();
+    }
     host->hide();
+    placeSidebarToggles();
+    updateSidebarToggles();
     applySidebarWidths();
     if (wasActive && containsWidget(host, pane(m_activePaneId))) setActivePane(rootPane());
+}
+
+void WorkspaceWidget::setSidebarToggleVisible(SidebarSide side, bool visible)
+{
+    const bool left = side == SidebarSide::Left;
+    auto *&button = left ? m_leftSidebarToggle : m_rightSidebarToggle;
+    if (!button) {
+        button = new SidebarToggleButton(side, this);
+        button->setObjectName(left ? QStringLiteral("MyAdsLeftSidebarToggle")
+                                   : QStringLiteral("MyAdsRightSidebarToggle"));
+        button->setProperty("skipPaneActivationOnMouseFocus", true);
+        button->setFocusPolicy(Qt::TabFocus);
+        button->setCursor(Qt::PointingHandCursor);
+        connect(button, &QToolButton::clicked, this, [this, side] { toggleSidebar(side); });
+        placeSidebarToggles();
+        updateSidebarToggles();
+    }
+    button->setVisible(visible);
+}
+
+void WorkspaceWidget::placeSidebarToggles()
+{
+    const auto place = [this](QToolButton *button, SidebarSide side) {
+        if (!button) return;
+        const auto edge = side == SidebarSide::Left ? Qt::LeftEdge : Qt::RightEdge;
+        auto node = isSidebarOpen(side) ? sidebar(side).tree.root() : m_tree.root();
+        while (node->kind == LayoutNode::Kind::Split) {
+            if (node->children.isEmpty()) return;
+            node = edge == Qt::RightEdge && node->orientation == Qt::Horizontal
+                ? node->children.last() : node->children.first();
+        }
+        if (auto *target = pane(node->paneId)) {
+            const bool visible = !button->isHidden();
+            target->addTabBarButton(button, edge);
+            button->setVisible(visible);
+        }
+    };
+    place(m_leftSidebarToggle, SidebarSide::Left);
+    place(m_rightSidebarToggle, SidebarSide::Right);
+}
+
+void WorkspaceWidget::updateSidebarToggles()
+{
+    const auto update = [this](QToolButton *button, SidebarSide side) {
+        if (!button) return;
+        const bool left = side == SidebarSide::Left;
+        const bool open = isSidebarOpen(side);
+        const QString label = left
+            ? (open ? tr("收起左边栏") : tr("展开左边栏"))
+            : (open ? tr("收起右边栏") : tr("展开右边栏"));
+        static_cast<SidebarToggleButton *>(button)->applyTheme(m_theme);
+        button->setToolTip(label);
+        button->setAccessibleName(label);
+
+        const QString icon = left
+            ? (open ? QStringLiteral("panel_left_close") : QStringLiteral("panel_left_open"))
+            : (open ? QStringLiteral("panel_right_close") : QStringLiteral("panel_right_open"));
+        button->setIcon(IconProvider::builtIn(icon, button->iconSize(), m_theme.closeIcon,
+                                              button->devicePixelRatioF()));
+    };
+    update(m_leftSidebarToggle, SidebarSide::Left);
+    update(m_rightSidebarToggle, SidebarSide::Right);
 }
 
 void WorkspaceWidget::setSidebarAutoCollapse(bool enabled)
@@ -379,17 +537,48 @@ void WorkspaceWidget::setActivePane(PaneWidget *target)
     if (const auto *sidebar = sidebarFor(target->paneId()); sidebar && sidebar->host->isHidden()) {
         sidebar->host->show();
         applySidebarWidths();
+        // Give the opened pane focus before reparenting its toggle button.
+        target->focusTabBar();
+        placeSidebarToggles();
+        updateSidebarToggles();
     }
     if (m_activePaneId == target->paneId()) return;
     m_activePaneId = target->paneId();
     emit activePaneChanged(m_activePaneId);
 }
 
+void WorkspaceWidget::updateWorkspaceMargins()
+{
+    for (auto *parent = parentWidget(); parent; parent = parent->parentWidget()) {
+        if (qobject_cast<WorkspaceWidget *>(parent)) {
+            layout()->setContentsMargins(0, 0, 0, 0);
+            return;
+        }
+    }
+    layout()->setContentsMargins(WorkspaceInset, WorkspaceInset, WorkspaceInset, WorkspaceInset);
+}
+
 bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
 {
     QWidget *receiver = qobject_cast<QWidget *>(watched);
+    if (event->type() == QEvent::ParentChange && receiver &&
+        (receiver == this || receiver->isAncestorOf(this)))
+        updateWorkspaceMargins();
     if (receiver == m_sidebarSplitter && event->type() == QEvent::Resize)
         QTimer::singleShot(0, this, &WorkspaceWidget::applySidebarWidths);
+    if ((event->type() == QEvent::Move || event->type() == QEvent::Resize ||
+         event->type() == QEvent::Show || event->type() == QEvent::Hide) &&
+        receiver && isAncestorOf(receiver) &&
+        (qobject_cast<PaneWidget *>(receiver) || dynamic_cast<WorkspaceSplitter *>(receiver) ||
+         qobject_cast<WorkspaceWidget *>(receiver))) {
+        for (auto *child = receiver; child != this; child = child->parentWidget()) {
+            auto *splitter = dynamic_cast<WorkspaceSplitter *>(child->parentWidget());
+            if (!splitter || splitter->orientation() != Qt::Horizontal) continue;
+            const int index = splitter->indexOf(child);
+            if (index > 0) splitter->handle(index)->update();
+            if (index >= 0 && index + 1 < splitter->count()) splitter->handle(index + 1)->update();
+        }
+    }
     if (event->type() == QEvent::DragLeave && receiver && receiver == m_dockDragTarget) {
         m_dockDragTarget.clear();
         hideDropPreview();
@@ -444,6 +633,7 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
         && m_sidebarAutoCollapse) {
         for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host}) {
             if (sidebar && !sidebar->isHidden() && !containsWidget(sidebar, receiver)
+                && receiver != (sidebar == m_leftSidebar.host ? m_leftSidebarToggle : m_rightSidebarToggle)
                 && receiver != m_sidebarSplitter->handle(sidebar == m_leftSidebar.host ? 1 : 2))
                 QTimer::singleShot(0, sidebar, [this, sidebar] {
                     if (m_sidebarAutoCollapse) hideSidebar(sidebar);
@@ -662,6 +852,7 @@ void WorkspaceWidget::rebuild(LayoutTree &tree, bool preserveContents)
     root = sidebar && node->children.size() == 1
         ? buildNode(node->children.first(), true) : buildNode(node, sidebar != nullptr);
     host->layout()->addWidget(root);
+    placeSidebarToggles();
     auto *oldPane = qobject_cast<PaneWidget *>(oldRoot);
     if (oldRoot && oldRoot != root && (!oldPane || pane(oldPane->paneId()) != oldPane)) {
         oldRoot->hide();
@@ -1174,6 +1365,8 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
         staged.m_rootWidget = nullptr;
         m_center->layout()->addWidget(m_rootWidget);
         m_rootWidget->show();
+        placeSidebarToggles();
+        updateSidebarToggles();
         oldRoot->deleteLater();
         committed = true;
         setActivePane(rootPane());
@@ -1194,6 +1387,7 @@ void WorkspaceWidget::applyTheme(const DockTheme &theme)
 {
     m_theme = theme;
     setStyleSheet(theme.styleSheet());
+    updateSidebarToggles();
     static_cast<WorkspaceSplitter *>(m_sidebarSplitter)->applyTheme(theme);
     for (PaneWidget *item : m_panes) item->applyTheme(theme);
     for (auto *splitter : findChildren<QSplitter *>(QStringLiteral("MyAdsSplitter")))

@@ -33,8 +33,8 @@ public:
         m_image = new QLabel(this);
         m_image->setAlignment(Qt::AlignCenter);
         layout->addWidget(m_image);
-        setStyleSheet(QStringLiteral(
-            "background-color:#333333;border:1px solid #555555;border-radius:4px;"));
+        setObjectName(QStringLiteral("WikiImagePreview"));
+        setAttribute(Qt::WA_StyledBackground);
     }
 
     void showImage(const QString &path)
@@ -80,7 +80,7 @@ WikiTextEdit::WikiTextEdit(QWidget *parent)
     m_completer->setCompletionMode(QCompleter::PopupCompletion);
     m_completer->setCaseSensitivity(Qt::CaseInsensitive);
     m_completer->setFilterMode(Qt::MatchContains);
-    setupCompleterStyle();
+    m_completer->popup()->setObjectName(QStringLiteral("WikiCompleterPopup"));
 
     m_preview = new WikiImagePreviewWindow(this);
     auto *popup = m_completer->popup();
@@ -249,20 +249,6 @@ void WikiTextEdit::keyPressEvent(QKeyEvent *event)
     DesignTextEdit::keyPressEvent(event);
     if (event->modifiers().testFlag(Qt::ControlModifier) && event->key() == Qt::Key_E)
         updateCompleterPopup();
-}
-
-void WikiTextEdit::setupCompleterStyle()
-{
-    m_completer->popup()->setStyleSheet(QStringLiteral(R"(
-        QListView { background-color:#FFFFFF; color:#111111; border:1px solid #454545;
-                    border-radius:4px; padding:2px; outline:0; }
-        QListView::item { padding:4px 10px; margin:2px 0; border-radius:4px; }
-        QListView::item:selected { background-color:#d5d5d5; color:#ffffff; }
-        QListView::item:hover:!selected { background-color:#d5d5d5; }
-        QScrollBar:vertical { border:none; background:#e5e5e5; width:8px; margin:0; }
-        QScrollBar::handle:vertical { background:#cccccc; min-height:20px; }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
-    )"));
 }
 
 void WikiTextEdit::updateCompleterPopup()

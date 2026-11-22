@@ -26,10 +26,13 @@ public:
     bool applyCapture(const QJsonObject &payload, QString *errorMessage = nullptr);
 
 private:
+    void buildEditorActions() override;
     void translateChineseNames(bool overwrite);
     void translateNextName();
     void downloadCapturedAvatar(const QJsonObject &capture);
 
+    QSqlDatabase m_database;
+    QString m_navConfigFile;
     ActressSyncService *m_sync = nullptr;
     LlmTranslationService *m_translation = nullptr;
     ActressNavPage *m_navPage = nullptr;

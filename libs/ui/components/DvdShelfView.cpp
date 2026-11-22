@@ -99,7 +99,6 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_scene, 1);
     m_scene->setObjectName(QStringLiteral("ShelfDvdScene"));
-    m_scene->setMinimumHeight(400);
     m_scene->renderWidget()->setSampleCount(4);
     m_scene->setMotionRenderPixelBudget(1920*1200);
     m_scene->renderWidget()->setStatisticsVisible(false);

@@ -13,9 +13,12 @@
 #include "darkeye_ui/components/TokenViews.h"
 
 #include <QApplication>
+#include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QCompleter>
+#include <QHeaderView>
 #include <QListWidget>
+#include <QScreen>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStyle>
@@ -31,6 +34,7 @@ private slots:
     void stateOnlyMethodsDoNotApplyStyleSheet();
     void mapsAllPersistedThemeIds();
     void chamferEdgesKeepStyleAndAntialiasing();
+    void tableChamfersShowParentBackground();
     void singleLineFieldsShareHeightAndTextOrigin();
     void scrollBarHandlesHavePointedEnds();
     void selectionIndicatorsUseThemedDiamonds();
@@ -70,7 +74,10 @@ void ThemeServiceTest::exposesCompletePythonTokenMapAndLoader()
     QCOMPARE(blue.fontFamilyBase, QStringLiteral("Microsoft YaHei"));
     QCOMPARE(blue.fontSizeWorkspaceTab, QStringLiteral("16px"));
     QCOMPARE(blue.borderWidth, QStringLiteral("2px"));
-    QCOMPARE(blue.toMap().size(), 23);
+    const auto values = blue.toMap();
+    QCOMPARE(values.value(QStringLiteral("color_modified")), blue.modified);
+    QCOMPARE(values.value(QStringLiteral("field_content_height")), QStringLiteral("20px"));
+    QCOMPARE(values.value(QStringLiteral("scrollbar_width")), QStringLiteral("10px"));
     QCOMPARE(darkeye::StylesheetLoader::render(
                  QStringLiteral("color:{{color_text}};border:{{border_width}} solid;"), blue),
              QStringLiteral("color:#1e3a5f;border:2px solid;"));
@@ -121,7 +128,24 @@ void ThemeServiceTest::appliesThemeWithoutUnresolvedTokens()
     QCOMPARE(service.current(), darkeye::ThemeId::Dark);
     QCOMPARE(service.customPrimary(), QStringLiteral("#336699"));
     QVERIFY(application->styleSheet().contains(QStringLiteral("#336699")));
-    QVERIFY(!application->styleSheet().contains(QLatin1Char('@')));
+    QVERIFY(!application->styleSheet().contains(QStringLiteral("{{")));
+
+    QWidget filter;
+    filter.setObjectName(QStringLiteral("ShelfFilterBar"));
+    filter.setAttribute(Qt::WA_StyledBackground);
+    filter.resize(80, 40);
+    darkeye::DesignButton save(QStringLiteral("Save"));
+    save.setVariant(QStringLiteral("personSave"));
+    for (const auto theme : darkeye::ThemeService::availableThemes()) {
+        QVERIFY(service.setTheme(theme));
+        QVERIFY(!application->styleSheet().contains(QStringLiteral("{{")));
+        const auto tokens = service.currentTokens();
+        const auto image = filter.grab().toImage();
+        QCOMPARE(image.pixelColor(image.width() / 2, image.height() / 2),
+                 QColor(tokens.background));
+        save.ensurePolished();
+        QCOMPARE(save.palette().color(QPalette::Button), QColor(tokens.modified));
+    }
 }
 
 void ThemeServiceTest::skipsRepolishingAnUnchangedTheme()
@@ -320,6 +344,64 @@ void ThemeServiceTest::chamferEdgesKeepStyleAndAntialiasing()
     QVERIFY(button.findChild<QWidget *>(QStringLiteral("darkeyeChamferOutline")) == nullptr);
 }
 
+void ThemeServiceTest::tableChamfersShowParentBackground()
+{
+    if (QGuiApplication::platformName() != QLatin1String("offscreen"))
+        QSKIP("Requires the offscreen platform to capture the window backing store.");
+
+    darkeye::ThemeService service(*qApp);
+    QVERIFY(service.setTheme(darkeye::ThemeId::Light));
+    QWidget surface;
+    surface.setObjectName(QStringLiteral("tableSurface"));
+    surface.setStyleSheet(QStringLiteral("#tableSurface { background: #102030; }"));
+    // The offscreen plugin can crop a scaled window capture to its logical size.
+    surface.resize(QSize(280, 200) * surface.devicePixelRatio());
+    darkeye::TokenTableWidget table(30, 8, &surface);
+    table.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    table.setSelectionBehavior(QAbstractItemView::SelectRows);
+    table.setGeometry(10, 10, 260, 180);
+    surface.show();
+
+    const auto *cornerButton = table.findChild<QAbstractButton *>(Qt::FindDirectChildrenOnly);
+    QVERIFY(cornerButton);
+    QVERIFY(cornerButton->isVisible());
+    const QRect corner = cornerButton->geometry();
+    const QColor headerBackground(service.currentTokens().pageBackground);
+    const QColor border(service.currentTokens().border);
+
+    for (const int scrollPosition : {0, 10}) {
+        table.verticalScrollBar()->setValue(scrollPosition);
+        table.selectRow(table.rowAt(0));
+        QApplication::processEvents();
+        // Capture the actual window repaint, including Qt's opaque-region optimization.
+        const QImage image = surface.screen()->grabWindow(surface.winId()).toImage();
+        QVERIFY(!image.isNull());
+        const qreal scale = image.devicePixelRatio();
+        const auto pixel = [&](QPoint local) {
+            const QPoint pos = table.mapTo(&surface, local);
+            return image.pixelColor(qFloor(pos.x() * scale), qFloor(pos.y() * scale));
+        };
+        const int bottom = table.height() - 1;
+        QCOMPARE(pixel(QPoint(1, bottom - 1)), QColor(QStringLiteral("#102030")));
+        QCOMPARE(pixel(QPoint(table.width() / 2, bottom)),
+                 QColor(service.currentTokens().border));
+        const int firstRowCenter = table.rowHeight(table.rowAt(0)) / 2;
+        const QPoint firstCell(4, firstRowCenter);
+        auto *columnHeader = table.horizontalHeader()->viewport();
+        auto *rowHeader = table.verticalHeader()->viewport();
+        QCOMPARE(pixel(columnHeader->mapTo(&table, QPoint(4, 4))),
+                 QColor(service.currentTokens().pageBackground));
+        QCOMPARE(pixel(rowHeader->mapTo(&table, QPoint(4, firstRowCenter))),
+                 QColor(service.currentTokens().pageBackground));
+        QCOMPARE(pixel(table.viewport()->mapTo(&table, firstCell)),
+                 QColor(service.currentTokens().primary));
+        QCOMPARE(pixel(QPoint(corner.right(), corner.center().y())), border);
+        QCOMPARE(pixel(QPoint(corner.right() - 1, corner.center().y())), headerBackground);
+        QCOMPARE(pixel(QPoint(corner.center().x(), corner.bottom())), border);
+        QCOMPARE(pixel(QPoint(corner.center().x(), corner.bottom() - 1)), headerBackground);
+    }
+}
+
 void ThemeServiceTest::singleLineFieldsShareHeightAndTextOrigin()
 {
     darkeye::ThemeService service(*qApp);
@@ -475,13 +557,21 @@ void ThemeServiceTest::selectionIndicatorsUseThemedDiamonds()
             QVERIFY(pixel(unchecked, center) != primary);
             QCOMPARE(pixel(checked, center), primary);
             QCOMPARE(pixel(unchecked, indicator.topLeft()), pixel(checked, indicator.topLeft()));
-            QVERIFY(pixel(checked, center + QPoint(4, 4)) != primary);
-            QCOMPARE(pixel(checked, center + QPoint(4, 0)), primary);
             const int radius = qMin(indicator.width(), indicator.height()) / 2;
+            const QPoint nearCorner = center + QPoint(radius - 1, radius - 1);
+            QCOMPARE(pixel(checked, nearCorner), pixel(unchecked, nearCorner));
+            QCOMPARE(pixel(checked, center + QPoint(4, 0)), primary);
             const QColor outline = pixel(unchecked, center + QPoint(radius - 2, 0));
-            QCOMPARE(outline.red(), outline.green());
-            QCOMPARE(outline.green(), outline.blue());
-            QVERIFY(outline != pixel(unchecked, center));
+            const QColor background = pixel(unchecked, center);
+            const int gray = qGray(QColor(service.currentTokens().border).rgb());
+            // The outline sample can be blended with the background by antialiasing.
+            const auto isBlendedChannel = [gray](int edge, int base) {
+                return edge >= qMin(gray, base) - 1 && edge <= qMax(gray, base) + 1;
+            };
+            QVERIFY(isBlendedChannel(outline.red(), background.red()));
+            QVERIFY(isBlendedChannel(outline.green(), background.green()));
+            QVERIFY(isBlendedChannel(outline.blue(), background.blue()));
+            QVERIFY(outline != background);
         };
 
         QStyleOptionButton buttonOption;

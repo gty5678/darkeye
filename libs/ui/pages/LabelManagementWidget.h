@@ -1,5 +1,7 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include "database/repositories/ReferenceRepository.h"
 #include "services/ReferenceJsonService.h"
 
@@ -16,7 +18,7 @@ namespace darkeye
 
 class ThemeService;
 
-class LabelManagementWidget final : public QWidget
+class LabelManagementWidget final : public LazyWidget
 {
     Q_OBJECT
 
@@ -33,6 +35,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    void lazyLoad() override;
     void performSearch(bool selectFirst = true);
     void navigateSearch(int direction);
     void storeEditorEdits();

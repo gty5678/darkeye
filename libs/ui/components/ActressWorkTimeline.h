@@ -4,7 +4,7 @@
 #include "domain/Work.h"
 
 #include <QPoint>
-#include <QWidget>
+#include "darkeye_ui/base/LazyWidget.h"
 
 class QScrollArea;
 
@@ -14,7 +14,7 @@ class OctImage;
 class ThemeService;
 class TimelineCanvas;
 
-class ActressWorkTimeline final : public QWidget
+class ActressWorkTimeline final : public LazyWidget
 {
     Q_OBJECT
 
@@ -33,6 +33,7 @@ public:
     [[nodiscard]] bool hoverPreviewVisible() const noexcept;
 
 signals:
+    void initialized();
     void workRequested(qint64 workId);
 
 protected:
@@ -40,12 +41,15 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void lazyLoad() override;
     void updateTracks(QList<QList<PersonWorkSummary>> tracks, const QString &emptyMessage);
     void positionThumbnails();
     void fitDefaultWindow();
 
     QWidget *m_axisHead = nullptr;
+    QString m_coverDirectory;
     QString m_actressImageDirectory;
+    ThemeService *m_themes;
     QList<OctImage *> m_actressThumbnails;
     QScrollArea *m_scroll = nullptr;
     TimelineCanvas *m_canvas = nullptr;

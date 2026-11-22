@@ -39,6 +39,7 @@ constexpr int trackPad = 14;
 constexpr int unknownWidth = 120;
 constexpr int endPad = 30;
 constexpr int unknownGap = 24;
+constexpr double defaultPpd = 0.25;
 constexpr double maxPpd = 300.0;
 const QDate timelineStart(2000, 1, 1);
 const QDate timelineEnd(2030, 12, 31);
@@ -116,7 +117,12 @@ public:
         connect(m_scroll->horizontalScrollBar(), &QScrollBar::valueChanged,
                 this, [this] { hidePopup(); });
         connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
-                this, [this] { hidePopup(); });
+                this, [this](int offset) {
+                    hidePopup();
+                    // Repaint the visible canvas to erase the ruler at its old location.
+                    update(QRect(QPoint(m_scroll->horizontalScrollBar()->value(), offset),
+                                 m_scroll->viewport()->size()));
+                });
         applyTheme(themes ? themes->currentTokens() : ThemeService::tokens(ThemeId::Light));
         if (themes) {
             connect(themes, &ThemeService::themeChanged, this, [this, themes] {
@@ -168,22 +174,31 @@ protected:
         QPainter painter(this);
         const auto &colors = m_colors;
         const QRect exposed = event->rect();
+        const int rulerTop = m_scroll->verticalScrollBar()->value();
+        const int rulerBottom = rulerTop + axisY;
         painter.fillRect(exposed, colors.color(QPalette::Base));
-        painter.fillRect(exposed.intersected(QRect(0, 0, width(), axisY)),
+        painter.fillRect(exposed.intersected(QRect(0, rulerTop, width(), axisY)),
                          colors.color(QPalette::AlternateBase));
         painter.setRenderHint(QPainter::Antialiasing);
 
         if (m_dateMin.isValid() && m_numDays > 0)
-            paintRuler(painter, exposed, colors);
+            paintRuler(painter, exposed, colors, rulerTop);
 
+        if (m_unknownX >= 0) {
+            painter.setPen(colors.color(QPalette::PlaceholderText));
+            const QRect label(m_unknownX - unknownWidth / 2, rulerTop, unknownWidth, axisY);
+            painter.drawText(label, Qt::AlignCenter, QStringLiteral("日期未知"));
+        }
+
+        // At rest the first row of markers straddles the ruler's baseline.
+        if (rulerTop > 0) {
+            painter.setPen(colors.color(QPalette::Mid));
+            painter.drawLine(exposed.left(), rulerBottom, exposed.right(), rulerBottom);
+            painter.setClipRect(QRect(QPoint(0, rulerBottom + 1), rect().bottomRight()));
+        }
         painter.setPen(colors.color(QPalette::Mid));
         for (const int y : m_axes)
             painter.drawLine(exposed.left(), y, exposed.right(), y);
-        if (m_unknownX >= 0) {
-            painter.setPen(colors.color(QPalette::PlaceholderText));
-            const QRect label(m_unknownX - unknownWidth / 2, 0, unknownWidth, axisY);
-            painter.drawText(label, Qt::AlignCenter, QStringLiteral("日期未知"));
-        }
 
         auto guideColor = colors.color(QPalette::Text);
         guideColor.setAlphaF(0.24);
@@ -329,7 +344,7 @@ private:
         update();
     }
 
-    void paintRuler(QPainter &painter, const QRect &exposed, const QPalette &colors) const
+    void paintRuler(QPainter &painter, const QRect &exposed, const QPalette &colors, int rulerTop) const
     {
         const auto firstDay = qBound(0, qFloor((exposed.left() - trackPad - 65) / m_ppd), m_numDays - 1);
         const auto lastDay = qMin(m_numDays - 1, qCeil((exposed.right() - trackPad + 65) / m_ppd));
@@ -339,17 +354,18 @@ private:
         const auto major = colors.color(QPalette::Text);
         auto grid = major;
         grid.setAlphaF(0.09);
+        const int rulerBottom = rulerTop + axisY;
         const auto drawTick = [&](const QDate &date, const QString &label, bool emphasized) {
             const int x = qRound(trackPad + m_dateMin.daysTo(date) * m_ppd);
-            if (exposed.bottom() > axisY) {
+            if (exposed.bottom() > rulerBottom) {
                 painter.setPen(grid);
-                painter.drawLine(x, axisY, x, exposed.bottom());
+                painter.drawLine(x, rulerBottom, x, exposed.bottom());
             }
             painter.setPen(emphasized ? major : minor);
-            painter.drawLine(x, axisY - (emphasized ? 6 : 4), x, axisY);
+            painter.drawLine(x, rulerBottom - (emphasized ? 6 : 4), x, rulerBottom);
             const int labelWidth = painter.fontMetrics().horizontalAdvance(label) + 2;
             const int labelX = qBound(0, x - labelWidth / 2, width() - labelWidth);
-            painter.drawText(QRect(labelX, 0, labelWidth, axisY - 7), Qt::AlignCenter, label);
+            painter.drawText(QRect(labelX, rulerTop, labelWidth, axisY - 7), Qt::AlignCenter, label);
         };
 
         const int dayLabelSpacing = painter.fontMetrics().horizontalAdvance(QStringLiteral("0000-00-00")) + 12;
@@ -392,6 +408,8 @@ private:
 
     const Marker *markerAt(const QPoint &position) const
     {
+        const int rulerTop = m_scroll->verticalScrollBar()->value();
+        if (rulerTop > 0 && position.y() <= rulerTop + axisY) return nullptr;
         const auto marker = std::find_if(m_markers.cbegin(), m_markers.cend(),
             [&position](const Marker &item) { return item.rect.contains(position); });
         return marker == m_markers.cend() ? nullptr : &*marker;
@@ -546,7 +564,7 @@ private:
     int m_numDays = 0;
     int m_unknownX = -1;
     bool m_hasUnknownDates = false;
-    double m_ppd = 0.25;
+    double m_ppd = defaultPpd;
     qint64 m_popupWorkId = 0;
     bool m_middlePanning = false;
     QPointF m_lastGlobalPosition;
@@ -554,9 +572,15 @@ private:
 
 ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory,
                                          QString actressImageDirectory, ThemeService *themes)
-    : QWidget(parent), m_actressImageDirectory(std::move(actressImageDirectory))
+    : LazyWidget(parent), m_coverDirectory(std::move(coverDirectory)),
+      m_actressImageDirectory(std::move(actressImageDirectory)), m_themes(themes)
 {
     setObjectName(QStringLiteral("ActressWorkTimeline"));
+    setMinimumHeight(130);
+}
+
+void ActressWorkTimeline::lazyLoad()
+{
     auto *root = new QHBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
@@ -570,8 +594,9 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
     m_scroll = new QScrollArea(this);
     m_scroll->setWidgetResizable(true);
     m_scroll->setFrameShape(QFrame::NoFrame);
-    m_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-    m_canvas = new TimelineCanvas(m_scroll, std::move(coverDirectory), themes, m_scroll);
+    m_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_canvas = new TimelineCanvas(m_scroll, std::move(m_coverDirectory), m_themes, m_scroll);
     m_canvas->activate = [this](qint64 id) { emit workRequested(id); };
     m_scroll->setWidget(m_canvas);
     m_canvas->axesChanged = [this] { positionThumbnails(); };
@@ -581,7 +606,6 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
     static_cast<DesignLabel *>(m_empty)->setTone(QStringLiteral("muted"));
     layout->addWidget(m_empty, 0, Qt::AlignCenter);
     layout->addWidget(m_scroll, 1);
-    setMinimumHeight(130);
     setWorks({});
 }
 
@@ -592,6 +616,7 @@ void ActressWorkTimeline::setActress(const PersonDetails &actress)
 
 void ActressWorkTimeline::setActresses(const QList<PersonDetails> &actresses)
 {
+    initialize();
     QList<QList<PersonWorkSummary>> tracks;
     tracks.reserve(actresses.size());
     for (qsizetype i = 0; i < actresses.size(); ++i) {
@@ -620,6 +645,7 @@ void ActressWorkTimeline::setActresses(const QList<PersonDetails> &actresses)
 
 void ActressWorkTimeline::setWorks(const QList<PersonWorkSummary> &works)
 {
+    initialize();
     m_axisHead->hide();
     qDeleteAll(m_actressThumbnails);
     m_actressThumbnails.clear();
@@ -660,21 +686,23 @@ void ActressWorkTimeline::setFilteredWorks(const QList<WorkSummary> &works)
     setWorks(summaries);
 }
 
-QList<PersonWorkSummary> ActressWorkTimeline::works() const { return m_canvas->works(); }
-int ActressWorkTimeline::markerCount() const noexcept { return m_canvas->markerCount(); }
-double ActressWorkTimeline::pixelsPerDay() const noexcept { return m_canvas->ppd(); }
+QList<PersonWorkSummary> ActressWorkTimeline::works() const { return m_canvas ? m_canvas->works() : QList<PersonWorkSummary>{}; }
+int ActressWorkTimeline::markerCount() const noexcept { return m_canvas ? m_canvas->markerCount() : 0; }
+double ActressWorkTimeline::pixelsPerDay() const noexcept { return m_canvas ? m_canvas->ppd() : defaultPpd; }
 QPoint ActressWorkTimeline::markerCenter(qint64 workId) const
 {
-    return m_canvas->markerCenter(workId);
+    return m_canvas ? m_canvas->markerCenter(workId) : QPoint{};
 }
 bool ActressWorkTimeline::hoverPreviewVisible() const noexcept
 {
-    return m_canvas->hoverPreviewVisible();
+    return m_canvas && m_canvas->hoverPreviewVisible();
 }
 
 void ActressWorkTimeline::showEvent(QShowEvent *event)
 {
-    QWidget::showEvent(event);
+    const bool firstShow = !isInitialized();
+    LazyWidget::showEvent(event);
+    if (firstShow) emit initialized();
     fitDefaultWindow();
 }
 

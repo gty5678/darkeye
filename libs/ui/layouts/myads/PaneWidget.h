@@ -12,6 +12,7 @@ class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDragMoveEvent;
 class QDropEvent;
+class QHBoxLayout;
 class QMenu;
 class QStackedWidget;
 class QTabBar;
@@ -57,6 +58,7 @@ public:
     [[nodiscard]] QString currentContentId() const;
     bool setCurrentContentId(const QString &contentId);
     void focusTabBar();
+    void addTabBarButton(QWidget *button, Qt::Edge edge);
     [[nodiscard]] QString contentTitle(const QString &contentId) const;
     [[nodiscard]] QWidget *contentWidget(const QString &contentId) const;
     [[nodiscard]] QIcon contentIcon(const QString &contentId) const;
@@ -81,6 +83,7 @@ signals:
     void tabContextMenuCreated(QMenu *menu, const QString &contentId);
 
 protected:
+    void paintEvent(QPaintEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
@@ -93,6 +96,7 @@ private:
     void switchContent(int index);
 
     QString m_paneId;
+    QHBoxLayout *m_tabRow = nullptr;
     QTabBar *m_tabBar = nullptr;
     QStackedWidget *m_stack = nullptr;
     bool m_retainFocusOnTabChange;

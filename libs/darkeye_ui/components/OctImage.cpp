@@ -67,9 +67,9 @@ QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath 
 } // namespace
 
 OctImage::OctImage(const QString &imagePath, const QString &basePath, int diameter,
-                   bool shadow, QWidget *parent, bool deferImage)
+                   bool shadow, QWidget *parent, bool deferImage, Qt::AlignmentFlag verticalAlignment)
     : QLabel(parent), m_diameter(qMax(16, diameter)), m_basePath(basePath), m_shadow(shadow),
-      m_imageActive(!deferImage)
+      m_imageActive(!deferImage), m_verticalAlignment(verticalAlignment)
 {
     setObjectName(QStringLiteral("DesignOctImage"));
     // The compact shadow fits within avatarPath()'s inset; extra bottom padding
@@ -191,10 +191,11 @@ bool OctImage::event(QEvent *event)
 
 QPainterPath OctImage::avatarPath() const
 {
-    // Keep the entire shadow inside the widget, including the downward offset.
     const qreal margin = m_shadow ? qMin(8.0, m_diameter / 8.0) : 0.0;
-    const QRectF bounds = QRectF(0, 0, m_diameter, m_diameter)
-                              .adjusted(margin, margin, -margin, -margin);
+    QRectF bounds = QRectF(0, 0, m_diameter, m_diameter)
+                        .adjusted(margin, margin, -margin, -margin);
+    if (m_verticalAlignment == Qt::AlignTop)
+        bounds.moveTop(0);
     const qreal cut = bounds.width() / (2.0 + std::sqrt(2.0));
     QPainterPath path;
     path.moveTo(bounds.left() + cut, bounds.top());

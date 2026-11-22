@@ -15,6 +15,9 @@ public:
                              QString coverDirectory = {});
 
     bool loadActor(qint64 actorId);
+
+private:
+    void buildEditorActions() override;
 };
 
 } // namespace darkeye

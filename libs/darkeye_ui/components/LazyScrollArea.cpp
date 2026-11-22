@@ -20,7 +20,7 @@ LazyScrollArea::LazyScrollArea(int columnWidth, QWidget *parent, int spacing)
     setObjectName(QStringLiteral("DesignLazyScrollArea"));
     setWidgetResizable(true);
     setFrameShape(QFrame::NoFrame);
-    m_layout->setContentsMargins(0, 5, 0, 0);
+    m_layout->setContentsMargins(0, 0, 0, 0);
     setWidget(m_contentWidget);
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
             &LazyScrollArea::handleScroll);

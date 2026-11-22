@@ -48,7 +48,6 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
-    void setupCompleterStyle();
     void updateCompleterPopup();
     void updatePreview(const QString &text);
     void handleLinkClick(const QString &target);

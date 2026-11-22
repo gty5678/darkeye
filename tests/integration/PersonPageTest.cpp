@@ -11,6 +11,7 @@
 #include "darkeye_ui/components/CollapsibleSection.h"
 #include "darkeye_ui/components/HeartLabel.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
+#include "darkeye_ui/components/OctImage.h"
 #include "ui/components/ImageDropWidget.h"
 #include "ui/pages/ModifyActorPage.h"
 #include "ui/pages/ModifyActressPage.h"
@@ -63,6 +64,7 @@ private slots:
     void detailAndEditorCompletePersonRoundTrip();
     void editorLayoutsPersistSeparately();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
+    void actressTimelineScrollsWithHiddenBars();
     void actressTimelineFitsAfterLayout();
     void actressTimelineStacksSameDayWorksBelowAxis();
     void actressTimelineZoomKeepsPointerAnchor();
@@ -112,6 +114,8 @@ void PersonPageTest::editorLayoutsPersistSeparately()
 
     darkeye::ModifyActressPage actress(connection.database(), themes, data.path(), nullptr, {}, navPath);
     actress.enableLayoutPersistence(actressPath);
+    QVERIFY(!actress.isInitialized());
+    actress.initialize();
     auto *actressWorkspace = actress.findChild<WorkspaceWidget *>();
     QVERIFY(actressWorkspace->findPaneByContentId(names) != actressWorkspace->findPaneByContentId(actions));
     auto *linksPane = actressWorkspace->findPaneByContentId(links);
@@ -138,10 +142,35 @@ void PersonPageTest::editorLayoutsPersistSeparately()
 
     darkeye::ModifyActressPage restoredActress(connection.database(), themes, data.path(), nullptr, {}, navPath);
     restoredActress.enableLayoutPersistence(actressPath);
+    QVERIFY(!restoredActress.isInitialized());
+    restoredActress.initialize();
     auto *restoredActressWorkspace = restoredActress.findChild<WorkspaceWidget *>();
     QVERIFY(restoredActressWorkspace->findPaneByContentId(links));
     QCOMPARE(restoredActressWorkspace->findPaneByContentId(links),
              restoredActressWorkspace->findPaneByContentId(notes));
+
+    darkeye::PersonRepository people(connection.database());
+    const auto actorId = people.create(darkeye::PersonKind::Actor, QStringLiteral("男演员"), {});
+    const auto actressId = people.create(darkeye::PersonKind::Actress, QStringLiteral("女演员"), {});
+    QVERIFY(actorId && actressId);
+    darkeye::PersonEditorPage sharedEditor(connection.database(), themes, data.path());
+    const auto hasField = [&sharedEditor](const QString &id) {
+        const auto fields = sharedEditor.findChildren<QComboBox *>();
+        return std::any_of(fields.cbegin(), fields.cend(), [&id](const QComboBox *field) {
+            return field->property("testId").toString() == id;
+        });
+    };
+    const auto handsome = QStringLiteral("PersonHandsomeInput");
+    const auto cup = QStringLiteral("PersonCupInput");
+    QVERIFY(sharedEditor.loadPerson(darkeye::PersonKind::Actor, *actorId));
+    QVERIFY(hasField(handsome));
+    QVERIFY(!hasField(cup));
+    QVERIFY(sharedEditor.loadPerson(darkeye::PersonKind::Actress, *actressId));
+    QVERIFY(!hasField(handsome));
+    QVERIFY(hasField(cup));
+    QVERIFY(sharedEditor.loadPerson(darkeye::PersonKind::Actor, *actorId));
+    QVERIFY(hasField(handsome));
+    QVERIFY(!hasField(cup));
 }
 
 void PersonPageTest::actressTimelineFollowsTheme()
@@ -191,6 +220,9 @@ void PersonPageTest::filterBarsShareGeometry()
 
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
     darkeye::ThemeService themes(*application);
+    darkeye::PersonRepository people(publicConnection.database());
+    QVERIFY(people.create(darkeye::PersonKind::Actress, QStringLiteral("女演员"), {}));
+    QVERIFY(people.create(darkeye::PersonKind::Actor, QStringLiteral("男演员"), {}));
     for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
         QVERIFY(themes.setTheme(theme));
         darkeye::PersonPage actress(darkeye::PersonKind::Actress,
@@ -213,22 +245,28 @@ void PersonPageTest::filterBarsShareGeometry()
         for (auto *page : {&actress, &actor}) {
             auto *bar = page->findChild<QWidget *>(QStringLiteral("PersonFilterBar"));
             QVERIFY(bar);
-            QCOMPARE(bar->y(), 2);
-            QCOMPARE(bar->height(), 36);
+            QCOMPARE(bar->y(), 0);
+            QCOMPARE(bar->height(), 34);
             auto *input = page->findChild<darkeye::CompleterLineEdit *>();
             const auto inputRect = rect(input, bar);
-            QVERIFY(inputRect.top() > 0);
-            QVERIFY(inputRect.bottom() < bar->height() - 1);
-            QVERIFY(qAbs(2 * inputRect.y() + inputRect.height() - bar->height()) <= 1);
+            QCOMPARE(inputRect.top(), 0);
+            QCOMPARE(bar->height() - inputRect.y() - inputRect.height(), 2);
             QCOMPARE(input->height(), input->sizeHint().height());
             for (auto *combo : page->findChildren<QComboBox *>()) {
                 if (combo->isHidden()) continue;
                 const auto comboRect = rect(combo, bar);
-                QVERIFY(comboRect.top() > 0);
-                QVERIFY(comboRect.bottom() < bar->height() - 1);
-                QVERIFY(qAbs(2 * comboRect.y() + comboRect.height() - bar->height()) <= 1);
+                QCOMPARE(comboRect.top(), 0);
+                QCOMPARE(bar->height() - comboRect.y() - comboRect.height(), 2);
                 QCOMPARE(combo->height(), combo->sizeHint().height());
             }
+            auto *area = page->findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
+            QVERIFY(area);
+            QCOMPARE(rect(area->viewport(), page).top(), bar->geometry().bottom() + 1);
+            auto *avatar = page->findChild<darkeye::OctImage *>(QStringLiteral("PersonCardAvatar"));
+            QVERIFY(avatar);
+            QCOMPARE(rect(avatar, area->viewport()).top(), 0);
+            QVERIFY(avatar->containsAvatarPoint(QPointF(avatar->width() / 2.0, 0.5)));
+
             const auto preview = qEnvironmentVariable("DARKEYE_PERSON_BAR_PREVIEW");
             if (!preview.isEmpty()) {
                 const auto name = page->kind() == darkeye::PersonKind::Actress ? "actress" : "actor";
@@ -239,11 +277,10 @@ void PersonPageTest::filterBarsShareGeometry()
         const auto femaleCombos = actress.findChildren<QComboBox *>();
         const auto maleCombos = actor.findChildren<QComboBox *>();
         QCOMPARE(femaleCombos.size(), 3);
-        QCOMPARE(maleCombos.size(), 3);
-        for (int i = 0; i < 3; ++i) {
-            QCOMPARE(rect(femaleCombos[i], &actress), rect(maleCombos[i], &actor));
-            QVERIFY(femaleCombos[i]->height() >= femaleCombos[i]->minimumSizeHint().height());
-        }
+        QCOMPARE(maleCombos.size(), 1);
+        QCOMPARE(rect(femaleCombos.last(), &actress), rect(maleCombos.first(), &actor));
+        for (const auto *combo : femaleCombos)
+            QVERIFY(combo->height() >= combo->minimumSizeHint().height());
         auto *femaleArea = actress.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
         auto *maleArea = actor.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
         QVERIFY(femaleArea && maleArea);
@@ -395,6 +432,55 @@ void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
                         dragStart - QPoint(50, 0));
     QVERIFY(scroll->horizontalScrollBar()->value() > before);
     QVERIFY(!timeline.hoverPreviewVisible());
+}
+
+void PersonPageTest::actressTimelineScrollsWithHiddenBars()
+{
+    darkeye::ActressWorkTimeline timeline;
+    timeline.resize(760, 130);
+    QList<darkeye::PersonWorkSummary> works;
+    for (int id = 1; id <= 12; ++id) {
+        darkeye::PersonWorkSummary work;
+        work.id = id;
+        work.releaseDate = QStringLiteral("2020-06-18");
+        works.append(work);
+    }
+    timeline.setWorks(works);
+    timeline.show();
+
+    auto *scroll = timeline.findChild<QScrollArea *>();
+    QVERIFY(scroll);
+    auto *horizontal = scroll->horizontalScrollBar();
+    auto *vertical = scroll->verticalScrollBar();
+    QTRY_VERIFY(horizontal->value() > 0);
+    QVERIFY(vertical->maximum() > 0);
+    QVERIFY(!horizontal->isVisible());
+    QVERIFY(!vertical->isVisible());
+
+    auto *canvas = scroll->widget();
+    const QPoint position = canvas->mapFromGlobal(scroll->viewport()->mapToGlobal(QPoint(20, 20)));
+    const auto scrollWheel = [canvas, position](Qt::KeyboardModifier modifier) {
+        QWheelEvent event(position, canvas->mapToGlobal(position), QPoint(), QPoint(0, -120),
+                          Qt::NoButton, modifier, Qt::NoScrollPhase, false);
+        QApplication::sendEvent(canvas, &event);
+    };
+    const int initialX = horizontal->value();
+    const auto rulerImage = [scroll] {
+        auto *viewport = scroll->viewport();
+        return viewport->grab(QRect(0, 0, viewport->width(), 36)).toImage();
+    };
+    const auto initialRuler = rulerImage();
+    scrollWheel(Qt::ControlModifier);
+    QVERIFY(horizontal->value() > initialX);
+    const auto shiftedRuler = rulerImage();
+    QVERIFY(shiftedRuler != initialRuler);
+    const int initialCanvasY = canvas->y();
+    scrollWheel(Qt::ShiftModifier);
+    QVERIFY(vertical->value() > 0);
+    QVERIFY(canvas->y() < initialCanvasY);
+    QCOMPARE(rulerImage(), shiftedRuler);
+    vertical->setValue(0);
+    QCOMPARE(rulerImage(), shiftedRuler);
 }
 
 void PersonPageTest::actressTimelineFitsAfterLayout()
@@ -887,13 +973,13 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     const QString originalCup = cup->currentText();
     cup->setCurrentText(QStringLiteral("M"));
     QVERIFY(save->isEnabled());
-    QVERIFY(cup->styleSheet().contains(QStringLiteral("#FFA500")));
+    QVERIFY(cup->property("personModified").toBool());
     cup->setCurrentIndex(cup->findText(originalCup));
     QVERIFY(!save->isEnabled());
+    QVERIFY(!cup->property("personModified").toBool());
     cup->setCurrentText(QStringLiteral("M"));
     nameTable->item(0, 0)->setText(QStringLiteral("修改后姓名"));
     QVERIFY(save->isEnabled());
-    QVERIFY(save->styleSheet().contains(QStringLiteral("#FFA500")));
     addName->click();
     nameTable->item(1, 1)->setText(QStringLiteral("旧艺名"));
     nameTable->selectRow(1);

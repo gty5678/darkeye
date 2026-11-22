@@ -10,6 +10,10 @@ ModifyActorPage::ModifyActorPage(QSqlDatabase database, ThemeService &themes,
                        std::move(coverDirectory))
 {
     setObjectName(QStringLiteral("ModifyActorPage"));
+}
+
+void ModifyActorPage::buildEditorActions()
+{
     configureAvatar(QStringLiteral("男优头像"), QStringLiteral("把男优头像拖进来"));
 }
 

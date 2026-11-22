@@ -5,6 +5,8 @@
 
 namespace darkeye::myads {
 
+inline constexpr int DockTabBarHeight = 32;
+
 struct DockTheme
 {
     QColor background = QColor(QStringLiteral("#ffffff"));

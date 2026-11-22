@@ -59,7 +59,7 @@ public:
     [[nodiscard]] std::optional<OverviewStatistics> overview(
         QString *errorMessage = nullptr) const;
     [[nodiscard]] std::optional<TopActressStatistic> topActress(
-        int days, QString *errorMessage = nullptr) const;
+        std::optional<int> days, QString *errorMessage = nullptr) const;
     [[nodiscard]] int recordCountInDays(int days, PersonalRecordKind kind,
                                         QString *errorMessage = nullptr) const;
     [[nodiscard]] int earliestRecordYear(QString *errorMessage = nullptr) const;

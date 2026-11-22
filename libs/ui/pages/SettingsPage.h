@@ -103,6 +103,7 @@ public:
 signals:
     void navigationBarVisibilityChanged(bool visible);
     void sidebarAutoCollapseChanged(bool enabled);
+    void sidebarToggleVisibilityChanged(bool leftVisible, bool rightVisible);
 
 private:
     void lazyLoad() override;
@@ -285,6 +286,7 @@ public:
 signals:
     void navigationBarVisibilityChanged(bool visible);
     void sidebarAutoCollapseChanged(bool enabled);
+    void sidebarToggleVisibilityChanged(bool leftVisible, bool rightVisible);
     void referencesChanged(ReferenceKind kind);
     void tagsChanged();
     void actressesChanged();

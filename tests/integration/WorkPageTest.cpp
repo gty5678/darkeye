@@ -16,8 +16,8 @@
 #include "ui/components/ClickableLabel.h"
 #include "ui/components/ImageDropWidget.h"
 #include "ui/components/WorkCard.h"
-#include "ui/pages/management/AddWorkTabPage3.h"
-#include "ui/pages/management/TagManagementWidget.h"
+#include "ui/pages/AddWorkTabPage3.h"
+#include "ui/pages/TagManagementWidget.h"
 #include "ui/components/WorkTagSelector.h"
 #include "ui/components/PersonTransferSelector.h"
 
@@ -779,6 +779,7 @@ void WorkPageTest::tagSelectionInsetsMatchAvailableInEditorAndManagement()
                  qBound(200, editorScroll->viewport()->width() - editorSelected->width() - 26, 700));
     QCOMPARE(editorAvailable->x() - editorSelected->geometry().right() - 1, 10);
     darkeye::TagManagementWidget management(connection.database(), themes);
+    management.initialize();
     auto *managementSelector = management.findChild<darkeye::WorkTagSelector *>();
     QVERIFY(managementSelector != nullptr);
     auto *managementAvailable = managementSelector->findChild<QWidget *>(QStringLiteral("WorkTagAvailablePanel"));

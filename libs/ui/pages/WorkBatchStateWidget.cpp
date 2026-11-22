@@ -1,4 +1,5 @@
-#include "ui/pages/management/WorkBatchStateWidget.h"
+#include "ui/pages/WorkBatchStateWidget.h"
+#include "ui/pages/PageScrollArea.h"
 #include "ui/components/ModelSearchBar.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
@@ -139,10 +140,15 @@ private:
 WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase database,
                                            ThemeService &themes, QString coverDirectory,
                                            QString fanartDirectory, QWidget *parent)
-    : QWidget(parent), m_mode(mode), m_repository(std::move(database)), m_themes(themes),
+    : LazyWidget(parent), m_mode(mode), m_repository(std::move(database)), m_themes(themes),
       m_coverDirectory(std::move(coverDirectory)), m_fanartDirectory(std::move(fanartDirectory))
 {
-    auto *root = new QVBoxLayout(this);
+}
+
+void WorkBatchStateWidget::lazyLoad()
+{
+    auto *root = new QVBoxLayout(addPageScrollArea(this));
+    root->setContentsMargins(0, 0, 0, 0);
     const int checkboxColumns = m_mode == WorkStateMode::Active ? 1 : 0;
     m_table = new TokenTableView(this);
     m_model = new WorkStateTableModel(m_records, checkboxColumns != 0, m_table);
@@ -214,6 +220,7 @@ WorkBatchStateWidget::WorkBatchStateWidget(WorkStateMode mode, QSqlDatabase data
 
 void WorkBatchStateWidget::refresh()
 {
+    if (!m_model) return;
     QString errorMessage;
     m_records = m_repository.listByDeletedState(m_mode == WorkStateMode::RecycleBin,
                                                 {}, &errorMessage);

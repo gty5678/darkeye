@@ -44,15 +44,14 @@ void PersonPage::lazyLoad()
 void PersonPage::buildUi()
 {
     auto *root = new QVBoxLayout(this);
-    // The card area already adds top padding beneath the filter bar.
-    root->setContentsMargins(0, 2, 0, 0);
+    root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
 
     auto *filterBar = new QWidget(this);
     filterBar->setObjectName(QStringLiteral("PersonFilterBar"));
-    filterBar->setFixedHeight(36);
+    filterBar->setFixedHeight(34);
     auto *filters = new QHBoxLayout(filterBar);
-    filters->setContentsMargins(10, 0, 10, 0);
+    filters->setContentsMargins(10, 0, 10, 2);
     filters->setSpacing(6);
 
     filters->addWidget(new DesignLabel(m_kind == PersonKind::Actress ? QStringLiteral("女优")
@@ -63,18 +62,13 @@ void PersonPage::buildUi()
     m_nameInput->setFixedWidth(140);
     filters->addWidget(m_nameInput, 0, Qt::AlignVCenter);
 
-    m_cupSelector = new DesignComboBox(filterBar);
-    m_cupSelector->setProperty("compactFilter", true);
-    m_cupSelector->addItem(QString());
-    m_cupSelector->addItems(m_repository.cupOptions());
-    auto *cupLabel = new DesignLabel(QStringLiteral("罩杯"), filterBar);
-    for (QWidget *control : {static_cast<QWidget *>(cupLabel),
-                            static_cast<QWidget *>(m_cupSelector)}) {
-        auto policy = control->sizePolicy();
-        policy.setRetainSizeWhenHidden(true);
-        control->setSizePolicy(policy);
-        filters->addWidget(control, 0, Qt::AlignVCenter);
-        control->setVisible(m_kind == PersonKind::Actress);
+    if (m_kind == PersonKind::Actress) {
+        m_cupSelector = new DesignComboBox(filterBar);
+        m_cupSelector->setProperty("compactFilter", true);
+        m_cupSelector->addItem(QString());
+        m_cupSelector->addItems(m_repository.cupOptions());
+        filters->addWidget(new DesignLabel(QStringLiteral("罩杯"), filterBar), 0, Qt::AlignVCenter);
+        filters->addWidget(m_cupSelector, 0, Qt::AlignVCenter);
     }
 
     // Keep secondary actions in one trailing group.  The Python pages place
@@ -102,15 +96,13 @@ void PersonPage::buildUi()
     trailingLayout->addWidget(clearButton, 0, Qt::AlignVCenter);
     trailingLayout->addWidget(m_countLabel, 0, Qt::AlignVCenter);
 
-    m_scopeSelector = new DesignComboBox(trailingControls);
-    m_scopeSelector->setProperty("compactFilter", true);
-    m_scopeSelector->addItem(QStringLiteral("公共库范围"), false);
-    m_scopeSelector->addItem(QStringLiteral("收藏库范围"), true);
-    auto scopePolicy = m_scopeSelector->sizePolicy();
-    scopePolicy.setRetainSizeWhenHidden(true);
-    m_scopeSelector->setSizePolicy(scopePolicy);
-    trailingLayout->addWidget(m_scopeSelector, 0, Qt::AlignVCenter);
-    m_scopeSelector->setVisible(m_kind == PersonKind::Actress);
+    if (m_kind == PersonKind::Actress) {
+        m_scopeSelector = new DesignComboBox(trailingControls);
+        m_scopeSelector->setProperty("compactFilter", true);
+        m_scopeSelector->addItem(QStringLiteral("公共库范围"), false);
+        m_scopeSelector->addItem(QStringLiteral("收藏库范围"), true);
+        trailingLayout->addWidget(m_scopeSelector, 0, Qt::AlignVCenter);
+    }
 
     m_sortSelector = new DesignComboBox(trailingControls);
     m_sortSelector->setProperty("compactFilter", true);
@@ -163,10 +155,12 @@ void PersonPage::buildUi()
     connect(m_filterTimer, &QTimer::timeout, this, &PersonPage::applyFilters);
     connect(m_nameInput, &CompleterLineEdit::textChanged, m_filterTimer,
             qOverload<>(&QTimer::start));
-    connect(m_cupSelector, &QComboBox::currentIndexChanged, this,
-            [this] { m_filterTimer->start(); });
-    connect(m_scopeSelector, &QComboBox::currentIndexChanged, this,
-            [this] { m_filterTimer->start(); });
+    if (m_kind == PersonKind::Actress) {
+        connect(m_cupSelector, &QComboBox::currentIndexChanged, m_filterTimer,
+                qOverload<>(&QTimer::start));
+        connect(m_scopeSelector, &QComboBox::currentIndexChanged, m_filterTimer,
+                qOverload<>(&QTimer::start));
+    }
     connect(m_sortSelector, &QComboBox::currentIndexChanged, this,
             [this] { m_filterTimer->start(); });
     connect(refreshButton, &QPushButton::clicked, this, &PersonPage::refresh);
@@ -219,8 +213,10 @@ void PersonPage::applyFilters()
 void PersonPage::clearFilters()
 {
     m_nameInput->clear();
-    m_cupSelector->setCurrentIndex(0);
-    m_scopeSelector->setCurrentIndex(0);
+    if (m_kind == PersonKind::Actress) {
+        m_cupSelector->setCurrentIndex(0);
+        m_scopeSelector->setCurrentIndex(0);
+    }
     m_sortSelector->setCurrentIndex(
         m_sortSelector->findData(static_cast<int>(PersonSortOrder::CreatedDescending)));
     applyFilters();
@@ -272,7 +268,8 @@ QList<QWidget *> PersonPage::loadCardPage(int pageIndex, int pageSize)
     cards.reserve(people.size());
     for (const PersonSummary &person : people)
     {
-        auto *card = new PersonCard(person.id, person.name, person.imagePath, m_imageDirectory, nullptr, true);
+        auto *card = new PersonCard(person.id, person.name, person.imagePath,
+                                    m_imageDirectory, nullptr, true, Qt::AlignTop);
         connect(card, &PersonCard::activated, this,
                 [this](qint64 personId) { emit detailRequested(m_kind, personId); });
         connect(card, &PersonCard::editRequested, this,

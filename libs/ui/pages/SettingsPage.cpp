@@ -38,6 +38,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonDocument>
@@ -113,6 +114,14 @@ const SettingsCommand settingsCommands[] = {
     {"check_update", QStringLiteral("检查更新"), AboutSettingsPage::staticMetaObject},
     {"local_update", QStringLiteral("使用本地安装包更新"), AboutSettingsPage::staticMetaObject},
 };
+
+QWidget *operationDialogParent(QWidget *page)
+{
+    auto *settings = qobject_cast<SettingsDialog *>(page->window());
+    if (settings && settings->isHidden() && settings->parentWidget())
+        return settings->parentWidget();
+    return page;
+}
 
 QString detectedDatabaseVersion(const QString &path)
 {
@@ -267,22 +276,51 @@ AboutSettingsPage::AboutSettingsPage(ThemeService &themeService, QWidget *parent
 void AboutSettingsPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 4, 12, 12);
+    layout->setSpacing(20);
 
-    auto *logo = new QLabel(this);
+    const auto addPanel = [this, layout] {
+        auto *panel = new QFrame(this);
+        panel->setObjectName(QStringLiteral("AboutSoftwarePanel"));
+        panel->setAttribute(Qt::WA_StyledBackground);
+        auto *panelLayout = new QVBoxLayout(panel);
+        panelLayout->setContentsMargins(16, 14, 16, 14);
+        panelLayout->setSpacing(12);
+        layout->addWidget(panel);
+        return panelLayout;
+    };
+    const auto sectionTitle = [this](const QString &text) {
+        auto *label = new DesignLabel(text, this);
+        label->setObjectName(QStringLiteral("AboutSoftwareSectionTitle"));
+        return label;
+    };
+
+    auto *overview = addPanel();
+    auto *identity = new QHBoxLayout;
+    identity->setSpacing(14);
+    auto *logo = new QLabel(overview->parentWidget());
     logo->setObjectName(QStringLiteral("AboutSoftwareLogo"));
-    logo->setFixedSize(192, 192);
+    logo->setFixedSize(64, 64);
     logo->setAlignment(Qt::AlignCenter);
     logo->setPixmap(QIcon(QStringLiteral(":/icons/logo.svg"))
                         .pixmap(logo->size(), logo->devicePixelRatioF()));
-    layout->addWidget(logo, 0, Qt::AlignHCenter);
-    layout->addSpacing(16);
-
-    auto *versionRow = new QHBoxLayout;
+    identity->addWidget(logo, 0, Qt::AlignVCenter);
+    auto *identityText = new QVBoxLayout;
+    identityText->setSpacing(3);
+    auto *name = new DesignLabel(QStringLiteral("Darkeye"), overview->parentWidget());
+    name->setObjectName(QStringLiteral("AboutSoftwareName"));
+    identityText->addWidget(name);
     auto *version = new DesignLabel(
-        QStringLiteral("当前版本 %1").arg(QStringLiteral(DARKEYE_VERSION)), this);
-    versionRow->addWidget(version);
+        QStringLiteral("当前版本 %1").arg(QStringLiteral(DARKEYE_VERSION)),
+        overview->parentWidget());
+    identityText->addWidget(version);
+    identity->addLayout(identityText, 1);
+    overview->addLayout(identity);
 
-    auto *checkUpdate = new DesignButton(QStringLiteral("检查更新"), this);
+    auto *updateActions = new QHBoxLayout;
+    updateActions->setSpacing(8);
+    auto *checkUpdate = new DesignButton(QStringLiteral("检查更新"), overview->parentWidget());
+    checkUpdate->setVariant(QStringLiteral("primary"));
     checkUpdate->setProperty("settingsCommand", QStringLiteral("check_update"));
     checkUpdate->setToolTip(QStringLiteral("检查官方发布的最新版本。"));
     connect(checkUpdate, &QPushButton::clicked, this, [this, checkUpdate] {
@@ -295,34 +333,34 @@ void AboutSettingsPage::lazyLoad()
             checkUpdate->setEnabled(true);
             service->deleteLater();
             if (!result.success) {
-                QMessageBox::critical(this, result.title, result.message);
+                QMessageBox::critical(operationDialogParent(this), result.title, result.message);
                 return;
             }
             if (!result.updateAvailable) {
-                QMessageBox::information(this, result.title, result.message);
+                QMessageBox::information(operationDialogParent(this), result.title, result.message);
                 return;
             }
 
             const QString prompt = result.message
                 + QStringLiteral("\n\n已检测到新版本。软件将退出以完成更新，是否立即更新？");
-            if (QMessageBox::question(this, result.title, prompt,
+            if (QMessageBox::question(operationDialogParent(this), result.title, prompt,
                                       QMessageBox::Yes | QMessageBox::No,
                                       QMessageBox::Yes) != QMessageBox::Yes) {
-                QMessageBox::information(this, QStringLiteral("已取消更新"),
+                QMessageBox::information(operationDialogParent(this), QStringLiteral("已取消更新"),
                                          QStringLiteral("你已取消更新。"));
                 return;
             }
-            if (!startUpdater(this, {})) return;
-            QMessageBox::information(this, QStringLiteral("开始更新"),
+            if (!startUpdater(operationDialogParent(this), {})) return;
+            QMessageBox::information(operationDialogParent(this), QStringLiteral("开始更新"),
                                      result.message + QStringLiteral("\n\n已启动更新程序，软件即将退出完成更新。"));
             QTimer::singleShot(200, qApp, &QCoreApplication::quit);
         });
         service->check(UpdateService::manifestUrl(),
                        QStringLiteral(DARKEYE_VERSION));
     });
-    versionRow->addWidget(checkUpdate);
+    updateActions->addWidget(checkUpdate);
 
-    auto *localUpdate = new DesignButton(QStringLiteral("使用本地安装包更新…"), this);
+    auto *localUpdate = new DesignButton(QStringLiteral("使用本地安装包更新…"), overview->parentWidget());
     localUpdate->setProperty("settingsCommand", QStringLiteral("local_update"));
     localUpdate->setToolTip(
         QStringLiteral("选择从 GitHub Release 下载的 zip 或 tar.zst，由更新程序离线安装。"));
@@ -330,53 +368,43 @@ void AboutSettingsPage::lazyLoad()
         const QString explanation = QStringLiteral(
             "本地更新不会校验版本号，请确认所选程序更新包适用于当前系统和架构。\n\n"
             "更新包中的程序文件将被覆盖，原有数据、便携配置及包外文件会保留。\n\n确定继续？");
-        if (QMessageBox::question(this, QStringLiteral("覆盖安装说明"), explanation,
+        if (QMessageBox::question(operationDialogParent(this), QStringLiteral("覆盖安装说明"), explanation,
                                   QMessageBox::Yes | QMessageBox::No,
                                   QMessageBox::No) != QMessageBox::Yes)
             return;
         const QString packagePath = QFileDialog::getOpenFileName(
-            this, QStringLiteral("选择本地安装包"), {},
+            operationDialogParent(this), QStringLiteral("选择本地安装包"), {},
             QStringLiteral("安装包 (*.zip *.tar.zst);;ZIP 压缩包 (*.zip);;Zstandard (*.tar.zst);;所有文件 (*.*)"));
         if (packagePath.isEmpty()) return;
         if (!QFileInfo(packagePath).isFile()) {
-            QMessageBox::critical(this, QStringLiteral("更新失败"), QStringLiteral("所选文件无效。"));
+            QMessageBox::critical(operationDialogParent(this), QStringLiteral("更新失败"), QStringLiteral("所选文件无效。"));
             return;
         }
         const QString prompt = QStringLiteral("将使用以下文件更新：\n%1\n\n软件将退出以完成更新，是否继续？")
                                    .arg(QDir::toNativeSeparators(packagePath));
-        if (QMessageBox::question(this, QStringLiteral("使用本地安装包更新"), prompt,
+        if (QMessageBox::question(operationDialogParent(this), QStringLiteral("使用本地安装包更新"), prompt,
                                   QMessageBox::Yes | QMessageBox::No,
                                   QMessageBox::No) != QMessageBox::Yes) {
-            QMessageBox::information(this, QStringLiteral("已取消更新"), QStringLiteral("你已取消更新。"));
+            QMessageBox::information(operationDialogParent(this), QStringLiteral("已取消更新"), QStringLiteral("你已取消更新。"));
             return;
         }
-        if (!startUpdater(this, {QStringLiteral("--local-package"), packagePath})) return;
-        QMessageBox::information(this, QStringLiteral("开始更新"),
+        if (!startUpdater(operationDialogParent(this), {QStringLiteral("--local-package"), packagePath})) return;
+        QMessageBox::information(operationDialogParent(this), QStringLiteral("开始更新"),
                                  QStringLiteral("已启动更新程序，软件即将退出完成更新。"));
         QTimer::singleShot(200, qApp, &QCoreApplication::quit);
     });
 
-    versionRow->addWidget(localUpdate);
-
-    const auto addExternalButton = [this, versionRow](const QString &text, const QString &url)
-    {
-        auto *button = new DesignButton(text, this);
-        connect(button, &QPushButton::clicked, this,
-                [url] { QDesktopServices::openUrl(QUrl(url)); });
-        versionRow->addWidget(button);
-    };
-    addExternalButton(QStringLiteral("意见反馈"),
-                      QStringLiteral("https://github.com/gty5678/darkeye/issues"));
-    addExternalButton(QStringLiteral("版本记录"),
-                      utils::changelogUrl().toString());
-    versionRow->addStretch();
-    layout->addLayout(versionRow);
+    updateActions->addWidget(localUpdate);
+    updateActions->addStretch();
+    overview->addLayout(updateActions);
 
     auto *updateOptions = new QFormLayout;
+    overview->addLayout(updateOptions);
     const QString settingsFile = m_runtimePaths.settingsFile();
     auto *automaticUpdate =
         addSwitchRow(updateOptions,
-                     new DesignLabel(QStringLiteral("自动检查更新并提醒（每周一次）"), this),
+                     new DesignLabel(QStringLiteral("自动检查更新并提醒（每周一次）"),
+                                     overview->parentWidget()),
                      m_themeService);
     automaticUpdate->setChecked(settings::app(settingsFile).update.checkAndNotify);
     connect(automaticUpdate, &ToggleSwitch::toggled, this,
@@ -385,39 +413,62 @@ void AboutSettingsPage::lazyLoad()
         saved.update.checkAndNotify = enabled;
         settings::saveApp(saved, settingsFile);
     });
-    layout->addLayout(updateOptions);
-
+    auto *directoryPanel = addPanel();
+    directoryPanel->addWidget(sectionTitle(QStringLiteral("运行目录")));
     auto *runtimePaths = new QFormLayout;
     runtimePaths->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    const auto addRuntimePath = [this, runtimePaths](const QString &title, const QString &path)
+    runtimePaths->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    runtimePaths->setHorizontalSpacing(16);
+    runtimePaths->setVerticalSpacing(8);
+    directoryPanel->addLayout(runtimePaths);
+    const auto addRuntimePath = [runtimePaths](const QString &title, const QString &path)
     {
-        auto *value = new DesignLabel(QDir::toNativeSeparators(QDir(path).absolutePath()), this);
+        auto *parent = runtimePaths->parentWidget();
+        auto *value = new DesignLabel(QDir::toNativeSeparators(QDir(path).absolutePath()), parent);
         value->setTextFormat(Qt::PlainText);
         value->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
         value->setWordWrap(true);
-        runtimePaths->addRow(new DesignLabel(title, this), value);
+        runtimePaths->addRow(new DesignLabel(title, parent), value);
     };
     addRuntimePath(QStringLiteral("数据目录（data-dir）"), m_runtimePaths.dataDirectory());
     addRuntimePath(QStringLiteral("配置目录（config）"), m_runtimePaths.configDirectory());
     addRuntimePath(QStringLiteral("知识库目录（avwiki）"), m_runtimePaths.wikiDirectory());
-    layout->addSpacing(12);
-    layout->addLayout(runtimePaths);
-
-    auto *links = new QHBoxLayout;
-    links->setSpacing(16);
-    const auto addLink = [this](QVBoxLayout *column, const QString &title,
-                                const QString &description, const QString &url)
+    auto *resources = addPanel();
+    auto *resourceActions = new QHBoxLayout;
+    resourceActions->setSpacing(8);
+    resourceActions->addWidget(sectionTitle(QStringLiteral("项目与支持")), 1);
+    const auto addExternalButton = [this, resources, resourceActions](const QString &text, const QString &url)
     {
-        auto *card = new TokenLinkCard(title, description, url, &m_themeService, this);
-        card->setMinimumWidth(0);
-        card->setMaximumWidth(280);
-        card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        column->addWidget(card);
+        auto *button = new DesignButton(text, resources->parentWidget());
+        connect(button, &QPushButton::clicked, this,
+                [url] { QDesktopServices::openUrl(QUrl(url)); });
+        resourceActions->addWidget(button);
     };
-    auto *projectLinks = new QVBoxLayout;
-    projectLinks->setSpacing(8);
-    projectLinks->setAlignment(Qt::AlignTop);
-    projectLinks->addWidget(new DesignLabel(QStringLiteral("项目链接"), this));
+    addExternalButton(QStringLiteral("意见反馈"),
+                      QStringLiteral("https://github.com/gty5678/darkeye/issues"));
+    addExternalButton(QStringLiteral("版本记录"),
+                      utils::changelogUrl().toString());
+    resources->addLayout(resourceActions);
+
+    auto *links = new QGridLayout;
+    links->setHorizontalSpacing(12);
+    links->setVerticalSpacing(8);
+    links->setColumnStretch(0, 1);
+    links->setColumnStretch(1, 1);
+    const auto addLinks = [this, resources, links](int column, const QString &heading,
+                                                  const QList<std::tuple<QString, QString, QString>> &entries)
+    {
+        auto *parent = resources->parentWidget();
+        links->addWidget(new DesignLabel(heading, parent), 0, column);
+        int row = 1;
+        for (const auto &[title, description, url] : entries) {
+            auto *card = new TokenLinkCard(title, description, url, &m_themeService, parent);
+            card->setMinimumWidth(0);
+            card->setMaximumWidth(QWIDGETSIZE_MAX);
+            card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+            links->addWidget(card, row++, column);
+        }
+    };
     const QList<std::tuple<QString, QString, QString>> projects = {
         {QStringLiteral("GitHub"), QStringLiteral("源代码仓库与问题反馈"),
          utils::projectRepositoryUrl().toString()},
@@ -428,15 +479,6 @@ void AboutSettingsPage::lazyLoad()
         {QStringLiteral("Mosaic 桥接器"), QStringLiteral("信息获取服务与桥接器"),
          QStringLiteral("https://github.com/gty5678/mosaic.git")},
     };
-    for (const auto &[title, description, url] : projects)
-    {
-        addLink(projectLinks, title, description, url);
-    }
-
-    auto *referenceLinks = new QVBoxLayout;
-    referenceLinks->setSpacing(8);
-    referenceLinks->setAlignment(Qt::AlignTop);
-    referenceLinks->addWidget(new DesignLabel(QStringLiteral("参考项目"), this));
     const QList<std::tuple<QString, QString, QString>> references = {
         {QStringLiteral("mdcz"), QStringLiteral("开源媒体库元数据刮削与管理"),
          QStringLiteral("https://github.com/ShotHeadman/mdcz")},
@@ -447,14 +489,9 @@ void AboutSettingsPage::lazyLoad()
         {QStringLiteral("JAV-JHS"), QStringLiteral("油猴脚本，站点体验增强"),
          QStringLiteral("https://sleazyfork.org/zh-CN/scripts/558525-jav-jhs")},
     };
-    for (const auto &[title, description, url] : references)
-    {
-        addLink(referenceLinks, title, description, url);
-    }
-    links->addLayout(projectLinks);
-    links->addLayout(referenceLinks);
-    links->addStretch();
-    layout->addLayout(links);
+    addLinks(0, QStringLiteral("项目链接"), projects);
+    addLinks(1, QStringLiteral("参考项目"), references);
+    resources->addLayout(links);
     layout->addStretch();
 }
 
@@ -567,7 +604,7 @@ void VideoSettingsPage::showFilesWithoutSerial(
     if (entries.size() > limit)
         suffix = QStringLiteral("\n\n… 另有 %1 条未列出（共 %2 个文件）")
                      .arg(entries.size() - limit).arg(entries.size());
-    QMessageBox::warning(this, QStringLiteral("无法提取番号"),
+    QMessageBox::warning(operationDialogParent(this), QStringLiteral("无法提取番号"),
                          QStringLiteral("以下视频未能从文件名识别番号：\n\n")
                              + lines.join(QStringLiteral("\n\n")) + suffix);
 }
@@ -603,21 +640,21 @@ void VideoSettingsPage::synchronizeVideoUrls()
     const QStringList paths = configuredPaths();
     if (paths.isEmpty())
     {
-        QMessageBox::information(this, QStringLiteral("提示"),
-                                 QStringLiteral("请先在上方配置至少一个视频文件夹路径"));
+        QMessageBox::information(operationDialogParent(this), QStringLiteral("提示"),
+                                 QStringLiteral("请先在设置的「视频」页配置至少一个视频文件夹路径"));
         return;
     }
     const VideoLibraryScanResult result =
         VideoLibraryService(m_publicDatabase).synchronizeVideoUrls(paths);
     if (!result.succeeded)
     {
-        QMessageBox::critical(this, QStringLiteral("同步失败"), result.errorMessage);
+        QMessageBox::critical(operationDialogParent(this), QStringLiteral("同步失败"), result.errorMessage);
         return;
     }
     showFilesWithoutSerial(result.filesWithoutSerial);
     if (result.updatedWorks > 0) emit worksChanged();
     QMessageBox::information(
-        this, QStringLiteral("完成"),
+        operationDialogParent(this), QStringLiteral("完成"),
         QStringLiteral("共扫描 %1 个视频文件；无法提取番号 %2 个；"
                        "番号在库中无匹配 %3 个；已更新/清理 %4 条作品的 video_url。")
             .arg(result.scannedFiles).arg(result.filesWithoutSerial.size())
@@ -738,6 +775,24 @@ void CommonSettingsPage::lazyLoad()
         settings::saveApp(appSettings, m_settingsFile);
         emit navigationBarVisibilityChanged(visible);
     });
+
+    const auto addSidebarToggleSetting = [&](const QString &label, const QString &name,
+                                             bool AppSettings::*member) {
+        auto *toggle = addSwitchRow(layout, new DesignLabel(label, this), m_themeService);
+        toggle->setObjectName(name);
+        toggle->setChecked(appSettings.*member);
+        connect(toggle, &ToggleSwitch::toggled, this, [this, member](bool visible) {
+            auto appSettings = settings::app(m_settingsFile);
+            appSettings.*member = visible;
+            settings::saveApp(appSettings, m_settingsFile);
+            emit sidebarToggleVisibilityChanged(appSettings.leftSidebarToggleVisible,
+                                                appSettings.rightSidebarToggleVisible);
+        });
+    };
+    addSidebarToggleSetting(QStringLiteral("显示左边栏展开／收起按钮"),
+                            QStringLiteral("leftSidebarToggleVisible"), &AppSettings::leftSidebarToggleVisible);
+    addSidebarToggleSetting(QStringLiteral("显示右边栏展开／收起按钮"),
+                            QStringLiteral("rightSidebarToggleVisible"), &AppSettings::rightSidebarToggleVisible);
 
     auto *autoCollapse =
         addSwitchRow(layout, new DesignLabel(QStringLiteral("焦点离开边栏时自动收起"), this),
@@ -939,12 +994,12 @@ void CrawlerSettingsPage::startCollector()
     save();
     const QString executable = m_collectorExecutable->text().trimmed();
     if (executable.isEmpty()) {
-        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请先选择信息补充器可执行文件。"));
+        QMessageBox::information(operationDialogParent(this), QStringLiteral("提示"), QStringLiteral("请先选择信息补充器可执行文件。"));
         return;
     }
     if (!QFileInfo::exists(executable) || !QProcess::startDetached(executable, {}, QFileInfo(executable).absolutePath())) {
         setCollectorStatus(QStringLiteral("启动失败"));
-        QMessageBox::warning(this, QStringLiteral("无法启动"), QStringLiteral("无法启动信息补充器：%1").arg(executable));
+        QMessageBox::warning(operationDialogParent(this), QStringLiteral("无法启动"), QStringLiteral("无法启动信息补充器：%1").arg(executable));
         return;
     }
     setCollectorStatus(QStringLiteral("已启动，等待服务就绪…"));
@@ -1309,7 +1364,7 @@ void TranslationSettingsPage::startLlamaServer()
     save(); updateCommandPreview();
     const QString error = get_llama_runtime().start(settings::translation().llama);
     if (!error.isEmpty())
-        QMessageBox::information(this, QStringLiteral("提示"), error);
+        QMessageBox::information(operationDialogParent(this), QStringLiteral("提示"), error);
 }
 
 void TranslationSettingsPage::stopLlamaServer()
@@ -1475,13 +1530,14 @@ void DatabaseSettingsPage::lazyLoad()
 void DatabaseSettingsPage::showResult(const QString &title, const DatabaseMaintenanceResult &result) const
 {
     const QString message = result.outputPath.isEmpty() ? result.message : result.message + QStringLiteral("\n\n位置：%1").arg(result.outputPath);
-    if (result.succeeded) QMessageBox::information(const_cast<DatabaseSettingsPage *>(this), title, message);
-    else QMessageBox::critical(const_cast<DatabaseSettingsPage *>(this), title, message);
+    auto *parent = operationDialogParent(const_cast<DatabaseSettingsPage *>(this));
+    if (result.succeeded) QMessageBox::information(parent, title, message);
+    else QMessageBox::critical(parent, title, message);
 }
 
 void DatabaseSettingsPage::createPublicSnapshot()
 {
-    const QString directory = QFileDialog::getExistingDirectory(this, QStringLiteral("选择完整快照保存位置"), m_paths.publicBackupDirectory());
+    const QString directory = QFileDialog::getExistingDirectory(operationDialogParent(this), QStringLiteral("选择完整快照保存位置"), m_paths.publicBackupDirectory());
     if (directory.isEmpty()) return;
     const auto result = WebDavBackupService::uploadPublicSnapshot(
         m_publicDatabase, directory, m_paths.workCoverDirectory(), m_paths.fanartDirectory(),
@@ -1493,37 +1549,37 @@ void DatabaseSettingsPage::createPublicSnapshot()
 
 void DatabaseSettingsPage::restorePublicSnapshot()
 {
-    const QString metaPath = QFileDialog::getOpenFileName(this, QStringLiteral("选择快照 meta.json"), m_paths.publicBackupDirectory(), QStringLiteral("JSON 文件 (meta.json)"));
+    const QString metaPath = QFileDialog::getOpenFileName(operationDialogParent(this), QStringLiteral("选择快照 meta.json"), m_paths.publicBackupDirectory(), QStringLiteral("JSON 文件 (meta.json)"));
     if (metaPath.isEmpty()) return;
-    if (QMessageBox::warning(this, QStringLiteral("确认恢复"), QStringLiteral("这会覆盖公共数据库中的数据，并合并恢复快照图片。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    if (QMessageBox::warning(operationDialogParent(this), QStringLiteral("确认恢复"), QStringLiteral("这会覆盖公共数据库中的数据，并合并恢复快照图片。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
     showResult(QStringLiteral("完整恢复"), DatabaseMaintenanceService::restorePublicSnapshot(m_publicDatabase, metaPath, m_paths.workCoverDirectory(), m_paths.fanartDirectory(), m_paths.actressImageDirectory(), m_paths.actorImageDirectory()));
 }
 
 void DatabaseSettingsPage::createSimpleBackup(bool privateDatabase)
 {
     const QString initialDirectory = privateDatabase ? m_paths.privateBackupDirectory() : m_paths.publicBackupDirectory();
-    const QString directory = QFileDialog::getExistingDirectory(this, QStringLiteral("选择备份保存位置"), initialDirectory);
+    const QString directory = QFileDialog::getExistingDirectory(operationDialogParent(this), QStringLiteral("选择备份保存位置"), initialDirectory);
     if (directory.isEmpty()) return;
     const auto result = WebDavBackupService::uploadDatabaseBackup(
         privateDatabase ? m_privateDatabase : m_publicDatabase, directory,
         privateDatabase ? QStringLiteral("darkeye-private") : QStringLiteral("darkeye-public"),
         settings::crawler(m_paths.settingsFile()).webDav);
-    if (result.succeeded) QMessageBox::information(this, QStringLiteral("数据库备份"), result.message);
-    else QMessageBox::critical(this, QStringLiteral("数据库备份失败"), result.message);
+    if (result.succeeded) QMessageBox::information(operationDialogParent(this), QStringLiteral("数据库备份"), result.message);
+    else QMessageBox::critical(operationDialogParent(this), QStringLiteral("数据库备份失败"), result.message);
 }
 
 void DatabaseSettingsPage::restoreSimpleBackup(bool privateDatabase)
 {
     const QString initialDirectory = privateDatabase ? m_paths.privateBackupDirectory() : m_paths.publicBackupDirectory();
-    const QString backupPath = QFileDialog::getOpenFileName(this, QStringLiteral("选择数据库备份"), initialDirectory, QStringLiteral("SQLite 数据库 (*.db)"));
+    const QString backupPath = QFileDialog::getOpenFileName(operationDialogParent(this), QStringLiteral("选择数据库备份"), initialDirectory, QStringLiteral("SQLite 数据库 (*.db)"));
     if (backupPath.isEmpty()) return;
-    if (QMessageBox::warning(this, QStringLiteral("确认恢复"), QStringLiteral("这会覆盖当前数据库中的数据。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    if (QMessageBox::warning(operationDialogParent(this), QStringLiteral("确认恢复"), QStringLiteral("这会覆盖当前数据库中的数据。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
     showResult(QStringLiteral("数据库恢复"), DatabaseMaintenanceService::restoreBackup(privateDatabase ? m_privateDatabase : m_publicDatabase, backupPath));
 }
 
 void DatabaseSettingsPage::vacuumDatabases()
 {
-    if (QMessageBox::question(this, QStringLiteral("确认清理"), QStringLiteral("将先创建本地备份，再整理公共库和私库碎片。是否继续？")) != QMessageBox::Yes) return;
+    if (QMessageBox::question(operationDialogParent(this), QStringLiteral("确认清理"), QStringLiteral("将先创建本地备份，再整理公共库和私库碎片。是否继续？")) != QMessageBox::Yes) return;
     showResult(QStringLiteral("数据库清理"), DatabaseMaintenanceService::backupAndVacuum(m_publicDatabase, m_privateDatabase, m_paths.publicBackupDirectory(), m_paths.privateBackupDirectory()));
 }
 
@@ -1542,7 +1598,7 @@ void DatabaseSettingsPage::checkImages()
 
 void DatabaseSettingsPage::rebuildPrivateLinks()
 {
-    if (QMessageBox::warning(this, QStringLiteral("确认重建"), QStringLiteral("公共库变更后才需要此操作；它可能会为缺失的番号或女优创建空记录。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    if (QMessageBox::warning(operationDialogParent(this), QStringLiteral("确认重建"), QStringLiteral("公共库变更后才需要此操作；它可能会为缺失的番号或女优创建空记录。是否继续？"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
     auto result = DatabaseMaintenanceService::rebuildPrivateLinks(m_publicDatabase, m_privateDatabase.databaseName());
     if (result.succeeded) result.message += QStringLiteral(" 新增作品 %1 条，新增女优 %2 条。").arg(result.createdWorks).arg(result.createdActresses);
     showResult(QStringLiteral("重建私库关联"), result);
@@ -1595,15 +1651,15 @@ void DatabaseSettingsPage::testWebDavConnection()
 {
     saveWebDavSettings();
     const auto result = WebDavBackupService::testConnection(settings::crawler(m_paths.settingsFile()).webDav);
-    if (result.succeeded) QMessageBox::information(this, QStringLiteral("连接成功"), result.message);
-    else QMessageBox::warning(this, QStringLiteral("连接失败"), result.message);
+    if (result.succeeded) QMessageBox::information(operationDialogParent(this), QStringLiteral("连接成功"), result.message);
+    else QMessageBox::warning(operationDialogParent(this), QStringLiteral("连接失败"), result.message);
 }
 
 void DatabaseSettingsPage::uploadLatestBackup()
 {
     saveWebDavSettings();
     bool accepted = false;
-    const auto scope = QInputDialog::getItem(this, QStringLiteral("选择上传对象"), QStringLiteral("请选择要上传的备份："), {QStringLiteral("public"), QStringLiteral("private")}, 0, false, &accepted);
+    const auto scope = QInputDialog::getItem(operationDialogParent(this), QStringLiteral("选择上传对象"), QStringLiteral("请选择要上传的备份："), {QStringLiteral("public"), QStringLiteral("private")}, 0, false, &accepted);
     if (!accepted || scope.isEmpty()) return;
     const bool privateDatabase = scope == QStringLiteral("private");
     const auto backup = DatabaseMaintenanceService::createBackup(privateDatabase ? m_privateDatabase : m_publicDatabase,
@@ -1611,16 +1667,16 @@ void DatabaseSettingsPage::uploadLatestBackup()
                                                                    privateDatabase ? QStringLiteral("darkeye-private") : QStringLiteral("darkeye-public"));
     if (!backup.succeeded) { showResult(QStringLiteral("上传失败"), backup); return; }
     const auto result = WebDavBackupService::uploadFile(backup.outputPath, settings::crawler(m_paths.settingsFile()).webDav);
-    if (result.succeeded) QMessageBox::information(this, QStringLiteral("上传成功"), result.message);
-    else QMessageBox::warning(this, QStringLiteral("上传失败"), result.message);
+    if (result.succeeded) QMessageBox::information(operationDialogParent(this), QStringLiteral("上传成功"), result.message);
+    else QMessageBox::warning(operationDialogParent(this), QStringLiteral("上传失败"), result.message);
 }
 
 void DatabaseSettingsPage::listWebDavBackups()
 {
     saveWebDavSettings(); QStringList files;
     const auto result = WebDavBackupService::listBackups(settings::crawler(m_paths.settingsFile()).webDav, &files);
-    if (!result.succeeded) { QMessageBox::warning(this, QStringLiteral("列举失败"), result.message); return; }
-    QMessageBox::information(this, QStringLiteral("云端备份列表"), files.isEmpty() ? QStringLiteral("云端暂无备份文件。") : result.message + QStringLiteral("\n\n") + files.join(QLatin1Char('\n')));
+    if (!result.succeeded) { QMessageBox::warning(operationDialogParent(this), QStringLiteral("列举失败"), result.message); return; }
+    QMessageBox::information(operationDialogParent(this), QStringLiteral("云端备份列表"), files.isEmpty() ? QStringLiteral("云端暂无备份文件。") : result.message + QStringLiteral("\n\n") + files.join(QLatin1Char('\n')));
 }
 
 void DatabaseSettingsPage::restoreWebDavBackup()
@@ -1628,14 +1684,14 @@ void DatabaseSettingsPage::restoreWebDavBackup()
     saveWebDavSettings(); QStringList files;
     const auto settings = darkeye::settings::crawler(m_paths.settingsFile()).webDav;
     const auto listed = WebDavBackupService::listBackups(settings, &files);
-    if (!listed.succeeded) { QMessageBox::warning(this, QStringLiteral("获取列表失败"), listed.message); return; }
+    if (!listed.succeeded) { QMessageBox::warning(operationDialogParent(this), QStringLiteral("获取列表失败"), listed.message); return; }
     bool accepted = false;
-    const QString remotePath = QInputDialog::getItem(this, QStringLiteral("选择云端备份"), QStringLiteral("请选择要恢复的备份："), files, 0, false, &accepted);
+    const QString remotePath = QInputDialog::getItem(operationDialogParent(this), QStringLiteral("选择云端备份"), QStringLiteral("请选择要恢复的备份："), files, 0, false, &accepted);
     if (!accepted || remotePath.isEmpty()) return;
-    if (QMessageBox::warning(this, QStringLiteral("确认恢复"), QStringLiteral("是否从云端下载并覆盖现有公共数据库？操作不可撤销！"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+    if (QMessageBox::warning(operationDialogParent(this), QStringLiteral("确认恢复"), QStringLiteral("是否从云端下载并覆盖现有公共数据库？操作不可撤销！"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
     const auto result = WebDavBackupService::restoreDatabaseBackup(m_publicDatabase, remotePath, QDir(m_paths.dataDirectory()).filePath(QStringLiteral("temp/webdav_restore")), settings);
-    if (result.succeeded) QMessageBox::information(this, QStringLiteral("恢复成功"), result.message);
-    else QMessageBox::critical(this, QStringLiteral("恢复失败"), result.message);
+    if (result.succeeded) QMessageBox::information(operationDialogParent(this), QStringLiteral("恢复成功"), result.message);
+    else QMessageBox::critical(operationDialogParent(this), QStringLiteral("恢复失败"), result.message);
 }
 
 SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &shortcutActions,
@@ -1656,6 +1712,8 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
             this, &SettingsDialog::navigationBarVisibilityChanged);
     connect(m_commonPage, &CommonSettingsPage::sidebarAutoCollapseChanged,
             this, &SettingsDialog::sidebarAutoCollapseChanged);
+    connect(m_commonPage, &CommonSettingsPage::sidebarToggleVisibilityChanged,
+            this, &SettingsDialog::sidebarToggleVisibilityChanged);
     auto *videoPage = new VideoSettingsPage(publicDatabase, this);
     auto *nfoPage = new NfoSettingsPage(publicDatabase, paths, this);
     auto *crawlerPage = new CrawlerSettingsPage(themeService, this);
@@ -1670,7 +1728,8 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
 
     const QList<Section> sections = {
         {QStringLiteral("常规"), m_commonPage, {QStringLiteral("主题"), QStringLiteral("主色"),
-         QStringLiteral("显示左侧页面导航栏"), QStringLiteral("焦点离开边栏时自动收起"), QStringLiteral("初始过滤器添加绿色封面")}},
+         QStringLiteral("显示左侧页面导航栏"), QStringLiteral("显示左边栏展开／收起按钮"),
+         QStringLiteral("显示右边栏展开／收起按钮"), QStringLiteral("焦点离开边栏时自动收起"), QStringLiteral("初始过滤器添加绿色封面")}},
         {QStringLiteral("视频"), videoPage,
          QStringLiteral("本地播放器（可选）：|视频文件夹路径管理：|扫描本地视频提取番号并录入数据库|同步作品本地视频路径").split(u'|')},
         {QStringLiteral("NFO"), nfoPage,
@@ -1823,22 +1882,19 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
     }
     connect(menu, &QListWidget::itemClicked, this, openItem);
     connect(menu, &QListWidget::itemActivated, this, openItem);
-    m_runWorkspaceCommand = [sections, openSection, search, menu](const QString &id) {
+    m_runWorkspaceCommand = [sections](const QString &id) {
         const auto command = std::ranges::find_if(settingsCommands, [&id](const SettingsCommand &entry) {
             return id == QLatin1StringView(entry.id);
         });
         if (command == std::end(settingsCommands)) return;
 
-        for (int index = 0; index < sections.size(); ++index) {
-            auto *page = sections.at(index).page;
+        for (const auto &section : sections) {
+            auto *page = section.page;
             if (!command->pageType.cast(page)) continue;
 
-            auto *area = openSection(index);
-            search->clear();
-            menu->setCurrentRow(index);
+            page->initialize();
             for (auto *button : page->findChildren<QAbstractButton *>()) {
                 if (button->property("settingsCommand").toString() != id) continue;
-                area->ensureWidgetVisible(button, 12, 24);
                 QTimer::singleShot(0, button, &QAbstractButton::click);
                 return;
             }

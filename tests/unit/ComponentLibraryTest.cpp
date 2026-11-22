@@ -917,13 +917,14 @@ void ComponentLibraryTest::oklchColorWheelKeepsPickerContract()
     darkeye::RatingSelector rating;
     const auto hearts = rating.findChildren<QLabel *>(QStringLiteral("RatingHeart"));
     QCOMPARE(hearts.size(), 5);
-    QCOMPARE(hearts.first()->text(), QStringLiteral("🤍"));
+    QVERIFY(!hearts.first()->property("active").toBool());
     QSignalSpy ratings(&rating, &darkeye::RatingSelector::ratingChanged);
     QTest::mousePress(hearts.at(2), Qt::LeftButton);
     QCOMPARE(rating.rating(), 3);
     QCOMPARE(rating.getRating(), 3);
     QCOMPARE(ratings.count(), 1);
-    QCOMPARE(hearts.at(2)->text(), QStringLiteral("❤️"));
+    QVERIFY(hearts.at(2)->property("active").toBool());
+    QVERIFY(!hearts.at(3)->property("active").toBool());
 }
 
 void ComponentLibraryTest::toastKeepsPythonFactoriesAndStackingContract()

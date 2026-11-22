@@ -1,5 +1,7 @@
 #include "ui/components/AsyncImageLabel.h"
 
+#include "darkeye_ui/theme/ThemeService.h"
+
 #include <QCache>
 #include <QPainter>
 #include <QPaintEvent>
@@ -123,6 +125,9 @@ private:
 
 AsyncImageLabel::AsyncImageLabel(QWidget *parent) : QLabel(parent)
 {
+    static const ThemeTokens fallback = ThemeService::tokens(ThemeId::Light);
+    m_dropOutline = QColor(fallback.imageDropOutline);
+    m_modifiedDropOutline = QColor(fallback.modified);
     setObjectName(QStringLiteral("DesignAsyncImage"));
     setAlignment(Qt::AlignCenter);
     setStyleSheet(QStringLiteral("background-color: transparent;"));
@@ -206,12 +211,12 @@ void AsyncImageLabel::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     const bool dirty = property("imageDropDirty").toBool();
-    // Keep this frame identical to Python's CoverDropWidget: square, 2px and dashed.
-    painter.setPen(QPen(dirty ? QColor(QStringLiteral("#FFA500"))
-                             : QColor(QStringLiteral("#8a8a8a")),
-                        2.0, Qt::DashLine));
+    const QColor color = dirty ? m_modifiedDropOutline : m_dropOutline;
+    constexpr qreal width = ThemeTokens::defaultBorderWidth;
+    constexpr qreal inset = width / 2;
+    painter.setPen(QPen(color, width, Qt::DashLine));
     painter.setBrush(Qt::NoBrush);
-    painter.drawRect(QRectF(rect()).adjusted(1.0, 1.0, -1.0, -1.0));
+    painter.drawRect(QRectF(rect()).adjusted(inset, inset, -inset, -inset));
 }
 
 void AsyncImageLabel::resizeEvent(QResizeEvent *event)

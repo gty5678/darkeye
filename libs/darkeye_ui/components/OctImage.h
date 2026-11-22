@@ -13,7 +13,8 @@ class OctImage final : public QLabel
 public:
     explicit OctImage(const QString &imagePath = {}, const QString &basePath = {},
                       int diameter = 150, bool shadow = true,
-                      QWidget *parent = nullptr, bool deferImage = false);
+                      QWidget *parent = nullptr, bool deferImage = false,
+                      Qt::AlignmentFlag verticalAlignment = Qt::AlignVCenter);
     QString source() const;
     void setImageActive(bool active);
     void updateImage(const QString &imagePath);
@@ -41,6 +42,7 @@ private:
     bool m_shadow = true;
     bool m_imageActive = true;
     bool m_loading = false;
+    Qt::AlignmentFlag m_verticalAlignment;
     QPixmap m_renderCache;
 };
 

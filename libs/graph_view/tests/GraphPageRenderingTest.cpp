@@ -173,7 +173,15 @@ void GraphPageRenderingTest::coveredRendererSubmitsFrame()
     QSignalSpy frameSpy(view, &ForceViewRhiWidget::firstFrameSubmitted);
     window.show();
     QTRY_VERIFY_WITH_TIMEOUT(!frameSpy.isEmpty(), 5000);
-    view->pauseSimulation();
+    delete prewarm;
+
+    auto *liveView = new ForceViewRhiWidget(&window);
+    liveView->setGeometry(window.rect());
+    liveView->setGraph(1, {}, {0.0f, 0.0f}, {QStringLiteral("live")},
+                       {QStringLiteral("live")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
+    QSignalSpy liveFrameSpy(liveView, &ForceViewRhiWidget::firstFrameSubmitted);
+    liveView->show();
+    QTRY_VERIFY_WITH_TIMEOUT(!liveFrameSpy.isEmpty(), 5000);
 }
 
 void GraphPageRenderingTest::rendersWhenRendererExistsBeforeWindowShow()

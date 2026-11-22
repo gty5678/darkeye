@@ -12,7 +12,7 @@
 
 本节适用于已经完成依赖准备的这台电脑。新电脑请从第 1 节开始安装，不要直接复制本节的 vcpkg 路径。
 
-构建脚本现在会自动识别默认的 `$HOME/Qt/6.12.0/macos` 和项目 `build/vcpkg`；如果 PATH 中选中 CMake 4，会优先使用 Qt 附带的 CMake 3.x。已有本机依赖时，无需设置环境变量即可执行 `uv run python tools/package.py`。显式设置的 Qt/vcpkg/toolchain 路径仍优先使用。下面的环境变量命令也适用于直接运行 CMake。
+构建脚本会自动识别 `$HOME/Qt/6.12.0/macos` 和 `$HOME/.local/share/vcpkg`。如果 PATH 中选中 CMake 4，会优先使用 Qt 附带的 CMake 3.x。已有本机依赖时，无需设置环境变量即可执行 `uv run python tools/package.py`。显式设置的 Qt/vcpkg/toolchain 路径仍优先使用。直接运行 CMake 时使用下面的环境变量。
 
 每次新开终端，先执行：
 
@@ -20,7 +20,7 @@
 cd /Users/yin/Desktop/darkeye
 export PATH="$HOME/Qt/Tools/CMake/CMake.app/Contents/bin:$PATH"
 export Qt6_DIR="$HOME/Qt/6.12.0/macos/lib/cmake/Qt6"
-export VCPKG_ROOT="$PWD/build/vcpkg"
+export VCPKG_ROOT="$HOME/.local/share/vcpkg"
 cmake --version
 ```
 
@@ -44,7 +44,7 @@ uv pip install -r tools/requirements-packaging.txt
 
 当前版本 1.2.5 的产物为 `out/Darkeye-1.2.5-macos-arm64-portable.zip` 和 `out/Darkeye-1.2.5-macos-arm64-setup.dmg`，同时生成 `.tar.zst` 更新包、`latest.json`（内含更新包 SHA256）。便携版需完整解压后运行，见第 6 节。
 
-这台电脑因 GitHub 连接问题使用了固定版本的 vcpkg 源码归档，在其 `installed/` 中安装依赖。脚本只有在识别到本机 `build/vcpkg` 无 Git 元数据、且 FreeType/msdfgen 已安装时，才自动设置 `VCPKG_MANIFEST_MODE=OFF`，因此重新配置也能复用依赖。正常 Git 版 vcpkg 保留 manifest 模式。新电脑仍应按第 3 节准备完整 Git 版 vcpkg。无需把这个本机设置提交进公共预设。
+本机使用独立的 vcpkg Git 仓库。首次配置时，CMake 按 `vcpkg.json` 安装 FreeType、msdfgen 及其依赖。清理 `build/` 后重新配置会重新生成构建文件和项目依赖目录。
 
 ## 1. 确认系统和工具链
 
@@ -223,19 +223,16 @@ VS Code 中安装 CodeLLDB（`vadimcn.vscode-lldb`）用于断点调试；可另
 
 本机工作区已准备 `.vscode/launch.json`、`tasks.json` 和 `extensions.json`。在 VS Code 中打开整个项目目录 `/Users/yin/Desktop/darkeye`，在 `apps/desktop/main.cpp` 的 `main()` 内设置断点，进入“运行和调试”，选择 **Darkeye macOS Debug**，按 F5。首次会自动配置、编译 Debug 主程序，后续为增量构建；然后启动 `.app/Contents/MacOS/Darkeye` 内部可执行文件。F10 单步跳过，F11 单步进入，Shift+F5 停止。
 
-该本机配置使用 Qt 6.12.0、Qt 附带的 CMake 3.x，以及第 0 节的本机 vcpkg 已安装依赖（`VCPKG_MANIFEST_MODE=OFF`）。调试时显式使用项目 `config/`、`avwiki/` 和 `data/`。`.vscode/` 被 Git 忽略，不会改变 Windows 开发配置；新电脑需自行创建配置，并按实际 Qt、vcpkg 路径调整。
+该本机配置使用 Qt 6.12.0、Qt 附带的 CMake 3.x，以及第 0 节的 vcpkg 仓库。调试时显式使用项目 `config/`、`avwiki/` 和 `data/`。`.vscode/` 是本机配置，新电脑需按实际 Qt、vcpkg 路径设置。
 
 手动构建本机 Debug 版本可执行：
 
 ```sh
-cmake --preset macos-arm64-debug \
-  -DQt6_DIR="$Qt6_DIR" \
-  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
-  -DVCPKG_MANIFEST_MODE=OFF
+cmake --preset macos-arm64-debug -DQt6_DIR="$Qt6_DIR"
 cmake --build --preset macos-arm64-debug --target Darkeye --parallel 8
 ```
 
-上述 `OFF` 仅适用于第 0 节已安装好依赖的本机环境。新电脑按第 3 节使用完整 vcpkg Git 仓库后，可直接用 `uv run python tools/build.py --config Debug`，保留 manifest 自动安装依赖。
+也可以直接执行 `uv run python tools/build.py --config Debug`。
 
 调试对象应使用 Debug 构建；Release 优化可能导致变量无法查看、断点行跳动。无需先打包 ZIP/DMG 才能调试。若系统首次提示允许开发者工具调试，请按系统提示授权。
 

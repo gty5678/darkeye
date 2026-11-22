@@ -7,6 +7,7 @@
 
 #include <QAbstractItemModel>
 #include <QListWidget>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSignalSpy>
@@ -31,13 +32,19 @@ void CrawlerRefreshTest::retainsHistoryAndAvoidsUnchangedRebuilds()
     darkeye::CrawlerPersistenceService persistence({}, {}, {}, darkeye::TranslationSettings{});
     darkeye::InboxPage page(scheduler, persistence);
     page.initialize();
-    page.resize(1000, 400);
+    page.resize(180, 400);
     page.show();
     auto *completed = page.findChild<QListWidget *>(QStringLiteral("inboxCompletedList"));
     QVERIFY(completed);
     for (int index = 0; index < 60; ++index)
         persistence.finished(QStringLiteral("TEST-%1").arg(index), true, {});
     QCOMPARE(completed->count(), 60);
+    auto *scrollArea = page.findChild<QScrollArea *>();
+    QVERIFY(scrollArea);
+    QTRY_VERIFY(completed->isVisible());
+    QTRY_COMPARE(scrollArea->horizontalScrollBar()->maximum(), 0);
+    auto *row = completed->itemWidget(completed->item(0));
+    QTRY_VERIFY(row->width() <= completed->viewport()->width());
     completed->doItemsLayout();
     QVERIFY(completed->verticalScrollBar()->maximum() > 0);
     completed->verticalScrollBar()->setValue(completed->verticalScrollBar()->maximum() / 2);

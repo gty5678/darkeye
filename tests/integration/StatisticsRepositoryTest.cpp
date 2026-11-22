@@ -4,14 +4,18 @@
 #include "database/repositories/StatisticsRepository.h"
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/Charts.h"
-#include "ui/components/StatsOverviewCards.h"
-#include "ui/pages/PersonalDataPage.h"
+#include "ui/pages/PersonalDataPanels.h"
+#include "ui/pages/StatisticsChartPage.h"
 #include "darkeye_ui/theme/ThemeService.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QDateTime>
 #include <QDir>
+#include <QLabel>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QTemporaryDir>
@@ -23,7 +27,8 @@ class StatisticsRepositoryTest final : public QObject
 
 private slots:
     void reproducesOverviewAndPersonalStatistics();
-    void rendersPersonalDataPage();
+    void rendersPersonalDataPanels();
+    void shootingAgeHistogramKeepsBarsVisibleUnderCurve();
 };
 
 void StatisticsRepositoryTest::reproducesOverviewAndPersonalStatistics()
@@ -126,10 +131,73 @@ void StatisticsRepositoryTest::reproducesOverviewAndPersonalStatistics()
             QVERIFY2(errorMessage.isEmpty(), qPrintable(errorMessage));
         }
     }
+    const QString historicalTime =
+        QDateTime::currentDateTime().addYears(-2).toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+    QVERIFY(privateData.addMasturbationRecord(*workId, work.serialNumber, historicalTime,
+                                              QStringLiteral("tool"), 5, QString(), &errorMessage));
+    const auto historicalTop = statistics.topActress(std::nullopt, &errorMessage);
+    QVERIFY2(historicalTop.has_value(), qPrintable(errorMessage));
+    QCOMPARE(historicalTop->actressId, *actressId);
+    QCOMPARE(historicalTop->recordCount, 2);
+    const auto lastYearTop = statistics.topActress(365, &errorMessage);
+    QVERIFY2(lastYearTop.has_value(), qPrintable(errorMessage));
+    QCOMPARE(lastYearTop->recordCount, 1);
 
 }
 
-void StatisticsRepositoryTest::rendersPersonalDataPage()
+void StatisticsRepositoryTest::shootingAgeHistogramKeepsBarsVisibleUnderCurve()
+{
+    darkeye::SqliteConnection publicConnection;
+    QString error;
+    QVERIFY2(publicConnection.open(QStringLiteral(":memory:"), false, &error),
+             qPrintable(error));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 publicConnection, darkeye::DatabaseKind::Public, &error),
+             qPrintable(error));
+    QSqlQuery fixture(publicConnection.database());
+    QVERIFY(fixture.exec(QStringLiteral("INSERT INTO actress (actress_id, birthday) VALUES (1,'2000-01-01')")));
+    QVERIFY(fixture.exec(QStringLiteral("INSERT INTO work (work_id, serial_number, release_date) "
+                                        "VALUES (1,'STATS-001','2020-07-01')")));
+    QVERIFY(fixture.exec(QStringLiteral("INSERT INTO work_actress_relation (work_id, actress_id) VALUES (1,1)")));
+
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    darkeye::StatisticsChartPage page(publicConnection.database(), QSqlDatabase(), themes);
+    page.resize(900, 600);
+    page.show();
+    auto *chart = page.captureContent();
+    QVERIFY(chart);
+    QComboBox *selector = nullptr;
+    for (auto *combo : page.findChildren<QComboBox *>()) {
+        if (combo->accessibleName() == QStringLiteral("统计项")) {
+            selector = combo;
+            break;
+        }
+    }
+    QVERIFY(selector);
+    const int shootingAge = selector->findText(QStringLiteral("拍摄年龄分布"));
+    QVERIFY(shootingAge >= 0);
+    selector->setCurrentIndex(shootingAge);
+    QApplication::processEvents();
+
+    const QPixmap screenshot = chart->grab();
+    QVERIFY(!screenshot.isNull());
+    const QImage image = screenshot.toImage();
+    const qreal dpr = screenshot.devicePixelRatio();
+    const QRect plot = chart->rect().adjusted(88, 85, -48, -68);
+    // The single age falls in [20.0, 20.5). Sample away from the curve,
+    // percentile marker and gridlines, including the adjacent empty bin.
+    const auto pixelAtAge = [&](qreal age) {
+        const int x = qRound((plot.left() + plot.width() * (age - 16.5) / 24) * dpr);
+        const int y = qRound((plot.bottom() - plot.height() * .12) * dpr);
+        return image.pixelColor(x, y);
+    };
+    const QColor background(themes.currentTokens().background);
+    QVERIFY(pixelAtAge(20.25) != background);
+    QCOMPARE(pixelAtAge(19.75), background);
+}
+
+void StatisticsRepositoryTest::rendersPersonalDataPanels()
 {
     QTemporaryDir temporaryDirectory;
     QVERIFY(temporaryDirectory.isValid());
@@ -151,31 +219,44 @@ void StatisticsRepositoryTest::rendersPersonalDataPage()
     QVERIFY(application);
     darkeye::ThemeService themes(*application);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
-    darkeye::PersonalDataPage page(publicConnection.database(), privateConnection.database(),
-                                    themes, temporaryDirectory.path());
-    page.resize(1200, 700);
-    page.show();
+    darkeye::LibraryOverviewPage overview(publicConnection.database(), privateConnection.database(), themes);
+    darkeye::TopActressesPage favorites(publicConnection.database(), privateConnection.database(),
+                                       themes, temporaryDirectory.path());
+    darkeye::RecordHeatmapPage heatmap(publicConnection.database(), privateConnection.database(), themes);
+    for (auto *panel : {static_cast<QWidget *>(&overview), static_cast<QWidget *>(&favorites),
+                        static_cast<QWidget *>(&heatmap)}) {
+        panel->resize(1200, 320);
+        panel->show();
+    }
     QApplication::processEvents();
-    auto *overviewPanel = page.findChild<QWidget *>(QStringLiteral("PersonalDataOverview"));
-    QVERIFY(overviewPanel);
-    QCOMPARE(overviewPanel->y(), 0);
-    QVERIFY(page.findChild<QWidget *>(QStringLiteral("StatsOverviewCards")));
-    QVERIFY(page.findChild<QWidget *>(QStringLiteral("PersonalRecordHeatmap")));
-    QVERIFY(page.findChild<QPushButton *>(QStringLiteral("RecordKindPrevious")));
-    QVERIFY(page.findChild<QPushButton *>(QStringLiteral("RecordKindNext")));
-    QVERIFY(page.findChild<QWidget *>(QStringLiteral("RecordYearButtonList")));
-    const QPixmap snapshot = page.grab();
-    QVERIFY(!snapshot.isNull());
-    QCOMPARE(snapshot.deviceIndependentSize().toSize(), page.size());
-    const QImage image = snapshot.toImage();
-    const qreal pageDpr = snapshot.devicePixelRatio();
-    const auto colors = themes.currentTokens();
-    QCOMPARE(image.pixelColor(qRound(4 * pageDpr), qRound(4 * pageDpr)),
-             QColor(colors.background));
-    QCOMPARE(image.pixelColor(qRound(4 * pageDpr), qRound((overviewPanel->height() + 2) * pageDpr)),
-             QColor(colors.pageBackground));
-    const auto cards = page.findChildren<QWidget *>(QStringLiteral("PersonalSummaryCard"));
+
+    const auto counts = overview.findChildren<QWidget *>(QStringLiteral("StatisticsOverviewCard"));
+    QCOMPARE(counts.size(), 7);
+    const auto background = QColor(themes.currentTokens().pageBackground);
+    const auto surface = QColor(themes.currentTokens().background);
+    const auto *firstCount = overview.findChild<QLabel *>(QStringLiteral("StatisticValue_0"));
+    QVERIFY(firstCount);
+    QCOMPARE(firstCount->text(), QStringLiteral("0"));
+    QCOMPARE(firstCount->font().pixelSize(), 26);
+    auto *countCard = firstCount->parentWidget();
+    const auto countImage = countCard->grab();
+    const qreal countDpr = countImage.devicePixelRatio();
+    QCOMPARE(countImage.toImage().pixelColor(qRound(2 * countDpr), qRound(2 * countDpr)), background);
+    QCOMPARE(countImage.toImage().pixelColor(qRound(5 * countDpr), qRound(20 * countDpr)), surface);
+
+    QVERIFY(heatmap.findChild<QWidget *>(QStringLiteral("PersonalRecordHeatmap")));
+    QVERIFY(heatmap.findChild<QPushButton *>(QStringLiteral("RecordKindPrevious")));
+    QVERIFY(heatmap.findChild<QPushButton *>(QStringLiteral("RecordKindNext")));
+    QVERIFY(heatmap.findChild<QWidget *>(QStringLiteral("RecordYearButtonList")));
+    const auto cards = favorites.findChildren<QWidget *>(QStringLiteral("PersonalSummaryCard"));
     QCOMPARE(cards.size(), 4);
+    bool hasHistoricalCard = false;
+    for (auto *label : favorites.findChildren<QLabel *>())
+    {
+        if (label->text() == QStringLiteral("历史最喜欢的女优"))
+            hasHistoricalCard = true;
+    }
+    QVERIFY(hasHistoricalCard);
     for (auto *card : cards) {
         QVERIFY(card->graphicsEffect() == nullptr);
         QCOMPARE(card->size(), QSize(186, 266));
@@ -189,7 +270,13 @@ void StatisticsRepositoryTest::rendersPersonalDataPage()
         QVERIFY(image.pixelColor(qRound(card->width() * dpr / 2), qRound(7 * dpr)).alpha() < 80);
     }
     const QString previewPath = qEnvironmentVariable("DARKEYE_TEST_SNAPSHOT_PATH");
-    if (!previewPath.isEmpty()) QVERIFY(page.grab().save(previewPath));
+    if (!previewPath.isEmpty()) QVERIFY(overview.grab().save(previewPath));
+
+    overview.resize(620, 112);
+    auto *overviewScroll = overview.findChild<QScrollArea *>();
+    QVERIFY(overviewScroll);
+    QTRY_VERIFY(overviewScroll->horizontalScrollBar()->maximum() > 0);
+    QCOMPARE(overviewScroll->verticalScrollBar()->maximum(), 0);
 }
 
 QTEST_MAIN(StatisticsRepositoryTest)

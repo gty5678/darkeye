@@ -4,9 +4,45 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
 #include <QStyle>
 
 namespace darkeye {
+
+namespace {
+
+class RatingHeart final : public QLabel
+{
+public:
+    using QLabel::QLabel;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainterPath heart;
+        heart.moveTo(12, 21);
+        heart.cubicTo(10, 19, 2, 14, 2, 8.5);
+        heart.cubicTo(2, 3, 8.5, 1.5, 12, 6.5);
+        heart.cubicTo(15.5, 1.5, 22, 3, 22, 8.5);
+        heart.cubicTo(22, 14, 14, 19, 12, 21);
+        heart.closeSubpath();
+
+        const qreal size = font().pixelSize() > 0 ? font().pixelSize() : 24;
+        const QColor color = palette().color(foregroundRole());
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.translate((width() - size) / 2, (height() - size) / 2);
+        painter.scale(size / 24, size / 24);
+        painter.setPen(QPen(color, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        if (property("active").toBool()) {
+            painter.setBrush(color);
+        }
+        painter.drawPath(heart);
+    }
+};
+
+} // namespace
 
 RatingSelector::RatingSelector(QWidget *parent) : QWidget(parent)
 {
@@ -15,14 +51,10 @@ RatingSelector::RatingSelector(QWidget *parent) : QWidget(parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     for (int index = 1; index <= 5; ++index) {
-        auto *heart = new QLabel(QStringLiteral("🤍"), this);
+        auto *heart = new RatingHeart(this);
         heart->setObjectName(QStringLiteral("RatingHeart"));
         heart->setProperty("ratingIndex", index);
-        heart->setAlignment(Qt::AlignCenter);
         heart->setFixedSize(40, 40);
-        QFont font(QStringLiteral("Segoe UI Emoji"));
-        font.setPixelSize(24);
-        heart->setFont(font);
         heart->setCursor(Qt::PointingHandCursor);
         heart->installEventFilter(this);
         layout->addWidget(heart);
@@ -69,11 +101,13 @@ void RatingSelector::refresh()
 {
     const int active = m_hoverRating >= 0 ? m_hoverRating : m_rating;
     for (int index = 0; index < m_hearts.size(); ++index) {
-        m_hearts.at(index)->setText(index < active ? QStringLiteral("❤️")
-                                                  : QStringLiteral("🤍"));
-        m_hearts.at(index)->setProperty("active", index < active);
-        m_hearts.at(index)->style()->unpolish(m_hearts.at(index));
-        m_hearts.at(index)->style()->polish(m_hearts.at(index));
+        auto *heart = m_hearts.at(index);
+        const bool isActive = index < active;
+        if (heart->property("active").toBool() == isActive) continue;
+        heart->setProperty("active", isActive);
+        heart->style()->unpolish(heart);
+        heart->style()->polish(heart);
+        heart->update();
     }
 }
 

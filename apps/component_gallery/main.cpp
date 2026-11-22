@@ -855,7 +855,7 @@ QWidget *buildColorIcons(ThemeService &themes)
         QStringLiteral("layout_waterfall"), QStringLiteral("note_pen"),
         QStringLiteral("funnel"), QStringLiteral("panel_left_open"),
         QStringLiteral("panel_left_close"), QStringLiteral("panel_right_open"),
-        QStringLiteral("panel_right_close"), QStringLiteral("link"),
+        QStringLiteral("panel_right_close"), QStringLiteral("link"),QStringLiteral("terminal"),
     };
     auto *iconContainer = new QWidget;
     auto *iconFlow = new FlowLayout(iconContainer, 0, 4);

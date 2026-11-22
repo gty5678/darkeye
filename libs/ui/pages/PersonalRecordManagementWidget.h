@@ -1,5 +1,7 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include <QSqlDatabase>
 #include <QWidget>
 
@@ -14,7 +16,7 @@ namespace darkeye
 class ThemeService;
 
 /** Editable private personal-record tables, matching Python's “综合管理” tab. */
-class PersonalRecordManagementWidget final : public QWidget
+class PersonalRecordManagementWidget final : public LazyWidget
 {
     Q_OBJECT
 
@@ -25,6 +27,7 @@ public:
     void refresh();
 
 private:
+    void lazyLoad() override;
     void loadTable(const QString &tableName);
     void addRow();
     void deleteSelectedRows();

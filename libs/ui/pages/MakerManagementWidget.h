@@ -1,5 +1,7 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include "database/repositories/ReferenceRepository.h"
 #include "services/ReferenceJsonService.h"
 
@@ -18,7 +20,7 @@ namespace darkeye
 
 class ThemeService;
 
-class MakerManagementWidget final : public QWidget
+class MakerManagementWidget final : public LazyWidget
 {
     Q_OBJECT
 
@@ -36,6 +38,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    void lazyLoad() override;
     enum class ActiveTable { Prefixes, Makers };
 
     void reloadTables(bool prefixes, bool makers);

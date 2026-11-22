@@ -26,12 +26,18 @@ namespace darkeye
 ModifyActressPage::ModifyActressPage(QSqlDatabase database, ThemeService &themes,
                                      QString imageDirectory, QWidget *parent,
                                      QString coverDirectory, QString navConfigFile)
-    : PersonEditorPage(std::move(database), themes, std::move(imageDirectory), parent,
-                       std::move(coverDirectory))
+    : PersonEditorPage(database, themes, std::move(imageDirectory), parent,
+                       std::move(coverDirectory)),
+      m_database(std::move(database)), m_navConfigFile(std::move(navConfigFile))
 {
     setObjectName(QStringLiteral("ModifyActressPage"));
+}
+
+void ModifyActressPage::buildEditorActions()
+{
+    auto &themes = themeService();
     configureAvatar(QStringLiteral("女优头像"), QStringLiteral("把女优头像拖进来"));
-    m_sync = new ActressSyncService(database, settings::crawler().actressApiBaseUrl, {}, {}, this);
+    m_sync = new ActressSyncService(m_database, settings::crawler().actressApiBaseUrl, {}, {}, this);
     m_translation = new LlmTranslationService(this);
     m_avatarFetch = new ImageFetchService(settings::crawler().coverFetchApiUrl, this);
     connect(m_sync, &ActressSyncService::finished, this,
@@ -82,7 +88,7 @@ ModifyActressPage::ModifyActressPage(QSqlDatabase database, ThemeService &themes
     auto *content = new QWidget(scroll);
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(8, 8, 8, 8);
-    m_navPage = new ActressNavPage(std::move(navConfigFile), content);
+    m_navPage = new ActressNavPage(std::move(m_navConfigFile), content);
     contentLayout->addWidget(m_navPage);
     contentLayout->addStretch();
     scroll->setWidget(content);
@@ -187,14 +193,12 @@ bool ModifyActressPage::loadActress(qint64 actressId)
         m_translateMissingButton->setText(QStringLiteral("补全中文名(翻译)"));
         m_translateOverwriteButton->setText(QStringLiteral("覆盖翻译中文名"));
     }
-    const bool loaded = loadPerson(PersonKind::Actress, actressId);
-    if (loaded)
-        m_navPage->setNames(primaryJapaneseName(), primaryChineseName());
-    return loaded;
+    return loadPerson(PersonKind::Actress, actressId);
 }
 
 bool ModifyActressPage::applyCapture(const QJsonObject &payload, QString *errorMessage)
 {
+    initialize();
     if (personId() <= 0)
     {
         if (errorMessage != nullptr)

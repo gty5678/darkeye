@@ -9,13 +9,13 @@ class QLabel;
 namespace darkeye
 {
 
+class ThemeService;
+
 class StatsOverviewCards final : public QWidget
 {
 public:
-    enum class Layout { SingleRow, Wrapping };
-
     StatsOverviewCards(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
-                       QWidget *parent = nullptr, Layout cardLayout = Layout::SingleRow);
+                       ThemeService &themeService, QWidget *parent = nullptr);
 
     void refresh();
 

@@ -27,6 +27,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QToolButton>
+#include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QtTest>
 #include <stdexcept>
@@ -78,6 +79,7 @@ private slots:
     void closeRequestRejectsReentryAndRevalidatesOwnership();
     void workspacePreservesContentWhileSplitting();
     void workspaceBatchesProgrammaticSplits();
+    void tabStripJoinsSplitterAcrossNestedPanes();
     void nestedSplitterResizesBeforeRelease();
     void workspaceMovesTabsAcrossPanes();
     void dropsTabsAtInsertionLine_data();
@@ -446,13 +448,17 @@ void MyAdsTest::draggingTabFollowsPointer()
     QCOMPARE(resting.pixelColor(trailingBackground * resting.devicePixelRatio()),
              theme.tabBarBackground);
     const auto checkStripEdges = [&](const QImage &image) {
+        const int stripBottom = bar->mapTo(pane, QPoint(0, bar->height() - 1)).y();
+        const QImage baseline = pane->grab(
+            QRect(0, stripBottom, pane->width(), 1)).toImage();
         const QRect left = bar->tabRect(0);
         const QRect right = bar->tabRect(2);
         for (const int x : {left.left() + 3, right.right() - 3}) {
             for (const int y : {left.top(), left.center().y()})
                 QCOMPARE(image.pixelColor(QPoint(x, y) * image.devicePixelRatio()),
                          theme.tabBarBackground);
-            QCOMPARE(image.pixelColor(QPoint(x, left.bottom()) * image.devicePixelRatio()),
+            const int paneX = bar->mapTo(pane, QPoint(x, 0)).x();
+            QCOMPARE(baseline.pixelColor(QPoint(paneX, 0) * baseline.devicePixelRatio()),
                      theme.border);
         }
     };
@@ -754,6 +760,8 @@ void MyAdsTest::paneUsesPageAndContentColors()
     const QPoint middle = pane->contentRect().center();
     auto *bar = pane->findChild<QTabBar *>();
     QVERIFY(bar);
+    const int tabBarEnd = bar->mapTo(pane, QPoint(0, bar->height())).y();
+    QCOMPARE(pane->contentRect().top() - tabBarEnd, 2);
     const auto colorAt = [](const QImage &image, const QPoint &point) {
         return image.pixelColor(point * image.devicePixelRatio());
     };
@@ -771,6 +779,8 @@ void MyAdsTest::paneUsesPageAndContentColors()
         const QImage occupied = pane->grab().toImage();
         QCOMPARE(colorAt(occupied, top), pageColor);
         QCOMPARE(colorAt(occupied, tabFill), pageColor);
+        QCOMPARE(colorAt(occupied, QPoint(middle.x(), tabBarEnd)), pageColor);
+        QCOMPARE(colorAt(occupied, QPoint(middle.x(), tabBarEnd + 1)), pageColor);
         QCOMPARE(colorAt(occupied, middle), contentColor);
 
         QVERIFY(pane->removeContent("page"));
@@ -1062,8 +1072,21 @@ void MyAdsTest::sidebarsToggleAndCollapseOnFocusLoss()
     workspace.toggleSidebar(SidebarSide::Left);
     QVERIFY(left->isVisible());
     QCOMPARE(left->contentWidget(QStringLiteral("editor")), editor);
-    workspace.toggleSidebar(SidebarSide::Left);
-    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Left));
+    editor->setFocus();
+    QTRY_VERIFY(editor->hasFocus());
+
+    workspace.toggleSidebar(SidebarSide::Right);
+    auto *rightTabs = right->findChild<QTabBar *>();
+    QVERIFY(rightTabs);
+    QTRY_VERIFY(!workspace.isSidebarOpen(SidebarSide::Left));
+    QVERIFY(workspace.isSidebarOpen(SidebarSide::Right));
+    QCOMPARE(workspace.activePane(), right);
+    QVERIFY(rightTabs->hasFocus());
+
+    workspace.toggleSidebar(SidebarSide::Right);
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
+    QCOMPARE(workspace.activePane(), center);
+    QCOMPARE(QApplication::focusWidget(), center->findChild<QTabBar *>());
 }
 
 void MyAdsTest::sidebarTabsSurviveLayoutRestore()
@@ -1389,6 +1412,61 @@ void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
     QCOMPARE(moved.count(), 1);
     QCOMPARE(workspace.findPaneByContentId("keep"), right);
     QCOMPARE(right->contentWidget("keep"), page.data());
+}
+
+void MyAdsTest::tabStripJoinsSplitterAcrossNestedPanes()
+{
+    DockTheme theme;
+    theme.border = QColor(QStringLiteral("#7941a5"));
+    WorkspaceWidget workspace(nullptr, theme);
+    PaneWidget *left = workspace.rootPane();
+    PaneWidget *right = workspace.split(left, Placement::Right);
+    QVERIFY(right);
+    PaneWidget *editor = workspace.split(right, Placement::Bottom);
+    QVERIFY(editor);
+    auto *page = new QWidget;
+    auto *pageLayout = new QVBoxLayout(page);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    auto *nested = new WorkspaceWidget(page, theme);
+    pageLayout->addWidget(nested);
+    PaneWidget *basic = nested->split(nested->rootPane(), Placement::Bottom);
+    QVERIFY(basic);
+    QVERIFY(workspace.fillPane(editor, ContentConfig(QStringLiteral("editor"))
+                                       .setWindowTitle(QStringLiteral("编辑"))
+                                       .setWidget(page)));
+    QCOMPARE(workspace.layout()->contentsMargins(), QMargins(2, 2, 2, 2));
+    QCOMPARE(nested->layout()->contentsMargins(), QMargins());
+
+    workspace.resize(800, 600);
+    workspace.show();
+    QCoreApplication::processEvents();
+
+    auto *horizontal = qobject_cast<QSplitter *>(left->parentWidget());
+    QVERIFY(horizontal);
+    auto *vertical = qobject_cast<QSplitter *>(right->parentWidget());
+    QVERIFY(vertical);
+    const auto *handle = horizontal->handle(1);
+    const int divider = handle->mapTo(&workspace, handle->rect().center()).x();
+    const auto stripBottom = [&workspace](const PaneWidget *pane) {
+        return pane->mapTo(&workspace, QPoint(0, DockTabBarHeight - 1)).y();
+    };
+    QImage image(workspace.size(), QImage::Format_RGB32);
+    workspace.render(&image);
+    QCOMPARE(image.pixelColor(divider, stripBottom(right)), theme.border);
+    QCOMPARE(image.pixelColor(divider, stripBottom(editor)), theme.border);
+    const int basicLeft = basic->mapTo(&workspace, QPoint()).x();
+    for (int x = divider; x <= basicLeft; ++x)
+        QCOMPARE(image.pixelColor(x, stripBottom(basic)), theme.border);
+
+    const int oldEditorBottom = stripBottom(editor);
+    vertical->setSizes({160, 360});
+    QCoreApplication::processEvents();
+    QVERIFY(stripBottom(editor) != oldEditorBottom);
+    workspace.render(&image);
+    QVERIFY(image.pixelColor(divider, oldEditorBottom) != theme.border);
+    QCOMPARE(image.pixelColor(divider, stripBottom(editor)), theme.border);
+    for (int x = divider; x <= basicLeft; ++x)
+        QCOMPARE(image.pixelColor(x, stripBottom(basic)), theme.border);
 }
 
 void MyAdsTest::nestedSplitterResizesBeforeRelease()

@@ -134,14 +134,19 @@ std::optional<OverviewStatistics> StatisticsRepository::overview(QString *errorM
 }
 
 std::optional<TopActressStatistic> StatisticsRepository::topActress(
-    int days, QString *errorMessage) const
+    std::optional<int> days, QString *errorMessage) const
 {
-    QSqlQuery recordsQuery(m_privateDatabase);
-    recordsQuery.prepare(QStringLiteral(
+    QString recordsSql = QStringLiteral(
         "SELECT work_id, MAX(start_time), COUNT(work_id) FROM masturbation "
-        "WHERE work_id IS NOT NULL AND start_time >= DATE('now', printf('-%d day', ?)) "
-        "GROUP BY work_id"));
-    recordsQuery.addBindValue(qMax(0, days));
+        "WHERE work_id IS NOT NULL");
+    if (days)
+        recordsSql += QStringLiteral(" AND start_time >= DATE('now', printf('-%d day', ?))");
+    recordsSql += QStringLiteral(" GROUP BY work_id");
+
+    QSqlQuery recordsQuery(m_privateDatabase);
+    recordsQuery.prepare(recordsSql);
+    if (days)
+        recordsQuery.addBindValue(qMax(0, *days));
     if (!recordsQuery.exec())
     {
         if (errorMessage != nullptr)
@@ -161,42 +166,46 @@ std::optional<TopActressStatistic> StatisticsRepository::topActress(
         return std::nullopt;
     }
 
-    QSqlQuery query(m_publicDatabase);
-    QStringList placeholders;
-    placeholders.fill(QStringLiteral("?"), recordsByWork.size());
-    query.prepare(QStringLiteral(
-                      "SELECT a.actress_id, "
-                      "(SELECT cn FROM actress_name WHERE actress_id=a.actress_id AND name_type=1), "
-                      "a.image_urlA, relation.work_id FROM actress a "
-                      "JOIN work_actress_relation relation ON relation.actress_id=a.actress_id "
-                      "WHERE relation.work_id IN (%1)")
-                      .arg(placeholders.join(QLatin1Char(','))));
-    for (auto iterator = recordsByWork.cbegin(); iterator != recordsByWork.cend(); ++iterator)
-    {
-        query.addBindValue(iterator.key());
-    }
-    if (!query.exec())
-    {
-        if (errorMessage != nullptr)
-        {
-            *errorMessage = query.lastError().text();
-        }
-        return std::nullopt;
-    }
-
     QHash<qint64, TopActressStatistic> byActress;
-    while (query.next())
+    // Keep each query below SQLite's legacy parameter limit for long histories.
+    constexpr qsizetype batchSize = 900;
+    auto work = recordsByWork.cbegin();
+    for (qsizetype remaining = recordsByWork.size(); remaining > 0;)
     {
-        const qint64 actressId = query.value(0).toLongLong();
-        const auto record = recordsByWork.value(query.value(3).toLongLong());
-        TopActressStatistic &statistic = byActress[actressId];
-        statistic.actressId = actressId;
-        statistic.name = query.value(1).toString();
-        statistic.imagePath = query.value(2).toString();
-        statistic.recordCount += record.first;
-        if (record.second > statistic.latestRecordTime)
+        const qsizetype count = qMin(batchSize, remaining);
+        QStringList placeholders;
+        placeholders.fill(QStringLiteral("?"), count);
+
+        QSqlQuery query(m_publicDatabase);
+        query.prepare(QStringLiteral(
+                          "SELECT a.actress_id, "
+                          "(SELECT cn FROM actress_name WHERE actress_id=a.actress_id AND name_type=1), "
+                          "a.image_urlA, relation.work_id FROM actress a "
+                          "JOIN work_actress_relation relation ON relation.actress_id=a.actress_id "
+                          "WHERE relation.work_id IN (%1)")
+                          .arg(placeholders.join(QLatin1Char(','))));
+        for (qsizetype i = 0; i < count; ++i, ++work)
+            query.addBindValue(work.key());
+        remaining -= count;
+
+        if (!query.exec())
         {
-            statistic.latestRecordTime = record.second;
+            if (errorMessage != nullptr)
+                *errorMessage = query.lastError().text();
+            return std::nullopt;
+        }
+
+        while (query.next())
+        {
+            const qint64 actressId = query.value(0).toLongLong();
+            const auto record = recordsByWork.value(query.value(3).toLongLong());
+            TopActressStatistic &statistic = byActress[actressId];
+            statistic.actressId = actressId;
+            statistic.name = query.value(1).toString();
+            statistic.imagePath = query.value(2).toString();
+            statistic.recordCount += record.first;
+            if (record.second > statistic.latestRecordTime)
+                statistic.latestRecordTime = record.second;
         }
     }
 
@@ -425,7 +434,7 @@ QVector<ChartValue> StatisticsRepository::mostRecordedActresses(QString *errorMe
     QHash<qint64,qreal> weights=workWeights(m_privateDatabase,2,errorMessage); QHash<qint64,qreal> counts; QHash<qint64,QString> names; QSqlQuery query(m_publicDatabase);
     if(!query.exec(QStringLiteral("SELECT r.work_id,a.actress_id,COALESCE((SELECT cn FROM actress_name WHERE actress_id=a.actress_id AND name_type=1),(SELECT jp FROM actress_name WHERE actress_id=a.actress_id AND name_type=1),'未知女优') FROM work_actress_relation r JOIN actress a ON a.actress_id=r.actress_id"))){if(errorMessage)*errorMessage=query.lastError().text();return{};}
     while(query.next()){const auto workId=query.value(0).toLongLong();if(!weights.contains(workId))continue;const auto actress=query.value(1).toLongLong();counts[actress]+=weights.value(workId);names[actress]=query.value(2).toString();}
-    QVector<ChartValue> result;for(auto it=counts.cbegin();it!=counts.cend();++it)result.append({names.value(it.key()),it.value()});std::sort(result.begin(),result.end(),[](const auto&a,const auto&b){return a.value>b.value;});return result.mid(0,25);
+    QVector<ChartValue> result;for(auto it=counts.cbegin();it!=counts.cend();++it)result.append({names.value(it.key()),it.value()});std::sort(result.begin(),result.end(),[](const auto&a,const auto&b){return a.value>b.value;});return result.mid(0,20);
 }
 
 QVector<QDate> StatisticsRepository::workAddedDates(QString *errorMessage) const

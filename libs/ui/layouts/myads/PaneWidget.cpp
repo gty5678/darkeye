@@ -25,6 +25,7 @@
 #include <QStyleOptionTab>
 #include <QStylePainter>
 #include <QTabBar>
+#include <QHBoxLayout>
 #include <QTimer>
 #include <QToolButton>
 #include <QVariantAnimation>
@@ -35,7 +36,7 @@
 namespace darkeye::myads {
 namespace {
 
-constexpr int TabBevel = 7;
+constexpr int TabBevel = 8;
 constexpr int PreferredTabWidth = 168;
 constexpr int MinimumTabWidth = 120;
 
@@ -94,7 +95,7 @@ public:
     void drawStrip(QPainter *painter, const QRect &area) const
     {
         painter->fillRect(area, m_strip);
-        painter->fillRect(QRect(area.left(), area.bottom(), area.width(), 1), m_border);
+        painter->fillRect(area.left(), area.bottom(), area.width(), 1, m_border);
     }
 
     void setDragPosition(QStyleOptionTab::TabPosition position)
@@ -340,7 +341,7 @@ public:
         setExpanding(false);
         setElideMode(Qt::ElideRight);
         setUsesScrollButtons(false);
-        setFixedHeight(32);
+        setFixedHeight(DockTabBarHeight);
         setAttribute(Qt::WA_Hover);
         connect(this, &QTabBar::currentChanged, this, [this](int index) {
             revealTab(index);
@@ -688,7 +689,7 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent, bool retainFocusO
     setAcceptDrops(true);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setSpacing(2);
     auto *tabScrollArea = new QScrollArea(this);
     tabScrollArea->setFrameShape(QFrame::NoFrame);
     tabScrollArea->setFocusPolicy(Qt::NoFocus);
@@ -709,7 +710,11 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent, bool retainFocusO
     });
     m_stack = new QStackedWidget(this);
     m_stack->setObjectName(QStringLiteral("MyAdsPageStack"));
-    layout->addWidget(tabScrollArea);
+    m_tabRow = new QHBoxLayout;
+    m_tabRow->setContentsMargins(0, 0, 0, 0);
+    m_tabRow->setSpacing(0);
+    m_tabRow->addWidget(tabScrollArea, 1);
+    layout->addLayout(m_tabRow);
     layout->addWidget(m_stack, 1);
     connect(m_tabBar, &QTabBar::currentChanged, this, [this](int index) {
         switchContent(index);
@@ -980,6 +985,19 @@ bool PaneWidget::setCurrentContentId(const QString &contentId)
     switchContent(index);
     if (isVisible()) emit activationRequested();
     return true;
+}
+
+void PaneWidget::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.fillRect(0, 0, width(), DockTabBarHeight, m_theme.tabBarBackground);
+    painter.fillRect(0, DockTabBarHeight - 1, width(), 1, m_theme.border);
+}
+
+void PaneWidget::addTabBarButton(QWidget *button, Qt::Edge edge)
+{
+    if (m_tabRow->indexOf(button) >= 0) return;
+    m_tabRow->insertWidget(edge == Qt::LeftEdge ? 0 : m_tabRow->count(), button, 0, Qt::AlignVCenter);
 }
 
 void PaneWidget::focusTabBar()

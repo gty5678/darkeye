@@ -17,7 +17,10 @@ if(WIN32)
     target_link_libraries(darkeye_desktop_ui PRIVATE Psapi)
 elseif(APPLE)
     find_library(DARKEYE_APPKIT AppKit REQUIRED)
-    target_sources(darkeye_desktop_ui PRIVATE MacWorkspaceShortcuts.mm MacWorkspaceShortcuts.h)
+    target_sources(darkeye_desktop_ui PRIVATE
+        MacWindowAppearance.mm MacWindowAppearance.h
+        MacWorkspaceShortcuts.mm MacWorkspaceShortcuts.h
+    )
     target_link_libraries(darkeye_desktop_ui PRIVATE "${DARKEYE_APPKIT}")
 endif()
 darkeye_apply_compiler_options(darkeye_desktop_ui)

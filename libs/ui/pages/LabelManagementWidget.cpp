@@ -1,4 +1,5 @@
-#include "ui/pages/management/LabelManagementWidget.h"
+#include "ui/pages/LabelManagementWidget.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignComboBox.h"
@@ -92,13 +93,17 @@ private:
 
 LabelManagementWidget::LabelManagementWidget(ReferenceKind kind, QSqlDatabase database, ThemeService &themes,
                                              QWidget *parent)
-    : QWidget(parent), m_database(std::move(database)), m_kind(kind), m_repository(m_database),
+    : LazyWidget(parent), m_database(std::move(database)), m_kind(kind), m_repository(m_database),
       m_jsonService(m_database), m_themes(themes)
+{
+}
+
+void LabelManagementWidget::lazyLoad()
 {
     const bool series = m_kind == ReferenceKind::Series;
     const QString kindName = series ? QStringLiteral("系列") : QStringLiteral("厂牌");
-    auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 10, 10, 10);
+    auto *root = new QVBoxLayout(addPageScrollArea(this));
+    root->setContentsMargins(0, 0, 0, 0);
     m_table = new TokenTableWidget(0, series ? 6 : 5, this);
     m_table->setHorizontalHeaderLabels(
         series ? QStringList{QStringLiteral("中文名"), QStringLiteral("日文名"),
@@ -222,6 +227,7 @@ LabelManagementWidget::LabelManagementWidget(ReferenceKind kind, QSqlDatabase da
 
 void LabelManagementWidget::refresh()
 {
+    if (!m_table) return;
     QString error;
     m_records = m_repository.list(m_kind, &error);
     if (!error.isEmpty())
@@ -307,7 +313,7 @@ bool LabelManagementWidget::eventFilter(QObject *watched, QEvent *event)
             return true;
         }
     }
-    return QWidget::eventFilter(watched, event);
+    return LazyWidget::eventFilter(watched, event);
 }
 
 void LabelManagementWidget::selectRow(int row)

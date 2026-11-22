@@ -2,32 +2,57 @@
 
 #include "database/repositories/StatisticsRepository.h"
 #include "darkeye_ui/components/DesignLabel.h"
-#include "darkeye_ui/layouts/FlowLayout.h"
+#include "darkeye_ui/theme/ChamferPath.h"
+#include "darkeye_ui/theme/ThemeService.h"
 
-#include <QFrame>
+#include <QPainter>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
 namespace darkeye
 {
 
+namespace
+{
+class StatisticCard final : public QWidget
+{
+public:
+    StatisticCard(ThemeService &themeService, QWidget *parent)
+        : QWidget(parent), m_themeService(themeService)
+    {
+        setObjectName(QStringLiteral("StatisticsOverviewCard"));
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        setMaximumWidth(148);
+        connect(&m_themeService, &ThemeService::themeChanged, this, [this] { update(); });
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        const auto tokens = m_themeService.currentTokens();
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(QColor(tokens.border), 1));
+        painter.setBrush(QColor(tokens.background));
+        painter.drawPath(chamferPath(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10));
+    }
+
+private:
+    ThemeService &m_themeService;
+};
+} // namespace
+
 StatsOverviewCards::StatsOverviewCards(QSqlDatabase publicDatabase,
-                                       QSqlDatabase privateDatabase, QWidget *parent,
-                                       Layout cardArrangement)
+                                       QSqlDatabase privateDatabase, ThemeService &themeService,
+                                       QWidget *parent)
     : QWidget(parent), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase))
 {
     setObjectName(QStringLiteral("StatsOverviewCards"));
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 4, 0, 4);
-    layout->setSpacing(4);
-    auto *row = cardArrangement == Layout::SingleRow ? new QHBoxLayout : nullptr;
-    QLayout *cards = row ? static_cast<QLayout *>(row) : new FlowLayout(nullptr, 0, 8);
-    if (row)
-    {
-        row->setSpacing(8);
-        row->addStretch();
-    }
+    auto *cards = new QHBoxLayout(this);
+    cards->setContentsMargins(0, 0, 0, 0);
+    cards->setSpacing(8);
+    cards->addStretch();
 
     const QStringList labels{QStringLiteral("作品总数"), QStringLiteral("女优总数"),
                              QStringLiteral("男优总数"), QStringLiteral("Tag总数"),
@@ -35,29 +60,20 @@ StatsOverviewCards::StatsOverviewCards(QSqlDatabase publicDatabase,
                              QStringLiteral("收藏女优总数")};
     for (qsizetype index = 0; index < labels.size(); ++index)
     {
-        auto *card = new QFrame(this);
-        card->setObjectName(QStringLiteral("StatisticsOverviewCard"));
-        card->setFrameShape(QFrame::StyledPanel);
-        card->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        auto *card = new StatisticCard(themeService, this);
         auto *cardLayout = new QVBoxLayout(card);
         cardLayout->setContentsMargins(12, 8, 12, 8);
-        cardLayout->setSpacing(4);
+        cardLayout->setSpacing(2);
         auto *value = new DesignLabel(QStringLiteral("--"), card);
         value->setObjectName(QStringLiteral("StatisticValue_%1").arg(index));
-        QFont valueFont = value->font();
-        valueFont.setPixelSize(20);
-        valueFont.setBold(true);
-        value->setFont(valueFont);
+        value->setProperty("statisticValue", true);
         auto *description = new DesignLabel(labels.at(index), card);
-        description->setProperty("muted", true);
         cardLayout->addWidget(value);
         cardLayout->addWidget(description);
-        cards->addWidget(card);
+        cards->addWidget(card, 1);
         m_valueLabels.append(value);
     }
-    if (row)
-        row->addStretch();
-    layout->addLayout(cards);
+    cards->addStretch();
     refresh();
 }
 

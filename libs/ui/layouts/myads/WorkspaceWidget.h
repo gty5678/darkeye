@@ -12,6 +12,7 @@
 #include <optional>
 
 class QSplitter;
+class QToolButton;
 
 namespace darkeye::myads {
 
@@ -64,7 +65,9 @@ public:
     [[nodiscard]] bool isSidebar(const PaneWidget *pane) const;
     [[nodiscard]] QList<QString> visiblePaneIds() const;
     void toggleSidebar(SidebarSide side);
+    void setSidebarOpen(SidebarSide side, bool open);
     void setSidebarAutoCollapse(bool enabled);
+    void setSidebarToggleVisible(SidebarSide side, bool visible);
 
     ContentConfig createContentConfig(const QString &contentId = {});
     bool fillPane(PaneWidget *pane, const ContentConfig &content);
@@ -115,6 +118,7 @@ protected:
 private:
     class PreviewOverlay;
     WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool createSidebars);
+    void updateWorkspaceMargins();
     struct Sidebar {
         LayoutTree tree;
         QWidget *host = nullptr;
@@ -126,6 +130,8 @@ private:
     [[nodiscard]] const Sidebar *sidebarFor(const QString &paneId) const;
     LayoutTree &treeFor(const QString &paneId);
     void applySidebarWidths();
+    void placeSidebarToggles();
+    void updateSidebarToggles();
     void rebuild(bool preserveContents = true);
     void rebuild(LayoutTree &tree, bool preserveContents = true);
     QWidget *buildNode(const std::shared_ptr<LayoutNode> &node, bool sidebar);
@@ -151,6 +157,8 @@ private:
     Sidebar m_rightSidebar;
     double m_leftWidthRatio = DefaultSidebarWidthRatio;
     double m_rightWidthRatio = DefaultSidebarWidthRatio;
+    QToolButton *m_leftSidebarToggle = nullptr;
+    QToolButton *m_rightSidebarToggle = nullptr;
     bool m_sidebarAutoCollapse = false;
     QHash<QString, PaneWidget *> m_panes;
     QHash<QString, PaneWidget *> m_reusablePanes;

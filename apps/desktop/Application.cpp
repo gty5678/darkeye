@@ -170,13 +170,13 @@ void Application::prepareGraphicsPrewarm()
         dvdPrewarm->setItems({{QStringLiteral("prewarm"),{},QStringLiteral("DVD"),0,false}});
     layout->addWidget(dvdPrewarm);
 
-    m_graphPrewarmView = new ForceViewRhiWidget(m_graphicsPrewarmWindow.get());
-    layout->addWidget(m_graphPrewarmView);
-    m_graphPrewarmView->setGraph(
+    auto *graphPrewarm = new ForceViewRhiWidget(m_graphicsPrewarmWindow.get());
+    layout->addWidget(graphPrewarm);
+    graphPrewarm->setGraph(
         1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
         {QStringLiteral("prewarm")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
-    QObject::connect(m_graphPrewarmView, &ForceViewRhiWidget::firstFrameSubmitted,
-                     m_graphPrewarmView,
+    QObject::connect(graphPrewarm, &ForceViewRhiWidget::firstFrameSubmitted,
+                     graphPrewarm,
                      [this] { m_graphPrewarmFrameSubmitted = true; });
     m_graphicsPrewarmWindow->setParent(pageStack);
     m_graphicsPrewarmWindow->move(0, 0);
@@ -192,12 +192,8 @@ void Application::finishGraphicsPrewarm()
         m_application.processEvents(QEventLoop::AllEvents, 50);
         QThread::msleep(16);
     }
-    if (m_graphPrewarmView != nullptr)
-        m_graphPrewarmView->pauseSimulation();
-    // Prewarming requires one visible frame on Windows, but the helper must
-    // not remain in the compositing tree afterwards: transparent application
-    // widgets would otherwise reveal it.
-    m_graphicsPrewarmWindow->hide();
+    // The prewarm scene is only needed while submitting the startup frames.
+    m_graphicsPrewarmWindow.reset();
     if (!m_graphPrewarmFrameSubmitted) {
         qWarning() << "Graph renderer prewarm did not submit a frame";
     }

@@ -1,4 +1,5 @@
-#include "ui/pages/management/MakerManagementWidget.h"
+#include "ui/pages/MakerManagementWidget.h"
+#include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignComboBox.h"
@@ -131,11 +132,15 @@ private:
 
 MakerManagementWidget::MakerManagementWidget(QSqlDatabase database, ThemeService &themes,
                                              QWidget *parent)
-    : QWidget(parent), m_database(std::move(database)), m_repository(m_database),
+    : LazyWidget(parent), m_database(std::move(database)), m_repository(m_database),
       m_jsonService(m_database), m_themes(themes)
 {
-    auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(10, 10, 10, 10);
+}
+
+void MakerManagementWidget::lazyLoad()
+{
+    auto *root = new QVBoxLayout(addPageScrollArea(this));
+    root->setContentsMargins(0, 0, 0, 0);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     m_prefixTable = new TokenTableWidget(0, 3, splitter);
@@ -301,6 +306,7 @@ MakerManagementWidget::MakerManagementWidget(QSqlDatabase database, ThemeService
 
 void MakerManagementWidget::refresh()
 {
+    if (!m_prefixTable) return;
     reloadTables(true, true);
 }
 
@@ -498,7 +504,7 @@ bool MakerManagementWidget::eventFilter(QObject *watched, QEvent *event)
             updateActiveTableIndicator();
         }
     }
-    return QWidget::eventFilter(watched, event);
+    return LazyWidget::eventFilter(watched, event);
 }
 
 void MakerManagementWidget::selectPrefix(int row)

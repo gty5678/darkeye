@@ -1,6 +1,6 @@
 #include <QMessageBox>
 #include <QCloseEvent>
-#include "ui/pages/management/AddWorkTabPage3.h"
+#include "ui/pages/AddWorkTabPage3.h"
 #include "ui/pages/PageScrollArea.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
@@ -232,10 +232,6 @@ void AddWorkTabPage3::lazyLoad()
     // Keep the same upper bound as Python's AddWorkTabPage3.  Imported works
     // occasionally contain long-running compilation or bonus-disc durations.
     m_runtime->setRange(0, 9999);
-    m_imageUrl = new DesignLineEdit(this);
-    m_imageUrl->setProperty("workControlId", QStringLiteral("WorkImageUrlInput"));
-    m_videoUrl = new DesignLineEdit(this);
-    m_videoUrl->setProperty("workControlId", QStringLiteral("WorkVideoUrlInput"));
     m_maker = new DesignComboBox(this);
     m_label = new DesignComboBox(this);
     m_series = new DesignComboBox(this);
@@ -294,9 +290,7 @@ void AddWorkTabPage3::lazyLoad()
     for (QWidget *field : {static_cast<QWidget *>(m_serialNumber),
                            static_cast<QWidget *>(m_director),
                            static_cast<QWidget *>(m_releaseDate),
-                           static_cast<QWidget *>(m_runtime),
-                           static_cast<QWidget *>(m_imageUrl),
-                           static_cast<QWidget *>(m_videoUrl)})
+                           static_cast<QWidget *>(m_runtime)})
         configureFormField(field);
 
     auto *serialRow = new QWidget(this);
@@ -421,13 +415,10 @@ void AddWorkTabPage3::lazyLoad()
                     Toast::showError(window(), QStringLiteral("采集失败：%1").arg(message),
                                      &m_themes);
             });
-    connect(m_imageDrop, &ImageDropWidget::imageChanged, m_imageUrl, &QLineEdit::setText);
     connect(m_imageDrop, &ImageDropWidget::imageRejected, this,
             [this](const QString &message) { Toast::showError(window(), message, &m_themes); });
     connect(m_imageDrop, &ImageDropWidget::qualityBadgeClicked, this,
             &AddWorkTabPage3::fetchHighQualityCover);
-    connect(m_imageUrl, &QLineEdit::editingFinished, this,
-            [this]() { m_imageDrop->setImagePath(m_imageUrl->text()); });
     connect(m_fanart, &FanartStripWidget::fanartChanged, this,
             [this](const QList<FanartEntry> &) {
                 if (m_loadingEditor) return;
@@ -480,7 +471,10 @@ void AddWorkTabPage3::lazyLoad()
     connect(m_actors, &PersonTransferSelector::selectionChanged, this, trackEditorChange);
     connect(m_tags, &WorkTagSelector::selectionChanged, this, trackEditorChange);
     connect(m_imageDrop, &ImageDropWidget::imageChanged, this,
-            [this](const QString &) { markEditorChanged(); });
+            [this](const QString &path) {
+                m_imageUrl = path;
+                markEditorChanged();
+            });
     connect(m_imageDrop, &ImageDropWidget::dirtyChanged, this,
             [this](bool) { markEditorChanged(); });
 
@@ -568,7 +562,7 @@ void AddWorkTabPage3::lazyLoad()
     auto *crawlerLayout = container(QStringLiteral("crawler"), QStringLiteral("信息补充区"));
     crawlerLayout->addWidget(m_crawlerFields);
     auto *editorLayout = container(QStringLiteral("editor"), QStringLiteral("自由记录区"));
-    editorLayout->setContentsMargins(3, 3, 3, 3);
+    editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->addWidget(m_notes);
     auto *navLayout = container(QStringLiteral("nav"), QStringLiteral("外部导航"), false);
     addManualNavigation(navLayout);
@@ -1179,9 +1173,9 @@ void AddWorkTabPage3::applyWork(const Work &work)
     m_director->setText(work.director);
     m_releaseDate->setText(work.releaseDate);
     m_runtime->setValue(work.runtime.value_or(0));
-    m_imageUrl->setText(work.imageUrl);
+    m_imageUrl = work.imageUrl;
     m_imageDrop->setImagePath(work.imageUrl);
-    m_videoUrl->setText(work.videoUrl);
+    m_videoUrl = work.videoUrl;
     m_notes->setPlainText(work.notes);
     m_chineseStory->setPlainText(work.chineseStory);
     m_japaneseStory->setPlainText(work.japaneseStory);
@@ -1441,8 +1435,8 @@ Work AddWorkTabPage3::editorWork() const
     work.director = m_director->text();
     work.releaseDate = m_releaseDate->text();
     work.runtime = m_runtime->value() == 0 ? std::nullopt : std::optional<int>(m_runtime->value());
-    work.imageUrl = m_imageUrl->text();
-    work.videoUrl = m_videoUrl->text();
+    work.imageUrl = m_imageUrl;
+    work.videoUrl = m_videoUrl;
     work.notes = m_notes->toPlainText();
     work.chineseStory = m_chineseStory->toPlainText();
     work.japaneseStory = m_japaneseStory->toPlainText();
@@ -1586,7 +1580,7 @@ void AddWorkTabPage3::save()
     {
         m_currentWork = work;
     }
-    m_imageUrl->setText(work.imageUrl);
+    m_imageUrl = work.imageUrl;
     m_imageDrop->setImagePath(work.imageUrl);
     if (m_fanartDirty)
     {
@@ -1631,8 +1625,10 @@ void AddWorkTabPage3::save()
 
 void AddWorkTabPage3::clearEditor()
 {
-    for (QLineEdit *edit : QList<QLineEdit *>{m_serialNumber, m_director, m_releaseDate, m_imageUrl, m_videoUrl})
+    for (QLineEdit *edit : QList<QLineEdit *>{m_serialNumber, m_director, m_releaseDate})
         edit->clear();
+    m_imageUrl.clear();
+    m_videoUrl.clear();
     m_notes->clear();
     for (QPlainTextEdit *edit : {m_chineseTitle, m_japaneseTitle, m_chineseStory,
                                  m_japaneseStory})

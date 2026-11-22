@@ -108,7 +108,7 @@ void ForceDirectPage::resizeEvent(QResizeEvent *event)
 
 void ForceDirectPage::updateOverlayGeometry()
 {
-    constexpr int margin = 10;
+    constexpr int margin = 2;
     if (width() <= 0 || height() <= 0 || m_settingsButton == nullptr) return;
     if (m_loadingOverlay != nullptr && m_loadingOverlay->isVisible()) {
         m_loadingOverlay->setGeometry(rect());
@@ -194,21 +194,17 @@ void ForceDirectPage::applyTheme()
     if (m_graphView == nullptr) return;
     auto *view = m_graphView->view();
     const ThemeTokens tokens = m_themeService.currentTokens();
-    const auto color = [](const QString &value, const QColor &fallback) {
-        const QColor parsed(value);
-        return parsed.isValid() ? parsed : fallback;
-    };
-    view->setBackgroundColor(color(tokens.background, Qt::white));
-    view->setEdgeColor(color(tokens.border, QColor(QStringLiteral("#808080"))));
-    view->setEdgeDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
-    view->setBaseColor(color(tokens.text, QColor(QStringLiteral("#5c5c5c"))));
-    view->setDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
-    view->setHoverColor(color(tokens.primary, QColor(QStringLiteral("#257845"))));
-    view->setTextColor(color(tokens.text, Qt::black));
-    view->setTextDimColor(color(tokens.pageBackground, QColor(QStringLiteral("#eeeeee"))));
+    view->setBackgroundColor(QColor(tokens.background));
+    view->setEdgeColor(QColor(tokens.border));
+    view->setEdgeDimColor(QColor(tokens.pageBackground));
+    view->setBaseColor(QColor(tokens.text));
+    view->setDimColor(QColor(tokens.pageBackground));
+    view->setHoverColor(QColor(tokens.primary));
+    view->setTextColor(QColor(tokens.text));
+    view->setTextDimColor(QColor(tokens.pageBackground));
     QPalette overlayPalette = m_loadingOverlay->palette();
-    overlayPalette.setColor(QPalette::Window, color(tokens.background, Qt::white));
-    overlayPalette.setColor(QPalette::WindowText, color(tokens.text, Qt::black));
+    overlayPalette.setColor(QPalette::Window, QColor(tokens.background));
+    overlayPalette.setColor(QPalette::WindowText, QColor(tokens.text));
     m_loadingOverlay->setPalette(overlayPalette);
 }
 

@@ -10,6 +10,7 @@
 
 class QLabel;
 class QListWidget;
+class QPushButton;
 
 namespace darkeye
 {
@@ -34,6 +35,11 @@ private:
     CrawlerScheduler &m_crawlerScheduler;
     CrawlerPersistenceService &m_crawlerPersistence;
     QLabel *m_schedulerLabel = nullptr;
+    QPushButton *m_toggleQueue = nullptr;
+    QPushButton *m_clearQueue = nullptr;
+    QLabel *m_pendingEmpty = nullptr;
+    QLabel *m_activeEmpty = nullptr;
+    QLabel *m_completedEmpty = nullptr;
     QLabel *m_pendingLabel = nullptr;
     QLabel *m_activeLabel = nullptr;
     QLabel *m_completedLabel = nullptr;

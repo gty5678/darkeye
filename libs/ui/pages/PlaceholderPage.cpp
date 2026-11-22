@@ -1,6 +1,8 @@
 #include "ui/pages/PlaceholderPage.h"
 #include "ui/pages/PageScrollArea.h"
 
+#include "darkeye_ui/components/DesignLabel.h"
+
 #include <QLabel>
 #include <QVBoxLayout>
 
@@ -22,9 +24,8 @@ void PlaceholderPage::lazyLoad()
     headingFont.setBold(true);
     heading->setFont(headingFont);
 
-    auto *status = new QLabel(
-        QStringLiteral("C++ 迁移页面骨架 · 路由：%1").arg(m_routeName), this);
-    status->setStyleSheet(QStringLiteral("color: #71717a;"));
+    auto *status = new DesignLabel(
+        QStringLiteral("C++ 迁移页面骨架 · 路由：%1").arg(m_routeName), QStringLiteral("muted"), this);
 
     layout->addWidget(heading);
     layout->addWidget(status);

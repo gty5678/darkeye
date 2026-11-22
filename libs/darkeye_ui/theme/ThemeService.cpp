@@ -1,10 +1,10 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "ChamferStyle.h"
+#include "darkeye_ui/theme/StylesheetLoader.h"
 
 #include <QApplication>
 #include <QColor>
 #include <QFile>
-#include <QHash>
 #include <QPalette>
 #include <QPainter>
 #include <QProxyStyle>
@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <mutex>
+#include <utility>
 
 void initializeDarkeyeUiResourceCollection()
 {
@@ -153,7 +154,7 @@ public:
         const bool partial = option->state.testFlag(State_NoChange);
         const QRectF bounds(option->rect);
         const QPointF center = bounds.center();
-        const qreal radius = qMin(bounds.width(), bounds.height()) / 2 - 1.5;
+        const qreal radius = qMin(bounds.width(), bounds.height()) / 2 - 0.75;
         const QPolygonF diamond{center + QPointF(0, -radius), center + QPointF(radius, 0),
                                 center + QPointF(0, radius), center + QPointF(-radius, 0)};
 
@@ -203,6 +204,51 @@ QMap<QString, QString> ThemeTokens::toMap() const
         {QStringLiteral("font_size_middle"), fontSizeMiddle},
         {QStringLiteral("font_size_workspace_tab"), fontSizeWorkspaceTab},
         {QStringLiteral("border_width"), borderWidth},
+        {QStringLiteral("color_modified"), modified},
+        {QStringLiteral("color_image_drop_outline"), imageDropOutline},
+        {QStringLiteral("border_width_indicator"), QStringLiteral("3px")},
+        {QStringLiteral("border_width_thin"), QStringLiteral("1px")},
+        {QStringLiteral("field_action_width"), QStringLiteral("20px")},
+        {QStringLiteral("field_content_height"), QStringLiteral("20px")},
+        {QStringLiteral("font_size_empty_state_icon"), QStringLiteral("36px")},
+        {QStringLiteral("font_size_heading"), QStringLiteral("18px")},
+        {QStringLiteral("font_size_rating_icon"), QStringLiteral("28px")},
+        {QStringLiteral("font_size_search_input"), QStringLiteral("20px")},
+        {QStringLiteral("font_size_search_result"), QStringLiteral("17px")},
+        {QStringLiteral("font_size_statistic"), QStringLiteral("30pt")},
+        {QStringLiteral("icon_size_md"), QStringLiteral("16px")},
+        {QStringLiteral("icon_size_sm"), QStringLiteral("12px")},
+        {QStringLiteral("radius_chip"), QStringLiteral("12px")},
+        {QStringLiteral("radius_color_picker"), QStringLiteral("3px")},
+        {QStringLiteral("radius_compact"), QStringLiteral("4px")},
+        {QStringLiteral("radius_progress_chunk"), QStringLiteral("5px")},
+        {QStringLiteral("radius_scrollbar"), QStringLiteral("5px")},
+        {QStringLiteral("radius_slider_handle"), QStringLiteral("7px")},
+        {QStringLiteral("radius_sm"), QStringLiteral("6px")},
+        {QStringLiteral("radius_xs"), QStringLiteral("2px")},
+        {QStringLiteral("scrollbar_compact_handle_min"), QStringLiteral("28px")},
+        {QStringLiteral("scrollbar_compact_width"), QStringLiteral("8px")},
+        {QStringLiteral("scrollbar_handle_min"), QStringLiteral("30px")},
+        {QStringLiteral("scrollbar_width"), QStringLiteral("10px")},
+        {QStringLiteral("slider_handle_margin"), QStringLiteral("-5px")},
+        {QStringLiteral("slider_handle_size"), QStringLiteral("14px")},
+        {QStringLiteral("slider_track_size"), QStringLiteral("4px")},
+        {QStringLiteral("space_1"), QStringLiteral("1px")},
+        {QStringLiteral("space_2"), QStringLiteral("2px")},
+        {QStringLiteral("space_3"), QStringLiteral("3px")},
+        {QStringLiteral("space_4"), QStringLiteral("4px")},
+        {QStringLiteral("space_5"), QStringLiteral("5px")},
+        {QStringLiteral("space_6"), QStringLiteral("6px")},
+        {QStringLiteral("space_8"), QStringLiteral("8px")},
+        {QStringLiteral("space_10"), QStringLiteral("10px")},
+        {QStringLiteral("space_11"), QStringLiteral("11px")},
+        {QStringLiteral("space_12"), QStringLiteral("12px")},
+        {QStringLiteral("space_14"), QStringLiteral("14px")},
+        {QStringLiteral("space_15"), QStringLiteral("15px")},
+        {QStringLiteral("space_18"), QStringLiteral("18px")},
+        {QStringLiteral("space_24"), QStringLiteral("24px")},
+        {QStringLiteral("widget_size_max"), QStringLiteral("16777215px")},
+        {QStringLiteral("workspace_search_input_height"), QStringLiteral("24px")},
     };
 }
 
@@ -257,7 +303,11 @@ QString loadStyleSheetTemplate()
         return {};
     }
 
-    QString styleSheet = QString::fromUtf8(styleFile.readAll());
+    return QString::fromUtf8(styleFile.readAll());
+}
+
+QString prepareStyleSheet(QString styleSheet)
+{
     // Business widgets may change objectName for lookup/testing. Keep the original
     // ID selectors (and their priority), and add stable component selectors.
     const QRegularExpression componentId(QStringLiteral(
@@ -296,34 +346,12 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
                                 ? requested.name()
                                 : QString();
     const ThemeTokens values = tokens(theme, nextPrimary);
-    QString styleSheet = styleSheetTemplate;
-    const QHash<QString, QString> replacements = {
-        {"@PRIMARY@", values.primary},
-        {"@PRIMARY_HOVER@", values.primaryHover},
-        {"@BACKGROUND@", values.background},
-        {"@INPUT_BACKGROUND@", values.inputBackground},
-        {"@PAGE_BACKGROUND@", values.pageBackground},
-        {"@BORDER@", values.border},
-        {"@BORDER_FOCUS@", values.borderFocus},
-        {"@TEXT@", values.text},
-        {"@TEXT_INVERSE@", values.textInverse},
-        {"@TEXT_PLACEHOLDER@", values.textPlaceholder},
-        {"@TEXT_DISABLED@", values.textDisabled},
-        {"@SUCCESS@", values.success},
-        {"@WARNING@", values.warning},
-        {"@ERROR@", values.error},
-        {"@INFO@", values.info},
-        {"@ICON@", values.icon},
-        {"@ICON_DISABLED@", values.iconDisabled},
-        {"@FONT_SIZE_MIDDLE@", values.fontSizeMiddle},
-        {"@FONT_SIZE_BASE@", values.fontSizeBase},
-        {"@RADIUS_MD@", values.radiusMd},
-        {"@FONT_FAMILY_BASE@", values.fontFamilyBase},
-        {"@BORDER_WIDTH@", values.borderWidth},
-    };
-    for (auto iterator = replacements.cbegin(); iterator != replacements.cend(); ++iterator) {
-        styleSheet.replace(iterator.key(), iterator.value());
+    QString styleSheet = StylesheetLoader::render(styleSheetTemplate, values);
+    if (styleSheet.contains(QStringLiteral("{{"))) {
+        qWarning() << "Unresolved token in theme stylesheet";
+        return false;
     }
+    styleSheet = prepareStyleSheet(std::move(styleSheet));
     if (m_indicatorStyle) m_indicatorStyle->setColors(values);
     QPalette palette = m_application.palette();
     const QColor pageBackground(values.pageBackground);

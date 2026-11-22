@@ -1,15 +1,15 @@
 QWidget {
-    color: @TEXT@;
-    font-family: "@FONT_FAMILY_BASE@";
-    font-size: @FONT_SIZE_BASE@;
+    color: {{color_text}};
+    font-family: "{{font_family_base}}";
+    font-size: {{font_size_base}};
 }
 
 QMainWindow, QDialog {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
 
 QTabBar {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
 
 /* Keep long option lists anchored to the field and respect maxVisibleItems. */
@@ -19,96 +19,106 @@ QComboBox {
 
 QComboBoxPrivateContainer > QAbstractItemView,
 QAbstractItemView#DesignComboBoxPopup {
-    background-color: @BACKGROUND@;
-    color: @TEXT@;
-    border: 1px solid @BORDER@;
+    background-color: {{color_bg}};
+    color: {{color_text}};
+    border: {{border_width_thin}} solid {{color_border}};
     outline: 0;
-    selection-color: @TEXT_INVERSE@;
-    selection-background-color: @PRIMARY@;
+    selection-color: {{color_text_inverse}};
+    selection-background-color: {{color_primary}};
 }
 
 QComboBoxPrivateContainer > QAbstractItemView::item,
 QAbstractItemView#DesignComboBoxPopup::item {
-    padding: 3px 0;
+    padding: {{space_3}} 0;
 }
 
 QListWidget#mainSidebar {
-    background-color: @BACKGROUND@;
+    background-color: {{color_bg}};
     border: 0;
-    border-right: 1px solid @BORDER@;
+    border-right: {{border_width_thin}} solid {{color_border}};
     outline: 0;
 }
 
 QListWidget#mainSidebar::item {
-    padding: 11px 14px;
+    padding: {{space_11}} {{space_14}};
 }
 
 QListWidget#mainSidebar::item:hover {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
 
 QListWidget#mainSidebar::item:selected {
-    background-color: @PRIMARY@;
-    color: @TEXT_INVERSE@;
+    background-color: {{color_primary}};
+    color: {{color_text_inverse}};
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput {
-    background-color: @INPUT_BACKGROUND@;
-    border: 2px solid @BORDER@;
-    font-size: 20px;
-    min-height: 24px;
-    max-height: 24px;
-    padding: 5px;
+    background-color: {{color_bg_input}};
+    border: {{border_width}} solid {{color_border}};
+    font-size: {{font_size_search_input}};
+    min-height: {{workspace_search_input_height}};
+    max-height: {{workspace_search_input_height}};
+    padding: {{space_5}};
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults {
-    background-color: @BACKGROUND@;
-    alternate-background-color: @PAGE_BACKGROUND@;
-    border: 1px solid @BORDER@;
-    padding: 3px;
+    background-color: {{color_bg}};
+    alternate-background-color: {{color_border}};
+    border: {{border_width_thin}} solid {{color_border}};
+    padding: {{space_3}};
     outline: none;
-    selection-background-color: @PRIMARY@;
-    selection-color: @TEXT_INVERSE@;
-    font-size: 17px;
+    selection-background-color: {{color_primary}};
+    selection-color: {{color_text_inverse}};
+    font-size: {{font_size_search_result}};
 }
 
 QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults::item {
-    padding: 5px 10px;
+    padding: {{space_5}} {{space_10}};
+}
+
+QWidget#StatisticsContent {
+    background-color: {{color_bg_page}};
+}
+
+QLabel#StatisticsHeading {
+    background-color: transparent;
+    font-size: 26px;
+    font-weight: 600;
 }
 
 QWidget#ShelfFilterBar {
-    background-color: #ffffff;
-    border: 1px solid #d9dee5;
-    border-radius: @RADIUS_MD@;
+    background-color: {{color_bg}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
 }
 
 QScrollArea#ShelfFilterScroll,
 QScrollArea#ShelfFilterScroll > QWidget,
 QWidget#ShelfFilterContent {
-    background-color: #ffffff;
+    background-color: {{color_bg}};
 }
 
 QWidget#ShelfFilterBar QLabel {
-    color: #1f2937;
+    color: {{color_text}};
     background-color: transparent;
 }
 
 QWidget#ShelfFilterBar > QPushButton {
     background-color: transparent;
     border: 0;
-    border-radius: 6px;
+    border-radius: {{radius_sm}};
 }
 
 QWidget#ShelfFilterBar > QPushButton:hover {
-    background-color: #edf0f4;
+    background-color: {{color_bg_page}};
 }
 
 QWidget#ShelfFilterBar > QPushButton:pressed {
-    background-color: #dfe4ea;
+    background-color: {{color_bg_input}};
 }
 
 /* Single-line fields share a 32 px outer height and a 6 px text origin
@@ -117,56 +127,56 @@ QLineEdit[frame="true"],
 QLineEdit#DesignKeySequenceEditLineEdit,
 QComboBox,
 QAbstractSpinBox {
-    background-color: @INPUT_BACKGROUND@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    min-height: 20px;
-    max-height: 20px;
-    padding: 4px 8px;
-    color: @TEXT@;
-    selection-background-color: @PRIMARY@;
+    background-color: {{color_bg_input}};
+    border: {{border_width}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    min-height: {{field_content_height}};
+    max-height: {{field_content_height}};
+    padding: {{space_4}} {{space_8}};
+    color: {{color_text}};
+    selection-background-color: {{color_primary}};
 }
 
 QLineEdit[frame="true"],
 QLineEdit#DesignKeySequenceEditLineEdit {
-    padding-left: 2px;
+    padding-left: {{space_2}};
 }
 
 QComboBox {
-    padding-left: 4px;
+    padding-left: {{space_4}};
 }
 
 QComboBox:editable {
-    padding-left: 2px;
+    padding-left: {{space_2}};
 }
 
 QAbstractSpinBox {
-    padding-right: 24px;
+    padding-right: {{space_24}};
 }
 
 QAbstractSpinBox > QLineEdit,
 QComboBox > QLineEdit {
     border: none;
     min-height: 0;
-    max-height: 16777215px;
+    max-height: {{widget_size_max}};
     padding: 0;
     background-color: transparent;
-    selection-background-color: @PRIMARY@;
+    selection-background-color: {{color_primary}};
 }
 
 QTextEdit#DesignTextEdit,
 QPlainTextEdit#DesignPlainTextEdit,
 QPlainTextEdit#AvWikiEditor {
-    background-color: @INPUT_BACKGROUND@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    padding: 6px 8px;
-    color: @TEXT@;
-    selection-background-color: @PRIMARY@;
+    background-color: {{color_bg_input}};
+    border: {{border_width}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    padding: {{space_6}} {{space_8}};
+    color: {{color_text}};
+    selection-background-color: {{color_primary}};
 }
 
 QComboBox:hover:enabled {
-    border-color: @PRIMARY@;
+    border-color: {{color_primary}};
 }
 
 QLineEdit[frame="true"]:focus,
@@ -178,20 +188,20 @@ QLineEdit#WorkSearchInput:focus,
 QTextEdit#DesignTextEdit:focus,
 QPlainTextEdit#DesignPlainTextEdit:focus,
 QPlainTextEdit#AvWikiEditor:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
 
 QComboBox#DesignComboBox,
 QComboBox#ShelfScopeSelector,
 QComboBox#ShelfSortSelector,
 QComboBox#DesignMakerSelector {
-    padding-right: 24px;
+    padding-right: {{space_24}};
 }
 
 QComboBox#DesignComboBox[compactFilter="true"],
 QComboBox#ShelfScopeSelector[compactFilter="true"],
 QComboBox#ShelfSortSelector[compactFilter="true"] {
-    padding-right: 18px;
+    padding-right: {{space_18}};
 }
 
 QComboBox#DesignComboBox::drop-down,
@@ -199,7 +209,7 @@ QComboBox#DesignMakerSelector::drop-down,
 QComboBox#ShelfScopeSelector::drop-down,
 QComboBox#ShelfSortSelector::drop-down {
     border: none;
-    width: 20px;
+    width: {{field_action_width}};
     background: transparent;
 }
 
@@ -208,27 +218,27 @@ QComboBox#DesignMakerSelector::down-arrow,
 QComboBox#ShelfScopeSelector::down-arrow,
 QComboBox#ShelfSortSelector::down-arrow {
     image: none;
-    width: 16px;
-    height: 16px;
+    width: {{icon_size_md}};
+    height: {{icon_size_md}};
 }
 
 QComboBox#DesignComboBox:disabled,
 QLineEdit#DesignInput:disabled,
 QTextEdit#DesignTextEdit:disabled,
 QPlainTextEdit#DesignPlainTextEdit:disabled {
-    color: @TEXT_DISABLED@;
-    background-color: @INPUT_BACKGROUND@;
+    color: {{color_text_disabled}};
+    background-color: {{color_bg_input}};
 }
 
 QPushButton#DesignButton,
 QPushButton#WorkRefreshButton,
 QPushButton#WorkLoadButton,
 QPushButton#WorkSaveButton {
-    background-color: @BACKGROUND@;
-    color: @TEXT@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 12px;
+    background-color: {{color_bg}};
+    color: {{color_text}};
+    border: {{border_width}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    padding: {{space_4}} {{space_12}};
 }
 
 QPushButton#DesignButton:hover,
@@ -236,67 +246,65 @@ QPushButton#DesignButton:focus,
 QPushButton#WorkRefreshButton:hover,
 QPushButton#WorkLoadButton:hover,
 QPushButton#WorkSaveButton:hover {
-    border-color: @PRIMARY@;
-    background-color: @PAGE_BACKGROUND@;
+    border-color: {{color_primary}};
+    background-color: {{color_bg_page}};
 }
 
 QPushButton#DesignButton:pressed,
 QPushButton#WorkRefreshButton:pressed,
 QPushButton#WorkLoadButton:pressed,
 QPushButton#WorkSaveButton:pressed {
-    background-color: @PRIMARY_HOVER@;
+    background-color: {{color_primary_hover}};
 }
 
 QPushButton#DesignButton:disabled,
 QPushButton#WorkRefreshButton:disabled,
 QPushButton#WorkLoadButton:disabled,
 QPushButton#WorkSaveButton:disabled {
-    color: @TEXT_DISABLED@;
-    background-color: @PAGE_BACKGROUND@;
+    color: {{color_text_disabled}};
+    background-color: {{color_bg_page}};
 }
 
 QPushButton#DesignButton[variant="primary"],
 QPushButton#WorkRefreshButton[variant="primary"],
 QPushButton#WorkSaveButton[variant="primary"] {
-    background-color: @PRIMARY@;
-    color: @TEXT_INVERSE@;
-    border-color: @PRIMARY@;
+    background-color: {{color_primary}};
+    color: {{color_text_inverse}};
+    border-color: {{color_primary}};
 }
 
 /* AddWorkTabPage3 mirrors the Python editor's three explicit submit states. */
 QPushButton#WorkSaveButton[variant="add"] {
-    background-color: @SUCCESS@;
-    color: @TEXT_INVERSE@;
+    background-color: {{color_success}};
+    color: {{color_text_inverse}};
     border: none;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 12px;
+    border-radius: {{radius_md}};
+    padding: {{space_4}} {{space_12}};
 }
 
 QPushButton#WorkSaveButton[variant="modify"],
 QPushButton#WorkLoadButton[variant="warning"] {
-    background-color: @WARNING@;
-    color: @TEXT_INVERSE@;
+    background-color: {{color_warning}};
+    color: {{color_text_inverse}};
     border: none;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 12px;
+    border-radius: {{radius_md}};
+    padding: {{space_4}} {{space_12}};
 }
 
 QPushButton#WorkSaveButton[variant="disabled"] {
-    background-color: @PAGE_BACKGROUND@;
-    color: @TEXT_DISABLED@;
+    background-color: {{color_bg_page}};
+    color: {{color_text_disabled}};
     border: none;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 12px;
+    border-radius: {{radius_md}};
+    padding: {{space_4}} {{space_12}};
 }
 
 QPushButton#WorkLoadButton[variant="disabled"] {
-    background-color: @PAGE_BACKGROUND@;
-    color: @TEXT_DISABLED@;
+    background-color: {{color_bg_page}};
+    color: {{color_text_disabled}};
 }
 
-/* Changed fields in the AddWork editor use the same orange warning frame as
- * the Python implementation.  The property is deliberately local to that
- * editor, so ordinary focused controls keep their theme-specific border. */
+/* Modified fields keep their outline while focused. */
 QLineEdit#DesignInput[addWorkModified="true"],
 QTextEdit#DesignTextEdit[addWorkModified="true"],
 QPlainTextEdit#DesignPlainTextEdit[addWorkModified="true"],
@@ -304,51 +312,51 @@ QSpinBox#DesignSpinBox[addWorkModified="true"],
 QComboBox#DesignComboBox[addWorkModified="true"],
 QWidget#WorkCoverDropWidget[addWorkModified="true"],
 QWidget#FanartStripWidget[addWorkModified="true"] {
-    border: 2px solid #FFA500;
+    border: {{border_width}} solid {{color_modified}};
 }
 
 QPushButton#DesignIconPushButton {
     background-color: transparent;
     border: none;
-    border-radius: 6px;
-    padding: 2px;
+    border-radius: {{radius_sm}};
+    padding: {{space_2}};
 }
 
 QPushButton#DesignIconPushButton:hover {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
 
 QPushButton#DesignIconPushButton:pressed {
-    background-color: @BORDER@;
+    background-color: {{color_border}};
 }
 
 QWidget#pageNavigationBar {
-    background-color: @BACKGROUND@;
-    border-right: 1px solid @BORDER@;
+    background-color: {{color_bg}};
+    border-right: {{border_width_thin}} solid {{color_border}};
 }
 
 QWidget#pageNavigationBar QScrollArea,
 QWidget#pageNavigationBar QScrollArea QWidget {
-    background-color: @BACKGROUND@;
+    background-color: {{color_bg}};
 }
 
 QWidget#pageNavigationBar QPushButton#DesignIconPushButton:focus {
-    border: 1px solid @BORDER_FOCUS@;
+    border: {{border_width_thin}} solid {{color_border_focus}};
 }
 
 QLabel#DesignAsyncImage {
     background-color: transparent;
-    color: @TEXT_PLACEHOLDER@;
+    color: {{color_text_placeholder}};
 }
 
 QLabel#RatingHeart {
     background-color: transparent;
-    color: @TEXT_PLACEHOLDER@;
-    font-size: 28px;
+    color: {{color_text_placeholder}};
+    font-size: {{font_size_rating_icon}};
 }
 
 QLabel#RatingHeart[active="true"] {
-    color: @PRIMARY@;
+    color: {{color_primary}};
 }
 
 QLabel#PageHeading,
@@ -362,232 +370,224 @@ QLabel#DesignEmptyStateIcon,
 QLabel#DesignEmptyStateTitle,
 QLabel#DesignEmptyStateDescription {
     background-color: transparent;
-    color: @TEXT@;
+    color: {{color_text}};
 }
 
 QLabel#DesignLabel[tone="muted"],
 QLabel#DesignEmptyStateDescription {
-    color: @TEXT_PLACEHOLDER@;
+    color: {{color_text_placeholder}};
 }
 
 QLabel#DesignLabel[tone="inverse"],
 QLabel#DesignLabel[tone="onDark"],
 QLabel#DesignLabel[tone="onImage"] {
-    color: @TEXT_INVERSE@;
+    color: {{color_text_inverse}};
 }
 
 QCheckBox#DesignCheckBox,
 QRadioButton#DesignRadioButton,
 QGroupBox#DesignGroupBox {
-    color: @TEXT@;
+    color: {{color_text}};
     background-color: transparent;
 }
 
 QSpinBox#DesignSpinBox:hover {
-    border-color: @PRIMARY@;
-    background-color: @INPUT_BACKGROUND@;
+    border-color: {{color_primary}};
+    background-color: {{color_bg_input}};
 }
 QSpinBox#DesignSpinBox:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
 QSpinBox#DesignSpinBox:disabled {
-    color: @TEXT_DISABLED@;
-    background-color: @INPUT_BACKGROUND@;
+    color: {{color_text_disabled}};
+    background-color: {{color_bg_input}};
 }
 QSpinBox#DesignSpinBox::up-button,
 QSpinBox#DesignSpinBox::down-button {
     subcontrol-origin: border;
-    width: 20px;
-    border-left: 2px solid @BORDER@;
-    background-color: @INPUT_BACKGROUND@;
+    width: {{field_action_width}};
+    border-left: {{border_width}} solid {{color_border}};
+    background-color: {{color_bg_input}};
 }
 QSpinBox#DesignSpinBox::up-button {
     subcontrol-position: top right;
-    border-top-right-radius: 8px;
+    border-top-right-radius: {{radius_md}};
 }
 QSpinBox#DesignSpinBox::down-button {
     subcontrol-position: bottom right;
-    border-bottom-right-radius: 8px;
+    border-bottom-right-radius: {{radius_md}};
 }
 QSpinBox#DesignSpinBox::up-button:hover,
 QSpinBox#DesignSpinBox::down-button:hover {
-    background-color: @PRIMARY@;
-    border-left-color: @PRIMARY@;
+    background-color: {{color_primary}};
+    border-left-color: {{color_primary}};
 }
 QSpinBox#DesignSpinBox::up-button:pressed,
 QSpinBox#DesignSpinBox::down-button:pressed {
-    background-color: @PRIMARY_HOVER@;
+    background-color: {{color_primary_hover}};
 }
 QSpinBox#DesignSpinBox::up-arrow,
 QSpinBox#DesignSpinBox::down-arrow {
     image: none;
-    width: 12px;
-    height: 12px;
+    width: {{icon_size_sm}};
+    height: {{icon_size_sm}};
 }
 
 QGroupBox#DesignGroupBox {
-    border: 1px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    margin-top: 10px;
-    padding-top: 8px;
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    margin-top: {{space_10}};
+    padding-top: {{space_8}};
 }
 QGroupBox#DesignGroupBox::title {
     subcontrol-origin: margin;
-    left: 10px;
-    padding: 0 4px;
+    left: {{space_10}};
+    padding: 0 {{space_4}};
 }
 
 QTabWidget#DesignTabWidget::pane {
-    border: 1px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    background-color: @BACKGROUND@;
-}
-QTabWidget#StatisticsTabs::pane {
-    border: none;
-    background-color: transparent;
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    background-color: {{color_bg}};
 }
 
-QWidget#PersonalDataCanvas {
-    background-color: @PAGE_BACKGROUND@;
+QWidget#PersonalPanelCanvas {
+    background-color: {{color_bg_page}};
 }
-QFrame#PersonalDataOverview {
-    background-color: @BACKGROUND@;
-    border-bottom: 1px solid @BORDER@;
-}
-QFrame#PersonalDataOverview QFrame#StatisticsOverviewCard {
-    background-color: @BACKGROUND@;
-    border: 1px solid @BORDER@;
+QWidget#StatisticsOverviewCard QLabel[statisticValue="true"] {
+    font-size: 26px;
+    font-weight: 600;
 }
 
 QTabBar#DesignTabBar,
 QTabWidget#ManagementTabs > QTabBar {
-    border-bottom: 1px solid @BORDER@;
+    border-bottom: {{border_width_thin}} solid {{color_border}};
 }
 QTabBar#DesignTabBar::tab,
 QTabWidget#ManagementTabs > QTabBar::tab {
-    background-color: @PAGE_BACKGROUND@;
-    color: @TEXT@;
-    padding: 6px 14px;
-    border: 1px solid transparent;
+    background-color: {{color_bg_page}};
+    color: {{color_text}};
+    padding: {{space_6}} {{space_14}};
+    border: {{border_width_thin}} solid transparent;
 }
 QTabBar#DesignTabBar::tab:!selected:!last:!only-one:!next-selected,
 QTabWidget#ManagementTabs > QTabBar::tab:!selected:!last:!only-one:!next-selected {
-    border-right-color: @BORDER@;
+    border-right-color: {{color_border}};
 }
 QTabWidget#ManagementTabs > QTabBar::tab {
-    font-size: @FONT_SIZE_MIDDLE@;
+    font-size: {{font_size_middle}};
 }
 QTabBar#DesignTabBar::tab:hover,
 QTabWidget#ManagementTabs > QTabBar::tab:hover {
-    border-top-color: @BORDER@;
+    border-top-color: {{color_border}};
 }
 QTabBar#DesignTabBar::tab:selected,
 QTabWidget#ManagementTabs > QTabBar::tab:selected {
     font-weight: bold;
-    border-color: @BORDER@;
-    border-bottom-color: @PAGE_BACKGROUND@;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-color: {{color_border}};
+    border-bottom-color: {{color_bg_page}};
+    border-top-left-radius: {{radius_sm}};
+    border-top-right-radius: {{radius_sm}};
 }
 QTabWidget#ManagementTabs::pane {
     border: none;
-    top: -1px;
+    top: -{{border_width_thin}};
 }
 
 QProgressBar#DesignProgressBar {
-    color: @TEXT@;
-    background-color: @PAGE_BACKGROUND@;
-    border: 1px solid @BORDER@;
-    border-radius: 6px;
+    color: {{color_text}};
+    background-color: {{color_bg_page}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_sm}};
     text-align: center;
 }
 QProgressBar#DesignProgressBar::chunk {
-    background-color: @PRIMARY@;
-    border-radius: 5px;
+    background-color: {{color_primary}};
+    border-radius: {{radius_progress_chunk}};
 }
 
 QPushButton#DesignStateToggleButton,
 QPushButton#ShelfRelationGraphSettingsButton {
     background-color: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: {{radius_sm}};
     padding: 0;
 }
 QPushButton#DesignStateToggleButton:hover,
-QPushButton#ShelfRelationGraphSettingsButton:hover { background-color: @PAGE_BACKGROUND@; }
+QPushButton#ShelfRelationGraphSettingsButton:hover { background-color: {{color_bg_page}}; }
 
 QPushButton#DesignChip {
-    color: @TEXT@;
-    background-color: @PAGE_BACKGROUND@;
-    border: 1px solid @BORDER@;
-    border-radius: 12px;
-    padding: 3px 10px;
+    color: {{color_text}};
+    background-color: {{color_bg_page}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_chip}};
+    padding: {{space_3}} {{space_10}};
 }
 QPushButton#DesignChip:hover,
 QPushButton#DesignChip:checked {
-    color: @TEXT_INVERSE@;
-    background-color: @PRIMARY@;
-    border-color: @PRIMARY@;
+    color: {{color_text_inverse}};
+    background-color: {{color_primary}};
+    border-color: {{color_primary}};
 }
-QPushButton#DesignChip[tone="success"] { border-color: @SUCCESS@; }
-QPushButton#DesignChip[tone="warning"] { border-color: @WARNING@; }
-QPushButton#DesignChip[tone="error"] { border-color: @ERROR@; }
-QPushButton#DesignChip[tone="info"] { border-color: @INFO@; }
+QPushButton#DesignChip[tone="success"] { border-color: {{color_success}}; }
+QPushButton#DesignChip[tone="warning"] { border-color: {{color_warning}}; }
+QPushButton#DesignChip[tone="error"] { border-color: {{color_error}}; }
+QPushButton#DesignChip[tone="info"] { border-color: {{color_info}}; }
 
 QWidget#DesignEmptyState { background-color: transparent; }
 QLabel#DesignEmptyStateIcon {
-    color: @TEXT_DISABLED@;
-    font-size: 36px;
+    color: {{color_text_disabled}};
+    font-size: {{font_size_empty_state_icon}};
 }
 QLabel#DesignEmptyStateTitle {
-    font-size: 18px;
+    font-size: {{font_size_heading}};
     font-weight: 600;
 }
 QPushButton#DesignEmptyStateAction {
-    color: @TEXT_INVERSE@;
-    background-color: @PRIMARY@;
-    border: 1px solid @PRIMARY@;
-    border-radius: @RADIUS_MD@;
-    padding: 6px 14px;
+    color: {{color_text_inverse}};
+    background-color: {{color_primary}};
+    border: {{border_width_thin}} solid {{color_primary}};
+    border-radius: {{radius_md}};
+    padding: {{space_6}} {{space_14}};
 }
 
 QWidget#TransparentWidget { background-color: transparent; }
 
 QSlider#DesignClickableSlider::groove:horizontal {
-    height: 4px;
-    background-color: @BORDER@;
-    border-radius: 2px;
+    height: {{slider_track_size}};
+    background-color: {{color_border}};
+    border-radius: {{radius_xs}};
 }
 QSlider#DesignClickableSlider::handle:horizontal {
-    width: 14px;
-    height: 14px;
-    margin: -5px 0;
-    background-color: @PRIMARY@;
-    border-radius: 7px;
+    width: {{slider_handle_size}};
+    height: {{slider_handle_size}};
+    margin: {{slider_handle_margin}} 0;
+    background-color: {{color_primary}};
+    border-radius: {{radius_slider_handle}};
 }
 QSlider#DesignClickableSlider::groove:vertical {
-    width: 4px;
-    background-color: @BORDER@;
-    border-radius: 2px;
+    width: {{slider_track_size}};
+    background-color: {{color_border}};
+    border-radius: {{radius_xs}};
 }
 QSlider#DesignClickableSlider::handle:vertical {
-    width: 14px;
-    height: 14px;
-    margin: 0 -5px;
-    background-color: @PRIMARY@;
-    border-radius: 7px;
+    width: {{slider_handle_size}};
+    height: {{slider_handle_size}};
+    margin: 0 {{slider_handle_margin}};
+    background-color: {{color_primary}};
+    border-radius: {{radius_slider_handle}};
 }
 
 QPushButton#DesignRotateButton,
 QPushButton#DesignShakeButton {
     background-color: transparent;
     border: none;
-    border-radius: 6px;
-    padding: 2px;
+    border-radius: {{radius_sm}};
+    padding: {{space_2}};
 }
 QPushButton#DesignRotateButton:hover,
 QPushButton#DesignShakeButton:hover {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
 
 QTableView#DesignTableView,
@@ -596,95 +596,101 @@ QTableWidget#DesignTableWidget,
 QTreeView#DesignTreeView,
 QListView#DesignListView,
 QListWidget#DesignListWidget {
-    color: @TEXT@;
-    background-color: @BACKGROUND@;
-    alternate-background-color: @PAGE_BACKGROUND@;
-    border: 1px solid @BORDER@;
-    border-radius: 6px;
-    gridline-color: @BORDER@;
-    selection-color: @TEXT_INVERSE@;
-    selection-background-color: @PRIMARY@;
+    color: {{color_text}};
+    background-color: {{color_bg}};
+    alternate-background-color: {{color_bg_page}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_sm}};
+    gridline-color: {{color_border}};
+    selection-color: {{color_text_inverse}};
+    selection-background-color: {{color_primary}};
     outline: none;
 }
 /* Person selectors use compact text rows within the themed list frame. */
 QListWidget#DesignListWidget[personSelectorList="true"] {
-    background-color: @BACKGROUND@;
-    color: @TEXT@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    padding: 4px;
-    selection-background-color: @PRIMARY@;
+    background-color: {{color_bg}};
+    color: {{color_text}};
+    border: {{border_width}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    padding: {{space_4}};
+    selection-background-color: {{color_primary}};
     outline: none;
 }
 QListWidget#DesignListWidget[personSelectorList="true"]:focus {
-    border-color: @BORDER_FOCUS@;
-    background-color: @INPUT_BACKGROUND@;
+    border-color: {{color_border_focus}};
+    background-color: {{color_bg_input}};
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item {
-    padding: 1px 8px;
-    color: @TEXT@;
+    padding: {{space_1}} {{space_8}};
+    color: {{color_text}};
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item:selected {
-    background-color: @PRIMARY@;
-    color: @TEXT_INVERSE@;
+    background-color: {{color_primary}};
+    color: {{color_text_inverse}};
 }
 QListWidget#DesignListWidget[personSelectorList="true"]::item:hover:!selected {
-    background-color: @INPUT_BACKGROUND@;
-    color: @TEXT@;
+    background-color: {{color_bg_input}};
+    color: {{color_text}};
 }
 QListWidget#DesignListWidget[personSelectorList="true"]:disabled {
-    background-color: @INPUT_BACKGROUND@;
-    color: @TEXT_DISABLED@;
-    border-color: @BORDER@;
+    background-color: {{color_bg_input}};
+    color: {{color_text_disabled}};
+    border-color: {{color_border}};
 }
 /* Match Python: warn on the selected people list, including while focused. */
 QListWidget#DesignListWidget[personSelectedList="true"][addWorkModified="true"] {
-    border: 2px solid #FFA500;
+    border: {{border_width}} solid {{color_modified}};
 }
 QHeaderView::section {
-    color: @TEXT@;
-    background-color: @PAGE_BACKGROUND@;
+    color: {{color_text}};
+    background-color: {{color_bg_page}};
     border: none;
-    border-right: 1px solid @BORDER@;
-    border-bottom: 1px solid @BORDER@;
-    padding: 6px;
+    border-right: {{border_width_thin}} solid {{color_border}};
+    border-bottom: {{border_width_thin}} solid {{color_border}};
+    padding: {{space_6}};
+}
+QTableCornerButton::section {
+    background-color: {{color_bg_page}};
+    border: none;
+    border-right: {{border_width_thin}} solid {{color_border}};
+    border-bottom: {{border_width_thin}} solid {{color_border}};
 }
 
 /* Match Python's path table, including its row numbers and cell editor. */
 QTableWidget#DesignTableWidget[pathManagement="true"] {
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
+    border: {{border_width}} solid {{color_border}};
+    border-radius: {{radius_md}};
 }
 QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section {
-    background-color: @PAGE_BACKGROUND@;
-    padding: 4px 6px;
+    background-color: {{color_bg_page}};
+    padding: {{space_4}} {{space_6}};
 }
 QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section:vertical {
-    color: @TEXT_PLACEHOLDER@;
-    border-right: 1px solid @BORDER@;
+    color: {{color_text_placeholder}};
+    border-right: {{border_width_thin}} solid {{color_border}};
 }
 QTableWidget#DesignTableWidget[pathManagement="true"]::item {
-    background-color: @BACKGROUND@;
-    padding: 4px 6px;
+    background-color: {{color_bg}};
+    padding: {{space_4}} {{space_6}};
     border: none;
 }
 QTableWidget#DesignTableWidget[pathManagement="true"]::item:selected {
-    background-color: @PRIMARY@;
-    color: @TEXT_INVERSE@;
+    background-color: {{color_primary}};
+    color: {{color_text_inverse}};
 }
 QTableWidget#DesignTableWidget[pathManagement="true"]::item:hover:!selected {
-    background-color: @PAGE_BACKGROUND@;
-    color: @TEXT@;
+    background-color: {{color_bg_page}};
+    color: {{color_text}};
 }
 QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit {
-    background-color: @INPUT_BACKGROUND@;
-    color: @TEXT@;
-    border: 2px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    selection-background-color: @PRIMARY@;
+    background-color: {{color_bg_input}};
+    color: {{color_text}};
+    border: {{border_width}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    selection-background-color: {{color_primary}};
 }
 QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
 
 QKeySequenceEdit#DesignKeySequenceEdit {
@@ -693,41 +699,41 @@ QKeySequenceEdit#DesignKeySequenceEdit {
 }
 
 QLineEdit#DesignKeySequenceEditLineEdit:hover {
-    border-color: @PRIMARY@;
-    background-color: @INPUT_BACKGROUND@;
+    border-color: {{color_primary}};
+    background-color: {{color_bg_input}};
 }
 QLineEdit#DesignKeySequenceEditLineEdit:disabled {
-    color: @TEXT_DISABLED@;
-    background-color: @INPUT_BACKGROUND@;
+    color: {{color_text_disabled}};
+    background-color: {{color_bg_input}};
 }
 QLineEdit#DesignKeySequenceEditLineEdit:focus {
-    background-color: @INPUT_BACKGROUND@;
+    background-color: {{color_bg_input}};
 }
 QDateTimeEdit#DesignDateTimeEdit:focus,
 QLineEdit#DesignKeySequenceEditLineEdit:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
 
 QToolButton#DesignCollapsibleToggle {
-    color: @TEXT@;
-    background-color: @PAGE_BACKGROUND@;
+    color: {{color_text}};
+    background-color: {{color_bg_page}};
     border: none;
-    padding: 8px;
+    padding: {{space_8}};
     font-weight: 600;
     text-align: left;
 }
 QToolButton#DesignCollapsibleToggle:checked {
-    background-color: @BACKGROUND@;
+    background-color: {{color_bg}};
 }
 QWidget#PersonAliasSection QToolButton#DesignCollapsibleToggle:checked {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
 QWidget#DesignCollapsibleContent { background-color: transparent; }
 
 QScrollArea#ForceViewSettingsPanel {
-    background-color: @BACKGROUND@;
-    border: 1px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
+    background-color: {{color_bg}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
 }
 QWidget#ShelfRelationGraphOverlay QScrollArea#ForceViewSettingsPanel {
     border: none;
@@ -736,81 +742,98 @@ QScrollArea#ForceViewSettingsPanel::viewport,
 QScrollArea#ForceViewSettingsPanel > QWidget,
 QWidget#ForceViewSettingsContent,
 QScrollArea#ForceViewSettingsPanel QWidget {
-    background-color: @BACKGROUND@;
+    background-color: {{color_bg}};
 }
 QScrollArea#ForceViewSettingsPanel QSlider#DesignClickableSlider::handle:horizontal {
-    background-color: @PRIMARY@;
+    background-color: {{color_primary}};
 }
 QScrollArea#ForceViewSettingsPanel QScrollBar:vertical {
-    width: 8px;
+    width: {{scrollbar_compact_width}};
     background: transparent;
 }
 QScrollArea#ForceViewSettingsPanel QScrollBar::handle:vertical {
-    background-color: @BORDER@;
-    min-height: 28px;
+    background-color: {{color_border}};
+    min-height: {{scrollbar_compact_handle_min}};
 }
 QLabel#DesignColorPicker {
-    border: 1px solid @BORDER@;
-    border-radius: 3px;
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_color_picker}};
 }
 
 QDialog#DesignModalDialog {
-    color: @TEXT@;
-    background-color: @BACKGROUND@;
-    border: 1px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
+    color: {{color_text}};
+    background-color: {{color_bg}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
 }
 QDialog#SettingsDialog { background-color: transparent; }
-QDialog#SettingsDialog .QWidget { background-color: @BACKGROUND@; }
+QDialog#SettingsDialog .QWidget { background-color: {{color_bg}}; }
 QDialog#SettingsDialog QLabel { background-color: transparent; }
-QDialog#SettingsDialog QListWidget#DesignListWidget::item { padding: 0 10px; }
+QDialog#SettingsDialog QListWidget#DesignListWidget::item { padding: 0 {{space_10}}; }
 QDialog#SettingsDialog QListWidget#DesignListWidget::item:hover:!selected {
-    background-color: @PAGE_BACKGROUND@;
+    background-color: {{color_bg_page}};
 }
-QLabel#DesignModalTitle {
-    color: @TEXT@;
-    font-size: 16px;
+QFrame#AboutSoftwarePanel {
+    background-color: {{color_bg_page}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
+}
+QDialog#SettingsDialog QLabel#AboutSoftwareLogo {
+    background-color: #f6f1f1;
+    border-radius: {{radius_md}};
+}
+QLabel#AboutSoftwareName {
+    font-size: 28px;
     font-weight: 700;
 }
-QLabel#DesignModalMessage { color: @TEXT@; }
+QLabel#AboutSoftwareSectionTitle {
+    font-size: {{font_size_middle}};
+    font-weight: 700;
+}
+QLabel#DesignModalTitle {
+    color: {{color_text}};
+    font-size: {{font_size_middle}};
+    font-weight: 700;
+}
+QLabel#DesignModalMessage { color: {{color_text}}; }
 QPushButton#DesignModalConfirm,
 QPushButton#DesignModalCancel {
-    border: 1px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
-    padding: 4px 12px;
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
+    padding: {{space_4}} {{space_12}};
 }
 QPushButton#DesignModalConfirm {
-    color: @TEXT_INVERSE@;
-    background-color: @PRIMARY@;
-    border-color: @PRIMARY@;
+    color: {{color_text_inverse}};
+    background-color: {{color_primary}};
+    border-color: {{color_primary}};
 }
 QPushButton#DesignModalConfirm[variant="danger"] {
-    background-color: @ERROR@;
-    border-color: @ERROR@;
+    background-color: {{color_error}};
+    border-color: {{color_error}};
 }
 
 QAbstractItemView#DesignCompleterPopup {
-    color: @TEXT@;
-    background-color: @BACKGROUND@;
-    border: 1px solid @BORDER@;
-    padding: 4px;
-    selection-color: @TEXT_INVERSE@;
-    selection-background-color: @PRIMARY@;
+    color: {{color_text}};
+    background-color: {{color_bg}};
+    border: {{border_width_thin}} solid {{color_border}};
+    padding: {{space_4}};
+    selection-color: {{color_text_inverse}};
+    selection-background-color: {{color_primary}};
 }
 
 QWidget#DesignSidebarMenuButton {
     background-color: transparent;
-    border-left: 3px solid transparent;
+    border-left: {{border_width_indicator}} solid transparent;
 }
-QWidget#DesignSidebarMenuButton:hover { background-color: @PAGE_BACKGROUND@; }
+QWidget#DesignSidebarMenuButton:hover { background-color: {{color_bg_page}}; }
 QWidget#DesignSidebarMenuButton[selected="true"] {
-    background-color: @PAGE_BACKGROUND@;
-    border-left-color: @PRIMARY@;
+    background-color: {{color_bg_page}};
+    border-left-color: {{color_primary}};
 }
 QLabel#DesignSidebarMenuText {
-    color: @TEXT@;
+    color: {{color_text}};
     background-color: transparent;
-    font-size: @FONT_SIZE_BASE@;
+    font-size: {{font_size_base}};
 }
 
 /* Keep every scroll-menu surface on the same background. Plain layout widgets
@@ -820,100 +843,100 @@ QScrollArea#DesignScrollMenuArea,
 QWidget#DesignScrollMenuViewport,
 QWidget#DesignScrollMenuContent,
 QWidget[designScrollMenuContent="true"],
-QWidget#DesignScrollMenuSection { background-color: @BACKGROUND@; }
+QWidget#DesignScrollMenuSection { background-color: {{color_bg}}; }
 QWidget#DesignModernScrollMenu .QWidget,
 QWidget#DesignModernScrollMenu QLabel,
 QWidget#DesignModernScrollMenu QCheckBox { background-color: transparent; }
 QFrame#DesignScrollMenuSeparator {
-    background-color: @BORDER@;
-    min-height: 1px;
-    max-height: 1px;
-    margin: 10px 0;
+    background-color: {{color_border}};
+    min-height: {{border_width_thin}};
+    max-height: {{border_width_thin}};
+    margin: {{space_10}} 0;
 }
 QLabel#DesignScrollMenuTitle {
-    color: @TEXT@;
-    font-size: 18px;
+    color: {{color_text}};
+    font-size: {{font_size_heading}};
     font-weight: 600;
 }
 
 /* Scroll-menu header and button states. */
 QWidget#DesignModernScrollMenu QWidget#DesignScrollMenuNavigation {
-    background-color: @PAGE_BACKGROUND@;
-    border-bottom: 1px solid @BORDER@;
+    background-color: {{color_bg_page}};
+    border-bottom: {{border_width_thin}} solid {{color_border}};
 }
 QPushButton#DesignScrollMenuButton {
-    color: @TEXT@;
-    background-color: @PAGE_BACKGROUND@;
-    border: 1px solid transparent;
-    border-right-color: @BORDER@;
-    padding: 10px 15px;
+    color: {{color_text}};
+    background-color: {{color_bg_page}};
+    border: {{border_width_thin}} solid transparent;
+    border-right-color: {{color_border}};
+    padding: {{space_10}} {{space_15}};
 }
-QPushButton#DesignScrollMenuButton:hover { border-top-color: @BORDER@; }
+QPushButton#DesignScrollMenuButton:hover { border-top-color: {{color_border}}; }
 QPushButton#DesignScrollMenuButton:checked {
-    border-color: @BORDER@;
-    border-bottom-color: @PAGE_BACKGROUND@;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-color: {{color_border}};
+    border-bottom-color: {{color_bg_page}};
+    border-top-left-radius: {{radius_sm}};
+    border-top-right-radius: {{radius_sm}};
     font-weight: 600;
 }
 
 QFrame#DesignLinkCard {
-    color: @TEXT@;
-    background-color: @BACKGROUND@;
-    border: 1px solid @BORDER@;
-    border-radius: @RADIUS_MD@;
+    color: {{color_text}};
+    background-color: {{color_bg}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_md}};
 }
 QFrame#DesignLinkCard:hover {
-    background-color: @PAGE_BACKGROUND@;
-    border-color: @PRIMARY@;
+    background-color: {{color_bg_page}};
+    border-color: {{color_primary}};
 }
 QFrame#DesignLinkCard:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
 QLabel#DesignLinkCardTitle {
-    color: @TEXT@;
+    color: {{color_text}};
     background-color: transparent;
     font-weight: 600;
 }
 QLabel#DesignLinkCardDescription {
-    color: @TEXT_PLACEHOLDER@;
+    color: {{color_text_placeholder}};
     background-color: transparent;
 }
 QLabel#DesignLinkCardIcon { background-color: transparent; }
 
 QTabBar#VerticalTabBar::tab {
-    color: @TEXT@;
+    color: {{color_text}};
     background-color: transparent;
-    border: 1px solid @BORDER@;
-    padding: 4px;
+    border: {{border_width_thin}} solid {{color_border}};
+    padding: {{space_4}};
 }
 QTabBar#VerticalTabBar::tab:selected {
-    color: @TEXT@;
-    background-color: @PAGE_BACKGROUND@;
-    border-right-color: @PAGE_BACKGROUND@;
+    color: {{color_text}};
+    background-color: {{color_bg_page}};
+    border-right-color: {{color_bg_page}};
 }
 
 QPushButton#DesignButton[variant="primary"]:hover,
 QPushButton#DesignButton[variant="primary"]:pressed {
-    background-color: @PRIMARY_HOVER@;
-    border-color: @PRIMARY_HOVER@;
+    background-color: {{color_primary_hover}};
+    border-color: {{color_primary_hover}};
 }
 
 QScrollBar:vertical {
-    background-color: @PAGE_BACKGROUND@;
-    width: 10px;
+    background-color: {{color_bg_page}};
+    width: {{scrollbar_width}};
     margin: 0;
     border: none;
-    border-radius: 5px;
+    border-radius: {{radius_scrollbar}};
 }
 
 QScrollBar::handle:vertical {
-    background-color: @BORDER@;
-    min-height: 30px;
+    background-color: {{color_border}};
+    min-height: {{scrollbar_handle_min}};
 }
 
-QScrollBar::handle:vertical:hover { background-color: @PRIMARY@; }
-QScrollBar::handle:vertical:pressed { background-color: @PRIMARY_HOVER@; }
+QScrollBar::handle:vertical:hover { background-color: {{color_primary}}; }
+QScrollBar::handle:vertical:pressed { background-color: {{color_primary_hover}}; }
 QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical {
     height: 0;
@@ -924,20 +947,20 @@ QScrollBar::add-page:vertical,
 QScrollBar::sub-page:vertical { background: none; }
 
 QScrollBar:horizontal {
-    background-color: @PAGE_BACKGROUND@;
-    height: 10px;
+    background-color: {{color_bg_page}};
+    height: {{scrollbar_width}};
     margin: 0;
     border: none;
-    border-radius: 5px;
+    border-radius: {{radius_scrollbar}};
 }
 
 QScrollBar::handle:horizontal {
-    background-color: @BORDER@;
-    min-width: 30px;
+    background-color: {{color_border}};
+    min-width: {{scrollbar_handle_min}};
 }
 
-QScrollBar::handle:horizontal:hover { background-color: @PRIMARY@; }
-QScrollBar::handle:horizontal:pressed { background-color: @PRIMARY_HOVER@; }
+QScrollBar::handle:horizontal:hover { background-color: {{color_primary}}; }
+QScrollBar::handle:horizontal:pressed { background-color: {{color_primary_hover}}; }
 QScrollBar::add-line:horizontal,
 QScrollBar::sub-line:horizontal {
     width: 0;
@@ -952,18 +975,18 @@ QScrollArea#DesignLazyScrollArea {
 }
 
 QScrollArea#DesignLazyScrollArea QScrollBar:vertical {
-    background-color: @PAGE_BACKGROUND@;
-    width: 10px;
+    background-color: {{color_bg_page}};
+    width: {{scrollbar_width}};
     border: none;
 }
 
 QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical {
-    background-color: @BORDER@;
-    min-height: 30px;
+    background-color: {{color_border}};
+    min-height: {{scrollbar_handle_min}};
 }
 
 QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical:hover {
-    background-color: @PRIMARY@;
+    background-color: {{color_primary}};
 }
 
 QScrollArea#DesignLazyScrollArea QScrollBar::add-line:vertical,
@@ -973,22 +996,80 @@ QScrollArea#DesignLazyScrollArea QScrollBar::sub-line:vertical {
 
 /* Work cards share theme typography in both cover modes. */
 QLabel#WorkCardSerialNumber {
-    font-size: @FONT_SIZE_MIDDLE@;
+    font-size: {{font_size_middle}};
     font-weight: normal;
 }
 QLabel#WorkCardTitle {
-    font-size: @FONT_SIZE_BASE@;
+    font-size: {{font_size_base}};
     font-weight: normal;
 }
 
 
 QPushButton#WorkCoverViewToggle {
-    background-color: @PAGE_BACKGROUND@;
-    border: 1px solid @BORDER@;
+    background-color: {{color_bg_page}};
+    border: {{border_width_thin}} solid {{color_border}};
 }
 QPushButton#WorkCoverViewToggle:hover {
-    border-color: @PRIMARY@;
+    border-color: {{color_primary}};
 }
 QPushButton#WorkCoverViewToggle:focus {
-    border-color: @BORDER_FOCUS@;
+    border-color: {{color_border_focus}};
 }
+
+QPushButton#DesignButton[variant="personSave"] {
+    background-color: {{color_modified}};
+    color: {{color_text_inverse}};
+    border-radius: {{radius_sm}};
+    padding: {{space_6}};
+}
+QPushButton#DesignButton[variant="personSave"]:disabled {
+    background-color: {{color_bg_page}};
+    color: {{color_text_disabled}};
+}
+QLineEdit#DesignInput[personModified="true"],
+QSpinBox#DesignSpinBox[personModified="true"],
+QCheckBox#DesignCheckBox[personModified="true"],
+QTextEdit#DesignTextEdit[personModified="true"],
+QComboBox#DesignComboBox[personModified="true"],
+QTableWidget#DesignTableWidget[personModified="true"] {
+    border: {{border_width}} solid {{color_modified}};
+}
+
+QWidget#WikiImagePreview {
+    background-color: {{color_bg}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_compact}};
+}
+QListView#WikiCompleterPopup {
+    background-color: {{color_bg}};
+    color: {{color_text}};
+    border: {{border_width_thin}} solid {{color_border}};
+    border-radius: {{radius_compact}};
+    padding: {{space_2}};
+    outline: 0;
+}
+QListView#WikiCompleterPopup::item {
+    padding: {{space_4}} {{space_10}};
+    margin: {{space_2}} 0;
+    border-radius: {{radius_compact}};
+}
+QListView#WikiCompleterPopup::item:hover:!selected { background-color: {{color_bg_page}}; }
+QListView#WikiCompleterPopup::item:selected {
+    background-color: {{color_primary}};
+    color: {{color_text_inverse}};
+}
+QListView#WikiCompleterPopup QScrollBar:vertical {
+    width: {{scrollbar_compact_width}};
+}
+
+QLabel#ImageDropPreview {
+    qproperty-dropOutline: {{color_image_drop_outline}};
+    qproperty-modifiedDropOutline: {{color_modified}};
+}
+
+QSplitter#StatisticsSplitter::handle {
+    background-color: {{color_border}};
+    border: none;
+    margin: 0;
+}
+QSplitter#StatisticsSplitter::handle:hover { background-color: {{color_border_focus}}; }

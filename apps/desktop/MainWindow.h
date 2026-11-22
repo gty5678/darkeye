@@ -18,16 +18,18 @@
 #include <QPointer>
 
 #include <memory>
+#include <optional>
 
 class QActionGroup;
 class QComboBox;
 class QLabel;
+class QJsonObject;
 class QStackedWidget;
 
 namespace darkeye
 {
 
-namespace myads { class PaneWidget; class WorkspaceWidget; }
+namespace myads { class ContentConfig; class PaneWidget; class WorkspaceWidget; }
 class WorkspaceSearch;
 class SettingsDialog;
 class Sidebar;
@@ -39,7 +41,6 @@ class PersonDetailPage;
 class ModifyActressPage;
 class ModifyActorPage;
 class PersonPage;
-class StatisticsPage;
 class WorkPage;
 class ShelfPage;
 class WorkFilter;
@@ -69,13 +70,16 @@ private:
     void openPerson(PersonKind kind, qint64 personId);
     void openWorkEditor(qint64 workId);
     void closeCurrentTab();
+    void restoreWorkspacePreset();
     QString workspaceFile() const;
+    std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
     void updateWindowTitle();
     void registerPage(const QString &menuTitle, const QString &routeName);
     QWidget *createPage(const QString &menuTitle, const QString &routeName,
                         QWidget *parent);
     QWidget *ensurePage(const QString &routeName, qint64 switchActressId = 0);
     QMap<QString, QString> workspaceCommandPages() const;
+    void ensureSettingsDialog();
     void openSettings();
     void populateThemeSelector();
     void changeTheme(int index);
@@ -104,7 +108,7 @@ private:
     void updateLocalGraph();
     void updateTimelineFocus();
     void updateTimeline();
-    void refreshStatisticsPages();
+    void refreshPersonalRecordPanels();
     void showWorkInShelf(qint64 workId);
     void registerApplicationActions();
     void openWorkspaceSearch(bool commands);

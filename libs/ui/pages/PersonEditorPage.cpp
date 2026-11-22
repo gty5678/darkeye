@@ -31,6 +31,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QSpinBox>
+#include <QStyle>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTimer>
@@ -76,10 +77,20 @@ namespace darkeye
 PersonEditorPage::PersonEditorPage(QSqlDatabase database, ThemeService &themes,
                                        QString imageDirectory, QWidget *parent,
                                        QString coverDirectory)
-    : QWidget(parent), m_repository(database), m_works(std::move(database)), m_themes(themes),
+    : LazyWidget(parent), m_repository(database), m_works(std::move(database)), m_themes(themes),
       m_imageDirectory(std::move(imageDirectory)), m_coverDirectory(std::move(coverDirectory))
 {
+}
+
+void PersonEditorPage::lazyLoad()
+{
     buildUi();
+    buildEditorActions();
+    initializeLayoutPersistence();
+    if (m_initialPerson) {
+        const auto [kind, id] = *std::exchange(m_initialPerson, std::nullopt);
+        loadPerson(kind, id);
+    }
 }
 
 PersonEditorPage::~PersonEditorPage()
@@ -90,12 +101,20 @@ PersonEditorPage::~PersonEditorPage()
 
 void PersonEditorPage::enableLayoutPersistence(const QString &path)
 {
-    if (path.isEmpty() || m_workspaceSaveTimer)
+    if (path.isEmpty() || !m_workspaceLayoutPath.isEmpty())
         return;
 
     m_workspaceLayoutPath = path;
+    if (isInitialized()) initializeLayoutPersistence();
+}
+
+void PersonEditorPage::initializeLayoutPersistence()
+{
+    if (m_workspaceLayoutPath.isEmpty())
+        return;
+
     // Different people can have editor tabs open at the same time.
-    if (auto *pending = pendingLayoutSaves.value(path))
+    if (auto *pending = pendingLayoutSaves.value(m_workspaceLayoutPath))
         pending->saveWorkspaceLayout();
     restoreWorkspaceLayout();
 
@@ -218,40 +237,7 @@ void PersonEditorPage::buildUi()
     baseLayout->setContentsMargins(0, 0, 0, 0);
     baseLayout->addLayout(commonForm);
 
-    m_actressFields = new QWidget(m_workspace);
-    auto *actressForm = new QFormLayout(m_actressFields);
-    m_bust = measurementSpin(m_actressFields, QStringLiteral("PersonBustInput"));
-    m_waist = measurementSpin(m_actressFields, QStringLiteral("PersonWaistInput"));
-    m_hip = measurementSpin(m_actressFields, QStringLiteral("PersonHipInput"));
-    m_cup = new DesignComboBox(m_actressFields);
-    m_cup->setProperty("testId", QStringLiteral("PersonCupInput"));
-    m_cup->addItems({QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C"),
-                     QStringLiteral("D"), QStringLiteral("E"), QStringLiteral("F"),
-                     QStringLiteral("G"), QStringLiteral("H"), QStringLiteral("I"),
-                     QStringLiteral("J"), QStringLiteral("K"), QStringLiteral("L"),
-                     QStringLiteral("M")});
-    m_cup->setCurrentIndex(-1);
-    m_debutDate = new DesignLineEdit(m_actressFields);
-    m_debutDate->setProperty("testId", QStringLiteral("PersonDebutDateInput"));
-    m_minnanoUrl = new DesignLineEdit(m_actressFields);
-    m_minnanoUrl->setProperty("testId", QStringLiteral("PersonMinnanoInput"));
-    actressForm->addRow(QStringLiteral("胸围"), m_bust);
-    actressForm->addRow(QStringLiteral("腰围"), m_waist);
-    actressForm->addRow(QStringLiteral("臀围"), m_hip);
-    actressForm->addRow(QStringLiteral("罩杯"), m_cup);
-    actressForm->addRow(QStringLiteral("出道日期"), m_debutDate);
-    actressForm->addRow(QStringLiteral("Minnano ID"), m_minnanoUrl);
-    baseLayout->addWidget(m_actressFields);
-
-    m_actorFields = new QWidget(m_workspace);
-    auto *actorForm = new QFormLayout(m_actorFields);
-    m_handsome = scoreCombo(m_actorFields, QStringLiteral("PersonHandsomeInput"),
-                            {QStringLiteral("丑"), QStringLiteral("普通"), QStringLiteral("帅")});
-    m_fat = scoreCombo(m_actorFields, QStringLiteral("PersonFatInput"),
-                       {QStringLiteral("胖"), QStringLiteral("普通"), QStringLiteral("瘦")});
-    actorForm->addRow(QStringLiteral("外貌"), m_handsome);
-    actorForm->addRow(QStringLiteral("体型"), m_fat);
-    baseLayout->addWidget(m_actorFields);
+    m_baseLayout = baseLayout;
     baseLayout->addStretch();
 
     auto *nameTools = new QHBoxLayout;
@@ -294,7 +280,9 @@ void PersonEditorPage::buildUi()
     auto *actionsLayout = new QVBoxLayout(addPageScrollArea(actionsPanel));
     m_actionsLayout = actionsLayout;
     actionsLayout->setContentsMargins(0, 0, 0, 0);
-    m_saveButton = new DesignButton(QStringLiteral("提交修改"), actionsPanel);
+    auto *saveButton = new DesignButton(QStringLiteral("提交修改"), actionsPanel);
+    saveButton->setVariant(QStringLiteral("personSave"));
+    m_saveButton = saveButton;
     m_saveButton->setProperty("testId", QStringLiteral("PersonSaveButton"));
     m_cancelButton = new DesignButton(QStringLiteral("取消"), actionsPanel);
     m_cancelButton->setProperty("testId", QStringLiteral("PersonCancelButton"));
@@ -329,15 +317,7 @@ void PersonEditorPage::buildUi()
             this, [this](const QString &) { updateDirtyState(); });
     const auto updateOnChange = [this] { updateDirtyState(); };
     connect(m_birthday, &QLineEdit::textChanged, this, updateOnChange);
-    connect(m_cup, &QComboBox::currentTextChanged, this, updateOnChange);
-    connect(m_debutDate, &QLineEdit::textChanged, this, updateOnChange);
-    connect(m_minnanoUrl, &QLineEdit::textChanged, this, updateOnChange);
     connect(m_height, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
-    connect(m_bust, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
-    connect(m_waist, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
-    connect(m_hip, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
-    connect(m_handsome, QOverload<int>::of(&QComboBox::currentIndexChanged), this, updateOnChange);
-    connect(m_fat, QOverload<int>::of(&QComboBox::currentIndexChanged), this, updateOnChange);
     connect(m_needUpdate, &QCheckBox::toggled, this, updateOnChange);
     connect(m_notes, &QTextEdit::textChanged, this, updateOnChange);
     connect(m_names, &QTableWidget::itemChanged, this, [this](QTableWidgetItem *) {
@@ -532,8 +512,15 @@ void PersonEditorPage::replaceChineseNames(const QList<QString> &translations, b
         emit namesChanged();
 }
 
+void PersonEditorPage::setInitialPerson(PersonKind kind, qint64 personId)
+{
+    m_initialPerson.emplace(kind, personId);
+}
+
 bool PersonEditorPage::loadPerson(PersonKind kind, qint64 personId)
 {
+    m_initialPerson.reset();
+    initialize();
     QString errorMessage;
     const auto details = m_repository.findDetails(kind, personId, &errorMessage);
     if (!details.has_value())
@@ -544,12 +531,14 @@ bool PersonEditorPage::loadPerson(PersonKind kind, qint64 personId)
         return false;
     }
     m_original = details;
-    setWindowTitle(kind == PersonKind::Actress ? QStringLiteral("修改女演员")
-                                               : QStringLiteral("修改男演员"));
+    if (!property("workspaceRoute").isValid())
+        setWindowTitle(kind == PersonKind::Actress ? QStringLiteral("修改女演员")
+                                                   : QStringLiteral("修改男演员"));
     m_populating = true;
     populate(*details);
     m_populating = false;
     resetDirtyState();
+    emit namesChanged();
     return true;
 }
 
@@ -597,6 +586,72 @@ qint64 PersonEditorPage::personId() const noexcept
     return m_original.has_value() ? m_original->id : 0;
 }
 
+void PersonEditorPage::ensureKindFields(PersonKind kind)
+{
+    if (m_fieldsKind == kind)
+        return;
+
+    delete m_kindFields;
+    m_bust = nullptr;
+    m_waist = nullptr;
+    m_hip = nullptr;
+    m_cup = nullptr;
+    m_debutDate = nullptr;
+    m_minnanoUrl = nullptr;
+    m_handsome = nullptr;
+    m_fat = nullptr;
+
+    m_fieldsKind = kind;
+    m_kindFields = new QWidget(m_baseLayout->parentWidget());
+    const auto updateOnChange = [this] { updateDirtyState(); };
+    if (kind == PersonKind::Actress)
+    {
+        auto *actressForm = new QFormLayout(m_kindFields);
+        m_bust = measurementSpin(m_kindFields, QStringLiteral("PersonBustInput"));
+        m_waist = measurementSpin(m_kindFields, QStringLiteral("PersonWaistInput"));
+        m_hip = measurementSpin(m_kindFields, QStringLiteral("PersonHipInput"));
+        m_cup = new DesignComboBox(m_kindFields);
+        m_cup->setProperty("testId", QStringLiteral("PersonCupInput"));
+        m_cup->addItems({QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C"),
+                         QStringLiteral("D"), QStringLiteral("E"), QStringLiteral("F"),
+                         QStringLiteral("G"), QStringLiteral("H"), QStringLiteral("I"),
+                         QStringLiteral("J"), QStringLiteral("K"), QStringLiteral("L"),
+                         QStringLiteral("M")});
+        m_cup->setCurrentIndex(-1);
+        m_debutDate = new DesignLineEdit(m_kindFields);
+        m_debutDate->setProperty("testId", QStringLiteral("PersonDebutDateInput"));
+        m_minnanoUrl = new DesignLineEdit(m_kindFields);
+        m_minnanoUrl->setProperty("testId", QStringLiteral("PersonMinnanoInput"));
+        actressForm->addRow(QStringLiteral("胸围"), m_bust);
+        actressForm->addRow(QStringLiteral("腰围"), m_waist);
+        actressForm->addRow(QStringLiteral("臀围"), m_hip);
+        actressForm->addRow(QStringLiteral("罩杯"), m_cup);
+        actressForm->addRow(QStringLiteral("出道日期"), m_debutDate);
+        actressForm->addRow(QStringLiteral("Minnano ID"), m_minnanoUrl);
+        connect(m_cup, &QComboBox::currentTextChanged, this, updateOnChange);
+        connect(m_debutDate, &QLineEdit::textChanged, this, updateOnChange);
+        connect(m_minnanoUrl, &QLineEdit::textChanged, this, updateOnChange);
+        connect(m_bust, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
+        connect(m_waist, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
+        connect(m_hip, QOverload<int>::of(&QSpinBox::valueChanged), this, updateOnChange);
+        setTabOrder({m_needUpdate, m_bust, m_waist, m_hip, m_cup, m_debutDate, m_minnanoUrl});
+    }
+    else
+    {
+        auto *actorForm = new QFormLayout(m_kindFields);
+        m_handsome = scoreCombo(m_kindFields, QStringLiteral("PersonHandsomeInput"),
+                                {QStringLiteral("丑"), QStringLiteral("普通"), QStringLiteral("帅")});
+        m_fat = scoreCombo(m_kindFields, QStringLiteral("PersonFatInput"),
+                           {QStringLiteral("胖"), QStringLiteral("普通"), QStringLiteral("瘦")});
+        actorForm->addRow(QStringLiteral("外貌"), m_handsome);
+        actorForm->addRow(QStringLiteral("体型"), m_fat);
+        connect(m_handsome, QOverload<int>::of(&QComboBox::currentIndexChanged), this, updateOnChange);
+        connect(m_fat, QOverload<int>::of(&QComboBox::currentIndexChanged), this, updateOnChange);
+        setTabOrder({m_needUpdate, m_handsome, m_fat});
+    }
+    m_baseLayout->insertWidget(1, m_kindFields);
+}
+
 void PersonEditorPage::populate(const PersonDetails &details)
 {
     m_imageDrop->setImagePath(details.imagePath);
@@ -604,18 +659,23 @@ void PersonEditorPage::populate(const PersonDetails &details)
     setOptionalSpin(m_height, details.height);
     m_needUpdate->setChecked(details.needUpdate);
     m_notes->setPlainText(details.notes);
-    m_actressFields->setVisible(details.kind == PersonKind::Actress);
-    m_actorFields->setVisible(details.kind == PersonKind::Actor);
-    setOptionalSpin(m_bust, details.bust);
-    setOptionalSpin(m_waist, details.waist);
-    setOptionalSpin(m_hip, details.hip);
-    m_cup->setCurrentIndex(m_cup->findText(details.cup));
-    m_debutDate->setText(details.debutDate);
-    m_minnanoUrl->setText(details.minnanoUrl);
-    const auto setScore = [](QComboBox *combo, const std::optional<int> &score)
-    { combo->setCurrentIndex(score.has_value() ? combo->findData(*score) : 0); };
-    setScore(m_handsome, details.handsome);
-    setScore(m_fat, details.fat);
+    ensureKindFields(details.kind);
+    if (details.kind == PersonKind::Actress)
+    {
+        setOptionalSpin(m_bust, details.bust);
+        setOptionalSpin(m_waist, details.waist);
+        setOptionalSpin(m_hip, details.hip);
+        m_cup->setCurrentIndex(m_cup->findText(details.cup));
+        m_debutDate->setText(details.debutDate);
+        m_minnanoUrl->setText(details.minnanoUrl);
+    }
+    else
+    {
+        const auto setScore = [](QComboBox *combo, const std::optional<int> &score)
+        { combo->setCurrentIndex(score.has_value() ? combo->findData(*score) : 0); };
+        setScore(m_handsome, details.handsome);
+        setScore(m_fat, details.fat);
+    }
     m_names->setRowCount(0);
     for (const PersonName &name : details.names)
         addNameRow(name);
@@ -684,11 +744,11 @@ void PersonEditorPage::updateDirtyState()
     const bool namesDirty = !sameNames(current.names, original.names);
 
     m_imageDrop->setDirty(imageDirty);
-    setDirtyStyle(m_birthday, birthdayDirty, QStringLiteral("QLineEdit#DesignInput"));
-    setDirtyStyle(m_height, heightDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
-    setDirtyStyle(m_needUpdate, needUpdateDirty, QStringLiteral("QCheckBox#DesignCheckBox"));
-    setDirtyStyle(m_notes, notesDirty, QStringLiteral("QTextEdit#DesignTextEdit"));
-    setDirtyStyle(m_names, namesDirty, QStringLiteral("QTableWidget#DesignTableWidget"));
+    setDirtyStyle(m_birthday, birthdayDirty);
+    setDirtyStyle(m_height, heightDirty);
+    setDirtyStyle(m_needUpdate, needUpdateDirty);
+    setDirtyStyle(m_notes, notesDirty);
+    setDirtyStyle(m_names, namesDirty);
 
     bool hasChanges = imageDirty || birthdayDirty || heightDirty || needUpdateDirty || notesDirty ||
                       namesDirty;
@@ -700,12 +760,12 @@ void PersonEditorPage::updateDirtyState()
         const bool cupDirty = current.cup != original.cup;
         const bool debutDateDirty = current.debutDate != original.debutDate;
         const bool minnanoDirty = current.minnanoUrl != original.minnanoUrl;
-        setDirtyStyle(m_bust, bustDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
-        setDirtyStyle(m_waist, waistDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
-        setDirtyStyle(m_hip, hipDirty, QStringLiteral("QSpinBox#DesignSpinBox"));
-        setDirtyStyle(m_cup, cupDirty, QStringLiteral("QComboBox#DesignComboBox"));
-        setDirtyStyle(m_debutDate, debutDateDirty, QStringLiteral("QLineEdit#DesignInput"));
-        setDirtyStyle(m_minnanoUrl, minnanoDirty, QStringLiteral("QLineEdit#DesignInput"));
+        setDirtyStyle(m_bust, bustDirty);
+        setDirtyStyle(m_waist, waistDirty);
+        setDirtyStyle(m_hip, hipDirty);
+        setDirtyStyle(m_cup, cupDirty);
+        setDirtyStyle(m_debutDate, debutDateDirty);
+        setDirtyStyle(m_minnanoUrl, minnanoDirty);
         hasChanges = hasChanges || bustDirty || waistDirty || hipDirty || cupDirty ||
                      debutDateDirty || minnanoDirty;
     }
@@ -713,45 +773,40 @@ void PersonEditorPage::updateDirtyState()
     {
         const bool handsomeDirty = current.handsome != original.handsome;
         const bool fatDirty = current.fat != original.fat;
-        setDirtyStyle(m_handsome, handsomeDirty, QStringLiteral("QComboBox#DesignComboBox"));
-        setDirtyStyle(m_fat, fatDirty, QStringLiteral("QComboBox#DesignComboBox"));
+        setDirtyStyle(m_handsome, handsomeDirty);
+        setDirtyStyle(m_fat, fatDirty);
         hasChanges = hasChanges || handsomeDirty || fatDirty;
     }
 
     m_saveButton->setEnabled(hasChanges);
-    m_saveButton->setStyleSheet(hasChanges
-        ? QStringLiteral("QPushButton#DesignButton { background-color: #FFA500; color: white; "
-                         "border-radius: 5px; padding: 6px; }")
-        : QStringLiteral("QPushButton#DesignButton { background-color: #999999; color: #CCCCCC; "
-                         "border-radius: 5px; padding: 6px; }"));
 }
 
 void PersonEditorPage::resetDirtyState()
 {
     m_imageDrop->setDirty(false);
-    setDirtyStyle(m_birthday, false, QStringLiteral("QLineEdit#DesignInput"));
-    setDirtyStyle(m_height, false, QStringLiteral("QSpinBox#DesignSpinBox"));
-    setDirtyStyle(m_bust, false, QStringLiteral("QSpinBox#DesignSpinBox"));
-    setDirtyStyle(m_waist, false, QStringLiteral("QSpinBox#DesignSpinBox"));
-    setDirtyStyle(m_hip, false, QStringLiteral("QSpinBox#DesignSpinBox"));
-    setDirtyStyle(m_cup, false, QStringLiteral("QComboBox#DesignComboBox"));
-    setDirtyStyle(m_debutDate, false, QStringLiteral("QLineEdit#DesignInput"));
-    setDirtyStyle(m_minnanoUrl, false, QStringLiteral("QLineEdit#DesignInput"));
-    setDirtyStyle(m_handsome, false, QStringLiteral("QComboBox#DesignComboBox"));
-    setDirtyStyle(m_fat, false, QStringLiteral("QComboBox#DesignComboBox"));
-    setDirtyStyle(m_needUpdate, false, QStringLiteral("QCheckBox#DesignCheckBox"));
-    setDirtyStyle(m_notes, false, QStringLiteral("QTextEdit#DesignTextEdit"));
-    setDirtyStyle(m_names, false, QStringLiteral("QTableWidget#DesignTableWidget"));
+    setDirtyStyle(m_birthday, false);
+    setDirtyStyle(m_height, false);
+    setDirtyStyle(m_bust, false);
+    setDirtyStyle(m_waist, false);
+    setDirtyStyle(m_hip, false);
+    setDirtyStyle(m_cup, false);
+    setDirtyStyle(m_debutDate, false);
+    setDirtyStyle(m_minnanoUrl, false);
+    setDirtyStyle(m_handsome, false);
+    setDirtyStyle(m_fat, false);
+    setDirtyStyle(m_needUpdate, false);
+    setDirtyStyle(m_notes, false);
+    setDirtyStyle(m_names, false);
     m_saveButton->setEnabled(false);
-    m_saveButton->setStyleSheet(QStringLiteral(
-        "QPushButton#DesignButton { background-color: #999999; color: #CCCCCC; "
-        "border-radius: 5px; padding: 6px; }"));
 }
 
-void PersonEditorPage::setDirtyStyle(QWidget *widget, bool dirty, const QString &selector)
+void PersonEditorPage::setDirtyStyle(QWidget *widget, bool dirty)
 {
-    widget->setStyleSheet(dirty ? QStringLiteral("%1 { border: 2px solid #FFA500; }").arg(selector)
-                                : QString());
+    if (!widget || widget->property("personModified").toBool() == dirty) return;
+    widget->setProperty("personModified", dirty);
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
 }
 
 bool PersonEditorPage::sameNames(const QList<PersonName> &left, const QList<PersonName> &right)
@@ -831,7 +886,7 @@ std::optional<int> PersonEditorPage::optionalSpinValue(const QSpinBox *spinBox)
 namespace darkeye {
 void PersonEditorPage::closeEvent(QCloseEvent *event) {
     updateDirtyState();
-    if (!m_saveButton->isEnabled()) { event->accept(); return; }
+    if (!m_saveButton || !m_saveButton->isEnabled()) { event->accept(); return; }
     const auto choice = QMessageBox::question(this, QStringLiteral("未保存的修改"),
         QStringLiteral("关闭前保存人物资料的修改？"), QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
     if (choice == QMessageBox::Cancel || (choice == QMessageBox::Save && !savePerson())) event->ignore();

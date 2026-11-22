@@ -21,6 +21,7 @@ using namespace render3d;
 
 namespace {
 constexpr float defaultCameraDistance=0.22f;
+constexpr float defaultCameraHeight=0.095f;
 }
 
 struct DvdSceneWidget::Impl {
@@ -61,7 +62,7 @@ struct DvdSceneWidget::Impl {
         clock.start();
         camera.distance=defaultCameraDistance;
         camera.rotationMode=Camera::RotationMode::InPlace;
-        camera.target={0,0.1f,0};
+        camera.target={0,defaultCameraHeight,0};
         camera.verticalFov=60;
         camera.nearPlane=0.001f;
         camera.farPlane=100;
@@ -113,11 +114,11 @@ struct DvdSceneWidget::Impl {
         constexpr float margin=16;
         expansionFits=!openPoints.empty();
         for(const auto &point:openPoints) {
-            const float depth=0.2f-point.z();
+            const float depth=0.19f-point.z();
             const float x=canvas->width()*0.5f+focal*(point.x()+0.0075f)/depth;
             if(depth<=0 || x<margin || x>canvas->width()-margin) expansionFits=false;
         }
-        float distance=0.2f;
+        float distance=0.19f;
         if(!expansionFits) {
             for(const auto &point:closedPoints) {
                 distance=std::max(distance,point.z()+focal*std::abs(point.x()-closedCenterX)
@@ -593,7 +594,7 @@ void DvdSceneWidget::scrollToIndex(int index)
 void DvdSceneWidget::resetCamera()
 {
     d->camera.yaw=0; d->camera.pitch=0; d->camera.distance=defaultCameraDistance;
-    d->camera.target.setY(0.1f);
+    d->camera.target.setY(defaultCameraHeight);
     d->cameraChanged();
 }
 void DvdSceneWidget::setDarkTheme(bool dark)

@@ -9,14 +9,15 @@ namespace darkeye
 
 class ThemeService;
 
-class PlotTabPage final : public LazyWidget
+class StatisticsChartPage final : public LazyWidget
 {
-public:
-    explicit PlotTabPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
-                         ThemeService &themeService,
-                         QWidget *parent = nullptr);
+    Q_OBJECT
 
-    void refresh();
+public:
+    explicit StatisticsChartPage(QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
+                                 ThemeService &themeService,
+                                 QWidget *parent = nullptr);
+
     [[nodiscard]] QWidget *captureContent();
 
 private:

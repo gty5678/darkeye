@@ -1,5 +1,7 @@
 #pragma once
 
+#include "darkeye_ui/base/LazyWidget.h"
+
 #include "database/repositories/ReferenceRepository.h"
 
 #include <QWidget>
@@ -18,7 +20,7 @@ class TokenTableWidget;
 class TagDisplayPreview;
 class WorkTagSelector;
 
-class TagManagementWidget final : public QWidget
+class TagManagementWidget final : public LazyWidget
 {
     Q_OBJECT
 
@@ -34,6 +36,7 @@ signals:
     void tagTypesChanged();
 
 private:
+    void lazyLoad() override;
     void buildUi();
     void selectTag(qint64 tagId);
     void beginNewTag();

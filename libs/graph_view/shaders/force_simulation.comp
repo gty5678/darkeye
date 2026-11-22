@@ -1,0 +1,276 @@
+#version 430
+layout(local_size_x = 128) in;
+
+layout(std140, binding = 0) uniform Parameters {
+    uvec4 meta; // node count, padded leaf count, operation, reduction width
+    uvec4 sorting; // bitonic sequence length, compare distance
+    vec4 forces; // many-body, center, link, link distance
+    vec4 collision; // alpha, radius, strength, Barnes-Hut theta
+    vec4 integration; // dt, velocity decay, max displacement, cutoff squared
+    vec4 motion; // exact displacement weights: incoming velocity, force
+} p;
+layout(std430, binding = 1) buffer InputState { float state[]; };
+layout(std430, binding = 2) readonly buffer Controls { vec4 control[]; };
+layout(std430, binding = 3) buffer SortKeys { uvec2 keys[]; };
+struct TreeNode { vec4 bounds; vec4 centerMass; };
+layout(std430, binding = 4) buffer SpatialTree { TreeNode tree[]; };
+layout(std430, binding = 5) readonly buffer Adjacency { uint adjacency[]; };
+layout(std430, binding = 6) writeonly buffer OutputState { float nextState[]; };
+layout(std430, binding = 7) buffer SortOutput { uvec2 sortedKeys[]; };
+layout(std430, binding = 8) buffer RadixScratch { uint histogram[]; };
+shared uint digits[128];
+shared uint counts[16];
+shared vec4 tileBounds[128];
+shared vec4 tileMass[128];
+
+// Packed x,y,vx,vy,pre-clamp absolute speed. The last value preserves CPU's
+// convergence statistic without recomputing forces or integration on the CPU.
+vec4 readState(uint i)
+{
+    uint b = 5u * i;
+    return vec4(state[b], state[b + 1u], state[b + 2u], state[b + 3u]);
+}
+
+uint spread(uint v)
+{
+    v &= 0x0000ffffu;
+    v = (v | (v << 8)) & 0x00ff00ffu;
+    v = (v | (v << 4)) & 0x0f0f0f0fu;
+    v = (v | (v << 2)) & 0x33333333u;
+    return (v | (v << 1)) & 0x55555555u;
+}
+
+vec2 overlapDirection(uint i, uint j)
+{
+    uint h = min(i, j) * 0x9e3779b9u;
+    h ^= max(i, j) * 0x85ebca6bu;
+    h ^= h >> 16;
+    vec2 v = vec2(h & 0xffffu, (h >> 16) & 0xffffu) / 32767.5 - 1.0;
+    v = dot(v, v) < 1e-20 ? vec2(1.0, 0.0) : normalize(v);
+    return i > j ? -v : v;
+}
+
+TreeNode leaf(uint index)
+{
+    TreeNode t;
+    if (index < p.meta.x) {
+        vec2 x = readState(index).xy;
+        t.bounds = vec4(x, x);
+        t.centerMass = vec4(x, control[index].w, 0.0);
+    } else {
+        t.bounds = vec4(1e30, 1e30, -1e30, -1e30);
+        t.centerMass = vec4(0.0);
+    }
+    return t;
+}
+
+// Skip a complete heap subtree in preorder. Trailing right-child bits encode
+// the ancestors to climb. This avoids per-thread stacks and register spills.
+uint nextSubtree(uint n)
+{
+    uint encoded = n + 1u;
+    uint next = encoded >> uint(findLSB(~encoded));
+    return next == 0u ? 2u * p.meta.y - 1u : next;
+}
+
+vec2 treeForces(uint i, vec2 position)
+{
+    vec2 result = vec2(0.0);
+    float alpha = p.collision.x;
+    uint end = 2u * p.meta.y - 1u;
+    uint firstLeaf = p.meta.y - 1u;
+    uint n = p.forces.x == 0.0 ? end : 0u;
+    while (n < end) {
+        TreeNode t = tree[n];
+        vec2 nearest = max(max(t.bounds.xy - position, position - t.bounds.zw), vec2(0.0));
+        if (t.bounds.x > t.bounds.z || dot(nearest, nearest) >= p.integration.w) {
+            n = nextSubtree(n);
+            continue;
+        }
+        vec2 d = position - t.centerMass.xy;
+        float raw2 = dot(d, d);
+        float d2 = raw2 + 1e-6;
+        float size = max(t.bounds.z - t.bounds.x, t.bounds.w - t.bounds.y);
+        bool containsSelf = all(greaterThanEqual(position, t.bounds.xy))
+                         && all(lessThanEqual(position, t.bounds.zw));
+        vec2 farthest = max(abs(position - t.bounds.xy), abs(position - t.bounds.zw));
+        bool fullyInsideCutoff = dot(farthest, farthest) + 1e-6 < p.integration.w;
+        if (n >= firstLeaf) {
+            uint j = keys[n - firstLeaf].y;
+            if (j != i && d2 < p.integration.w) {
+                vec2 direction = raw2 < 1e-10 ? overlapDirection(i, j) : d * inversesqrt(d2);
+                result += p.forces.x * control[i].w * t.centerMass.z / max(d2, 1.0) * alpha * direction;
+            }
+        } else if (!containsSelf && fullyInsideCutoff
+                   && size * size < p.collision.w * p.collision.w * d2) {
+            if (d2 < p.integration.w)
+                result += p.forces.x * control[i].w * t.centerMass.z / max(d2, 1.0) * alpha * d * inversesqrt(d2);
+        } else {
+            n = 2u * n + 1u;
+            continue;
+        }
+        n = nextSubtree(n);
+    }
+    n = p.collision.y <= 0.0 || p.collision.z == 0.0 ? end : 0u;
+    while (n < end) {
+        vec4 bounds = tree[n].bounds;
+        vec2 nearest = max(max(bounds.xy - position, position - bounds.zw), vec2(0.0));
+        if (bounds.x <= bounds.z && dot(nearest, nearest) < p.collision.y * p.collision.y) {
+            if (n < firstLeaf) {
+                n = 2u * n + 1u;
+                continue;
+            }
+            uint j = keys[n - firstLeaf].y;
+            if (j != i) {
+                vec2 d = position - bounds.xy;
+                float distance = length(d) + 1e-6;
+                if (distance < p.collision.y) {
+                    vec2 direction = distance < 1e-5 ? overlapDirection(i, j) : d / distance;
+                    result += p.collision.z * alpha * (p.collision.y - distance) * direction;
+                }
+            }
+        }
+        n = nextSubtree(n);
+    }
+    return result;
+}
+
+void buildLeafTile(uint i, uint index)
+{
+    uint lane = gl_LocalInvocationID.x;
+    TreeNode t = leaf(index);
+    if (i < p.meta.y) tree[p.meta.y - 1u + i] = t;
+    if (p.meta.w == 0u) return; // reference implementation
+    tileBounds[lane] = t.bounds;
+    tileMass[lane] = t.centerMass;
+    barrier();
+    for (uint span = 2u; span <= min(128u, p.meta.y); span <<= 1) {
+        if ((lane & (span - 1u)) == 0u && i < p.meta.y) {
+            vec4 a = tileMass[lane];
+            vec4 b = tileMass[lane + span / 2u];
+            float mass = a.z + b.z;
+            tileBounds[lane] = vec4(min(tileBounds[lane].xy, tileBounds[lane + span / 2u].xy),
+                                    max(tileBounds[lane].zw, tileBounds[lane + span / 2u].zw));
+            tileMass[lane] = vec4(mass > 0.0 ? (a.xy * a.z + b.xy * b.z) / mass : vec2(0.0), mass, 0.0);
+            uint parent = p.meta.y / span - 1u + i / span;
+            tree[parent].bounds = tileBounds[lane];
+            tree[parent].centerMass = tileMass[lane];
+        }
+        barrier();
+    }
+}
+
+void main()
+{
+    uint i = gl_GlobalInvocationID.x;
+    if (p.meta.z == 0u) {
+        if (i < p.meta.x && control[i].z > 0.5) {
+            state[5u * i] = control[i].x;
+            state[5u * i + 1u] = control[i].y;
+            state[5u * i + 2u] = 0.0;
+            state[5u * i + 3u] = 0.0;
+        }
+        buildLeafTile(i, i);
+    } else if (p.meta.z == 1u) {
+        if (i >= p.meta.w) return;
+        uint n = p.meta.w - 1u + i;
+        TreeNode a = tree[2u * n + 1u];
+        TreeNode b = tree[2u * n + 2u];
+        TreeNode t;
+        t.bounds = vec4(min(a.bounds.xy, b.bounds.xy), max(a.bounds.zw, b.bounds.zw));
+        float mass = a.centerMass.z + b.centerMass.z;
+        t.centerMass = vec4(mass > 0.0 ? (a.centerMass.xy * a.centerMass.z + b.centerMass.xy * b.centerMass.z) / mass : vec2(0.0), mass, 0.0);
+        tree[n] = t;
+    } else if (p.meta.z == 2u) {
+        if (i >= p.meta.y) return;
+        if (i >= p.meta.x) { keys[i] = uvec2(0xffffffffu); return; }
+        vec4 bounds = tree[0].bounds;
+        vec2 extent = max(bounds.zw - bounds.xy, vec2(1e-6));
+        uvec2 xy = uvec2(clamp((readState(i).xy - bounds.xy) / extent, 0.0, 1.0) * 65535.0);
+        keys[i] = uvec2(spread(xy.x) | (spread(xy.y) << 1), i);
+    } else if (p.meta.z == 3u) {
+        if (i >= p.meta.y) return;
+        uint j = i ^ p.sorting.y;
+        if (j <= i) return;
+        uvec2 a = keys[i];
+        uvec2 b = keys[j];
+        bool greater = a.x > b.x || (a.x == b.x && a.y > b.y);
+        if (greater == ((i & p.sorting.x) == 0u)) {
+            keys[i] = b;
+            keys[j] = a;
+        }
+    } else if (p.meta.z == 4u) {
+        uint index = i < p.meta.y ? keys[i].y : 0xffffffffu;
+        buildLeafTile(i, index);
+    } else if (p.meta.z == 5u) {
+        if (i >= p.meta.x) return;
+        // Neighboring lanes query neighboring Morton leaves, keeping traversal
+        // and cache accesses coherent even when original node IDs are random.
+        i = keys[i].y;
+        vec4 current = readState(i);
+        vec2 x = current.xy;
+        vec2 force = treeForces(i, x) - x * p.forces.y * p.collision.x;
+        for (uint a = adjacency[i]; a < adjacency[i + 1u]; ++a) {
+            uint j = adjacency[p.meta.x + 1u + a];
+            vec2 d = readState(j).xy - x;
+            float length = sqrt(dot(d, d)) + 1e-6;
+            force += d * ((length - p.forces.w) / length * p.forces.z * p.collision.x);
+        }
+        vec2 velocity = (current.zw + force) * p.integration.y;
+        vec2 displacement = current.zw * p.motion.x + force * p.motion.y;
+        float absoluteSpeed = abs(velocity.x) + abs(velocity.y);
+        float travel2 = max(dot(displacement, displacement),
+                            dot(velocity, velocity) * p.integration.x * p.integration.x);
+        float scale = p.integration.z > 0.0
+            ? inversesqrt(1.0 + travel2 / (p.integration.z * p.integration.z)) : 0.0;
+        velocity *= scale;
+        vec2 position = x + displacement * scale;
+        if (control[i].z > 0.5) {
+            position = control[i].xy;
+            velocity = vec2(0.0);
+            absoluteSpeed = 0.0;
+        }
+        nextState[5u * i] = position.x;
+        nextState[5u * i + 1u] = position.y;
+        nextState[5u * i + 2u] = velocity.x;
+        nextState[5u * i + 3u] = velocity.y;
+        nextState[5u * i + 4u] = absoluteSpeed;
+    } else if (p.meta.z == 6u) {
+        uint lane = gl_LocalInvocationID.x;
+        uint digit = i < p.meta.y ? ((keys[i].x >> p.sorting.x) & 15u) : 16u;
+        digits[lane] = digit;
+        if (lane < 16u) counts[lane] = 0u;
+        barrier();
+        if (i < p.meta.y) atomicAdd(counts[digit], 1u);
+        barrier();
+        if (lane < 16u) histogram[gl_WorkGroupID.x * 16u + lane] = counts[lane];
+        if (i < p.meta.y) {
+            uint rank = 0u;
+            for (uint j = 0u; j < lane; ++j) rank += digits[j] == digit ? 1u : 0u;
+            histogram[p.sorting.y * 16u + i] = rank;
+        }
+    } else if (p.meta.z == 7u) {
+        uint lane = gl_LocalInvocationID.x;
+        if (lane < 16u) {
+            uint total = 0u;
+            for (uint group = 0u; group < p.sorting.y; ++group) {
+                uint value = histogram[group * 16u + lane];
+                histogram[group * 16u + lane] = total;
+                total += value;
+            }
+            counts[lane] = total;
+        }
+        barrier();
+        if (lane < 16u) {
+            uint base = 0u;
+            for (uint digit = 0u; digit < lane; ++digit) base += counts[digit];
+            for (uint group = 0u; group < p.sorting.y; ++group)
+                histogram[group * 16u + lane] += base;
+        }
+    } else if (p.meta.z == 8u) {
+        if (i >= p.meta.y) return;
+        uint digit = (keys[i].x >> p.sorting.x) & 15u;
+        uint destination = histogram[gl_WorkGroupID.x * 16u + digit] + histogram[p.sorting.y * 16u + i];
+        sortedKeys[destination] = keys[i];
+    }
+}

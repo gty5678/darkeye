@@ -1,0 +1,83 @@
+{
+    "normalizeNumber": [
+        ["  abc--def  ", "abc-def"],
+        ["FC-12345", "FC2-12345"],
+        ["prefix-FC-suffix", "prefix-FC2-suffix"],
+        ["foo---bar", "foo-bar"]
+    ],
+    "normalizeRawName": [
+        ["ipx-247", "IPX-247"],
+        ["SSNI-392-cd-2", "SSNI-392"],
+        ["my-file_U", "MY-FILE"],
+        ["SNIS-001 1080P", "SNIS-001"],
+        ["345simm-336-final", "SIMM-336-FINAL"],
+        ["GACHIPPV-100", "GACHI-100"],
+        ["FC2_PPV123456", "FC2-123456"]
+    ],
+    "valid": [
+        ["ABP-123", true],
+        ["IPX-1024", true],
+        ["SSNI-009", true],
+        ["abp-123", true],
+        ["A-123", false],
+        ["ABP-123456", false],
+        ["ABP123", false],
+        ["ABP-12A", false],
+        ["AB-1", true],
+        ["ABCDEFG-123", false]
+    ],
+    "fanza": [
+        ["IPX-247", "ipx00247"],
+        ["ABP-123", "abp00123"],
+        ["XYZ-1", "xyz001"],
+        ["NoDash", "nodash"],
+        ["abc-DEF", "abc00def"],
+        ["KNMB-001", "h_491knmb00001"]
+    ],
+    "equal": [
+        ["IPX-247", "ipx00247", true],
+        ["ipx00247", "IPX-247", true],
+        ["ABP-123", "abp00123", true],
+        ["IPX-247", "IPX-248", false],
+        ["IPX-247", "IPX247", false]
+    ],
+    "special": [
+        ["IPX-247", "ipx247"],
+        ["SSNI-009", "ssni009"],
+        ["abc-DEF", "abcdef"]
+    ],
+    "extract": [
+        [null, null],
+        ["", null],
+        ["   ", null],
+        ["周边作品 SNIS-456 完结", "SNIS-456"],
+        ["无番号字符串", null],
+        ["CODE IS IPX247 HERE", "IPX-247"],
+        ["CODE IS ipx-247 HERE", "IPX-247"],
+        ["先出现 ABC-1 后出现 DEF-9", "ABC-1"],
+        ["FG-123 trailing", "FG-123"],
+        ["只有横线后数字 123-456", null],
+        ["FC2-123456 foo", "FC2-123456"],
+        ["file_HEYZO-789_title", "HEYZO-789"],
+        ["prefix HEYZO123 suffix", "HEYZO123"],
+        ["foo N1234 bar", "N1234"],
+        ["H_123ABC45", "ABC-45"],
+        ["DIR IPX00247 x", "IPX-247"],
+        ["ssni-392-C", "SSNI-392"],
+        ["IPX-247-c", "IPX-247"],
+        ["SSNI-392-ch", "SSNI-392"],
+        ["abc-001.CH", "ABC-001"],
+        ["stars-879ch", "STARS-879"],
+        ["345simm-336-C", "SIMM-336"],
+        ["IPX-580C", "IPX-580"],
+        ["[s64ss.com]IPX-580C", "IPX-580"],
+        ["ssni001", "SSNI-001"],
+        ["ssni001C", "SSNI-001"],
+        ["ssni00234", "SSNI-234"],
+        ["1star00356", "STAR-356"],
+        ["1star00356c", "STAR-356"],
+        ["MKBD-S127 無碼 KIRARI 127 前田かおり", "MKBD-S127"],
+        ["081217_565", "081217_565"],
+        ["081217_565_无标题", "081217_565"]
+    ]
+}

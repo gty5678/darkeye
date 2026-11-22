@@ -1,0 +1,5 @@
+qt_add_executable(darkeye_cover_maker_demo WIN32 main.cpp)
+set_target_properties(darkeye_cover_maker_demo PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(darkeye_cover_maker_demo PRIVATE darkeye::cover_maker)
+darkeye_apply_compiler_options(darkeye_cover_maker_demo)
+darkeye_configure_packaging(darkeye_cover_maker_demo NO_INSTALL)

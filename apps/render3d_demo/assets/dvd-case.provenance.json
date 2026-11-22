@@ -1,0 +1,14 @@
+{
+  "generator": "darkeye_dvd_mesh_export",
+  "generatedAssetSha256": "8ba289c050fa73ab0653547f65df171ace6a7fcac2e89b1a8274b0a9af0b6523",
+  "sourceSha256": {
+    "resources/qml/dvd/Dvd.qml": "49866029219fb9904973da32906202b4b88ffd03b7b88b798e20a286477b76fc",
+    "resources/meshes/back.mesh": "da9e5ff39d7afe73865bb0f02e82c2e2cd0f7e808ad33e7d735bf2cf48372a81",
+    "resources/meshes/spine.mesh": "4c0a4ceae45844df0adbc614c5c7247d3d091d9d71414fa94bc56198733888bc",
+    "resources/meshes/front.mesh": "2184a93745c770b8883bf5e19fe5bdb5be8d9dd1587367ce265d8381eb5e5d38",
+    "resources/meshes/cD.mesh": "d1baa668072557bd1361c74cdceb9bd1a27ac3454e7d035bfb5ec6c55dfcd0e4"
+  },
+  "licenseNote": "Derived only from existing repository assets; no new third-party artwork. See repository LICENSE; separate upstream model license was not found.",
+  "coordinateNote": "Positions/normals and closed Dvd.qml hierarchy preserved; Qt mesh V converted to glTF as 1-v; cover assigned at runtime.",
+  "materialNote": "QML #AARRGGBB parsed by QColor and linearized with Qt QSSGUtils::color::sRGBToLinear; original disc #ffffffcc has alpha 1."
+}

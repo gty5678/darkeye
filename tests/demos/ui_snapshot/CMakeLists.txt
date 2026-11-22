@@ -1,0 +1,4 @@
+qt_add_executable(darkeye_ui_snapshot main.cpp)
+set_target_properties(darkeye_ui_snapshot PROPERTIES WIN32_EXECUTABLE FALSE)
+target_link_libraries(darkeye_ui_snapshot PRIVATE darkeye::desktop_ui Qt6::Test)
+darkeye_apply_compiler_options(darkeye_ui_snapshot)

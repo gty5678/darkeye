@@ -1,0 +1,44 @@
+#version 430
+layout(local_size_x = 128) in;
+layout(std140, binding = 0) uniform Parameters {
+    vec4 viewport;
+    uvec4 counts;
+    vec4 animation; // hover amount, hovered node radius multiplier
+    vec4 dimColor;
+    vec4 edgeDimColor;
+    vec4 highlightColor;
+} p;
+layout(std430, binding = 1) readonly buffer State { float state[]; };
+struct Description { uvec4 nodes; vec4 shape; vec4 color; };
+struct Instance { vec4 positions; vec4 shape; vec4 color; };
+layout(std430, binding = 2) readonly buffer Descriptions { Description descriptions[]; };
+layout(std430, binding = 3) writeonly buffer Instances { Instance instances[]; };
+vec2 position(uint n) { return vec2(state[5u * n], state[5u * n + 1u]); }
+bool visible(vec2 x, float r) {
+    return x.x + r >= p.viewport.x && x.y + r >= p.viewport.y
+        && x.x - r <= p.viewport.z && x.y - r <= p.viewport.w;
+}
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= p.counts.x) return;
+    Description d = descriptions[i];
+    vec2 a = position(d.nodes.x);
+    vec2 b = d.shape.z < 1.5 ? position(d.nodes.y) : a;
+    Instance result;
+    result.positions = vec4(a, b);
+    result.shape = d.shape;
+    result.color = d.color;
+    float t = clamp(p.animation.x, 0.0, 1.0);
+    if (t > 0.0) {
+        bool highlighted = (d.nodes.z & 1u) != 0u;
+        bool hovered = (d.nodes.z & 2u) != 0u;
+        if (d.shape.z < 1.5) {
+            result.color = mix(d.color, highlighted ? p.highlightColor : p.edgeDimColor, t);
+        } else {
+            result.color = mix(d.color, hovered ? p.highlightColor : (highlighted ? d.color : p.dimColor), t);
+            if (hovered) result.shape.x *= p.animation.y;
+        }
+    }
+    if (!visible(a, result.shape.x) && !visible(b, result.shape.y)) result.color.a = 0.0;
+    instances[i] = result;
+}

@@ -1,0 +1,1206 @@
+#include "ui/layouts/myads/WorkspaceWidget.h"
+
+#include <QApplication>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QEvent>
+#include <QFocusEvent>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QLabel>
+#include <QMimeData>
+#include <QMenu>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QSplitter>
+#include <QScopeGuard>
+#include <QTimer>
+#include <QHBoxLayout>
+#include <algorithm>
+#include <numeric>
+#include <stdexcept>
+#include <utility>
+
+namespace darkeye::myads {
+
+namespace {
+class WorkspaceSplitter final : public QSplitter
+{
+public:
+    WorkspaceSplitter(Qt::Orientation orientation, QWidget *parent, const DockTheme &theme)
+        : QSplitter(orientation, parent)
+    {
+        setObjectName(QStringLiteral("MyAdsSplitter"));
+        setHandleWidth(5);
+        applyTheme(theme);
+    }
+
+    void applyTheme(const DockTheme &theme)
+    {
+        m_background = theme.background;
+        m_line = theme.text;
+        m_line.setAlphaF(0.17);
+        m_hover = theme.primary;
+        m_pressed = theme.primaryHover;
+        for (int i = 1; i < count(); ++i) handle(i)->update();
+    }
+
+protected:
+    QSplitterHandle *createHandle() override { return new Handle(this); }
+
+private:
+    class Handle final : public QSplitterHandle
+    {
+    public:
+        explicit Handle(WorkspaceSplitter *owner)
+            : QSplitterHandle(owner->orientation(), owner), m_owner(owner) {}
+
+    protected:
+        bool event(QEvent *event) override
+        {
+            if (event->type() == QEvent::UngrabMouse) m_dragging = false;
+            if (event->type() == QEvent::Enter || event->type() == QEvent::Leave ||
+                event->type() == QEvent::UngrabMouse)
+                update();
+            return QSplitterHandle::event(event);
+        }
+
+        void paintEvent(QPaintEvent *) override
+        {
+            QPainter painter(this);
+            painter.fillRect(rect(), m_owner->m_background);
+            const QRect line = orientation() == Qt::Horizontal
+                ? QRect(rect().center().x(), 0, 1, height())
+                : QRect(0, rect().center().y(), width(), 1);
+            QColor color = underMouse() ? m_owner->m_hover : m_owner->m_line;
+            if (m_dragging) color = m_owner->m_pressed;
+            painter.fillRect(line, color);
+        }
+
+        void mousePressEvent(QMouseEvent *event) override
+        {
+            QSplitterHandle::mousePressEvent(event);
+            if (event->button() == Qt::LeftButton) m_dragging = true;
+            update();
+        }
+
+        void mouseReleaseEvent(QMouseEvent *event) override
+        {
+            QSplitterHandle::mouseReleaseEvent(event);
+            if (event->button() == Qt::LeftButton) m_dragging = false;
+            update();
+        }
+
+    private:
+        WorkspaceSplitter *m_owner;
+        bool m_dragging = false;
+    };
+
+    QColor m_background;
+    QColor m_line;
+    QColor m_hover;
+    QColor m_pressed;
+};
+bool containsWidget(const QWidget *parent, const QWidget *widget)
+{
+    for (; widget; widget = widget->parentWidget())
+        if (widget == parent) return true;
+    return false;
+}
+bool isHorizontalSplit(DropZone zone)
+{
+    return zone == DropZone::Left || zone == DropZone::Right ||
+           zone == DropZone::RootLeft || zone == DropZone::RootRight;
+}
+
+bool isVerticalSidebarTree(const std::shared_ptr<LayoutNode> &node)
+{
+    return node->kind == LayoutNode::Kind::Pane ||
+           (node->orientation == Qt::Vertical &&
+            std::all_of(node->children.cbegin(), node->children.cend(), isVerticalSidebarTree));
+}
+
+LayoutTree singleSidebarPane(const QString &id)
+{
+    LayoutTree tree;
+    tree.root()->orientation = Qt::Vertical;
+    tree.addPaneToRoot(id);
+    return tree;
+}
+} // namespace
+
+class WorkspaceWidget::PreviewOverlay final : public QWidget
+{
+public:
+    explicit PreviewOverlay(QWidget *parent) : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_TranslucentBackground);
+        hide();
+    }
+
+    void showPreview(const QRect &rectangle, const DockTheme &theme, bool insertion = false)
+    {
+        m_rectangle = rectangle;
+        m_theme = theme;
+        m_insertion = insertion;
+        setGeometry(parentWidget()->rect());
+        show();
+        raise();
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        if (m_insertion) {
+            painter.fillRect(m_rectangle, m_theme.primary);
+            return;
+        }
+        QColor fill = m_theme.primary;
+        fill.setAlpha(std::clamp(m_theme.previewAlpha, 0, 255));
+        painter.setBrush(fill);
+        painter.setPen(QPen(m_theme.primary, m_theme.previewBorderWidth));
+        painter.drawRect(m_rectangle.adjusted(1, 1, -1, -1));
+    }
+
+private:
+    QRect m_rectangle;
+    DockTheme m_theme;
+    bool m_insertion = false;
+};
+
+ContentConfig::ContentConfig(QString id) : contentId(std::move(id)) {}
+ContentConfig &ContentConfig::setWidget(QWidget *value) { widget = value; return *this; }
+ContentConfig &ContentConfig::setWindowTitle(const QString &value) { title = value; return *this; }
+ContentConfig &ContentConfig::setIcon(const QIcon &value) { icon = value; return *this; }
+ContentConfig &ContentConfig::setCloseable(bool value) { closeable = value; return *this; }
+ContentConfig &ContentConfig::setClosePolicy(ClosePolicy value) { closePolicy = value; return *this; }
+
+WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme)
+    : WorkspaceWidget(parent, theme, true)
+{
+}
+
+WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool withSidebars)
+    : QWidget(parent), m_theme(theme)
+{
+    setObjectName(QStringLiteral("MyAdsWorkspace"));
+    auto *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 2, 0, 0);
+    m_sidebarSplitter = new WorkspaceSplitter(Qt::Horizontal, this, theme);
+    m_sidebarSplitter->setObjectName(QStringLiteral("MyAdsSidebarSplitter"));
+    m_sidebarSplitter->setChildrenCollapsible(false);
+    m_sidebarSplitter->setOpaqueResize(true);
+    layout->addWidget(m_sidebarSplitter);
+    m_center = new QWidget(m_sidebarSplitter);
+    auto *centerLayout = new QHBoxLayout(m_center);
+    centerLayout->setContentsMargins(0, 0, 0, 0);
+    m_sidebarSplitter->addWidget(m_center);
+    connect(m_sidebarSplitter, &QSplitter::splitterMoved, this, [this](int, int handle) {
+        const auto sizes = m_sidebarSplitter->sizes();
+        if (sizes.size() != 3) return;
+        const int totalWidth = std::accumulate(sizes.cbegin(), sizes.cend(), 0);
+        const int sidebarWidth = handle == 1 ? sizes.first() : sizes.last();
+        if (sidebarWidth <= 0 || sidebarWidth >= totalWidth) return;
+        auto &ratio = handle == 1 ? m_leftWidthRatio : m_rightWidthRatio;
+        ratio = static_cast<double>(sidebarWidth) / totalWidth;
+        emit layoutPreferencesChanged();
+    });
+    m_tree.addPaneToRoot(QStringLiteral("pane_1"));
+    rebuild(false);
+    if (withSidebars) createSidebars();
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now) {
+        if (!m_sidebarAutoCollapse) return;
+        for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host}) {
+            if (sidebar && !sidebar->isHidden() && containsWidget(sidebar, old)
+                && !containsWidget(sidebar, now)) {
+                QTimer::singleShot(0, sidebar, [this, sidebar] {
+                    if (m_sidebarAutoCollapse && !containsWidget(sidebar, QApplication::focusWidget())
+                        && !containsWidget(sidebar, QApplication::activePopupWidget()))
+                        hideSidebar(sidebar);
+                });
+            }
+        }
+    });
+    m_preview = new PreviewOverlay(this);
+    applyTheme(theme);
+    qApp->installEventFilter(this);
+}
+
+WorkspaceWidget::~WorkspaceWidget()
+{
+    if (qApp) {
+        disconnect(qApp, &QApplication::focusChanged, this, nullptr);
+        qApp->removeEventFilter(this);
+    }
+}
+
+const LayoutTree &WorkspaceWidget::layoutTree() const noexcept { return m_tree; }
+PaneWidget *WorkspaceWidget::pane(const QString &id) const { return m_panes.value(id); }
+
+QList<PaneWidget *> WorkspaceWidget::panes() const
+{
+    QList<PaneWidget *> result;
+    for (const auto &id : m_tree.paneIds())
+        if (auto *item = pane(id)) result.append(item);
+    return result;
+}
+
+void WorkspaceWidget::createSidebars(LayoutTree left, LayoutTree right)
+{
+    const auto create = [this](Sidebar &sidebar, LayoutTree tree, const QString &name,
+                               const QString &label) {
+        if (tree.paneIds().isEmpty()) {
+            QString id = name;
+            for (int suffix = 2; pane(id); ++suffix)
+                id = name + QString::number(suffix);
+            tree = singleSidebarPane(id);
+        }
+        sidebar.tree = std::move(tree);
+        sidebar.host = new QWidget(m_sidebarSplitter);
+        sidebar.host->setObjectName(name);
+        sidebar.host->setAccessibleName(label);
+        sidebar.host->setMinimumWidth(80);
+        auto *layout = new QHBoxLayout(sidebar.host);
+        layout->setContentsMargins(0, 0, 0, 0);
+        sidebar.host->hide();
+        rebuild(sidebar.tree, false);
+    };
+    create(m_leftSidebar, std::move(left), QStringLiteral("MyAdsLeftSidebar"), tr("左边栏"));
+    create(m_rightSidebar, std::move(right), QStringLiteral("MyAdsRightSidebar"), tr("右边栏"));
+    m_sidebarSplitter->insertWidget(0, m_leftSidebar.host);
+    m_sidebarSplitter->addWidget(m_rightSidebar.host);
+}
+
+void WorkspaceWidget::applySidebarWidths()
+{
+    if (!m_leftSidebar.host || !m_rightSidebar.host) return;
+    const double left = m_leftSidebar.host->isHidden() ? 0.0 : m_leftWidthRatio;
+    const double right = m_rightSidebar.host->isHidden() ? 0.0 : m_rightWidthRatio;
+    const double center = left + right < 1.0 ? 1.0 - left - right : 0.10;
+    constexpr int scale = 10000;
+    m_sidebarSplitter->setSizes({qRound(left * scale), qMax(1, qRound(center * scale)),
+                                 qRound(right * scale)});
+}
+
+const WorkspaceWidget::Sidebar &WorkspaceWidget::sidebar(SidebarSide side) const
+{
+    return side == SidebarSide::Left ? m_leftSidebar : m_rightSidebar;
+}
+
+PaneWidget *WorkspaceWidget::sidebarPane(SidebarSide side) const
+{
+    return pane(sidebar(side).tree.paneIds().value(0));
+}
+
+const WorkspaceWidget::Sidebar *WorkspaceWidget::sidebarFor(const QString &paneId) const
+{
+    for (const auto *sidebar : {&m_leftSidebar, &m_rightSidebar})
+        if (sidebar->tree.paneIds().contains(paneId)) return sidebar;
+    return nullptr;
+}
+
+LayoutTree &WorkspaceWidget::treeFor(const QString &paneId)
+{
+    if (m_leftSidebar.tree.paneIds().contains(paneId)) return m_leftSidebar.tree;
+    if (m_rightSidebar.tree.paneIds().contains(paneId)) return m_rightSidebar.tree;
+    return m_tree;
+}
+
+bool WorkspaceWidget::isSidebar(const PaneWidget *item) const
+{
+    return item && pane(item->paneId()) == item && sidebarFor(item->paneId());
+}
+
+bool WorkspaceWidget::isSidebarOpen(SidebarSide side) const
+{
+    auto *host = sidebar(side).host;
+    return host && !host->isHidden();
+}
+
+QList<QString> WorkspaceWidget::visiblePaneIds() const
+{
+    QList<QString> ids;
+    if (isSidebarOpen(SidebarSide::Left)) ids.append(m_leftSidebar.tree.paneIds());
+    ids.append(m_tree.paneIds());
+    if (isSidebarOpen(SidebarSide::Right)) ids.append(m_rightSidebar.tree.paneIds());
+    return ids;
+}
+
+void WorkspaceWidget::toggleSidebar(SidebarSide side)
+{
+    auto *item = sidebarPane(side);
+    if (!item) return;
+    if (isSidebarOpen(side)) {
+        hideSidebar(sidebar(side).host);
+    } else {
+        setActivePane(item);
+        item->focusTabBar();
+    }
+}
+
+void WorkspaceWidget::hideSidebar(QWidget *host)
+{
+    if ((host != m_leftSidebar.host && host != m_rightSidebar.host) || host->isHidden()) return;
+    const bool wasActive = containsWidget(host, pane(m_activePaneId));
+    host->hide();
+    applySidebarWidths();
+    if (wasActive && containsWidget(host, pane(m_activePaneId))) setActivePane(rootPane());
+}
+
+void WorkspaceWidget::setSidebarAutoCollapse(bool enabled)
+{
+    m_sidebarAutoCollapse = enabled;
+    if (!enabled) return;
+    auto *focused = QApplication::focusWidget();
+    for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host})
+        if (sidebar && !containsWidget(sidebar, focused)) hideSidebar(sidebar);
+}
+
+PaneWidget *WorkspaceWidget::rootPane() const
+{
+    const QList<QString> ids = m_tree.paneIds();
+    return ids.isEmpty() ? nullptr : m_panes.value(ids.first());
+}
+
+PaneWidget *WorkspaceWidget::activePane() const
+{
+    PaneWidget *result = pane(m_activePaneId);
+    const auto *sidebar = sidebarFor(m_activePaneId);
+    return result && (!sidebar || !sidebar->host->isHidden()) ? result : rootPane();
+}
+
+void WorkspaceWidget::setActivePane(PaneWidget *target)
+{
+    if (!target || pane(target->paneId()) != target) return;
+    if (const auto *sidebar = sidebarFor(target->paneId()); sidebar && sidebar->host->isHidden()) {
+        sidebar->host->show();
+        applySidebarWidths();
+    }
+    if (m_activePaneId == target->paneId()) return;
+    m_activePaneId = target->paneId();
+    emit activePaneChanged(m_activePaneId);
+}
+
+bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    QWidget *receiver = qobject_cast<QWidget *>(watched);
+    if (receiver == m_sidebarSplitter && event->type() == QEvent::Resize)
+        QTimer::singleShot(0, this, &WorkspaceWidget::applySidebarWidths);
+    if (event->type() == QEvent::DragLeave && receiver && receiver == m_dockDragTarget) {
+        m_dockDragTarget.clear();
+        hideDropPreview();
+        event->accept();
+        return true;
+    }
+    if (receiver && (event->type() == QEvent::DragEnter ||
+                     event->type() == QEvent::DragMove || event->type() == QEvent::Drop)) {
+        PaneWidget *target = nullptr;
+        for (QWidget *widget = receiver; widget && widget != this; widget = widget->parentWidget()) {
+            if (auto *candidate = qobject_cast<PaneWidget *>(widget)) {
+                if (pane(candidate->paneId()) == candidate) target = candidate;
+                break;
+            }
+        }
+        auto *drop = static_cast<QDropEvent *>(event);
+        if (target && drop->mimeData()->hasFormat(MyAdsTabMimeType)) {
+            // Child views (for example QGraphicsView) accept drops themselves.
+            // Route dock drags here before those views pass them to their scenes.
+            const QJsonObject payload = QJsonDocument::fromJson(
+                drop->mimeData()->data(MyAdsTabMimeType)).object();
+            const QString sourceId = payload.value(QStringLiteral("pane_id")).toString();
+            const QString contentId = payload.value(QStringLiteral("content_id")).toString();
+            PaneWidget *source = pane(sourceId);
+            if (!source || !source->contentWidget(contentId) ||
+                !(drop->possibleActions() & Qt::MoveAction)) {
+                drop->ignore();
+                hideDropPreview();
+                return true;
+            }
+            const QPoint global = receiver->mapToGlobal(drop->position().toPoint());
+            if (event->type() == QEvent::Drop) {
+                m_dockDragTarget.clear();
+                const bool moved = moveContent(sourceId, contentId, target->paneId(),
+                                               dropZone(target, global),
+                                               target->tabInsertionIndex(global));
+                hideDropPreview();
+                if (!moved) {
+                    drop->ignore();
+                    return true;
+                }
+            } else {
+                m_dockDragTarget = receiver;
+                handleDragMove(target, global);
+            }
+            drop->setDropAction(Qt::MoveAction);
+            drop->accept();
+            return true;
+        }
+    }
+    if (event->type() == QEvent::MouseButtonPress && receiver && receiver->window() == window()
+        && m_sidebarAutoCollapse) {
+        for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host}) {
+            if (sidebar && !sidebar->isHidden() && !containsWidget(sidebar, receiver)
+                && receiver != m_sidebarSplitter->handle(sidebar == m_leftSidebar.host ? 1 : 2))
+                QTimer::singleShot(0, sidebar, [this, sidebar] {
+                    if (m_sidebarAutoCollapse) hideSidebar(sidebar);
+                });
+        }
+    }
+    const bool mousePress = event->type() == QEvent::MouseButtonPress;
+    const bool focusIn = event->type() == QEvent::FocusIn;
+    const bool skipMouseActivation = (mousePress || focusIn) && receiver
+        && receiver->property("skipPaneActivationOnMouseFocus").toBool()
+        && (mousePress ? static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton
+                       : static_cast<QFocusEvent *>(event)->reason() == Qt::MouseFocusReason);
+    if ((mousePress || focusIn) && !skipMouseActivation) {
+        // A page can contain its own workspace. Keep walking until we reach a pane owned here.
+        for (auto *widget = receiver; widget && widget != this; widget = widget->parentWidget()) {
+            auto *target = qobject_cast<PaneWidget *>(widget);
+            if (target && pane(target->paneId()) == target) {
+                setActivePane(target);
+                break;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+PaneWidget *WorkspaceWidget::findPaneByContentId(const QString &contentId) const
+{
+    for (PaneWidget *item : m_panes)
+        if (item->contentIds().contains(contentId)) return item;
+    return nullptr;
+}
+
+QString WorkspaceWidget::nextPaneId() const
+{
+    const auto ids = m_tree.paneIds();
+    for (int i = 1;; ++i) {
+        const QString candidate = QStringLiteral("pane_%1").arg(i);
+        if (!ids.contains(candidate) && !pane(candidate)) return candidate;
+    }
+}
+
+QString WorkspaceWidget::nextContentId()
+{
+    QString candidate;
+    do candidate = QStringLiteral("content_%1").arg(++m_contentCounter);
+    while (findPaneByContentId(candidate));
+    return candidate;
+}
+
+ContentConfig WorkspaceWidget::createContentConfig(const QString &id)
+{
+    return ContentConfig(id.isEmpty() ? nextContentId() : id);
+}
+
+bool WorkspaceWidget::fillPane(PaneWidget *target, const ContentConfig &content)
+{
+    if (!target || pane(target->paneId()) != target) return false;
+    QString id = content.contentId.isEmpty() ? nextContentId() : content.contentId;
+    if (findPaneByContentId(id)) id = nextContentId();
+    QWidget *widget = content.widget;
+    if (!widget) {
+        widget = new QLabel(content.title.isEmpty() ? id : content.title);
+        qobject_cast<QLabel *>(widget)->setAlignment(Qt::AlignCenter);
+    }
+    return target->addContent(id, content.title.isEmpty() ? id : content.title,
+                              widget, content.icon, content.closeable, -1, content.closePolicy);
+}
+
+PaneWidget *WorkspaceWidget::createPane(const QString &id, bool sidebar)
+{
+    if (PaneWidget *existing = m_reusablePanes.take(id)) {
+        m_panes.insert(id, existing);
+        return existing;
+    }
+    if (auto *existing = pane(id)) return existing;
+    auto *result = new PaneWidget(id, this, sidebar);
+    connectPane(result);
+    m_panes.insert(id, result);
+    return result;
+}
+
+void WorkspaceWidget::connectPane(PaneWidget *result)
+{
+    result->applyTheme(m_theme);
+    connect(result, &PaneWidget::activationRequested, this, [this, result] {
+        setActivePane(result);
+    });
+    connect(result, &PaneWidget::currentContentChanged, this, [this, result] {
+        if (result == activePane()) emit activeContentChanged();
+        emit layoutPreferencesChanged();
+    });
+    connect(result, &PaneWidget::tabContextMenuCreated, this, &WorkspaceWidget::tabContextMenuCreated);
+    connect(result, &PaneWidget::tabContextMenuCreated, this,
+            [this, result](QMenu *menu, const QString &contentId) {
+        QMenu *moveMenu = menu->addMenu(tr("移动到其他组"));
+        moveMenu->setObjectName(QStringLiteral("moveTabToGroup"));
+        const QString sourceId = result->paneId();
+        const auto ids = m_tree.paneIds();
+        for (int i = 0; i < ids.size(); ++i) {
+            if (ids[i] == sourceId) continue;
+            PaneWidget *target = pane(ids[i]);
+            if (!target) continue;
+            QString title = target->contentTitle(target->currentContentId());
+            title.replace(QLatin1Char('&'), QStringLiteral("&&"));
+            const QString label = title.isEmpty() ? tr("组 %1").arg(i + 1)
+                : tr("组 %1：%2").arg(i + 1).arg(title);
+            QAction *action = moveMenu->addAction(label);
+            action->setData(ids[i]);
+            connect(action, &QAction::triggered, this,
+                    [this, sourceId, contentId, targetId = ids[i]] {
+                moveContent(sourceId, contentId, targetId, DropZone::Center);
+            });
+        }
+        for (const auto *sidebar : {&m_leftSidebar, &m_rightSidebar}) {
+            if (!sidebar->host || sidebar->host->isHidden()) continue;
+            const auto ids = sidebar->tree.paneIds();
+            for (int i = 0; i < ids.size(); ++i) {
+                if (ids[i] == sourceId) continue;
+                const auto name = sidebar->host->accessibleName();
+                const auto label = ids.size() == 1 ? name : tr("%1 · 组 %2").arg(name).arg(i + 1);
+                QAction *action = moveMenu->addAction(label);
+                action->setData(ids[i]);
+                connect(action, &QAction::triggered, this,
+                        [this, sourceId, contentId, targetId = ids[i]] {
+                    moveContent(sourceId, contentId, targetId, DropZone::Center);
+                });
+            }
+        }
+        moveMenu->setEnabled(!moveMenu->actions().isEmpty());
+    });
+    connect(result, &PaneWidget::contentClosed, this, &WorkspaceWidget::contentClosed);
+    connect(result, &PaneWidget::paneEmpty, this,
+            [this](PaneWidget *empty) { removeEmptyPane(empty->paneId()); });
+    connect(result, &PaneWidget::dragMoved, this, &WorkspaceWidget::handleDragMove);
+    connect(result, &PaneWidget::tabDropped, this, &WorkspaceWidget::handleDrop);
+    connect(result, &PaneWidget::dragFinished, this, [this] {
+        if (m_preview) m_preview->hide();
+    });
+}
+
+QWidget *WorkspaceWidget::buildNode(const std::shared_ptr<LayoutNode> &node, bool sidebar)
+{
+    if (node->kind == LayoutNode::Kind::Pane) return createPane(node->paneId, sidebar);
+    auto *splitter = new WorkspaceSplitter(node->orientation, this, m_theme);
+    splitter->setChildrenCollapsible(false);
+    splitter->setOpaqueResize(true);
+    for (const auto &child : node->children) splitter->addWidget(buildNode(child, sidebar));
+    const QList<int> requestedSizes = node->sizes;
+    const auto validSizes = [splitter](const QList<int> &sizes) {
+        return sizes.size() == splitter->count() &&
+               std::all_of(sizes.cbegin(), sizes.cend(), [](int size) { return size > 0; });
+    };
+    if (validSizes(requestedSizes)) splitter->setSizes(requestedSizes);
+    // 新建 splitter 时父布局还没有最终几何尺寸。此时 setSizes 可能被 Qt 的一次
+    // 零尺寸布局覆盖；在事件循环下一轮重新应用保存的比例。
+    if (validSizes(requestedSizes)) {
+        QTimer::singleShot(0, splitter, [splitter, requestedSizes] {
+            splitter->setSizes(requestedSizes);
+        });
+    }
+    connect(splitter, &QSplitter::splitterMoved, this,
+            [this, splitter, node, validSizes](int, int) {
+                const QList<int> sizes = splitter->sizes();
+                // 忽略父级重建/隐藏期间的零尺寸通知，不能让它污染可持久化布局。
+                if (validSizes(sizes)) {
+                    node->sizes = sizes;
+                    emit layoutPreferencesChanged();
+                }
+            });
+    return splitter;
+}
+
+void WorkspaceWidget::connectSplitters(QWidget *widget, const std::shared_ptr<LayoutNode> &node)
+{
+    if (node->kind != LayoutNode::Kind::Split) return;
+    auto *splitter = qobject_cast<QSplitter *>(widget);
+    Q_ASSERT(splitter);
+    connect(splitter, &QSplitter::splitterMoved, this, [this, splitter, node] {
+        const QList<int> sizes = splitter->sizes();
+        if (sizes.size() == splitter->count() &&
+            std::all_of(sizes.cbegin(), sizes.cend(), [](int size) { return size > 0; })) {
+            node->sizes = sizes;
+            emit layoutPreferencesChanged();
+        }
+    });
+    for (int i = 0; i < splitter->count(); ++i)
+        connectSplitters(splitter->widget(i), node->children.at(i));
+}
+
+void WorkspaceWidget::rebuild(bool preserveContents)
+{
+    rebuild(m_tree, preserveContents);
+}
+
+void WorkspaceWidget::rebuild(LayoutTree &tree, bool preserveContents)
+{
+    auto *sidebar = &tree == &m_leftSidebar.tree ? &m_leftSidebar
+                  : &tree == &m_rightSidebar.tree ? &m_rightSidebar : nullptr;
+    auto *host = sidebar ? sidebar->host : m_center;
+    auto *&root = sidebar ? sidebar->root : m_rootWidget;
+    QWidget *oldRoot = root;
+    const QPointer<QWidget> focus = QApplication::focusWidget();
+    const bool restoreFocus = sidebar && containsWidget(oldRoot, focus);
+    for (auto it = m_panes.begin(); it != m_panes.end();) {
+        if (!oldRoot || !containsWidget(oldRoot, it.value())) {
+            ++it;
+            continue;
+        }
+        if (preserveContents) m_reusablePanes.insert(it.key(), it.value());
+        it = m_panes.erase(it);
+    }
+    if (oldRoot) host->layout()->removeWidget(oldRoot);
+    // Keep the single-pane sidebar as a bare pane. Its tree still has a
+    // vertical root, so the next split can use the regular LayoutTree API.
+    const auto node = tree.root();
+    root = sidebar && node->children.size() == 1
+        ? buildNode(node->children.first(), true) : buildNode(node, sidebar != nullptr);
+    host->layout()->addWidget(root);
+    auto *oldPane = qobject_cast<PaneWidget *>(oldRoot);
+    if (oldRoot && oldRoot != root && (!oldPane || pane(oldPane->paneId()) != oldPane)) {
+        oldRoot->hide();
+        oldRoot->deleteLater();
+    }
+    m_reusablePanes.clear();
+    root->show();
+    if (restoreFocus && focus && containsWidget(root, focus)) {
+        focus->setFocus();
+    } else if (sidebar && !host->isHidden() && (restoreFocus || !pane(m_activePaneId))) {
+        auto *remaining = pane(tree.paneIds().first());
+        setActivePane(remaining);
+        if (restoreFocus) remaining->focusTabBar();
+    }
+    if (!pane(m_activePaneId)) {
+        const QList<QString> ids = m_tree.paneIds();
+        const QString nextActiveId = ids.isEmpty() ? QString() : ids.first();
+        if (m_activePaneId != nextActiveId) {
+            m_activePaneId = nextActiveId;
+            emit activePaneChanged(m_activePaneId);
+        }
+    }
+    if (m_preview) m_preview->raise();
+}
+
+void WorkspaceWidget::beginLayoutUpdate()
+{
+    ++m_layoutUpdateDepth;
+}
+
+void WorkspaceWidget::endLayoutUpdate()
+{
+    if (m_layoutUpdateDepth <= 0) return;
+    --m_layoutUpdateDepth;
+    if (m_layoutUpdateDepth != 0 || m_pendingLayoutRebuilds.isEmpty()) return;
+
+    const auto pending = std::exchange(m_pendingLayoutRebuilds, {});
+    for (auto *tree : pending) rebuild(*tree);
+    setActivePane(pane(m_activePaneId));
+    emit layoutChanged();
+}
+
+PaneWidget *WorkspaceWidget::split(PaneWidget *target, Placement placement, int percent)
+{
+    if (!target || pane(target->paneId()) != target) return nullptr;
+    const QString id = nextPaneId();
+    const bool before = placement == Placement::Left || placement == Placement::Top;
+    const Qt::Orientation orientation =
+        placement == Placement::Left || placement == Placement::Right
+            ? Qt::Horizontal : Qt::Vertical;
+    auto &tree = treeFor(target->paneId());
+    const bool sidebar = &tree != &m_tree;
+    if (sidebar && orientation == Qt::Horizontal) return nullptr;
+    tree.split(target->paneId(), orientation, before, id, percent);
+    if (m_layoutUpdateDepth > 0) {
+        // Python's LayoutTree mutates the live tree incrementally.  During a
+        // programmatic batch, register the new pane immediately so later
+        // splits can target it, but defer rebuilding the QWidget tree until
+        // the batch is complete.
+        PaneWidget *created = createPane(id, sidebar);
+        m_activePaneId = id;
+        m_pendingLayoutRebuilds.insert(&tree);
+        return created;
+    }
+    // 拆分会重建树，但已有窗格（及其中的内容 widget）必须继续复用；否则调用方
+    // 持有的 PaneWidget 指针会在连续拆分中失效，并可能在销毁工作区时重复释放布局。
+    rebuild(tree);
+    setActivePane(pane(id));
+    emit layoutChanged();
+    return pane(id);
+}
+
+QString WorkspaceWidget::splitPane(const QString &id, Qt::Orientation orientation,
+                                   bool before, int percent)
+{
+    PaneWidget *target = pane(id);
+    PaneWidget *created = split(target, orientation == Qt::Horizontal
+        ? (before ? Placement::Left : Placement::Right)
+        : (before ? Placement::Top : Placement::Bottom), percent);
+    return created ? created->paneId() : QString();
+}
+
+QString WorkspaceWidget::addPanel(const QString &title, QWidget *content,
+                                  const QString &paneId)
+{
+    PaneWidget *target = paneId.isEmpty() ? rootPane() : pane(paneId);
+    if (!target) target = rootPane();
+    const QString id = nextContentId();
+    ContentConfig config(id);
+    config.setWindowTitle(title).setWidget(content);
+    return fillPane(target, config) ? target->paneId() : QString();
+}
+
+void WorkspaceWidget::removeEmptyPane(const QString &id)
+{
+    auto &tree = treeFor(id);
+    if (tree.paneIds().size() <= 1) { emit layoutChanged(); return; }
+    if (tree.removePane(id)) {
+        rebuild(tree);
+        emit layoutChanged();
+    }
+}
+
+DropZone WorkspaceWidget::hitTest(const QRect &rectangle, const QPoint &position)
+{
+    if (rectangle.width() <= 0 || rectangle.height() <= 0) return DropZone::Center;
+    const double x = static_cast<double>(position.x() - rectangle.left()) / rectangle.width();
+    const double y = static_cast<double>(position.y() - rectangle.top()) / rectangle.height();
+    if (x >= 0.25 && x < 0.75 && y >= 0.25 && y < 0.75) return DropZone::Center;
+    if (y < 0.25) return DropZone::Top;
+    if (y >= 0.75) return DropZone::Bottom;
+    if (x < 0.25) return DropZone::Left;
+    return DropZone::Right;
+}
+
+DropZone WorkspaceWidget::dropZone(PaneWidget *target, const QPoint &global) const
+{
+    // The tab strip takes priority over pane/root edge splitting.
+    if (target->tabInsertionIndex(global) >= 0) return DropZone::Center;
+    if (isSidebar(target)) {
+        const auto body = target->contentRect();
+        const int y = target->mapFromGlobal(global).y() - body.top();
+        if (y < body.height() / 4) return DropZone::Top;
+        if (y >= body.height() * 3 / 4) return DropZone::Bottom;
+        return DropZone::Center;
+    }
+    const QPoint local = m_rootWidget->mapFromGlobal(global);
+    const double x = static_cast<double>(local.x()) / std::max(1, m_rootWidget->width());
+    const double y = static_cast<double>(local.y()) / std::max(1, m_rootWidget->height());
+    if (x >= 0.30 && x < 0.70 && y < 0.05) return DropZone::RootTop;
+    if (x >= 0.30 && x < 0.70 && y >= 0.95) return DropZone::RootBottom;
+    if (y >= 0.30 && y < 0.70 && x < 0.05) return DropZone::RootLeft;
+    if (y >= 0.30 && y < 0.70 && x >= 0.95) return DropZone::RootRight;
+    return hitTest(target->rect(), target->mapFromGlobal(global));
+}
+
+QRect WorkspaceWidget::previewRect(PaneWidget *target, DropZone zone) const
+{
+    const bool root = zone == DropZone::RootLeft || zone == DropZone::RootRight ||
+                      zone == DropZone::RootTop || zone == DropZone::RootBottom;
+    const auto *sidebar = sidebarFor(target->paneId());
+    const QWidget *areaWidget = root ? (sidebar ? sidebar->root : m_rootWidget) : target;
+    const QRect area(areaWidget->mapTo(this, QPoint()), areaWidget->size());
+    return previewRectForZone(area, zone);
+}
+
+QRect WorkspaceWidget::previewRectForZone(const QRect &area, DropZone zone)
+{
+    const int halfWidth = area.width() / 2;
+    const int halfHeight = area.height() / 2;
+    switch (zone) {
+    case DropZone::Left: case DropZone::RootLeft:
+        return QRect(area.left(), area.top(), halfWidth, area.height());
+    case DropZone::Right: case DropZone::RootRight:
+        return QRect(area.left() + halfWidth, area.top(),
+                     area.width() - halfWidth, area.height());
+    case DropZone::Top: case DropZone::RootTop:
+        return QRect(area.left(), area.top(), area.width(), halfHeight);
+    case DropZone::Bottom: case DropZone::RootBottom:
+        return QRect(area.left(), area.top() + halfHeight,
+                     area.width(), area.height() - halfHeight);
+    case DropZone::Center:
+        // Python SplitPreviewOverlay highlights the complete target pane for a merge.
+        return area;
+    }
+    return {};
+}
+
+void WorkspaceWidget::handleDragMove(PaneWidget *target, const QPoint &global)
+{
+    const int index = target->tabInsertionIndex(global);
+    if (index >= 0) {
+        const QRect marker = target->tabInsertionRect(index);
+        m_preview->showPreview(QRect(target->mapTo(this, marker.topLeft()), marker.size()),
+                               m_theme, true);
+        return;
+    }
+    const DropZone zone = dropZone(target, global);
+    showDropPreview(target, zone);
+}
+
+void WorkspaceWidget::showDropPreview(PaneWidget *target, DropZone zone)
+{
+    if (!target && zone != DropZone::RootLeft && zone != DropZone::RootRight &&
+        zone != DropZone::RootTop && zone != DropZone::RootBottom) return;
+    if (isSidebar(target) && isHorizontalSplit(zone)) return;
+    PaneWidget *geometryTarget = target ? target : rootPane();
+    if (geometryTarget) m_preview->showPreview(previewRect(geometryTarget, zone), m_theme);
+}
+
+void WorkspaceWidget::hideDropPreview()
+{
+    m_preview->hide();
+}
+
+void WorkspaceWidget::handleDrop(PaneWidget *target, const QPoint &global,
+                                 const QString &sourcePaneId, const QString &contentId)
+{
+    moveContent(sourcePaneId, contentId, target->paneId(), dropZone(target, global),
+                target->tabInsertionIndex(global));
+    hideDropPreview();
+}
+
+bool WorkspaceWidget::moveContent(const QString &sourcePaneId, const QString &contentId,
+                                  const QString &targetPaneId, DropZone zone, int insertionIndex)
+{
+    PaneWidget *source = pane(sourcePaneId);
+    PaneWidget *target = pane(targetPaneId);
+    if (!source || !target ||
+        (source == target && zone == DropZone::Center && insertionIndex < 0)) return false;
+    const bool horizontal = isHorizontalSplit(zone);
+    auto &targetTree = treeFor(targetPaneId);
+    auto &sourceTree = treeFor(sourcePaneId);
+    const bool involvesSidebar = &targetTree != &m_tree || &sourceTree != &m_tree;
+    if (horizontal && &targetTree != &m_tree) return false;
+    if (zone != DropZone::Center) insertionIndex = -1;
+    if (insertionIndex >= 0) insertionIndex = qMin(insertionIndex, target->contentCount());
+    const QJsonObject snapshot = targetTree.toJson();
+    PaneContent content = source->takeContent(contentId);
+    if (!content.widget) return false;
+    if (source == target && insertionIndex > content.index) --insertionIndex;
+    QString destinationId = targetPaneId;
+    try {
+        if (zone != DropZone::Center) {
+            destinationId = nextPaneId();
+            const bool root = zone == DropZone::RootLeft || zone == DropZone::RootRight ||
+                              zone == DropZone::RootTop || zone == DropZone::RootBottom;
+            const bool before = zone == DropZone::Left || zone == DropZone::Top ||
+                                zone == DropZone::RootLeft || zone == DropZone::RootTop;
+            const auto orientation = horizontal ? Qt::Horizontal : Qt::Vertical;
+            if (root) targetTree.splitRoot(orientation, before, destinationId);
+            else targetTree.split(targetPaneId, orientation, before, destinationId);
+            rebuild(targetTree);
+            source = pane(sourcePaneId);
+            target = pane(destinationId);
+        }
+        if (!target || !target->addContent(content.contentId, content.title, content.widget,
+                                           content.icon, content.closeable, insertionIndex, content.closePolicy))
+            throw std::runtime_error("drop failed");
+        if (source && source->contentCount() == 0 && sourceTree.paneIds().size() > 1) {
+            (void)sourceTree.removePane(sourcePaneId);
+            rebuild(sourceTree);
+        }
+        emit contentMoved(contentId, destinationId);
+        setActivePane(pane(destinationId));
+        target = pane(destinationId);
+        if (target && involvesSidebar) target->focusTabBar();
+        emit layoutChanged();
+        return true;
+    } catch (...) {
+        targetTree = LayoutTree::fromJson(snapshot);
+        rebuild(targetTree);
+        if (PaneWidget *restoredSource = pane(sourcePaneId)) restoredSource->restoreContent(content);
+        return false;
+    }
+}
+
+void WorkspaceWidget::resetToSingleEmptyPane()
+{
+    for (auto *sidebar : {&m_leftSidebar, &m_rightSidebar}) {
+        if (!sidebar->host) continue;
+        hideSidebar(sidebar->host);
+        sidebar->tree = singleSidebarPane(sidebar->tree.paneIds().first());
+        rebuild(sidebar->tree, false);
+    }
+    m_tree = LayoutTree();
+    const auto rootId = QStringLiteral("pane_1");
+    m_tree.addPaneToRoot(isSidebar(pane(rootId)) ? nextPaneId() : rootId);
+    rebuild(false);
+    emit layoutChanged();
+}
+
+bool WorkspaceWidget::save(const QString &path, QString *error) const
+{
+    return saveLayout(path, {}, {}, error);
+}
+
+bool WorkspaceWidget::saveLayout(const QString &path, const ContentDescriptor &descriptor,
+                                 const PaneMetadata &metadata, QString *error) const
+{
+    QJsonObject documentData{{QStringLiteral("schema_version"), LayoutTree::SchemaVersion},
+                             {QStringLiteral("layout"), m_tree.toJson()}};
+    QJsonObject contents;
+    QJsonObject paneMetadata;
+    auto ids = m_tree.paneIds();
+    if (m_leftSidebar.host && m_rightSidebar.host) {
+        const auto leftIds = m_leftSidebar.tree.paneIds();
+        const auto rightIds = m_rightSidebar.tree.paneIds();
+        const auto needsSaving = [this](const QList<QString> &sidebarIds) {
+            const auto *item = pane(sidebarIds.first());
+            return sidebarIds.size() > 1 || item->contentCount() || item->iconOnly();
+        };
+        if (needsSaving(leftIds) || needsSaving(rightIds) ||
+            m_leftWidthRatio != DefaultSidebarWidthRatio || m_rightWidthRatio != DefaultSidebarWidthRatio) {
+            ids.append(leftIds);
+            ids.append(rightIds);
+            const auto saveSidebar = [](const Sidebar &sidebar, const QList<QString> &sidebarIds) {
+                return sidebarIds.size() == 1 ? QJsonValue(sidebarIds.first()) : QJsonValue(sidebar.tree.toJson());
+            };
+            documentData.insert(QStringLiteral("sidebars"),
+                QJsonObject{{QStringLiteral("left"), saveSidebar(m_leftSidebar, leftIds)},
+                            {QStringLiteral("right"), saveSidebar(m_rightSidebar, rightIds)},
+                            {QStringLiteral("left_width_ratio"), m_leftWidthRatio},
+                            {QStringLiteral("right_width_ratio"), m_rightWidthRatio}});
+        }
+    }
+    for (const QString &paneId : ids) {
+        const PaneWidget *item = pane(paneId);
+        QJsonArray items;
+        if (descriptor) {
+            for (const QString &contentId : item->contentIds()) {
+                QJsonObject value = descriptor(item, contentId);
+                if (!value.isEmpty()) {
+                    if (!value.contains(QStringLiteral("content_id")))
+                        value.insert(QStringLiteral("content_id"), contentId);
+                    items.append(value);
+                }
+            }
+        }
+        if (!items.isEmpty()) contents.insert(paneId, items);
+        QJsonObject meta = metadata ? metadata(item) : QJsonObject();
+        if (!item->currentContentId().isEmpty())
+            meta.insert(QStringLiteral("current_content_id"), item->currentContentId());
+        if (item->iconOnly()) meta.insert(QStringLiteral("icon_only"), true);
+        if (!meta.isEmpty()) paneMetadata.insert(paneId, meta);
+    }
+    if (!contents.isEmpty()) documentData.insert(QStringLiteral("pane_contents"), contents);
+    if (!paneMetadata.isEmpty()) documentData.insert(QStringLiteral("pane_metadata"), paneMetadata);
+    return saveLayoutAtomic(path, documentData, error);
+}
+
+bool WorkspaceWidget::load(const QString &path, QString *error)
+{
+    return loadLayout(path, {}, error);
+}
+
+bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &factory,
+                                 QString *error)
+{
+    const QJsonObject documentData = loadLayoutFile(path, error);
+    if (documentData.isEmpty()) return false;
+    return restoreLayout(documentData, factory, error);
+}
+
+bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const ContentFactory &factory,
+                                    QString *error)
+{
+    const int version = documentData.contains(QStringLiteral("schema_version"))
+        ? documentData.value(QStringLiteral("schema_version")).toInt(-1) : LayoutTree::SchemaVersion;
+    if (version != LayoutTree::SchemaVersion) {
+        if (error) *error = QStringLiteral("不支持的工作区布局版本");
+        return false;
+    }
+    try {
+        const QJsonObject layout = documentData.contains(QStringLiteral("layout"))
+            ? documentData.value(QStringLiteral("layout")).toObject() : documentData;
+        LayoutTree candidate = LayoutTree::fromJson(layout);
+        const QList<QString> paneIdList = candidate.paneIds();
+        QSet<QString> paneIds(paneIdList.cbegin(), paneIdList.cend());
+        LayoutTree left;
+        LayoutTree right;
+        const auto sidebars = documentData.value(QStringLiteral("sidebars")).toObject();
+        const auto widthRatio = [&sidebars](const QString &key) {
+            const double ratio = sidebars.value(key).toDouble(DefaultSidebarWidthRatio);
+            return ratio > 0.0 && ratio < 1.0 ? ratio : DefaultSidebarWidthRatio;
+        };
+        if (documentData.contains(QStringLiteral("sidebars"))) {
+            const auto readSidebar = [&paneIds](const QJsonValue &value) {
+                LayoutTree tree = value.isString() ? singleSidebarPane(value.toString())
+                                                   : LayoutTree::fromJson(value.toObject());
+                if (!isVerticalSidebarTree(tree.root()))
+                    throw std::invalid_argument("sidebar splits must be vertical");
+                tree.normalize();
+                for (const auto &id : tree.paneIds()) {
+                    if (paneIds.contains(id)) throw std::invalid_argument("duplicate sidebar pane ID");
+                    paneIds.insert(id);
+                }
+                return tree;
+            };
+            left = readSidebar(sidebars.value(QStringLiteral("left")));
+            right = readSidebar(sidebars.value(QStringLiteral("right")));
+        }
+        if (documentData.contains(QStringLiteral("pane_contents")) &&
+            !documentData.value(QStringLiteral("pane_contents")).isObject())
+            throw std::invalid_argument("pane_contents must be an object");
+        if (documentData.contains(QStringLiteral("pane_metadata")) &&
+            !documentData.value(QStringLiteral("pane_metadata")).isObject())
+            throw std::invalid_argument("pane_metadata must be an object");
+        const QJsonObject contents = documentData.value(QStringLiteral("pane_contents")).toObject();
+        const QJsonObject metadata = documentData.value(QStringLiteral("pane_metadata")).toObject();
+        QSet<QString> contentIds;
+        for (auto it = contents.begin(); it != contents.end(); ++it) {
+            if (!paneIds.contains(it.key()) || !it.value().isArray())
+                throw std::invalid_argument("pane_contents references an unknown pane");
+            for (const auto &value : it.value().toArray()) {
+                if (!value.isObject()) throw std::invalid_argument("invalid content descriptor");
+                const QJsonObject descriptor = value.toObject();
+                if (descriptor.contains(QStringLiteral("content_id"))) {
+                    const QJsonValue idValue = descriptor.value(QStringLiteral("content_id"));
+                    if (!idValue.isString() || idValue.toString().trimmed().isEmpty())
+                        throw std::invalid_argument("content id must be a non-empty string");
+                    const QString id = idValue.toString();
+                    if (contentIds.contains(id)) throw std::invalid_argument("duplicate content id");
+                    contentIds.insert(id);
+                }
+            }
+        }
+        for (auto it = metadata.begin(); it != metadata.end(); ++it)
+            if (!paneIds.contains(it.key()) || !it.value().isObject())
+                throw std::invalid_argument("pane_metadata references an unknown pane");
+
+        // Build in a hidden workspace. Factories may return existing editor
+        // widgets, so finish every factory call before transferring any page.
+        WorkspaceWidget staged(nullptr, m_theme, false);
+        staged.m_tree = std::move(candidate);
+        staged.rebuild(false);
+        staged.createSidebars(std::move(left), std::move(right));
+        for (auto it = metadata.begin(); it != metadata.end(); ++it)
+            staged.pane(it.key())->setIconOnly(it.value().toObject().value(QStringLiteral("icon_only")).toBool());
+        struct PreparedContent {
+            QString paneId;
+            ContentConfig config;
+            QPointer<QWidget> widget;
+        };
+        QList<PreparedContent> prepared;
+        QSet<QWidget *> widgets;
+        if (factory) {
+            for (auto it = contents.begin(); it != contents.end(); ++it) {
+                for (const auto &value : it.value().toArray()) {
+                    std::optional<ContentConfig> config = factory(value.toObject());
+                    if (!config) continue;
+                    if (config->widget) {
+                        if (widgets.contains(config->widget))
+                            throw std::runtime_error("content factory returned the same widget twice");
+                        widgets.insert(config->widget);
+                        // Own newly created pages during preparation so a later
+                        // factory failure does not leak their resources.
+                        if (!config->widget->parentWidget()) config->widget->setParent(&staged);
+                    }
+                    prepared.append({it.key(), *config, config->widget});
+                }
+            }
+        }
+        for (const auto &item : prepared)
+            if (item.config.widget && !item.widget)
+                throw std::runtime_error("content factory page was destroyed during preparation");
+
+        QList<std::pair<QPointer<PaneWidget>, PaneContent>> transferred;
+        bool committed = false;
+        const auto rollback = qScopeGuard([&] {
+            if (committed) return;
+            for (auto it = transferred.rbegin(); it != transferred.rend(); ++it)
+                if (it->first) it->first->restoreContent(it->second);
+        });
+        for (const auto &item : prepared) {
+            for (PaneWidget *source : m_panes) {
+                for (const QString &id : source->contentIds()) {
+                    if (item.widget && source->contentWidget(id) == item.widget) {
+                        transferred.append({source, source->takeContent(id)});
+                        break;
+                    }
+                }
+            }
+            if (!staged.fillPane(staged.pane(item.paneId), item.config))
+                throw std::runtime_error("content factory result could not be inserted");
+        }
+        for (auto it = metadata.begin(); it != metadata.end(); ++it)
+            staged.pane(it.key())->setCurrentContentId(
+                it.value().toObject().value(QStringLiteral("current_content_id")).toString());
+
+        // Removed pages can leave a saved pane without any of its tabs.
+        // Preserve panes that were saved empty.
+        if (factory) {
+            for (auto it = contents.begin(); it != contents.end(); ++it) {
+                const auto *pane = staged.pane(it.key());
+                if (pane && pane->contentCount() == 0 && !it.value().toArray().isEmpty())
+                    staged.removeEmptyPane(it.key());
+            }
+        }
+
+        // Rebind callbacks to the surviving workspace before adopting the root.
+        for (PaneWidget *item : staged.m_panes) {
+            disconnect(item, nullptr, &staged, nullptr);
+            connectPane(item);
+        }
+        connectSplitters(staged.m_rootWidget, staged.m_tree.root());
+        QWidget *oldRoot = m_rootWidget;
+        m_center->layout()->removeWidget(oldRoot);
+        oldRoot->hide();
+        m_rootWidget = staged.m_rootWidget;
+        for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host}) {
+            if (!sidebar) continue;
+            sidebar->hide();
+            sidebar->setParent(this);
+            sidebar->deleteLater();
+        }
+        m_leftSidebar = std::exchange(staged.m_leftSidebar, {});
+        m_rightSidebar = std::exchange(staged.m_rightSidebar, {});
+        for (const auto *sidebar : {&m_leftSidebar, &m_rightSidebar}) {
+            if (sidebar->tree.paneIds().size() > 1)
+                connectSplitters(sidebar->root, sidebar->tree.root());
+        }
+        m_sidebarSplitter->insertWidget(0, m_leftSidebar.host);
+        m_sidebarSplitter->addWidget(m_rightSidebar.host);
+        m_leftWidthRatio = widthRatio(QStringLiteral("left_width_ratio"));
+        m_rightWidthRatio = widthRatio(QStringLiteral("right_width_ratio"));
+        m_tree = std::move(staged.m_tree);
+        m_panes = std::move(staged.m_panes);
+        m_contentCounter = std::max(m_contentCounter, staged.m_contentCounter);
+        staged.m_rootWidget = nullptr;
+        m_center->layout()->addWidget(m_rootWidget);
+        m_rootWidget->show();
+        oldRoot->deleteLater();
+        committed = true;
+        setActivePane(rootPane());
+        hideDropPreview();
+        m_preview->raise();
+        emit layoutChanged();
+        return true;
+    } catch (const std::exception &exception) {
+        if (error) *error = QString::fromUtf8(exception.what());
+        return false;
+    } catch (...) {
+        if (error) *error = QStringLiteral("恢复工作区内容失败");
+        return false;
+    }
+}
+
+void WorkspaceWidget::applyTheme(const DockTheme &theme)
+{
+    m_theme = theme;
+    setStyleSheet(theme.styleSheet());
+    static_cast<WorkspaceSplitter *>(m_sidebarSplitter)->applyTheme(theme);
+    for (PaneWidget *item : m_panes) item->applyTheme(theme);
+    for (auto *splitter : findChildren<QSplitter *>(QStringLiteral("MyAdsSplitter")))
+        if (auto *workspaceSplitter = dynamic_cast<WorkspaceSplitter *>(splitter))
+            workspaceSplitter->applyTheme(theme);
+}
+
+DockTheme WorkspaceWidget::theme() const { return m_theme; }
+
+} // namespace darkeye::myads

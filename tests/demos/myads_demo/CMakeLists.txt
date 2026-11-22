@@ -1,0 +1,4 @@
+qt_add_executable(darkeye_myads_demo WIN32 main.cpp)
+target_link_libraries(darkeye_myads_demo PRIVATE darkeye::docking Qt6::Widgets)
+darkeye_apply_compiler_options(darkeye_myads_demo)
+darkeye_configure_packaging(darkeye_myads_demo NO_INSTALL)

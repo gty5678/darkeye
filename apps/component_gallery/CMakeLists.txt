@@ -1,0 +1,6 @@
+qt_add_executable(darkeye_component_gallery WIN32 main.cpp)
+set_target_properties(darkeye_component_gallery PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(darkeye_component_gallery PRIVATE darkeye::darkeye_ui)
+darkeye_apply_compiler_options(darkeye_component_gallery)
+darkeye_configure_packaging(darkeye_component_gallery NO_INSTALL)

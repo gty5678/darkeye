@@ -1,0 +1,770 @@
+#include "dvd_scene/DvdSceneWidget.h"
+#include "dvd_scene/CoverTextureCache.h"
+#include "dvd_scene/DvdShelfController.h"
+#include "render3d/Raycaster.h"
+#include <QElapsedTimer>
+#include <QEnterEvent>
+#include <QHideEvent>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QPointer>
+#include <QSet>
+#include <QShowEvent>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QWheelEvent>
+#include <algorithm>
+#include <cmath>
+
+namespace darkeye::dvd_scene {
+using namespace render3d;
+
+namespace {
+constexpr float defaultCameraDistance=0.22f;
+}
+
+struct DvdSceneWidget::Impl {
+    DvdSceneWidget *owner;
+    RhiSceneWidget *canvas;
+    DvdShelfController shelf;
+    std::shared_ptr<Scene> scene=std::make_shared<Scene>();
+    std::map<QString,DvdCaseInstance> cases;
+    DvdInteractionController interaction{*scene,cases};
+    std::unique_ptr<DvdCaseFactory> factory;
+    CoverTextureCache covers;
+    QHash<NodeId,QString> primitiveIds;
+    QHash<QString,QString> coverKeys;
+    QHash<QString,int> coverSizes;
+    QPointer<QWidget> trackedWindow;
+    Camera camera;
+    float cameraTargetX=0;
+    QTimer timer;
+    QTimer restoreResolutionTimer;
+    int motionRenderPixelBudget=0;
+    QSize motionBufferSize;
+    QElapsedTimer clock;
+    double lastTick=0;
+    QPointF pressPosition,lastPosition;
+    QPointF hoverPosition;
+    bool hoverPositionValid=false;
+    Qt::MouseButton dragButton=Qt::NoButton;
+    bool moved=false;
+    QString lastSelection,lastState=QStringLiteral("Idle");
+    bool lastExpanded=false;
+    bool expansionFits=true;
+    std::vector<QVector3D> closedPoints,openPoints;
+    float closedCenterX=0;
+    float lastCameraX=0,lastCameraTargetX=0;
+
+    explicit Impl(DvdSceneWidget *widget):owner(widget),canvas(new RhiSceneWidget(widget))
+    {
+        clock.start();
+        camera.distance=defaultCameraDistance;
+        camera.rotationMode=Camera::RotationMode::InPlace;
+        camera.target={0,0.1f,0};
+        camera.verticalFov=60;
+        camera.nearPlane=0.001f;
+        camera.farPlane=100;
+        canvas->setScene(scene);
+        canvas->setCamera(camera);
+        canvas->setCursor(Qt::ArrowCursor);
+        canvas->setMouseTracking(true);
+        canvas->setFocusPolicy(Qt::StrongFocus);
+        canvas->installEventFilter(owner);
+        auto *layout=new QVBoxLayout(owner);
+        layout->setContentsMargins(0,0,0,0);
+        layout->addWidget(canvas);
+        timer.setInterval(16);
+        timer.setSingleShot(true);
+        timer.setTimerType(Qt::PreciseTimer);
+        QObject::connect(&timer,&QTimer::timeout,owner,[this] { tick(); });
+        restoreResolutionTimer.setSingleShot(true);
+        restoreResolutionTimer.setInterval(120);
+        QObject::connect(&restoreResolutionTimer,&QTimer::timeout,owner,[this] { restoreResolution(); });
+        QObject::connect(canvas,&QRhiWidget::frameSubmitted,owner,[this] {
+            // Advance after the previous submission instead of competing with
+            // it on an independent 16ms clock. Keep the timer as a fallback
+            // for interaction states that do not produce a new frame.
+            if(needsAnimationTick()) timer.start(0);
+        });
+        QObject::connect(canvas,&RhiSceneWidget::renderingError,owner,&DvdSceneWidget::sceneError);
+        QObject::connect(&covers,&CoverTextureCache::textureReady,owner,[this](const QString &key) {
+            const auto texture=covers.find(key);
+            if(!texture || !factory) return;
+            bool changed=false;
+            for(const auto &[id,instance]:cases)
+                if(coverKeys.value(id)==key) {
+                    factory->setCover(*scene,instance,texture);
+                    changed=true;
+                }
+            const auto warning=covers.error(key);
+            if(!warning.isEmpty()) emit owner->coverWarning(warning);
+            if(changed) canvas->update();
+        });
+    }
+
+    double now() const { return double(clock.nsecsElapsed())/1e9; }
+    void updateFocusDistance()
+    {
+        // Measure the authored geometry in camera space at the normal viewing
+        // distance. Narrow panes keep a readable closed cover instead of zooming
+        // out until an open case fits.
+        const float focal=std::max(1,canvas->height())/(2*std::tan(camera.verticalFov*3.14159265f/360));
+        constexpr float margin=16;
+        expansionFits=!openPoints.empty();
+        for(const auto &point:openPoints) {
+            const float depth=0.2f-point.z();
+            const float x=canvas->width()*0.5f+focal*(point.x()+0.0075f)/depth;
+            if(depth<=0 || x<margin || x>canvas->width()-margin) expansionFits=false;
+        }
+        float distance=0.2f;
+        if(!expansionFits) {
+            for(const auto &point:closedPoints) {
+                distance=std::max(distance,point.z()+focal*std::abs(point.x()-closedCenterX)
+                    /std::max(1.0f,canvas->width()*0.5f-margin));
+            }
+        }
+        interaction.setFocusDistance(distance);
+        interaction.setFocusHorizontalOffset(expansionFits?0.0075f:-closedCenterX);
+        if(!expansionFits && owner->isExpanded()) {
+            interaction.toggleOpen(now());
+            emit owner->expansionBlocked();
+        }
+    }
+
+    bool cameraMoving() const
+    {
+        return std::abs(camera.target.x()-cameraTargetX)>1e-5f;
+    }
+
+    bool needsAnimationTick() const
+    {
+        return owner->isVisible() && !owner->window()->isMinimized()
+            && (interaction.active() || cameraMoving() || std::any_of(cases.begin(),cases.end(),
+                [](const auto &entry) { return entry.second.hasLocalVideo; }));
+    }
+
+    void restoreResolution()
+    {
+        restoreResolutionTimer.stop();
+        if(motionBufferSize.isEmpty()) return;
+        motionBufferSize={};
+        canvas->setFixedColorBufferSize(QSize());
+    }
+
+    void updateMotionResolution()
+    {
+        if(motionRenderPixelBudget<=0 || !owner->isVisible() || owner->window()->isMinimized()) {
+            restoreResolution();
+            return;
+        }
+        // Downsampling the moving shelf makes thin gaps between cases shimmer.
+        if(cameraMoving() || (moved && dragButton==Qt::MiddleButton)) {
+            restoreResolution();
+            return;
+        }
+        const auto selected=cases.find(interaction.selectedId());
+        const bool caseMoving=selected!=cases.end() && interaction.active(selected->second);
+        const bool rotating=moved && dragButton==Qt::RightButton;
+        if(!caseMoving && !rotating) {
+            if(!motionBufferSize.isEmpty() && !restoreResolutionTimer.isActive())
+                restoreResolutionTimer.start();
+            return;
+        }
+        restoreResolutionTimer.stop();
+        const QSize fullSize=canvas->size()*canvas->devicePixelRatioF();
+        const double pixels=double(fullSize.width())*fullSize.height();
+        if(pixels<=motionRenderPixelBudget) {
+            restoreResolution();
+            return;
+        }
+        const QSize size=fullSize*std::sqrt(motionRenderPixelBudget/pixels);
+        if(size!=motionBufferSize) {
+            motionBufferSize=size;
+            canvas->setFixedColorBufferSize(size);
+        }
+    }
+
+    void updateTimer()
+    {
+        updateMotionResolution();
+        const bool active=needsAnimationTick();
+        if(active && !timer.isActive()) {
+            if(lastTick<=0) lastTick=now();
+            timer.start(16);
+        }
+        else if(!active) timer.stop();
+        if(!active) lastTick=0;
+    }
+
+    void notify()
+    {
+        const auto selected=interaction.selectedId();
+        const auto state=DvdInteractionController::stateName(interaction.state());
+        if(selected!=lastSelection) {
+            lastSelection=selected;
+            emit owner->selectionChanged(selected);
+        }
+        if(state!=lastState) {
+            lastState=state;
+            emit owner->stateChanged(state);
+        }
+        const bool expanded=owner->isExpanded();
+        if(expanded!=lastExpanded) {
+            lastExpanded=expanded;
+            emit owner->expandedChanged(expanded);
+        }
+        if(camera.target.x()!=lastCameraX || cameraTargetX!=lastCameraTargetX) {
+            lastCameraX=camera.target.x(); lastCameraTargetX=cameraTargetX;
+            emit owner->cameraPositionChanged();
+        }
+        emit owner->presentationChanged();
+    }
+
+    void refreshVisible()
+    {
+        if(!factory) return;
+        const auto viewport=canvas->size();
+        const float dpr=float(canvas->devicePixelRatioF());
+        const auto viewProjection=camera.projectionMatrix(float(std::max(1,viewport.width()))
+            /std::max(1,viewport.height()))*camera.viewMatrix();
+        const int focusedPixels=std::clamp(int(std::ceil(viewport.height()*dpr*2/1024))*1024,2048,4096);
+        const float height=viewport.height()*dpr*0.19f
+            /(2*std::max(0.08f,camera.distance)*std::tan(camera.verticalFov*3.14159265f/360));
+        const int shelfPixels=std::clamp(int(std::ceil(height*1.6f/256))*256,512,2048);
+        const auto [start,count]=shelf.visibleRange(camera.target.x());
+        QSet<QString> desired;
+        for(int i=start;i<start+count;++i) desired.insert(shelf.items()[i].stableId);
+        if(!interaction.selectedId().isEmpty()) desired.insert(interaction.selectedId());
+        for(auto it=cases.begin();it!=cases.end();) {
+            if(!desired.contains(it->first) && !interaction.active(it->second)) {
+                for(const auto primitive:it->second.primitives) primitiveIds.remove(primitive);
+                scene->removeNode(it->second.root);
+                coverKeys.remove(it->first);
+                coverSizes.remove(it->first);
+                it=cases.erase(it);
+            } else ++it;
+        }
+        // Submit the selected and nearest cases first. QSet iteration is arbitrary
+        // and used to let off-screen prefetches occupy the first decode workers.
+        auto ordered=desired.values();
+        const auto selected=interaction.selectedId();
+        std::sort(ordered.begin(),ordered.end(),[&](const QString &a,const QString &b) {
+            if(a==selected || b==selected) return a==selected && b!=selected;
+            const float da=std::abs(shelf.indexOf(a)*DvdShelfController::spacing-camera.target.x());
+            const float db=std::abs(shelf.indexOf(b)*DvdShelfController::spacing-camera.target.x());
+            return da==db?shelf.indexOf(a)<shelf.indexOf(b):da<db;
+        });
+        for(const auto &id:ordered) {
+            const int index=shelf.indexOf(id);
+            if(index<0) continue;
+            const auto &item=shelf.items()[index];
+            auto it=cases.find(id);
+            // The cover contains front, spine and back. A focused case needs
+            // enough texels for the physical viewport, including high-DPI screens.
+            const auto clip=viewProjection*QVector4D(index*DvdShelfController::spacing,0.095f,0,1);
+            const auto ndc=clip.w()>0?clip.toVector3DAffine():QVector3D();
+            const QPointF center((ndc.x()+1)*viewport.width()/2,(1-ndc.y())*viewport.height()/2);
+            const int previousPixels=coverSizes.value(id);
+            // Prefetch near the edge at the same resolution used on screen.
+            // Keep a larger unload margin so small reversals reuse the texture.
+            const int margin=previousPixels>0?128:64;
+            const bool nearViewport=!viewport.isEmpty() && clip.w()>0
+                && center.x()>=-margin && center.x()<=viewport.width()+margin
+                && center.y()>=-viewport.height() && center.y()<=viewport.height()*2;
+            const int pixels=id==selected?focusedPixels:(nearViewport?shelfPixels:0);
+            const bool request=pixels!=previousPixels;
+            const auto cover=request && pixels>0?covers.request(item.coverPath,pixels)
+                :CoverTextureCache::Request{pixels>0?coverKeys.value(id):QString(),covers.placeholder()};
+            if(request) coverSizes.insert(id,pixels);
+            if(it==cases.end()) {
+                auto instance=factory->create(*scene,item,index,cover.texture);
+                for(const auto primitive:instance.primitives) primitiveIds.insert(primitive,id);
+                coverKeys.insert(id,cover.key);
+                cases.emplace(id,std::move(instance));
+            } else {
+                interaction.setDiscHasLocalVideo(it->second,item.hasLocalVideo,now());
+                it->second.home=DvdCaseFactory::shelfTransform(index);
+                if(id!=interaction.selectedId() && !interaction.active(it->second))
+                    scene->setTransform(it->second.root,interaction.shelfPose(it->second));
+                if(coverKeys.value(id)!=cover.key) {
+                    coverKeys.insert(id,cover.key);
+                    // Keep an existing image while another resolution/path is
+                    // decoding; cached errors and explicit empty paths still
+                    // replace it with the placeholder deterministically.
+                    if(cover.key.isEmpty() || covers.find(cover.key))
+                        factory->setCover(*scene,it->second,cover.texture);
+                }
+            }
+        }
+        covers.retainRequests(QSet<QString>(coverKeys.cbegin(), coverKeys.cend()));
+        for(const auto &[id,instance]:cases) factory->updateSparkle(*scene,instance,now());
+    }
+
+    void tick()
+    {
+        updateFocusDistance();
+        const auto time=now();
+        const auto before=scene->revision();
+        const double dt=std::max(0.0,time-lastTick);
+        lastTick=time;
+        bool cameraChanged=false;
+        if(std::abs(camera.target.x()-cameraTargetX)>1e-5f) {
+            float x=camera.target.x()+(cameraTargetX-camera.target.x())*float(1-std::exp(-dt*16));
+            if(std::abs(x-cameraTargetX)<1e-5f) x=cameraTargetX;
+            camera.target.setX(x);
+            cameraChanged=true;
+        }
+        const auto previousSelection=interaction.selectedId();
+        const bool wasAnimating=interaction.active();
+        interaction.advance(camera,time);
+        interaction.followCamera(camera);
+        refreshVisible();
+        if(cameraChanged) canvas->setCamera(camera);
+        if(cameraChanged || previousSelection!=interaction.selectedId() || (owner->isExpanded() && wasAnimating))
+            refreshHover();
+        if(scene->revision()!=before) canvas->update();
+        notify();
+        updateTimer();
+    }
+
+    std::optional<RayHit> pick(const QPointF &point) const
+    {
+        const auto ray=camera.ray(point,canvas->size());
+        if(!ray) return {};
+        // An open shell's bounding box contains the disc. Resolve its actual
+        // surface so a tilted disc cannot be mistaken for the box around it.
+        return raycast(*scene,*ray,owner->isExpanded()?RaycastMode::Triangles:RaycastMode::Bounds);
+    }
+
+    QString hit(const QPointF &point) const
+    {
+        const auto result=pick(point);
+        return result?primitiveIds.value(result->node):QString();
+    }
+
+    void refreshHover()
+    {
+        if(!hoverPositionValid || dragButton!=Qt::NoButton) return;
+        const auto result=pick(hoverPosition);
+        const auto id=result?primitiveIds.value(result->node):QString();
+        interaction.hover(id,now());
+    }
+
+    void cameraChanged()
+    {
+        updateFocusDistance();
+        interaction.followCamera(camera);
+        refreshVisible();
+        canvas->setCamera(camera);
+        refreshHover();
+        notify();
+        updateTimer();
+    }
+};
+
+DvdSceneWidget::DvdSceneWidget(QWidget *parent):QWidget(parent),d(std::make_unique<Impl>(this)) {}
+DvdSceneWidget::~DvdSceneWidget() { d->timer.stop(); }
+
+bool DvdSceneWidget::setModel(std::shared_ptr<const ModelAsset> model)
+{
+    QSet<QString> names;
+    if(model) for(const auto &node:model->nodes) names.insert(node.name);
+    if(!model || !names.contains("back") || !names.contains("front")
+        || !names.contains("spine") || !names.contains("disc")) {
+        emit sceneError(QStringLiteral("DVD model requires back/spine/front/disc nodes"));
+        return false;
+    }
+    d->interaction.reset();
+    d->cases.clear();
+    d->primitiveIds.clear();
+    d->coverKeys.clear();
+    d->coverSizes.clear();
+    d->scene->clear();
+    d->closedPoints.clear(); d->openPoints.clear();
+    const auto rotation=QQuaternion::fromAxisAndAngle(0,1,0,-90);
+    const auto pivot=rotation.rotatedVector({-0.006707f,0,-0.000293f});
+    for(const bool open:{false,true}) {
+        std::vector<QMatrix4x4> matrices;
+        auto &points=open?d->openPoints:d->closedPoints;
+        for(const auto &node:model->nodes) {
+            auto transform=node.transform;
+            if(open && (node.name=="front" || node.name=="spine"))
+                transform.rotation=QQuaternion::fromAxisAndAngle(0,1,0,-90);
+            const auto matrix=node.parent<0?transform.matrix():matrices.at(node.parent)*transform.matrix();
+            matrices.push_back(matrix);
+            if(node.name=="disc") continue;
+            for(const auto &primitive:node.primitives) if(primitive.mesh)
+                for(const auto &vertex:primitive.mesh->vertices)
+                    points.push_back(rotation.rotatedVector(matrix.map(
+                        {vertex.position[0],vertex.position[1],vertex.position[2]}))-pivot);
+        }
+    }
+    float left=1e20f,right=-1e20f;
+    for(const auto &point:d->closedPoints) { left=std::min(left,point.x()); right=std::max(right,point.x()); }
+    d->closedCenterX=d->closedPoints.empty()?0:(left+right)*0.5f;
+    d->factory=std::make_unique<DvdCaseFactory>(std::move(model));
+    d->updateFocusDistance();
+    d->refreshVisible();
+    d->canvas->update();
+    d->notify();
+    for(const auto &item:d->shelf.items())
+        if(item.selected) { focusItem(item.stableId); break; }
+    return true;
+}
+
+bool DvdSceneWidget::setItems(QList<DvdItemViewModel> items)
+{
+    const bool initial=d->shelf.items().isEmpty();
+    QString error;
+    if(!d->shelf.setItems(std::move(items),&error)) { emit sceneError(error); return false; }
+    d->coverSizes.clear(); // re-check path versions after an explicit data update
+    if(!d->interaction.selectedId().isEmpty() && d->shelf.indexOf(d->interaction.selectedId())<0)
+        d->interaction.reset();
+    for(auto it=d->cases.begin();it!=d->cases.end();) {
+        if(d->shelf.indexOf(it->first)<0) {
+            for(const auto primitive:it->second.primitives) d->primitiveIds.remove(primitive);
+            d->scene->removeNode(it->second.root);
+            d->coverKeys.remove(it->first);
+            it=d->cases.erase(it);
+        } else ++it;
+    }
+    if(initial) d->cameraTargetX=(std::min(itemCount(),DvdShelfController::maxVisibleItems)-1)
+        *DvdShelfController::spacing*0.5f;
+    d->cameraTargetX=d->shelf.clampCameraX(d->cameraTargetX);
+    d->camera.target.setX(d->shelf.clampCameraX(initial?d->cameraTargetX:d->camera.target.x()));
+    d->refreshVisible();
+    d->canvas->setCamera(d->camera);
+    d->notify();
+    d->updateTimer();
+    for(const auto &item:d->shelf.items())
+        if(item.selected) { focusItem(item.stableId); break; }
+    return true;
+}
+
+bool DvdSceneWidget::updateItem(const DvdItemViewModel &item)
+{
+    auto items=d->shelf.items();
+    const auto index=d->shelf.indexOf(item.stableId);
+    if(index<0) return false;
+    items[index]=item;
+    return setItems(std::move(items));
+}
+
+bool DvdSceneWidget::focusItem(const QString &id)
+{
+    d->updateFocusDistance();
+    if(!d->factory || d->shelf.indexOf(id)<0) return false;
+    if(!d->cases.contains(id)) {
+        d->cameraTargetX=d->shelf.clampCameraX(d->shelf.indexOf(id)*DvdShelfController::spacing);
+        d->camera.target.setX(d->cameraTargetX);
+        d->refreshVisible();
+        d->canvas->setCamera(d->camera);
+    }
+    const bool result=d->interaction.select(id,d->camera,d->now());
+    d->refreshVisible();
+    d->notify();
+    d->canvas->update();
+    d->updateTimer();
+    return result;
+}
+void DvdSceneWidget::returnToShelf()
+{
+    d->interaction.returnToShelf(d->now());
+    d->notify();
+    d->updateTimer();
+}
+bool DvdSceneWidget::canExpand() const { return d->expansionFits; }
+void DvdSceneWidget::toggleOpen()
+{
+    d->updateFocusDistance();
+    if(!isExpanded() && !canExpand() && state()==DvdInteractionController::State::Focused) {
+        emit expansionBlocked();
+        return;
+    }
+    d->interaction.toggleOpen(d->now()); d->notify(); d->updateTimer();
+}
+bool DvdSceneWidget::isExpanded() const
+{
+    const auto it=d->cases.find(selectedId());
+    return it!=d->cases.end() && it->second.expanded;
+}
+bool DvdSceneWidget::isFullyExpanded() const
+{
+    const auto it=d->cases.find(selectedId());
+    return it!=d->cases.end() && it->second.expanded
+        && d->interaction.state()==DvdInteractionController::State::Focused
+        && !d->interaction.active(it->second);
+}
+bool DvdSceneWidget::isNearlyClosed() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end() || it->second.expanded) return false;
+    // Use the actual animated pose, so interruptions and slow frames do not
+    // reveal overlays while the lid is still visibly open.
+    const float minimumDot=std::cos(8.0f*3.14159265f/360.0f);
+    for(const auto hinge:{it->second.back,it->second.spine,it->second.front}) {
+        const auto *node=d->scene->node(hinge);
+        if(!node) return false;
+        const auto &rotation=node->transform.rotation;
+        const float alignment=hinge==it->second.back && it->second.backFolded
+            ? rotation.y() : rotation.scalar();
+        if(std::abs(alignment)<minimumDot)
+            return false;
+    }
+    return true;
+}
+std::optional<QRectF> DvdSceneWidget::selectedFrontRect() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end()) return {};
+    QPointF lower(1e20,1e20),upper(-1e20,-1e20);
+    bool found=false;
+    for(const auto part:it->second.coverPrimitives) {
+        const auto *node=d->scene->node(part);
+        if(!node || node->parent!=it->second.front || !node->mesh) continue;
+        const auto world=d->scene->worldMatrix(part);
+        for(const auto &vertex:node->mesh->vertices) {
+            const auto point=d->camera.project(world.map({vertex.position[0],vertex.position[1],vertex.position[2]}),d->canvas->size());
+            if(!point) return {};
+            lower.setX(std::min(lower.x(),point->x())); lower.setY(std::min(lower.y(),point->y()));
+            upper.setX(std::max(upper.x(),point->x())); upper.setY(std::max(upper.y(),point->y()));
+            found=true;
+        }
+    }
+    return found?std::optional<QRectF>(QRectF(lower,upper)):std::nullopt;
+}
+std::optional<QPointF> DvdSceneWidget::selectedDiscCenter() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end() || !it->second.disc) return {};
+    return d->camera.project(d->scene->worldMatrix(it->second.disc).map(QVector3D()),d->canvas->size());
+}
+std::optional<QRectF> DvdSceneWidget::selectedCaseRect() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end()) return {};
+    QPointF lower(1e20,1e20),upper(-1e20,-1e20);
+    bool found=false;
+    for(const auto part:it->second.primitives) {
+        const auto *node=d->scene->node(part);
+        if(!node || node->parent==it->second.disc || !node->mesh) continue;
+        const auto world=d->scene->worldMatrix(part);
+        for(const auto &vertex:node->mesh->vertices) {
+            const auto point=d->camera.project(world.map({vertex.position[0],vertex.position[1],vertex.position[2]}),d->canvas->size());
+            if(!point) return {};
+            lower.setX(std::min(lower.x(),point->x())); lower.setY(std::min(lower.y(),point->y()));
+            upper.setX(std::max(upper.x(),point->x())); upper.setY(std::max(upper.y(),point->y()));
+            found=true;
+        }
+    }
+    return found?std::optional<QRectF>(QRectF(lower,upper)):std::nullopt;
+}
+std::optional<QPointF> DvdSceneWidget::selectedSpineCenter() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end() || !it->second.spine) return {};
+    return d->camera.project(d->scene->worldMatrix(it->second.spine).map(QVector3D(0.006707f,0,0)),d->canvas->size());
+}
+float DvdSceneWidget::cameraX() const { return d->camera.target.x(); }
+std::optional<QPointF> DvdSceneWidget::selectedInfoAnchor() const
+{
+    const auto it=d->cases.find(selectedId());
+    if(it==d->cases.end()) return {};
+    const auto *front=d->scene->node(it->second.front);
+    if(!front) return {};
+    // Legacy frontInfoAnchor was a sibling of front under spine, rather than
+    // the center of the front mesh. It follows the spine's rotation only.
+    const auto local=front->transform.translation+QVector3D(0.0675f,0,0);
+    return d->camera.project(d->scene->worldMatrix(it->second.spine).map(local),d->canvas->size());
+}
+float DvdSceneWidget::cameraTargetX() const { return d->cameraTargetX; }
+void DvdSceneWidget::setCameraX(float x,bool immediate)
+{
+    d->cameraTargetX=d->shelf.clampCameraX(x);
+    if(immediate) { d->camera.target.setX(d->cameraTargetX); d->cameraChanged(); }
+    d->notify(); d->updateTimer();
+}
+void DvdSceneWidget::scrollToIndex(int index)
+{
+    d->cameraTargetX=d->shelf.clampCameraX(index*DvdShelfController::spacing);
+    d->updateTimer();
+}
+void DvdSceneWidget::resetCamera()
+{
+    d->camera.yaw=0; d->camera.pitch=0; d->camera.distance=defaultCameraDistance;
+    d->camera.target.setY(0.1f);
+    d->cameraChanged();
+}
+void DvdSceneWidget::setDarkTheme(bool dark)
+{
+    d->canvas->setClearColor(QColor(dark?"#151c2b":"#eef1f7"));
+}
+void DvdSceneWidget::setMotionRenderPixelBudget(int maxPixels)
+{
+    d->motionRenderPixelBudget=maxPixels;
+    d->updateMotionResolution();
+}
+void DvdSceneWidget::setCoverBudget(quint64 bytes)
+{
+    d->covers.setBudget(bytes);
+    d->canvas->setTextureBudget(bytes);
+}
+QString DvdSceneWidget::selectedId() const { return d->interaction.selectedId(); }
+DvdInteractionController::State DvdSceneWidget::state() const { return d->interaction.state(); }
+int DvdSceneWidget::itemCount() const { return int(d->shelf.items().size()); }
+int DvdSceneWidget::visibleItemCount() const { return int(d->cases.size()); }
+int DvdSceneWidget::pendingCovers() const { return d->covers.pendingCount(); }
+quint64 DvdSceneWidget::cachedCoverBytes() const { return d->covers.bytes(); }
+RhiSceneWidget *DvdSceneWidget::renderWidget() const { return d->canvas; }
+const QList<DvdItemViewModel> &DvdSceneWidget::items() const { return d->shelf.items(); }
+
+void DvdSceneWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if(d->trackedWindow!=window()) {
+        if(d->trackedWindow) d->trackedWindow->removeEventFilter(this);
+        d->trackedWindow=window();
+        d->trackedWindow->installEventFilter(this);
+    }
+    d->tick();
+}
+void DvdSceneWidget::hideEvent(QHideEvent *event)
+{
+    d->timer.stop();
+    d->restoreResolution();
+    QWidget::hideEvent(event);
+}
+
+bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
+{
+    if(object==d->trackedWindow && event->type()==QEvent::WindowStateChange)
+        QTimer::singleShot(0,this,[this] { d->tick(); });
+    if(object!=d->canvas) return QWidget::eventFilter(object,event);
+    switch(event->type()) {
+    case QEvent::Resize:
+        d->cameraChanged();
+        break;
+    case QEvent::MouseButtonPress: {
+        const auto *mouse=static_cast<QMouseEvent *>(event);
+        d->dragButton=mouse->button();
+        d->pressPosition=d->lastPosition=mouse->position();
+        d->moved=false;
+        d->canvas->setFocus();
+        return true;
+    }
+    case QEvent::MouseMove: {
+        const auto *mouse=static_cast<QMouseEvent *>(event);
+        const auto delta=mouse->position()-d->lastPosition;
+        d->lastPosition=mouse->position();
+        if((mouse->position()-d->pressPosition).manhattanLength()>5) d->moved=true;
+        if(d->dragButton==Qt::RightButton) {
+            // Match QML: turn at the eye, with restrained yaw/pitch.
+            d->camera.yaw=std::clamp(d->camera.yaw-float(delta.x())*0.15f,-15.0f,15.0f);
+            d->camera.pitch=std::clamp(d->camera.pitch-float(delta.y())*0.15f,-10.0f,10.0f);
+            d->cameraChanged();
+        } else if(d->dragButton==Qt::MiddleButton) {
+            const float scale=d->camera.distance/std::max(1,d->canvas->height());
+            d->camera.pan(float(-delta.x())*scale,float(delta.y())*scale);
+            d->camera.target.setX(d->shelf.clampCameraX(d->camera.target.x()));
+            d->cameraTargetX=d->camera.target.x();
+            d->cameraChanged();
+        } else if(mouse->buttons()==Qt::NoButton) {
+            d->hoverPosition=mouse->position();
+            d->hoverPositionValid=true;
+            d->refreshHover();
+            d->updateTimer();
+        }
+        return true;
+    }
+    case QEvent::MouseButtonRelease: {
+        const auto *mouse=static_cast<QMouseEvent *>(event);
+        d->dragButton=Qt::NoButton;
+        d->updateMotionResolution();
+        if(mouse->button()==Qt::LeftButton && !d->moved) {
+            const auto hit=d->pick(mouse->position());
+            const auto id=hit?d->primitiveIds.value(hit->node):QString();
+            if(isExpanded()) {
+                const auto &instance=d->cases.at(selectedId());
+                if(id==selectedId()) {
+                    const auto *node=d->scene->node(hit->node);
+                    if(node->parent==instance.front) {
+                        toggleOpen();
+                    } else if(node->parent==instance.back || node->parent==instance.disc) {
+                        d->interaction.closeToBack(d->now());
+                        d->notify();
+                        d->updateTimer();
+                    } else {
+                        return true;
+                    }
+                    emit dvdClicked(id);
+                    return true;
+                }
+                const auto bounds=selectedCaseRect();
+                if(bounds && bounds->contains(mouse->position())) return true;
+            }
+            if(id.isEmpty()) returnToShelf();
+            else {
+                if(id==selectedId() && state()==DvdInteractionController::State::Focused) {
+                    toggleOpen();
+                } else {
+                    focusItem(id);
+                }
+                emit dvdClicked(id);
+            }
+        }
+        return true;
+    }
+    case QEvent::MouseButtonDblClick: {
+        if(isExpanded()) {
+            d->moved=true;
+            return true;
+        }
+        const auto *mouse=static_cast<QMouseEvent *>(event);
+        const auto id=d->hit(mouse->position());
+        if(!id.isEmpty()) { focusItem(id); emit dvdDoubleClicked(id); }
+        return true;
+    }
+    case QEvent::Wheel: {
+        const auto *wheel=static_cast<QWheelEvent *>(event);
+        d->hoverPosition=wheel->position();
+        d->hoverPositionValid=d->canvas->rect().contains(wheel->position().toPoint());
+        const auto angle=wheel->angleDelta();
+        const float steps=angle.isNull()?float(wheel->pixelDelta().y())/60
+            :float(angle.y()?angle.y():angle.x())/120;
+        if(wheel->modifiers().testFlag(Qt::ControlModifier)) {
+            d->camera.zoom(steps);
+            d->camera.distance=std::clamp(d->camera.distance,0.08f,2.0f);
+            d->cameraChanged();
+        } else {
+            d->interaction.returnToShelf(d->now(),3.0f);
+            d->notify();
+            d->cameraTargetX=d->shelf.clampCameraX(d->cameraTargetX-steps*3*DvdShelfController::spacing);
+            d->refreshHover();
+            d->updateTimer();
+        }
+        return true;
+    }
+    case QEvent::KeyPress: {
+        const auto *key=static_cast<QKeyEvent *>(event);
+        if(key->key()==Qt::Key_Escape) { returnToShelf(); return true; }
+        if(key->key()==Qt::Key_Left || key->key()==Qt::Key_Right) {
+            const float direction=key->key()==Qt::Key_Left?-1.0f:1.0f;
+            d->cameraTargetX=d->shelf.clampCameraX(d->cameraTargetX+direction*3*DvdShelfController::spacing);
+            d->updateTimer(); return true;
+        }
+        break;
+    }
+    case QEvent::Enter:
+        d->hoverPosition=static_cast<QEnterEvent *>(event)->position();
+        d->hoverPositionValid=true;
+        d->refreshHover(); d->updateTimer(); break;
+    case QEvent::Leave:
+        d->hoverPositionValid=false;
+        d->interaction.hover({},d->now());
+        d->updateTimer(); break;
+    default:break;
+    }
+    return QWidget::eventFilter(object,event);
+}
+} // namespace darkeye::dvd_scene

@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Google 搜索",
+    "url": "https://www.google.com/search?q={serial}",
+    "description": "按作品番号搜索"
+  }
+]

@@ -1,0 +1,84 @@
+BEGIN TRANSACTION;
+CREATE TABLE IF NOT EXISTS "costume_item" (--单体服饰表，单体的服装一定会非常的多，类别最好单独弄一个类
+	item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+	item_name TEXT NOT NULL,            -- 单品名称(如"白色衬衫")
+	color TEXT,
+	item_category TEXT,					-- 类别，包括"上衣""下装""连体外装""袜类""鞋子""首饰""文胸""内裤""头部配饰""连体内衣""手部配饰""颈部配饰" "腿部配饰" "腰部配饰"
+	position_order INTEGER,             -- 穿着层次顺序(0-最内层)
+	notes TEXT                         -- 全名称
+);
+INSERT INTO "costume_item" VALUES (1,'OL上衣外套','灰','上衣',5,NULL);
+INSERT INTO "costume_item" VALUES (2,'OL包臀短裙','灰','下装',5,NULL);
+INSERT INTO "costume_item" VALUES (3,'OL内搭白衬衫','白','上衣',3,'OL内搭长袖白衬衫');
+INSERT INTO "costume_item" VALUES (4,'OL连裤黑丝袜','黑','袜类',2,'连裤黑丝袜-半透');
+INSERT INTO "costume_item" VALUES (5,'正常文胸','白','文胸',0,'蕾丝花边');
+INSERT INTO "costume_item" VALUES (6,'正常内裤','蓝','内裤',0,NULL);
+INSERT INTO "costume_item" VALUES (7,'圆形金属框眼镜','金','眼镜',0,NULL);
+INSERT INTO "costume_item" VALUES (8,'无袖束腰连衣裙','淡黄','连体外装',5,'无袖淡黄黑腰带束腰过膝连衣裙，黑色带子宽松领结，树状纹样，波浪袖边，蕾丝边领口');
+INSERT INTO "costume_item" VALUES (9,'蕾丝边大肠发圈','粉','头部装饰',5,NULL);
+INSERT INTO "costume_item" VALUES (10,'圆头中跟粗跟一字扣带小皮鞋','黑','鞋类',5,NULL);
+INSERT INTO "costume_item" VALUES (11,'蕾丝镂空袜子','白','袜类',0,NULL);
+INSERT INTO "costume_item" VALUES (12,'中号斜跨带提手小皮包','粉','包类',5,NULL);
+INSERT INTO "costume_item" VALUES (13,'情趣JK灰格上衣','白','上衣',0,'白色透明情趣JK上衣，灰格子色领子');
+INSERT INTO "costume_item" VALUES (14,'情趣JK灰格短裙','灰','下装',0,'情趣JK灰格短裙');
+INSERT INTO "costume_item" VALUES (15,'过膝圆边半透白丝袜','白','袜类',0,'过膝蕾丝边白丝袜-非油丝');
+INSERT INTO "costume_item" VALUES (16,'低胸细吊带半露背','灰白','上衣',0,'横向细灰白条纹');
+INSERT INTO "costume_item" VALUES (17,'运动短裤','淡蓝','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (18,'长袖纱状衬衫','白','上衣',3,'花领');
+INSERT INTO "costume_item" VALUES (19,'大圆腰带过膝包臀长裙','淡紫','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (20,'蕾丝边大肠发圈','白','头部装饰',5,NULL);
+INSERT INTO "costume_item" VALUES (21,'睡衣-带蓝小花纹样','白','上衣',0,NULL);
+INSERT INTO "costume_item" VALUES (22,'睡裤-带蓝小花纹样','白','下装',0,NULL);
+INSERT INTO "costume_item" VALUES (23,'情趣露胸围裙','白','连体内装',0,NULL);
+INSERT INTO "costume_item" VALUES (24,'灰白格子短袖连衣裙','灰','连体外装',5,'灰白格子短袖连衣裙-不过膝，腰带，花袖口，圆领');
+INSERT INTO "costume_item" VALUES (25,'情趣透明露胸颈吊带花边内衣','黑','文胸',0,NULL);
+INSERT INTO "costume_item" VALUES (26,'情趣少布料绳子内裤绳蝴蝶结蕾丝','黑','内裤',0,NULL);
+INSERT INTO "costume_item" VALUES (27,'荷叶袖短袖纱纺衬衫圆领','白','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (28,'高腰带褶长裙','酒红','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (29,'针织长袖竖纹方领衬衫','淡粉','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (30,'褶子长裙','白','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (31,'无袖针织修身圆领包臀背心连衣长裙','粉','连体外装',3,NULL);
+INSERT INTO "costume_item" VALUES (32,'薄睡衣上衣','粉','上衣',1,NULL);
+INSERT INTO "costume_item" VALUES (33,'薄睡衣裤子','粉','下装',1,NULL);
+INSERT INTO "costume_item" VALUES (34,'V领荷叶边无袖套头衬衫','白','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (35,'布类中裙','土黄','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (36,'无袖针织背心','黑','上衣',2,NULL);
+INSERT INTO "costume_item" VALUES (37,'休闲三角图案长裙','粉白','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (38,'小吊带-细','蓝灰','上衣',5,NULL);
+INSERT INTO "costume_item" VALUES (39,'无褶长裙','蓝灰','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (40,'无袖背心圆领连衣短裙','蓝灰','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (41,'宽松长袖V领娃娃领衬衫','白','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (42,'短裙','蓝灰','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (43,'欧根纱大肠发圈','蓝','头部装饰',5,NULL);
+INSERT INTO "costume_item" VALUES (44,'小荷叶无袖针织小荷叶边圆领竖纹背心','土黄','上衣',2,NULL);
+INSERT INTO "costume_item" VALUES (45,'蕾丝花朵图案双层包臀长裙','白','下装',3,'外层透明有花样图案蕾丝且长，内层较短，纯白');
+INSERT INTO "costume_item" VALUES (46,'大肠发圈','黑','头部装饰',5,NULL);
+INSERT INTO "costume_item" VALUES (47,'透明大发夹','透明','头部装饰',5,NULL);
+INSERT INTO "costume_item" VALUES (48,'蓬松大肠发圈','白','头部装饰',5,NULL);
+INSERT INTO "costume_item" VALUES (49,'针织中袖竖纹v领衬衫','淡粉','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (50,'真丝吊带蕾丝边睡裙','灰紫','连体外装',0,NULL);
+INSERT INTO "costume_item" VALUES (51,'正常蕾丝文胸','淡紫','文胸',0,NULL);
+INSERT INTO "costume_item" VALUES (52,'正常蕾丝内裤','淡紫','内裤',0,NULL);
+INSERT INTO "costume_item" VALUES (53,'针织深v露乳沟吊带包臀中裙','土黄','连体外装',3,NULL);
+INSERT INTO "costume_item" VALUES (54,'正常蕾丝文胸','淡粉','文胸',0,NULL);
+INSERT INTO "costume_item" VALUES (55,'正常蕾丝内裤','淡粉','内裤',0,NULL);
+INSERT INTO "costume_item" VALUES (56,'中布料蕾丝文胸','红','文胸',0,NULL);
+INSERT INTO "costume_item" VALUES (57,'中布料蕾丝内裤','红','内裤',0,NULL);
+INSERT INTO "costume_item" VALUES (58,'针织无袖竖纹V领背心','淡粉','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (59,'密褶长裙','淡粉','下装',3,NULL);
+INSERT INTO "costume_item" VALUES (60,'衬衫','粉','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (61,'薄长袖外套','深蓝','上衣',3,NULL);
+INSERT INTO "costume_item" VALUES (62,'正常文胸','白底蓝纹','文胸',NULL,'花状图案');
+INSERT INTO "costume_item" VALUES (63,'正常内裤','白底蓝纹','内裤',NULL,'半透明花纹');
+INSERT INTO "costume_item" VALUES (64,'网球运动白短袖背心','浅蓝','上衣',NULL,NULL);
+INSERT INTO "costume_item" VALUES (65,'百褶短裙','白','下装',NULL,'');
+INSERT INTO "costume_item" VALUES (66,'正常无花纹内裤','粉','内裤',0,NULL);
+INSERT INTO "costume_item" VALUES (67,'白色层层花边防走光安全裤','白','安全裤',1,NULL);
+INSERT INTO "costume_item" VALUES (68,'正常无花边胸罩','粉','文胸',NULL,NULL);
+INSERT INTO "costume_item" VALUES (69,'圆领长袖毛衣','酒红',NULL,NULL,NULL);
+INSERT INTO "costume_item" VALUES (70,'中式花数枝图案马面裙到膝盖','黑底图案',NULL,NULL,NULL);
+INSERT INTO "costume_item" VALUES (71,'圆领无袖背心','深蓝',NULL,NULL,NULL);
+INSERT INTO "costume_item" VALUES (72,'半身裙','米白',NULL,NULL,NULL);
+INSERT INTO "costume_item" VALUES (73,'尖头光面细跟高跟鞋','米白',NULL,NULL,NULL);
+INSERT INTO "costume_item" VALUES (74,'情趣中布料半透明花纹细带字内裤','粉','内裤',NULL,NULL);
+COMMIT;

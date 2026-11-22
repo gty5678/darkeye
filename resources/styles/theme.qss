@@ -1,0 +1,994 @@
+QWidget {
+    color: @TEXT@;
+    font-family: "@FONT_FAMILY_BASE@";
+    font-size: @FONT_SIZE_BASE@;
+}
+
+QMainWindow, QDialog {
+    background-color: @PAGE_BACKGROUND@;
+}
+
+QTabBar {
+    background-color: @PAGE_BACKGROUND@;
+}
+
+/* Keep long option lists anchored to the field and respect maxVisibleItems. */
+QComboBox {
+    combobox-popup: 0;
+}
+
+QComboBoxPrivateContainer > QAbstractItemView,
+QAbstractItemView#DesignComboBoxPopup {
+    background-color: @BACKGROUND@;
+    color: @TEXT@;
+    border: 1px solid @BORDER@;
+    outline: 0;
+    selection-color: @TEXT_INVERSE@;
+    selection-background-color: @PRIMARY@;
+}
+
+QComboBoxPrivateContainer > QAbstractItemView::item,
+QAbstractItemView#DesignComboBoxPopup::item {
+    padding: 3px 0;
+}
+
+QListWidget#mainSidebar {
+    background-color: @BACKGROUND@;
+    border: 0;
+    border-right: 1px solid @BORDER@;
+    outline: 0;
+}
+
+QListWidget#mainSidebar::item {
+    padding: 11px 14px;
+}
+
+QListWidget#mainSidebar::item:hover {
+    background-color: @PAGE_BACKGROUND@;
+}
+
+QListWidget#mainSidebar::item:selected {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+}
+
+QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput {
+    background-color: @INPUT_BACKGROUND@;
+    border: 2px solid @BORDER@;
+    font-size: 20px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 5px;
+}
+
+QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput:focus {
+    border-color: @BORDER_FOCUS@;
+}
+
+QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults {
+    background-color: @BACKGROUND@;
+    alternate-background-color: @PAGE_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    padding: 3px;
+    outline: none;
+    selection-background-color: @PRIMARY@;
+    selection-color: @TEXT_INVERSE@;
+    font-size: 17px;
+}
+
+QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults::item {
+    padding: 5px 10px;
+}
+
+QWidget#ShelfFilterBar {
+    background-color: #ffffff;
+    border: 1px solid #d9dee5;
+    border-radius: @RADIUS_MD@;
+}
+
+QScrollArea#ShelfFilterScroll,
+QScrollArea#ShelfFilterScroll > QWidget,
+QWidget#ShelfFilterContent {
+    background-color: #ffffff;
+}
+
+QWidget#ShelfFilterBar QLabel {
+    color: #1f2937;
+    background-color: transparent;
+}
+
+QWidget#ShelfFilterBar > QPushButton {
+    background-color: transparent;
+    border: 0;
+    border-radius: 6px;
+}
+
+QWidget#ShelfFilterBar > QPushButton:hover {
+    background-color: #edf0f4;
+}
+
+QWidget#ShelfFilterBar > QPushButton:pressed {
+    background-color: #dfe4ea;
+}
+
+/* Single-line fields share a 32 px outer height and a 6 px text origin
+ * matching the cut in ChamferStyle. Qt adds a 2 px inset to line edits. */
+QLineEdit[frame="true"],
+QLineEdit#DesignKeySequenceEditLineEdit,
+QComboBox,
+QAbstractSpinBox {
+    background-color: @INPUT_BACKGROUND@;
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 4px 8px;
+    color: @TEXT@;
+    selection-background-color: @PRIMARY@;
+}
+
+QLineEdit[frame="true"],
+QLineEdit#DesignKeySequenceEditLineEdit {
+    padding-left: 2px;
+}
+
+QComboBox {
+    padding-left: 4px;
+}
+
+QComboBox:editable {
+    padding-left: 2px;
+}
+
+QAbstractSpinBox {
+    padding-right: 24px;
+}
+
+QAbstractSpinBox > QLineEdit,
+QComboBox > QLineEdit {
+    border: none;
+    min-height: 0;
+    max-height: 16777215px;
+    padding: 0;
+    background-color: transparent;
+    selection-background-color: @PRIMARY@;
+}
+
+QTextEdit#DesignTextEdit,
+QPlainTextEdit#DesignPlainTextEdit,
+QPlainTextEdit#AvWikiEditor {
+    background-color: @INPUT_BACKGROUND@;
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    padding: 6px 8px;
+    color: @TEXT@;
+    selection-background-color: @PRIMARY@;
+}
+
+QComboBox:hover:enabled {
+    border-color: @PRIMARY@;
+}
+
+QLineEdit[frame="true"]:focus,
+QAbstractSpinBox:focus,
+QComboBox:focus,
+QComboBox:hover:focus,
+QLineEdit#DesignInput:focus,
+QLineEdit#WorkSearchInput:focus,
+QTextEdit#DesignTextEdit:focus,
+QPlainTextEdit#DesignPlainTextEdit:focus,
+QPlainTextEdit#AvWikiEditor:focus {
+    border-color: @BORDER_FOCUS@;
+}
+
+QComboBox#DesignComboBox,
+QComboBox#ShelfScopeSelector,
+QComboBox#ShelfSortSelector,
+QComboBox#DesignMakerSelector {
+    padding-right: 24px;
+}
+
+QComboBox#DesignComboBox[compactFilter="true"],
+QComboBox#ShelfScopeSelector[compactFilter="true"],
+QComboBox#ShelfSortSelector[compactFilter="true"] {
+    padding-right: 18px;
+}
+
+QComboBox#DesignComboBox::drop-down,
+QComboBox#DesignMakerSelector::drop-down,
+QComboBox#ShelfScopeSelector::drop-down,
+QComboBox#ShelfSortSelector::drop-down {
+    border: none;
+    width: 20px;
+    background: transparent;
+}
+
+QComboBox#DesignComboBox::down-arrow,
+QComboBox#DesignMakerSelector::down-arrow,
+QComboBox#ShelfScopeSelector::down-arrow,
+QComboBox#ShelfSortSelector::down-arrow {
+    image: none;
+    width: 16px;
+    height: 16px;
+}
+
+QComboBox#DesignComboBox:disabled,
+QLineEdit#DesignInput:disabled,
+QTextEdit#DesignTextEdit:disabled,
+QPlainTextEdit#DesignPlainTextEdit:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+
+QPushButton#DesignButton,
+QPushButton#WorkRefreshButton,
+QPushButton#WorkLoadButton,
+QPushButton#WorkSaveButton {
+    background-color: @BACKGROUND@;
+    color: @TEXT@;
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
+}
+
+QPushButton#DesignButton:hover,
+QPushButton#DesignButton:focus,
+QPushButton#WorkRefreshButton:hover,
+QPushButton#WorkLoadButton:hover,
+QPushButton#WorkSaveButton:hover {
+    border-color: @PRIMARY@;
+    background-color: @PAGE_BACKGROUND@;
+}
+
+QPushButton#DesignButton:pressed,
+QPushButton#WorkRefreshButton:pressed,
+QPushButton#WorkLoadButton:pressed,
+QPushButton#WorkSaveButton:pressed {
+    background-color: @PRIMARY_HOVER@;
+}
+
+QPushButton#DesignButton:disabled,
+QPushButton#WorkRefreshButton:disabled,
+QPushButton#WorkLoadButton:disabled,
+QPushButton#WorkSaveButton:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @PAGE_BACKGROUND@;
+}
+
+QPushButton#DesignButton[variant="primary"],
+QPushButton#WorkRefreshButton[variant="primary"],
+QPushButton#WorkSaveButton[variant="primary"] {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+    border-color: @PRIMARY@;
+}
+
+/* AddWorkTabPage3 mirrors the Python editor's three explicit submit states. */
+QPushButton#WorkSaveButton[variant="add"] {
+    background-color: @SUCCESS@;
+    color: @TEXT_INVERSE@;
+    border: none;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
+}
+
+QPushButton#WorkSaveButton[variant="modify"],
+QPushButton#WorkLoadButton[variant="warning"] {
+    background-color: @WARNING@;
+    color: @TEXT_INVERSE@;
+    border: none;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
+}
+
+QPushButton#WorkSaveButton[variant="disabled"] {
+    background-color: @PAGE_BACKGROUND@;
+    color: @TEXT_DISABLED@;
+    border: none;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
+}
+
+QPushButton#WorkLoadButton[variant="disabled"] {
+    background-color: @PAGE_BACKGROUND@;
+    color: @TEXT_DISABLED@;
+}
+
+/* Changed fields in the AddWork editor use the same orange warning frame as
+ * the Python implementation.  The property is deliberately local to that
+ * editor, so ordinary focused controls keep their theme-specific border. */
+QLineEdit#DesignInput[addWorkModified="true"],
+QTextEdit#DesignTextEdit[addWorkModified="true"],
+QPlainTextEdit#DesignPlainTextEdit[addWorkModified="true"],
+QSpinBox#DesignSpinBox[addWorkModified="true"],
+QComboBox#DesignComboBox[addWorkModified="true"],
+QWidget#WorkCoverDropWidget[addWorkModified="true"],
+QWidget#FanartStripWidget[addWorkModified="true"] {
+    border: 2px solid #FFA500;
+}
+
+QPushButton#DesignIconPushButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+QPushButton#DesignIconPushButton:hover {
+    background-color: @PAGE_BACKGROUND@;
+}
+
+QPushButton#DesignIconPushButton:pressed {
+    background-color: @BORDER@;
+}
+
+QWidget#pageNavigationBar {
+    background-color: @BACKGROUND@;
+    border-right: 1px solid @BORDER@;
+}
+
+QWidget#pageNavigationBar QScrollArea,
+QWidget#pageNavigationBar QScrollArea QWidget {
+    background-color: @BACKGROUND@;
+}
+
+QWidget#pageNavigationBar QPushButton#DesignIconPushButton:focus {
+    border: 1px solid @BORDER_FOCUS@;
+}
+
+QLabel#DesignAsyncImage {
+    background-color: transparent;
+    color: @TEXT_PLACEHOLDER@;
+}
+
+QLabel#RatingHeart {
+    background-color: transparent;
+    color: @TEXT_PLACEHOLDER@;
+    font-size: 28px;
+}
+
+QLabel#RatingHeart[active="true"] {
+    color: @PRIMARY@;
+}
+
+QLabel#PageHeading,
+QLabel#PaginationInfo,
+QLabel#DesignToastLabel {
+    background-color: transparent;
+}
+
+QLabel#DesignLabel,
+QLabel#DesignEmptyStateIcon,
+QLabel#DesignEmptyStateTitle,
+QLabel#DesignEmptyStateDescription {
+    background-color: transparent;
+    color: @TEXT@;
+}
+
+QLabel#DesignLabel[tone="muted"],
+QLabel#DesignEmptyStateDescription {
+    color: @TEXT_PLACEHOLDER@;
+}
+
+QLabel#DesignLabel[tone="inverse"],
+QLabel#DesignLabel[tone="onDark"],
+QLabel#DesignLabel[tone="onImage"] {
+    color: @TEXT_INVERSE@;
+}
+
+QCheckBox#DesignCheckBox,
+QRadioButton#DesignRadioButton,
+QGroupBox#DesignGroupBox {
+    color: @TEXT@;
+    background-color: transparent;
+}
+
+QSpinBox#DesignSpinBox:hover {
+    border-color: @PRIMARY@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox:focus {
+    border-color: @BORDER_FOCUS@;
+}
+QSpinBox#DesignSpinBox:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox::up-button,
+QSpinBox#DesignSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 20px;
+    border-left: 2px solid @BORDER@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QSpinBox#DesignSpinBox::up-button {
+    subcontrol-position: top right;
+    border-top-right-radius: 8px;
+}
+QSpinBox#DesignSpinBox::down-button {
+    subcontrol-position: bottom right;
+    border-bottom-right-radius: 8px;
+}
+QSpinBox#DesignSpinBox::up-button:hover,
+QSpinBox#DesignSpinBox::down-button:hover {
+    background-color: @PRIMARY@;
+    border-left-color: @PRIMARY@;
+}
+QSpinBox#DesignSpinBox::up-button:pressed,
+QSpinBox#DesignSpinBox::down-button:pressed {
+    background-color: @PRIMARY_HOVER@;
+}
+QSpinBox#DesignSpinBox::up-arrow,
+QSpinBox#DesignSpinBox::down-arrow {
+    image: none;
+    width: 12px;
+    height: 12px;
+}
+
+QGroupBox#DesignGroupBox {
+    border: 1px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    margin-top: 10px;
+    padding-top: 8px;
+}
+QGroupBox#DesignGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+QTabWidget#DesignTabWidget::pane {
+    border: 1px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    background-color: @BACKGROUND@;
+}
+QTabWidget#StatisticsTabs::pane {
+    border: none;
+    background-color: transparent;
+}
+
+QWidget#PersonalDataCanvas {
+    background-color: @PAGE_BACKGROUND@;
+}
+QFrame#PersonalDataOverview {
+    background-color: @BACKGROUND@;
+    border-bottom: 1px solid @BORDER@;
+}
+QFrame#PersonalDataOverview QFrame#StatisticsOverviewCard {
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+}
+
+QTabBar#DesignTabBar,
+QTabWidget#ManagementTabs > QTabBar {
+    border-bottom: 1px solid @BORDER@;
+}
+QTabBar#DesignTabBar::tab,
+QTabWidget#ManagementTabs > QTabBar::tab {
+    background-color: @PAGE_BACKGROUND@;
+    color: @TEXT@;
+    padding: 6px 14px;
+    border: 1px solid transparent;
+}
+QTabBar#DesignTabBar::tab:!selected:!last:!only-one:!next-selected,
+QTabWidget#ManagementTabs > QTabBar::tab:!selected:!last:!only-one:!next-selected {
+    border-right-color: @BORDER@;
+}
+QTabWidget#ManagementTabs > QTabBar::tab {
+    font-size: @FONT_SIZE_MIDDLE@;
+}
+QTabBar#DesignTabBar::tab:hover,
+QTabWidget#ManagementTabs > QTabBar::tab:hover {
+    border-top-color: @BORDER@;
+}
+QTabBar#DesignTabBar::tab:selected,
+QTabWidget#ManagementTabs > QTabBar::tab:selected {
+    font-weight: bold;
+    border-color: @BORDER@;
+    border-bottom-color: @PAGE_BACKGROUND@;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+QTabWidget#ManagementTabs::pane {
+    border: none;
+    top: -1px;
+}
+
+QProgressBar#DesignProgressBar {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+    text-align: center;
+}
+QProgressBar#DesignProgressBar::chunk {
+    background-color: @PRIMARY@;
+    border-radius: 5px;
+}
+
+QPushButton#DesignStateToggleButton,
+QPushButton#ShelfRelationGraphSettingsButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 0;
+}
+QPushButton#DesignStateToggleButton:hover,
+QPushButton#ShelfRelationGraphSettingsButton:hover { background-color: @PAGE_BACKGROUND@; }
+
+QPushButton#DesignChip {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 12px;
+    padding: 3px 10px;
+}
+QPushButton#DesignChip:hover,
+QPushButton#DesignChip:checked {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+    border-color: @PRIMARY@;
+}
+QPushButton#DesignChip[tone="success"] { border-color: @SUCCESS@; }
+QPushButton#DesignChip[tone="warning"] { border-color: @WARNING@; }
+QPushButton#DesignChip[tone="error"] { border-color: @ERROR@; }
+QPushButton#DesignChip[tone="info"] { border-color: @INFO@; }
+
+QWidget#DesignEmptyState { background-color: transparent; }
+QLabel#DesignEmptyStateIcon {
+    color: @TEXT_DISABLED@;
+    font-size: 36px;
+}
+QLabel#DesignEmptyStateTitle {
+    font-size: 18px;
+    font-weight: 600;
+}
+QPushButton#DesignEmptyStateAction {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+    border: 1px solid @PRIMARY@;
+    border-radius: @RADIUS_MD@;
+    padding: 6px 14px;
+}
+
+QWidget#TransparentWidget { background-color: transparent; }
+
+QSlider#DesignClickableSlider::groove:horizontal {
+    height: 4px;
+    background-color: @BORDER@;
+    border-radius: 2px;
+}
+QSlider#DesignClickableSlider::handle:horizontal {
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    background-color: @PRIMARY@;
+    border-radius: 7px;
+}
+QSlider#DesignClickableSlider::groove:vertical {
+    width: 4px;
+    background-color: @BORDER@;
+    border-radius: 2px;
+}
+QSlider#DesignClickableSlider::handle:vertical {
+    width: 14px;
+    height: 14px;
+    margin: 0 -5px;
+    background-color: @PRIMARY@;
+    border-radius: 7px;
+}
+
+QPushButton#DesignRotateButton,
+QPushButton#DesignShakeButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 2px;
+}
+QPushButton#DesignRotateButton:hover,
+QPushButton#DesignShakeButton:hover {
+    background-color: @PAGE_BACKGROUND@;
+}
+
+QTableView#DesignTableView,
+QTableView#personalRecordTable,
+QTableWidget#DesignTableWidget,
+QTreeView#DesignTreeView,
+QListView#DesignListView,
+QListWidget#DesignListWidget {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    alternate-background-color: @PAGE_BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: 6px;
+    gridline-color: @BORDER@;
+    selection-color: @TEXT_INVERSE@;
+    selection-background-color: @PRIMARY@;
+    outline: none;
+}
+/* Person selectors use compact text rows within the themed list frame. */
+QListWidget#DesignListWidget[personSelectorList="true"] {
+    background-color: @BACKGROUND@;
+    color: @TEXT@;
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    padding: 4px;
+    selection-background-color: @PRIMARY@;
+    outline: none;
+}
+QListWidget#DesignListWidget[personSelectorList="true"]:focus {
+    border-color: @BORDER_FOCUS@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QListWidget#DesignListWidget[personSelectorList="true"]::item {
+    padding: 1px 8px;
+    color: @TEXT@;
+}
+QListWidget#DesignListWidget[personSelectorList="true"]::item:selected {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+}
+QListWidget#DesignListWidget[personSelectorList="true"]::item:hover:!selected {
+    background-color: @INPUT_BACKGROUND@;
+    color: @TEXT@;
+}
+QListWidget#DesignListWidget[personSelectorList="true"]:disabled {
+    background-color: @INPUT_BACKGROUND@;
+    color: @TEXT_DISABLED@;
+    border-color: @BORDER@;
+}
+/* Match Python: warn on the selected people list, including while focused. */
+QListWidget#DesignListWidget[personSelectedList="true"][addWorkModified="true"] {
+    border: 2px solid #FFA500;
+}
+QHeaderView::section {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border: none;
+    border-right: 1px solid @BORDER@;
+    border-bottom: 1px solid @BORDER@;
+    padding: 6px;
+}
+
+/* Match Python's path table, including its row numbers and cell editor. */
+QTableWidget#DesignTableWidget[pathManagement="true"] {
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section {
+    background-color: @PAGE_BACKGROUND@;
+    padding: 4px 6px;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QHeaderView::section:vertical {
+    color: @TEXT_PLACEHOLDER@;
+    border-right: 1px solid @BORDER@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"]::item {
+    background-color: @BACKGROUND@;
+    padding: 4px 6px;
+    border: none;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"]::item:selected {
+    background-color: @PRIMARY@;
+    color: @TEXT_INVERSE@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"]::item:hover:!selected {
+    background-color: @PAGE_BACKGROUND@;
+    color: @TEXT@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit {
+    background-color: @INPUT_BACKGROUND@;
+    color: @TEXT@;
+    border: 2px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    selection-background-color: @PRIMARY@;
+}
+QTableWidget#DesignTableWidget[pathManagement="true"] QLineEdit:focus {
+    border-color: @BORDER_FOCUS@;
+}
+
+QKeySequenceEdit#DesignKeySequenceEdit {
+    background-color: transparent;
+    border: none;
+}
+
+QLineEdit#DesignKeySequenceEditLineEdit:hover {
+    border-color: @PRIMARY@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QLineEdit#DesignKeySequenceEditLineEdit:disabled {
+    color: @TEXT_DISABLED@;
+    background-color: @INPUT_BACKGROUND@;
+}
+QLineEdit#DesignKeySequenceEditLineEdit:focus {
+    background-color: @INPUT_BACKGROUND@;
+}
+QDateTimeEdit#DesignDateTimeEdit:focus,
+QLineEdit#DesignKeySequenceEditLineEdit:focus {
+    border-color: @BORDER_FOCUS@;
+}
+
+QToolButton#DesignCollapsibleToggle {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border: none;
+    padding: 8px;
+    font-weight: 600;
+    text-align: left;
+}
+QToolButton#DesignCollapsibleToggle:checked {
+    background-color: @BACKGROUND@;
+}
+QWidget#PersonAliasSection QToolButton#DesignCollapsibleToggle:checked {
+    background-color: @PAGE_BACKGROUND@;
+}
+QWidget#DesignCollapsibleContent { background-color: transparent; }
+
+QScrollArea#ForceViewSettingsPanel {
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+}
+QWidget#ShelfRelationGraphOverlay QScrollArea#ForceViewSettingsPanel {
+    border: none;
+}
+QScrollArea#ForceViewSettingsPanel::viewport,
+QScrollArea#ForceViewSettingsPanel > QWidget,
+QWidget#ForceViewSettingsContent,
+QScrollArea#ForceViewSettingsPanel QWidget {
+    background-color: @BACKGROUND@;
+}
+QScrollArea#ForceViewSettingsPanel QSlider#DesignClickableSlider::handle:horizontal {
+    background-color: @PRIMARY@;
+}
+QScrollArea#ForceViewSettingsPanel QScrollBar:vertical {
+    width: 8px;
+    background: transparent;
+}
+QScrollArea#ForceViewSettingsPanel QScrollBar::handle:vertical {
+    background-color: @BORDER@;
+    min-height: 28px;
+}
+QLabel#DesignColorPicker {
+    border: 1px solid @BORDER@;
+    border-radius: 3px;
+}
+
+QDialog#DesignModalDialog {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+}
+QDialog#SettingsDialog { background-color: transparent; }
+QDialog#SettingsDialog .QWidget { background-color: @BACKGROUND@; }
+QDialog#SettingsDialog QLabel { background-color: transparent; }
+QDialog#SettingsDialog QListWidget#DesignListWidget::item { padding: 0 10px; }
+QDialog#SettingsDialog QListWidget#DesignListWidget::item:hover:!selected {
+    background-color: @PAGE_BACKGROUND@;
+}
+QLabel#DesignModalTitle {
+    color: @TEXT@;
+    font-size: 16px;
+    font-weight: 700;
+}
+QLabel#DesignModalMessage { color: @TEXT@; }
+QPushButton#DesignModalConfirm,
+QPushButton#DesignModalCancel {
+    border: 1px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+    padding: 4px 12px;
+}
+QPushButton#DesignModalConfirm {
+    color: @TEXT_INVERSE@;
+    background-color: @PRIMARY@;
+    border-color: @PRIMARY@;
+}
+QPushButton#DesignModalConfirm[variant="danger"] {
+    background-color: @ERROR@;
+    border-color: @ERROR@;
+}
+
+QAbstractItemView#DesignCompleterPopup {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    padding: 4px;
+    selection-color: @TEXT_INVERSE@;
+    selection-background-color: @PRIMARY@;
+}
+
+QWidget#DesignSidebarMenuButton {
+    background-color: transparent;
+    border-left: 3px solid transparent;
+}
+QWidget#DesignSidebarMenuButton:hover { background-color: @PAGE_BACKGROUND@; }
+QWidget#DesignSidebarMenuButton[selected="true"] {
+    background-color: @PAGE_BACKGROUND@;
+    border-left-color: @PRIMARY@;
+}
+QLabel#DesignSidebarMenuText {
+    color: @TEXT@;
+    background-color: transparent;
+    font-size: @FONT_SIZE_BASE@;
+}
+
+/* Keep every scroll-menu surface on the same background. Plain layout widgets
+ * and labels must not paint the application's page-grey background over it. */
+QWidget#DesignModernScrollMenu,
+QScrollArea#DesignScrollMenuArea,
+QWidget#DesignScrollMenuViewport,
+QWidget#DesignScrollMenuContent,
+QWidget[designScrollMenuContent="true"],
+QWidget#DesignScrollMenuSection { background-color: @BACKGROUND@; }
+QWidget#DesignModernScrollMenu .QWidget,
+QWidget#DesignModernScrollMenu QLabel,
+QWidget#DesignModernScrollMenu QCheckBox { background-color: transparent; }
+QFrame#DesignScrollMenuSeparator {
+    background-color: @BORDER@;
+    min-height: 1px;
+    max-height: 1px;
+    margin: 10px 0;
+}
+QLabel#DesignScrollMenuTitle {
+    color: @TEXT@;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Scroll-menu header and button states. */
+QWidget#DesignModernScrollMenu QWidget#DesignScrollMenuNavigation {
+    background-color: @PAGE_BACKGROUND@;
+    border-bottom: 1px solid @BORDER@;
+}
+QPushButton#DesignScrollMenuButton {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border: 1px solid transparent;
+    border-right-color: @BORDER@;
+    padding: 10px 15px;
+}
+QPushButton#DesignScrollMenuButton:hover { border-top-color: @BORDER@; }
+QPushButton#DesignScrollMenuButton:checked {
+    border-color: @BORDER@;
+    border-bottom-color: @PAGE_BACKGROUND@;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    font-weight: 600;
+}
+
+QFrame#DesignLinkCard {
+    color: @TEXT@;
+    background-color: @BACKGROUND@;
+    border: 1px solid @BORDER@;
+    border-radius: @RADIUS_MD@;
+}
+QFrame#DesignLinkCard:hover {
+    background-color: @PAGE_BACKGROUND@;
+    border-color: @PRIMARY@;
+}
+QFrame#DesignLinkCard:focus {
+    border-color: @BORDER_FOCUS@;
+}
+QLabel#DesignLinkCardTitle {
+    color: @TEXT@;
+    background-color: transparent;
+    font-weight: 600;
+}
+QLabel#DesignLinkCardDescription {
+    color: @TEXT_PLACEHOLDER@;
+    background-color: transparent;
+}
+QLabel#DesignLinkCardIcon { background-color: transparent; }
+
+QTabBar#VerticalTabBar::tab {
+    color: @TEXT@;
+    background-color: transparent;
+    border: 1px solid @BORDER@;
+    padding: 4px;
+}
+QTabBar#VerticalTabBar::tab:selected {
+    color: @TEXT@;
+    background-color: @PAGE_BACKGROUND@;
+    border-right-color: @PAGE_BACKGROUND@;
+}
+
+QPushButton#DesignButton[variant="primary"]:hover,
+QPushButton#DesignButton[variant="primary"]:pressed {
+    background-color: @PRIMARY_HOVER@;
+    border-color: @PRIMARY_HOVER@;
+}
+
+QScrollBar:vertical {
+    background-color: @PAGE_BACKGROUND@;
+    width: 10px;
+    margin: 0;
+    border: none;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: @BORDER@;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover { background-color: @PRIMARY@; }
+QScrollBar::handle:vertical:pressed { background-color: @PRIMARY_HOVER@; }
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+    background: none;
+    border: none;
+}
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical { background: none; }
+
+QScrollBar:horizontal {
+    background-color: @PAGE_BACKGROUND@;
+    height: 10px;
+    margin: 0;
+    border: none;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: @BORDER@;
+    min-width: 30px;
+}
+
+QScrollBar::handle:horizontal:hover { background-color: @PRIMARY@; }
+QScrollBar::handle:horizontal:pressed { background-color: @PRIMARY_HOVER@; }
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: none;
+    border: none;
+}
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal { background: none; }
+
+QScrollArea#DesignLazyScrollArea {
+    border: none;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar:vertical {
+    background-color: @PAGE_BACKGROUND@;
+    width: 10px;
+    border: none;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical {
+    background-color: @BORDER@;
+    min-height: 30px;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar::handle:vertical:hover {
+    background-color: @PRIMARY@;
+}
+
+QScrollArea#DesignLazyScrollArea QScrollBar::add-line:vertical,
+QScrollArea#DesignLazyScrollArea QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+/* Work cards share theme typography in both cover modes. */
+QLabel#WorkCardSerialNumber {
+    font-size: @FONT_SIZE_MIDDLE@;
+    font-weight: normal;
+}
+QLabel#WorkCardTitle {
+    font-size: @FONT_SIZE_BASE@;
+    font-weight: normal;
+}
+
+
+QPushButton#WorkCoverViewToggle {
+    background-color: @PAGE_BACKGROUND@;
+    border: 1px solid @BORDER@;
+}
+QPushButton#WorkCoverViewToggle:hover {
+    border-color: @PRIMARY@;
+}
+QPushButton#WorkCoverViewToggle:focus {
+    border-color: @BORDER_FOCUS@;
+}

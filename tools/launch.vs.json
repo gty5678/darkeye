@@ -1,0 +1,17 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "Darkeye.exe",
+      "name": "Darkeye.exe",
+      "args": [
+        "--config-dir", "${workspaceRoot}/config",
+        "--avwiki-dir", "${workspaceRoot}/avwiki",
+        "--data-dir", "${workspaceRoot}/data"
+      ]
+    }
+  ]
+}

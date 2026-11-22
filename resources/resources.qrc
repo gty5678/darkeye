@@ -1,0 +1,29 @@
+<RCC>
+    <qresource prefix="/sql">
+        <file alias="initPublicTable.sql">sql/initPublicTable.sql</file>
+        <file alias="init-content.sql">sql/init-content.sql</file>
+        <file alias="initPrivateTable.sql">sql/initPrivateTable.sql</file>
+        <file alias="public/v1.0-v2/migration.sql">sql/public/v1.0-v2/migration.sql</file>
+        <file alias="private/v1.0-v1.1/RBfavorite_actress.sql">sql/private/v1.0-v1.1/RBfavorite_actress.sql</file>
+        <file alias="private/v1.0-v1.1/RBfavorite_work.sql">sql/private/v1.0-v1.1/RBfavorite_work.sql</file>
+        <file alias="fixtures/initPublicTable-v1.0.sql">sql/public/history/initPublicTable-v1.0.sql</file>
+        <file alias="fixtures/initPrivateTable-v1.0.sql">sql/private/history/initPrivateTable-v1.0.sql</file>
+		<file alias="work_all_info.sql">sql/work_all_info.sql</file>
+		<file alias="actress_all_info.sql">sql/actress_all_info.sql</file>
+		<file alias="actor_all_info.sql">sql/actor_all_info.sql</file>
+    </qresource>
+    <qresource prefix="/icons">
+        <file alias="logo.svg">icons/logo.svg</file>
+        <file alias="anonymous.jpg">icons/anonymous.jpg</file>
+        <file alias="dvd/love-off.svg">icons/dvd/love-off.svg</file>
+        <file alias="dvd/love-on.svg">icons/dvd/love-on.svg</file>
+        <file alias="dvd/square-pen.svg">icons/dvd/square-pen.svg</file>
+        <file alias="dvd/trash-2.svg">icons/dvd/trash-2.svg</file>
+    </qresource>
+    <qresource prefix="/assets">
+        <file alias="shop/darkeye-shop.glb">../libs/dvd/darkeye-shop.glb</file>
+        <file alias="dvd/dvd.glb">../libs/dvd/dvd.glb</file>
+        <file alias="hdr/lebombo_1k.hdr">hdr/lebombo_1k.hdr</file>
+        <file alias="maps/0.png">maps/0.png</file>
+    </qresource>
+</RCC>

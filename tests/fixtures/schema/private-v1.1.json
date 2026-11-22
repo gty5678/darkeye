@@ -1,0 +1,403 @@
+{
+    "formatVersion": 1,
+    "objects": [
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "version",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "applied_at",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "DATETIME"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "description",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "db_version",
+            "sql": "CREATE TABLE db_version (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    version TEXT NOT NULL,\n    applied_at DATETIME DEFAULT (datetime('now', 'localtime')),\n    description TEXT\n)",
+            "table": "db_version",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "favorite_actress_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actress_id",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp_name",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": "DATETIME('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "added_time",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "favorite_actress",
+            "sql": "CREATE TABLE favorite_actress(--收藏女优表\n\tfavorite_actress_id INTEGER PRIMARY KEY AUTOINCREMENT, --不重复主键\n\tactress_id INTEGER NOT NULL,--外键，这个要与公共表中的actress_id对应，但是要在软件层去解决数据一致性的问题，不需要唯一\n\tjp_name TEXT NOT NULL,--备份日本姓名，避免公共表巨变时丢失actress_id信息，这个作为最后的恢复手段\n\tadded_time TEXT NOT NULL DEFAULT (DATETIME('now', 'localtime')) -- 收藏时间，这个写进去了就不更新了\n)",
+            "table": "favorite_actress",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "favorite_work_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_id",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "serial_number",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": "DATETIME('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "added_time",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+                {
+                    "columns": [
+                        {
+                            "cid": 2,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "serial_number",
+                            "seq": 0
+                        },
+                        {
+                            "cid": -1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": false,
+                            "name": null,
+                            "seq": 1
+                        }
+                    ],
+                    "name": "sqlite_autoindex_favorite_work_1",
+                    "origin": "u",
+                    "partial": false,
+                    "seq": 0,
+                    "unique": true
+                }
+            ],
+            "name": "favorite_work",
+            "sql": "CREATE TABLE favorite_work(--收藏影片表\n\tfavorite_work_id INTEGER PRIMARY KEY AUTOINCREMENT, --不重复主键\n\twork_id INTEGER NOT NULL,--外键，这个要与公共表中的work_id对应，但是要在软件层去解决数据一致性的问题，不需要唯一\n\tserial_number TEXT UNIQUE NOT NULL,--备份番号，避免公共表巨变时丢失work_id信息，这个作为最后的恢复手段\n\tadded_time TEXT NOT NULL DEFAULT (DATETIME('now', 'localtime')) -- 收藏时间，这个写进去了就不更新了\n)",
+            "table": "favorite_work",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "love_making_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "event_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "rating",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "comment",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "create_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "update_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "love_making",
+            "sql": "CREATE TABLE love_making (--做爱表，现在似乎对我来说没有什么意义                     \n    love_making_id INTEGER PRIMARY KEY AUTOINCREMENT,        --不重复主键\n    event_time TEXT,                                            --大致的做爱，精准到小时就行了\n\trating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),  --满意度从1分到5分\n\tcomment TEXT,                                           --对做爱进行评价，这个是双应当是双方的满意度\n\tcreate_time TEXT DEFAULT (datetime('now', 'localtime')),\n    update_time TEXT DEFAULT (datetime('now', 'localtime'))\n)",
+            "table": "love_making",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "masturbation_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "serial_number",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "start_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tool_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "rating",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "comment",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 7,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "create_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 8,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "update_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "masturbation",
+            "sql": "CREATE TABLE \"masturbation\"(--撸管记录表\n    masturbation_id INTEGER PRIMARY KEY AUTOINCREMENT,        --不重复主键\n    work_id INTEGER ,                           --作品id 一致性靠软件\n\tserial_number TEXT,   --冗余\n    start_time TEXT,                                            --大致的起飞时间点，精确到分钟就行了，这个是外部输入的，因为一般都是事后记录\n\ttool_name TEXT,                                              --可以填手或者飞机杯的名字\n\trating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),  --满意度从1分到5分\n\tcomment TEXT,                                           --评论对起飞的时间点进行评论\n\tcreate_time TEXT DEFAULT (datetime('now', 'localtime')),\n    update_time TEXT DEFAULT (datetime('now', 'localtime'))\n)",
+            "table": "masturbation",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "sexual_arousal_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "arousal_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "comment",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "create_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "update_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "sexual_arousal",
+            "sql": "CREATE TABLE \"sexual_arousal\" (--晨勃记录表\n    sexual_arousal_id INTEGER PRIMARY KEY AUTOINCREMENT,        --不重复主键\n    arousal_time TEXT,                                            --大致的晨勃时间，精准到小时就行了\n\tcomment TEXT,                                           --评论对晨勃进行评论，可以把梦境写进去\n\tcreate_time TEXT DEFAULT (datetime('now', 'localtime')),\n    update_time TEXT DEFAULT (datetime('now', 'localtime'))\n)",
+            "table": "sexual_arousal",
+            "type": "table"
+        },
+        {
+            "name": "update_love_making_timestamp",
+            "sql": "CREATE TRIGGER update_love_making_timestamp         --自动更新时间触发器\nAFTER UPDATE ON love_making\nFOR EACH ROW\nBEGIN\n    UPDATE love_making\n    SET update_time = DATETIME('now', 'localtime')\n    WHERE love_making_id = OLD.love_making_id;\nEND",
+            "table": "love_making",
+            "type": "trigger"
+        },
+        {
+            "name": "update_sexual_arousal_timestamp",
+            "sql": "CREATE TRIGGER update_sexual_arousal_timestamp                 --自动更新时间触发器\nAFTER UPDATE ON sexual_arousal\nFOR EACH ROW\nBEGIN\n    UPDATE sexual_arousal\n    SET update_time = DATETIME('now', 'localtime')\n    WHERE sexual_arousal_id = OLD.sexual_arousal_id;\nEND",
+            "table": "sexual_arousal",
+            "type": "trigger"
+        }
+    ],
+    "userVersion": 0
+}

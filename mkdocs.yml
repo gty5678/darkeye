@@ -1,0 +1,44 @@
+site_name: DarkEye
+site_description: DarkEye C++ documentation
+
+nav:
+  - C++ 版本概览: develop.md
+  - 入门指南: usage.md
+  - 版本更新记录: CHANGELOG.md
+  - 常见问题: faq.md
+  - 软件设置: settings.md
+  - 开发准备: development.md
+  - 双平台编译与打包: cross-platform-packaging.md
+  - Windows 编译与打包: windows-packaging.md
+  - macOS 编译与打包: macos-packaging.md
+  - 数据安全说明: security.md
+  - 整体架构: architecture.md
+  - 文档与网页: doc-webpage.md
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: blue
+      accent: indigo
+    - scheme: slate
+      primary: black
+      accent: lime
+      toggle:
+        icon: material/weather-night
+        name: 切换深色模式
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true

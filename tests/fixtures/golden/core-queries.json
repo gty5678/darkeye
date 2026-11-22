@@ -1,0 +1,39 @@
+{
+    "private": {
+        "dailyMasturbationCounts2026": {
+            "2026-01-02": 2,
+            "2026-01-03": 1
+        },
+        "favoriteActressIds": [
+            1
+        ],
+        "favoriteWorkIds": [
+            1
+        ]
+    },
+    "public": {
+        "activeWorkIds": [
+            1
+        ],
+        "allWorkIds": [
+            1,
+            2
+        ],
+        "work1": {
+            "actresses": [
+                "示例女演员"
+            ],
+            "actors": [
+                "示例男演员"
+            ],
+            "deleted": false,
+            "runtime": 120,
+            "serialNumber": "DEMO-001",
+            "tags": [
+                "标签甲",
+                "标签乙"
+            ],
+            "title": "示例作品一"
+        }
+    }
+}

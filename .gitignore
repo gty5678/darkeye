@@ -1,0 +1,70 @@
+# CMake and generated build output
+/build/
+/out/
+/site/
+/cmake-build-*/
+/_build/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/CTestTestfile.cmake
+/install_manifest.txt
+/compile_commands.json
+
+# Visual Studio and VS Code
+/.vs/
+/.idea/
+/.vscode/
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.sdf
+*.ipch
+
+# Qt Creator and qmake-generated files
+*.pro.user
+*.pro.user.*
+*.qmake.stash
+*.qmake.super
+
+# Runtime data created by the application. Keep only directory markers and examples.
+/data/**
+!/data/**/.gitkeep
+!/data/README.md
+/data2/
+# Legacy local vendor checkout (no longer used by CMake). Dependencies are declared
+# in vcpkg.json; keep this ignored so an existing checkout does not become dirty.
+/3rdparty/
+# vcpkg manifest-mode output.
+/vcpkg_installed/
+
+# Local databases, logs, and test artifacts
+# Documentation assets should not contain raw test output.
+/docs/assets/qrhi3d/**/*.txt
+/docs/assets/qrhi3d/**/*.log
+*.db
+*.db-wal
+*.db-shm
+*.log
+/serial-test-output.txt
+/single-test.txt
+/single-tag-test.txt
+/asan-work-test.txt
+/person-card-test.log
+/statistics-personal-test.log
+/statistics-test.log
+/$log
+/$logPath
+/$testOutput
+
+# Python helper caches
+__pycache__/
+*.py[cod]
+
+# OS metadata
+.DS_Store
+Thumbs.db

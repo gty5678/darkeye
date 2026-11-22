@@ -1,0 +1,225 @@
+name: Native Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish packages to GitHub Releases and Cloudflare R2'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+# Serialize releases so their update manifests cannot race.
+concurrency:
+  group: native-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            platform: windows-x64
+            qt_arch: win64_msvc2022_64
+            # aqtinstall 3.3.0 cannot resolve the Qt 6.11+ Windows repository layout.
+            aqt_source: git+https://github.com/miurahr/aqtinstall.git@8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b
+            preset: windows-msvc-release-tests
+          - runner: macos-15
+            platform: macos-arm64
+            qt_arch: clang_64
+            preset: macos-arm64-release-tests
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 3
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install compatible macOS build tools
+        if: runner.os == 'macOS'
+        # The pinned vcpkg ports still require policy compatibility removed in CMake 4.
+        run: |
+          python -m pip install cmake==3.30.5 ninja==1.11.1.4
+          cmake --version
+          ninja --version
+          xcrun --find clang++
+      - name: Install Windows packaging tools
+        if: runner.os == 'Windows'
+        run: choco install innosetup 7zip --yes --no-progress
+      - name: Install Windows build tools
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install ninja==1.11.1.4
+          ninja --version
+      - name: Install Windows pkg-config
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-pkgconf
+      - name: Configure pkg-config for pinned vcpkg
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          # The pinned vcpkg's automatic acquisition uses a removed MSYS2 archive.
+          # Supply a native Windows tool while retaining pkg-config validation.
+          pkg_config="$(cygpath -m "$(command -v pkg-config)")"
+          "$pkg_config" --version
+          echo "PKG_CONFIG=$pkg_config" >> "$GITHUB_ENV"
+          # vcpkg sanitizes the Windows port build environment. Without this,
+          # PKG_CONFIG is lost and the removed archive is downloaded anyway.
+          echo "VCPKG_KEEP_ENV_VARS=PKG_CONFIG${VCPKG_KEEP_ENV_VARS:+;$VCPKG_KEEP_ENV_VARS}" >> "$GITHUB_ENV"
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.12.0'
+          arch: ${{ matrix.qt_arch }}
+          # Qt SVG is included in the base installation, not an addon module.
+          modules: 'qthttpserver qtwebsockets qtshadertools'
+          setup-python: false
+          aqtversion: '==3.3.0'
+          aqtsource: ${{ matrix.aqt_source || '' }}
+          cache: true
+      - name: Upload Qt installation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt-install-diagnostics-${{ matrix.platform }}
+          path: aqtinstall.log
+          if-no-files-found: ignore
+      - name: Prepare reproducible dependencies
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP/darkeye-vcpkg"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $manifest = Get-Content vcpkg.json | ConvertFrom-Json
+          git -C "$env:RUNNER_TEMP/darkeye-vcpkg" checkout $manifest.'builtin-baseline'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "VCPKG_ROOT=$env:RUNNER_TEMP/darkeye-vcpkg" >> $env:GITHUB_ENV
+          "Qt6_DIR=$env:QT_ROOT_DIR/lib/cmake/Qt6" >> $env:GITHUB_ENV
+      - name: Repair pinned vcpkg 7-Zip download URLs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The pinned vcpkg uses 21.07 downloads removed from 7-zip.org.
+          # Use the same official release files; retain versions and SHA512 hashes.
+          $toolsPath = Join-Path $env:VCPKG_ROOT 'scripts/vcpkgTools.xml'
+          $tools = [System.IO.File]::ReadAllText($toolsPath)
+          foreach ($archive in @('7z2107-extra.7z', '7z2107-x64.msi')) {
+            $oldUrl = "https://www.7-zip.org/a/$archive"
+            $newUrl = "https://github.com/ip7z/7zip/releases/download/21.07/$archive"
+            if (-not $tools.Contains($oldUrl)) {
+              throw "Pinned vcpkg tool metadata changed: missing $oldUrl"
+            }
+            $tools = $tools.Replace($oldUrl, $newUrl)
+          }
+          [System.IO.File]::WriteAllText($toolsPath, $tools)
+      # Bootstrap explicitly so download/hash/permission errors appear in the job
+      # output rather than being hidden by CMake's toolchain initialization.
+      - name: Bootstrap vcpkg (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The bootstrap script already retries curl, but a release download
+          # can return 504 for longer than that short retry window.
+          bootstrap_log="$RUNNER_TEMP/vcpkg-bootstrap.log"
+          : > "$bootstrap_log"
+          for attempt in 1 2 3; do
+            echo "vcpkg bootstrap attempt $attempt/3" | tee -a "$bootstrap_log"
+            if bash "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics 2>&1 | tee -a "$bootstrap_log"; then
+              break
+            else
+              bootstrap_status=$?
+              if [ "$attempt" -eq 3 ]; then
+                echo "::error::vcpkg bootstrap failed after 3 attempts; see vcpkg-bootstrap.log"
+                exit "$bootstrap_status"
+              fi
+              sleep "$((attempt * 15))"
+            fi
+          done
+          "$VCPKG_ROOT/vcpkg" version
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/vcpkg-bootstrap.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:VCPKG_ROOT/vcpkg.exe" version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install packaging dependencies
+        run: python -m pip install -r tools/requirements-packaging.txt
+      - name: Test release tooling
+        run: python tools/test_packaging.py
+      - name: Native Release build and tests
+        run: python tools/build.py --config Release --test
+      - name: Package portable and installer artifacts
+        run: python tools/package.py --skip-build --build-dir build/${{ matrix.preset }}
+      - name: Upload packages and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: Darkeye-${{ matrix.platform }}
+          path: |
+            out/*-portable.7z
+            out/*-portable.zip
+            out/*-setup.exe
+            out/*-setup.dmg
+            out/*-update.tar.zst
+            out/latest.json
+            out/*.sha256
+          if-no-files-found: error
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ matrix.platform }}
+          path: |
+            build/${{ matrix.preset }}/Testing/
+            build/${{ matrix.preset }}/tests/gpu-simulation-results.txt
+            build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
+            build/${{ matrix.preset }}/vcpkg-manifest-install.log
+            build/${{ matrix.preset }}/vcpkg-bootstrap.log
+            build/${{ matrix.preset }}/vcpkg_installed/vcpkg/issue_body.md
+            ${{ runner.temp }}/vcpkg-bootstrap.log
+            ${{ runner.temp }}/darkeye-vcpkg/buildtrees/**/*.log
+          if-no-files-found: ignore
+
+  publish:
+    needs: native
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Darkeye-*
+          path: artifacts
+      - name: Install R2 client
+        run: python -m pip install 'boto3>=1.35,<2'
+      - name: Publish distributions and updates
+        run: python tools/publish_release.py --artifacts artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

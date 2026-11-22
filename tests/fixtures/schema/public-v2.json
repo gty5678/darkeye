@@ -1,0 +1,1483 @@
+{
+    "formatVersion": 1,
+    "objects": [
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actor_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "birthday",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "height",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "handsome",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "fat",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "notes",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 6,
+                    "default": "1",
+                    "hidden": 0,
+                    "name": "need_update",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 7,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "create_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 8,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "image_url",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "actor",
+            "sql": "CREATE TABLE actor(    \t\t\t\t--男优表，主要是筛选男的帅不帅，有的实在是太丑了，又丑又胖,\n\tactor_id INTEGER PRIMARY KEY AUTOINCREMENT,\t\t\t--自增id\n\tbirthday   TEXT,                                    --出生年份-大致的\n\theight   INTEGER,                                   --身高\n\thandsome  INTEGER,\t\t--0分丑，1分正常，2分帅\n\tfat       INTEGER,       --0分胖，1分正常，2分瘦\n\tnotes TEXT,              --这个主要是自己写的备注\n\tneed_update INTEGER DEFAULT 1,                    --男优数据没有地方去查，默认都没有，但是留着吧\n\tcreate_time TEXT DEFAULT (datetime('now', 'localtime'))\n, image_url TEXT)",
+            "table": "actor",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actor_name_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actor_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "name_type",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "en",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "kana",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "actor_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "actor",
+                    "to": "actor_id"
+                }
+            ],
+            "indexes": [
+            ],
+            "name": "actor_name",
+            "sql": "CREATE TABLE actor_name(   --男优姓名表,解决男优多艺名问题\n\tactor_name_id INTEGER PRIMARY KEY AUTOINCREMENT,--不重复主键\n\tactor_id INTEGER,--男id-这个是外键\n\tname_type INTEGER,--1主名，0代表非主名\n\tcn TEXT,--中文名\n\tjp TEXT,--日文名\n\ten TEXT,--英文名\n\tkana TEXT,--假名\n\tFOREIGN KEY(actor_id) REFERENCES actor(actor_id)\n)",
+            "table": "actor_name",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actress_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "birthday",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "height",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "bust",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "waist",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "hip",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cup",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 7,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "debut_date",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 8,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "notes",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 9,
+                    "default": "1",
+                    "hidden": 0,
+                    "name": "need_update",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 10,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "create_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 11,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "update_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 12,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "image_urlA",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 13,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "image_urlB",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 14,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "minnano_url",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "actress",
+            "sql": "CREATE TABLE \"actress\"(\n\tactress_id INTEGER PRIMARY KEY AUTOINCREMENT,\n\tbirthday TEXT,                                    --出生日期\n\theight INTEGER,                                   --身高\n\tbust INTEGER,                                     --胸围\n\twaist INTEGER,                                    --腰围\n\thip INTEGER,                                      --臀围\n\tcup TEXT,                                         --罩杯\n\tdebut_date TEXT,                                  --出道日期\n\tnotes TEXT,                                       --这个主要是自己写的备注,自由的的记录\n\tneed_update INTEGER DEFAULT 1,                    --是否需要爬虫更新数据,创建后默认需要更新 1代表需要更新 0代表不需要\n\tcreate_time TEXT DEFAULT (datetime('now', 'localtime')),\n    update_time TEXT DEFAULT (datetime('now', 'localtime'))\n, image_urlA TEXT, image_urlB TEXT, minnano_url TEXT)",
+            "table": "actress",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actress_name_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actress_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "name_type",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "en",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "kana",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 7,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "redirect_actress_name_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "redirect_actress_name_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "actress_name",
+                    "to": "actress_name_id"
+                },
+                {
+                    "from": "actress_id",
+                    "id": 1,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "actress",
+                    "to": "actress_id"
+                }
+            ],
+            "indexes": [
+            ],
+            "name": "actress_name",
+            "sql": "CREATE TABLE \"actress_name\"(   --女优姓名表,解决女优多艺名问题\n\tactress_name_id INTEGER PRIMARY KEY AUTOINCREMENT,--不重复主键\n\tactress_id INTEGER,--女优id-这个是外键\n\tname_type INTEGER,--1主名，0代表非主名，最新的名字根据下面的链条算出来\n\tcn TEXT,\n\tjp TEXT,\n\ten TEXT,\n\tkana TEXT,\n\tredirect_actress_name_id INTEGER,--自引用外键，解决名字的链条问题，这个是NULL说明是最新的名字\n\tFOREIGN KEY(actress_id) REFERENCES actress(actress_id),\n\tFOREIGN KEY(redirect_actress_name_id) REFERENCES actress_name(actress_name_id)\n)",
+            "table": "actress_name",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "version",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "applied_at",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "DATETIME"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "description",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "db_version",
+            "sql": "CREATE TABLE db_version (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    version TEXT NOT NULL,\n    applied_at DATETIME DEFAULT (datetime('now', 'localtime')),\n    description TEXT\n)",
+            "table": "db_version",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "label_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "aliases",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "detail",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "label",
+            "sql": "CREATE TABLE label(--厂牌，レーベル，一部作品只有一部厂牌，一部厂牌可以有多个作品。一部作品可以没有厂牌\n\tlabel_id INTEGER PRIMARY KEY AUTOINCREMENT,--不重复主键\n\tcn_name TEXT,\t\t\t\t\t\t\t\t\t\t--中文名\n\tjp_name TEXT,\t\t\t\t\t\t\t\t\t\t--日文名\n\taliases TEXT,\t\t\t\t\t\t\t\t\t\t--别名,中间用,分开\n\tdetail TEXT                                       --其他信息\n)",
+            "table": "label",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "maker_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "aliases",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "detail",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "logo_url",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "maker",
+            "sql": "CREATE TABLE maker(--制作商，一部片子只有一个制作商，一部制作商可以有多个作品。一部作品可以没有制作商\n\tmaker_id INTEGER PRIMARY KEY AUTOINCREMENT,--不重复主键\n\tcn_name TEXT,\t\t\t\t\t\t\t\t\t\t--中文名\n\tjp_name TEXT,\t\t\t\t\t\t\t\t\t\t--日文名\n\taliases TEXT,\t\t\t\t\t\t\t\t\t\t--别名,中间用,分开,用于重定向用。\n\tdetail TEXT,                                       --其他信息\n\tlogo_url TEXT\t\t\t\t\t\t\t\t\t\t--logo地址\n)",
+            "table": "maker",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "prefix_maker_relation_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "prefix",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "maker_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "maker_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "maker",
+                    "to": "maker_id"
+                }
+            ],
+            "indexes": [
+            ],
+            "name": "prefix_maker_relation",
+            "sql": "CREATE TABLE prefix_maker_relation(--番号前缀与片商的对应关系\n\tprefix_maker_relation_id INTEGER PRIMARY KEY AUTOINCREMENT,\n\tprefix TEXT,--番号前缀\n\tmaker_id INTEGER,--外键，这个要与maker表中的maker_id对应\n\tFOREIGN KEY(maker_id)REFERENCES maker(maker_id)\n)",
+            "table": "prefix_maker_relation",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "series_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "aliases",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "detail",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "related_series",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+            ],
+            "name": "series",
+            "sql": "CREATE TABLE series(--系列表，一个作品最多只属于一个系列，但是一个系列可以有多个作品。一部作品可以没系列\n\tseries_id INTEGER PRIMARY KEY AUTOINCREMENT,--不重复主键\n\tcn_name TEXT,\t\t\t\t\t\t\t\t\t\t--中文名\n\tjp_name TEXT,\t\t\t\t\t\t\t\t\t\t--日文名\n\taliases TEXT,\t\t\t\t\t\t\t\t\t\t--别名,中间用,分开\n\tdetail TEXT,                                       --其他信息\n\trelated_series TEXT                                --相关的系列，中间用,分开，指向series_id\n)",
+            "table": "series",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_name",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_type_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": "'#cccccc'",
+                    "hidden": 0,
+                    "name": "color",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "redirect_tag_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "detail",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "group_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "tag_type_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "tag_type",
+                    "to": "tag_type_id"
+                },
+                {
+                    "from": "redirect_tag_id",
+                    "id": 1,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "tag",
+                    "to": "tag_id"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": [
+                        {
+                            "cid": 1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "tag_name",
+                            "seq": 0
+                        },
+                        {
+                            "cid": -1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": false,
+                            "name": null,
+                            "seq": 1
+                        }
+                    ],
+                    "name": "sqlite_autoindex_tag_1",
+                    "origin": "u",
+                    "partial": false,
+                    "seq": 0,
+                    "unique": true
+                }
+            ],
+            "name": "tag",
+            "sql": "CREATE TABLE \"tag\" (--标签表\n    tag_id INTEGER PRIMARY KEY AUTOINCREMENT, --主键\n    tag_name TEXT UNIQUE NOT NULL,\n    tag_type_id INTEGER, -- 可选：如“主题”“体位”“制服”“剧情”分类，有的分类是互斥，有的是多选，比如体位是多选\n\tcolor TEXT DEFAULT '#cccccc',  -- 存 hex 颜色码（推荐）\n\tredirect_tag_id INTEGER, -- 自引用外键，解决tag的重定向问题\n\tdetail TEXT,  --详细说明\n\tgroup_id INTEGER,   --互斥组标记\n\tFOREIGN KEY (redirect_tag_id) REFERENCES tag(tag_id),\n\tFOREIGN KEY (tag_type_id) REFERENCES tag_type(tag_type_id)\n)",
+            "table": "tag",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_type_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_type_name",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_order",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+            ],
+            "indexes": [
+                {
+                    "columns": [
+                        {
+                            "cid": 1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "tag_type_name",
+                            "seq": 0
+                        },
+                        {
+                            "cid": -1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": false,
+                            "name": null,
+                            "seq": 1
+                        }
+                    ],
+                    "name": "sqlite_autoindex_tag_type_2",
+                    "origin": "u",
+                    "partial": false,
+                    "seq": 0,
+                    "unique": true
+                },
+                {
+                    "columns": [
+                        {
+                            "cid": 0,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "tag_type_id",
+                            "seq": 0
+                        },
+                        {
+                            "cid": -1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": false,
+                            "name": null,
+                            "seq": 1
+                        }
+                    ],
+                    "name": "sqlite_autoindex_tag_type_1",
+                    "origin": "u",
+                    "partial": false,
+                    "seq": 1,
+                    "unique": true
+                }
+            ],
+            "name": "tag_type",
+            "sql": "CREATE TABLE tag_type (--标签表\n    tag_type_id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, --主键\n\ttag_type_name TEXT UNIQUE,--标签类型名不能重复\n\ttag_order INTEGER--标签类型编号\n)",
+            "table": "tag_type",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "serial_number",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "director",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "runtime",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "notes",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "release_date",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "image_url",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 7,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "video_url",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 8,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn_title",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 9,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp_title",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 10,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "cn_story",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 11,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "jp_story",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 12,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "maker_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 13,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "label_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 14,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "series_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 15,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "fanart",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 16,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "create_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 17,
+                    "default": "datetime('now', 'localtime')",
+                    "hidden": 0,
+                    "name": "update_time",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 18,
+                    "default": "0",
+                    "hidden": 0,
+                    "name": "is_deleted",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 19,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "javtxt_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INT"
+                },
+                {
+                    "cid": 20,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "fcover_url",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 21,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "on_dan",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "series_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "series",
+                    "to": "series_id"
+                },
+                {
+                    "from": "label_id",
+                    "id": 1,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "label",
+                    "to": "label_id"
+                },
+                {
+                    "from": "maker_id",
+                    "id": 2,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "maker",
+                    "to": "maker_id"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": [
+                        {
+                            "cid": 1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "serial_number",
+                            "seq": 0
+                        },
+                        {
+                            "cid": -1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": false,
+                            "name": null,
+                            "seq": 1
+                        }
+                    ],
+                    "name": "sqlite_autoindex_work_1",
+                    "origin": "u",
+                    "partial": false,
+                    "seq": 0,
+                    "unique": true
+                }
+            ],
+            "name": "work",
+            "sql": "CREATE TABLE \"work\" (--公有作品表新的表\n    work_id INTEGER PRIMARY KEY AUTOINCREMENT,--不重复主键\n    serial_number TEXT NOT NULL UNIQUE,--番号不能空不能重复\n    director TEXT,                     --导演\n    runtime INTEGER,                   --时长，单位是分钟\n    notes TEXT,                        --这个主要是自己写的剧情\n    release_date TEXT,                 --发布时间\n    image_url TEXT,                    --图片地址\n    video_url TEXT,                    --视频地址\n\tcn_title TEXT,                     --翻译标题\n\tjp_title TEXT,                     --官方标题\n\tcn_story TEXT,                     --翻译剧情\n\tjp_story TEXT,                     --官方剧情\n\tmaker_id INTEGER,                  --制作商id\n\tlabel_id INTEGER,                  --厂牌id\n\tseries_id INTEGER,                  --系列id\n\tfanart TEXT,                        --json格式，存储其他的图片，主要是兼容nfo,[{\"url\":\"htpps://xxx.jpg\",\"file\":\"xxx.jpg\"},{\"url\":\"htpps://xxx.jpg\",\"file\":\"xxx.jpg\"}]\n\tcreate_time TEXT DEFAULT (datetime('now', 'localtime')), --创建时间\n    update_time TEXT DEFAULT (datetime('now', 'localtime')), --更新时间\n\tis_deleted INTEGER DEFAULT 0,       --是否删除，0代表未删除，1代表删除\n\tjavtxt_id INT, --javtxt_id ，缓存的\n\tfcover_url TEXT, --封面图片地址，缓存的\n\ton_dan INTEGER, --是否在avdanyuwiki上找到，缓存的\n\tFOREIGN KEY(maker_id) REFERENCES maker(maker_id),\n\tFOREIGN KEY(label_id) REFERENCES label(label_id),\n\tFOREIGN KEY(series_id) REFERENCES series(series_id)\n)",
+            "table": "work",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_actor_relation_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_id",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actor_id",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "actor_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "actor",
+                    "to": "actor_id"
+                },
+                {
+                    "from": "work_id",
+                    "id": 1,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "work",
+                    "to": "work_id"
+                }
+            ],
+            "indexes": [
+            ],
+            "name": "work_actor_relation",
+            "sql": "CREATE TABLE work_actor_relation(  --作品男演员表，多对多，不要有其他数据，没有意义\n\twork_actor_relation_id INTEGER PRIMARY KEY AUTOINCREMENT, --自增主键\n\twork_id INTEGER NOT NULL, --外键，这个要与work表中的work_id对应\n\tactor_id INTEGER NOT NULL, --外键，这个要与actor表中的actor_id对应\n\tFOREIGN KEY(work_id) REFERENCES work(work_id),\n\tFOREIGN KEY(actor_id) REFERENCES actor(actor_id)\n)",
+            "table": "work_actor_relation",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_actress_relation_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_id",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "actress_id",
+                    "notNull": true,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 3,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "job",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 4,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "age",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 5,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "married",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                },
+                {
+                    "cid": 6,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "state",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "TEXT"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "actress_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "actress",
+                    "to": "actress_id"
+                },
+                {
+                    "from": "work_id",
+                    "id": 1,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "work",
+                    "to": "work_id"
+                }
+            ],
+            "indexes": [
+            ],
+            "name": "work_actress_relation",
+            "sql": "CREATE TABLE \"work_actress_relation\"(  --作品女演员表，主要解决一个作品有多个女演员的问题，多对多\n\twork_actress_relation_id INTEGER PRIMARY KEY AUTOINCREMENT, --自增主键\n\twork_id INTEGER NOT NULL, --外键，这个要与work表中的work_id对应\n\tactress_id INTEGER NOT NULL, --外键，这个要与actress表中的actress_id对应\n\tjob TEXT,                    --\"职员\"\"上司\"\"老板\"\n\tage TEXT,                    --\"年轻\"\n\tmarried TEXT,                --\"人妻\" \"女友\"\n\tstate TEXT,                  --\"主动\"\n\tFOREIGN KEY(work_id) REFERENCES work(work_id),\n\tFOREIGN KEY(actress_id) REFERENCES actress(actress_id)\n)",
+            "table": "work_actress_relation",
+            "type": "table"
+        },
+        {
+            "columns": [
+                {
+                    "cid": 0,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_tag_id",
+                    "notNull": false,
+                    "primaryKey": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 1,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "work_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                },
+                {
+                    "cid": 2,
+                    "default": null,
+                    "hidden": 0,
+                    "name": "tag_id",
+                    "notNull": false,
+                    "primaryKey": 0,
+                    "type": "INTEGER"
+                }
+            ],
+            "foreignKeys": [
+                {
+                    "from": "tag_id",
+                    "id": 0,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "tag",
+                    "to": "tag_id"
+                },
+                {
+                    "from": "work_id",
+                    "id": 1,
+                    "match": "NONE",
+                    "onDelete": "NO ACTION",
+                    "onUpdate": "NO ACTION",
+                    "seq": 0,
+                    "table": "work",
+                    "to": "work_id"
+                }
+            ],
+            "indexes": [
+                {
+                    "columns": [
+                        {
+                            "cid": 1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "work_id",
+                            "seq": 0
+                        },
+                        {
+                            "cid": 2,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": true,
+                            "name": "tag_id",
+                            "seq": 1
+                        },
+                        {
+                            "cid": -1,
+                            "collation": "BINARY",
+                            "descending": false,
+                            "key": false,
+                            "name": null,
+                            "seq": 2
+                        }
+                    ],
+                    "name": "sqlite_autoindex_work_tag_relation_1",
+                    "origin": "u",
+                    "partial": false,
+                    "seq": 0,
+                    "unique": true
+                }
+            ],
+            "name": "work_tag_relation",
+            "sql": "CREATE TABLE \"work_tag_relation\"(--作品标签表 解决n对n的问题\n\twork_tag_id INTEGER PRIMARY KEY AUTOINCREMENT,--主键\n\twork_id INTEGER,                         --外键\n\ttag_id INTEGER,                          --外键\n\tFOREIGN KEY(work_id)REFERENCES work(work_id),\n\tFOREIGN KEY(tag_id)REFERENCES tag(tag_id),\n\tUNIQUE(work_id, tag_id) -- 防止插入重复对\n)",
+            "table": "work_tag_relation",
+            "type": "table"
+        },
+        {
+            "name": "update_actress_timestamp",
+            "sql": "CREATE TRIGGER update_actress_timestamp                                  --自动更新时间触发器\nAFTER UPDATE ON actress\nFOR EACH ROW\nBEGIN\n    UPDATE actress \n    SET update_time = DATETIME('now', 'localtime')\n    WHERE actress_id = OLD.actress_id;\nEND",
+            "table": "actress",
+            "type": "trigger"
+        },
+        {
+            "name": "update_work_timestamp",
+            "sql": "CREATE TRIGGER update_work_timestamp                                  --自动更新时间触发器\nAFTER UPDATE ON work\nFOR EACH ROW\nBEGIN\n    UPDATE work \n    SET update_time = DATETIME('now', 'localtime')\n    WHERE work_id = OLD.work_id;\nEND",
+            "table": "work",
+            "type": "trigger"
+        },
+        {
+            "name": "v_actor_all_info",
+            "sql": "CREATE VIEW v_actor_all_info AS--查询男优的基本数据的视图\nSELECT \n    actor_id AS \"男优ID\",\n    (SELECT cn FROM actor_name WHERE actor_id = a.actor_id AND(name_type=1)) AS \"中文名\",\n\t(SELECT jp FROM actor_name WHERE actor_id = a.actor_id AND(name_type=1)) AS \"日文名\",\n\n    birthday AS \"出生日期\",\n\thandsome AS \"帅气程度\",\n\tfat AS \"胖瘦\"\nFROM actor a",
+            "table": "v_actor_all_info",
+            "type": "view"
+        },
+        {
+            "name": "v_actress_all_info",
+            "sql": "CREATE VIEW v_actress_all_info AS--查询女优的基本数据的视图\nSELECT \n    actress_id AS \"女优ID\",\n    (SELECT cn FROM actress_name WHERE actress_id = a.actress_id AND(name_type=1)) AS \"中文名\",\n\t(SELECT jp FROM actress_name WHERE actress_id = a.actress_id AND(name_type=1)) AS \"日文名\",\n\t(SELECT en FROM actress_name WHERE actress_id = a.actress_id AND(name_type=1)) AS \"英文名\",\n\t(SELECT kana FROM actress_name WHERE actress_id = a.actress_id AND(name_type=1)) AS \"假名\",\n    (\n        SELECT GROUP_CONCAT(cn, ',') \n        FROM actress_name \n        WHERE actress_id = a.actress_id AND (name_type = 3 OR name_type=4)\n\t\t) AS \"别名\",\n    birthday AS \"出生日期\",\n    height AS \"身高(cm)\",\n    bust AS \"胸围(cm)\",\n    waist AS \"腰围(cm)\",\n    hip AS \"臀围(cm)\",\n    cup AS \"罩杯\",\n\tdebut_date AS \"出道日期\",\n\tround((julianday(debut_date)-julianday(birthday))/365.25,1)-0.25 AS \"出道年龄\",\n\tneed_update\nFROM actress a",
+            "table": "v_actress_all_info",
+            "type": "view"
+        },
+        {
+            "name": "v_actress_movie_stats",
+            "sql": "CREATE VIEW v_actress_movie_stats AS--查询女优的作品统计数据的视图\nSELECT \n    a.actress_id,\n    (SELECT cn FROM actress_name WHERE actress_id = a.actress_id AND(name_type=1)) AS actress_name,\n    COUNT(war.work_id) AS total_movies,\n    MIN(w.release_date) AS first_movie_date,\n    MAX(w.release_date) AS latest_movie_date\nFROM \n    actress a\nLEFT JOIN work_actress_relation war ON a.actress_id = war.actress_id\nLEFT JOIN work w ON war.work_id = w.work_id\nGROUP BY a.actress_id\nORDER BY total_movies DESC",
+            "table": "v_actress_movie_stats",
+            "type": "view"
+        },
+        {
+            "name": "v_work_all_info",
+            "sql": "CREATE VIEW v_work_all_info AS--查询作品的基本数据的视图，这个非常的长\nWITH actress_age_at_release AS (--计算每个女优发布作品的年龄\n  SELECT\n    w.work_id,\n    a.actress_id,\n    w.serial_number,\n    w.release_date,\n    a.birthday,\n    -- 使用 julianday 计算日期差（以天为单位），然后除以 365.25 得到年龄\n    (julianday(w.release_date) - julianday(a.birthday)) / 365.25 AS age_at_release\n  FROM work w\n  JOIN work_actress_relation war ON w.work_id = war.work_id\n  JOIN actress a ON war.actress_id = a.actress_id\n  WHERE w.release_date IS NOT NULL AND a.birthday IS NOT NULL\n),\naverage_age_per_work AS (--辅助计算年龄的表\n  SELECT\n    work_id,\n    serial_number,\n    ROUND(AVG(age_at_release), 1)-0.45 AS avg_age_at_release--假设拍摄后5个多月发布\n  FROM actress_age_at_release\n  GROUP BY work_id\n),\nactress_list AS(--计算女优出演的名单\nSELECT\n\tw.work_id,\n    GROUP_CONCAT(\n        (SELECT cn FROM actress_name WHERE actress_id = a.actress_id AND(name_type=1)),\n        ','\n    ) AS actress_list,\n\tGROUP_CONCAT(war.job,',') AS job,\n\tGROUP_CONCAT(war.state,',') AS state\nFROM\n    work w\nLEFT JOIN \n    work_actress_relation war ON w.work_id = war.work_id\nLEFT JOIN \n    actress a ON war.actress_id = a.actress_id\nGROUP BY w.work_id\n),\nactor_list AS(--男优名单\nSELECT\n\tw.work_id,\n    GROUP_CONCAT(\n        (SELECT cn FROM actor_name WHERE actor_id=war1.actor_id),\n        ','\n    ) AS actor_list\nFROM\n    work w\nLEFT JOIN \n    work_actor_relation war1 ON w.work_id = war1.work_id\nLEFT JOIN \n    actor a ON war1.actor_id = a.actor_id\nGROUP BY w.work_id\n),\nstudio_list AS(--片商表\nSELECT \n\tw.work_id,\n\t(SELECT cn_name FROM maker WHERE maker_id =p.maker_id) AS studio_name\nFROM \n    work w\nINNER JOIN \n    prefix_maker_relation p ON p.prefix = SUBSTR(w.serial_number, 1, INSTR(w.serial_number, '-') - 1)\nWHERE \n    w.serial_number LIKE '%-%'\n)\nSELECT --水平计算表，然后统一合并\n\tw.work_id,\n    w.serial_number AS serial_number,\n    w.director AS director,\n\tw.release_date AS release_date,\n\t(SELECT actress_list FROM actress_list WHERE work_id=w.work_id)AS actress,\n\t(SELECT avg_age_at_release FROM average_age_per_work WHERE work_id=w.work_id)AS avg_age,\n\t(SELECT state FROM actress_list WHERE work_id=w.work_id)AS state,\n\t(SELECT actor_list FROM actor_list WHERE work_id=w.work_id)AS actor,\n\tw.notes AS notes,\n\tw.cn_title,\n\tw.cn_story,\n\tw.jp_title,\n\tw.jp_story,\n\t(SELECT studio_name FROM studio_list WHERE work_id=w.work_id)AS studio\nFROM \n    work w",
+            "table": "v_work_all_info",
+            "type": "view"
+        },
+        {
+            "name": "v_work_avg_age_info",
+            "sql": "CREATE VIEW v_work_avg_age_info AS--查询作品的基本数据的视图，这个非常的长\nWITH actress_age_at_release AS (--计算每个女优发布作品的年龄\n  SELECT\n    w.work_id,\n    a.actress_id,\n    w.serial_number,\n    w.release_date,\n    a.birthday,\n    -- 使用 julianday 计算日期差（以天为单位），然后除以 365.25 得到年龄\n    (julianday(w.release_date) - julianday(a.birthday)) / 365.25 AS age_at_release\n  FROM work w\n  JOIN work_actress_relation war ON w.work_id = war.work_id\n  JOIN actress a ON war.actress_id = a.actress_id\n  WHERE w.release_date IS NOT NULL AND a.birthday IS NOT NULL\n),\naverage_age_per_work AS (--辅助计算年龄的表\n  SELECT\n    work_id,\n    serial_number,\n    ROUND(AVG(age_at_release), 1)-0.45 AS avg_age_at_release--假设拍摄后5个多月发布\n  FROM actress_age_at_release\n  GROUP BY work_id\n)\nSELECT --水平计算表，然后统一合并\n\tw.work_id,\n    w.serial_number AS serial_number,\n\t(SELECT avg_age_at_release FROM average_age_per_work WHERE work_id=w.work_id)AS avg_age\nFROM \n    work w",
+            "table": "v_work_avg_age_info",
+            "type": "view"
+        }
+    ],
+    "userVersion": 2
+}

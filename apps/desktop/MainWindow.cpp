@@ -65,6 +65,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
+#include <QImage>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
@@ -885,7 +886,8 @@ void MainWindow::captureWidget(QWidget *widget)
     if (widget == nullptr || widget->size().isEmpty())
         return;
 
-    const QPixmap screenshot = widget->grab();
+    QImage screenshot = widget->grab().toImage();
+    screenshot.setColorSpace(ThemeService::outputColorSpace());
     const QString path = QFileDialog::getSaveFileName(
         widget, QStringLiteral("保存截图"), QStringLiteral("screenshot.png"),
         QStringLiteral("PNG 图片 (*.png);;JPEG 图片 (*.jpg)"));

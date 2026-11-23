@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QColorSpace>
 #include <QObject>
 #include <QMap>
 #include <QPointer>
@@ -52,8 +53,11 @@ struct ThemeTokens
 
     QString modified = QStringLiteral("#ffa500");
     QString imageDropOutline = QStringLiteral("#8a8a8a");
+    static constexpr auto defaultColorSpace = QColorSpace::DisplayP3;
+    QColorSpace colorSpace{defaultColorSpace}; // Encoding of the RGB tokens in this instance.
 
     [[nodiscard]] QMap<QString, QString> toMap() const;
+    [[nodiscard]] ThemeTokens convertedTo(const QColorSpace &target) const;
 };
 
 class ThemeService final : public QObject
@@ -80,6 +84,10 @@ public:
     static QString toSettings(ThemeId theme);
     static QString displayName(ThemeId theme);
     static QVector<ThemeId> availableThemes();
+    static QColorSpace outputColorSpace();
+    static QColorSpace::NamedColorSpace colorMode();
+    static void setColorMode(QColorSpace::NamedColorSpace mode);
+    static ThemeTokens sourceTokens(ThemeId theme, const QString &customPrimary = {});
     static ThemeTokens tokens(ThemeId theme, const QString &customPrimary = {});
 
 signals:

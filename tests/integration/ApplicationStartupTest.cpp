@@ -6,6 +6,7 @@
 #include "database/SqliteConnection.h"
 #include "database/repositories/WorkRepository.h"
 #include "settings/Settings.h"
+#include "darkeye_ui/components/ColorWheel.h"
 #include "ui/dialogs/TermsDialog.h"
 
 #include <QDir>
@@ -17,6 +18,7 @@
 #include <QSplashScreen>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QWindow>
 #include <QtTest>
 
 // Application owns QApplication, so this integration test uses its own main.
@@ -48,6 +50,13 @@ int main(int argc, char **argv)
         || splash->pixmap().toImage().pixelColor(0, 0).alpha() != 0
         || splash->message() != QStringLiteral("正在准备运行环境"))
         return 2;
+    const auto configuredApp = darkeye::settings::app(runtimePaths.settingsFile());
+    const auto gamut = configuredApp.colorMode == QStringLiteral("SRGB")
+        ? QColorSpace::SRgb : QColorSpace::DisplayP3;
+#ifdef Q_OS_MACOS
+    const auto actual = splash->windowHandle()->format().colorSpace();
+    if (actual.primaries() != QColorSpace(gamut).primaries()) return 11;
+#endif
     if (!splash->grab().save(QDir(QCoreApplication::applicationDirPath())
                                .filePath(QStringLiteral("startup-splash.png"))))
         return 3;
@@ -110,6 +119,10 @@ int main(int argc, char **argv)
                 for (QWidget *top : QApplication::topLevelWidgets())
                     starting |= top->objectName() == QStringLiteral("startupSplash");
                 if (starting) return;
+                if (const auto primary = darkeye::OklchColor::fromString(configuredApp.customPrimaryOklch)) {
+                    const auto *themes = qApp->findChild<darkeye::ThemeService *>();
+                    failed |= !themes || QColor(themes->customPrimary()) != QColor(primary->hex(gamut));
+                }
                 mainWindowSeen = true;
                 // Check after startup's finish() has returned and the first
                 // background services have had a chance to execute.

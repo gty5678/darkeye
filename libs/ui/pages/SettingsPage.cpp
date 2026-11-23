@@ -11,6 +11,7 @@
 #include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/LinkCard.h"
 #include "darkeye_ui/components/TokenControls.h"
+#include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/theme/ChamferPath.h"
 #include "ui/components/PathManagement.h"
 #include "darkeye_ui/components/TokenViews.h"
@@ -525,6 +526,13 @@ void VideoSettingsPage::lazyLoad()
     m_paths->loadPaths(appSettings.videoPaths);
     layout->addWidget(m_paths);
 
+    auto *nasHint = new DesignLabel(
+        QStringLiteral("支持通过 SMB 挂载扫描 NAS 上的视频并同步作品的视频路径。"
+                       "请先在系统中挂载 SMB 共享，再将挂载后的文件夹添加到上方列表。"),
+        this);
+    nasHint->setWordWrap(true);
+    layout->addWidget(nasHint);
+
     auto *scan = new DesignButton(QStringLiteral("扫描本地视频提取番号并录入数据库"), this);
     scan->setToolTip(
         QStringLiteral("扫描本地视频的路径下的所有视频，并提取视频番号，将没有的番号尝试去抓取信息"));
@@ -749,11 +757,10 @@ void CommonSettingsPage::lazyLoad()
     m_primaryColorRow->setObjectName(QStringLiteral("PrimaryColorRow"));
     auto *primaryLayout = new QHBoxLayout(m_primaryColorRow);
     primaryLayout->setContentsMargins(0, 0, 0, 0);
-    const QString initialPrimary = m_themeService.customPrimary().isEmpty()
-        ? ThemeService::tokens(m_themeService.current()).primary
-        : m_themeService.customPrimary();
+    const QString initialPrimary = ThemeService::sourceTokens(m_themeService.current(),
+                                                               m_themeService.customPrimary()).primary;
     m_colorPicker = new ColorPicker(QColor(initialPrimary), false, ColorPicker::Shape::Octagon,
-                                    m_primaryColorRow);
+                                    m_primaryColorRow, ThemeService::colorMode());
     primaryLayout->addStretch();
     primaryLayout->addWidget(m_colorPicker);
 
@@ -764,6 +771,26 @@ void CommonSettingsPage::lazyLoad()
     layout->addRow(new DesignLabel(QStringLiteral("主题"), this), m_themeSelector);
 
     const auto appSettings = settings::app(m_settingsFile);
+    auto *colorMode = new DesignComboBox(this);
+    colorMode->setObjectName(QStringLiteral("colorModeSelector"));
+    colorMode->setAccessibleName(QStringLiteral("颜色模式"));
+    colorMode->setToolTip(QStringLiteral("切换颜色模式后，重启 DarkEye 生效。"));
+    colorMode->addItem(QStringLiteral("sRGB"), QStringLiteral("SRGB"));
+    colorMode->addItem(QStringLiteral("Display P3"), QStringLiteral("DISPLAY_P3"));
+    colorMode->setCurrentIndex(appSettings.colorMode == QStringLiteral("SRGB") ? 0 : 1);
+    layout->addRow(new DesignLabel(QStringLiteral("颜色模式"), this), colorMode);
+    connect(colorMode, &QComboBox::currentIndexChanged, this, [this, colorMode](int index) {
+        if (index < 0) return;
+        auto appSettings = settings::app(m_settingsFile);
+        appSettings.colorMode = colorMode->itemData(index).toString();
+        settings::saveApp(appSettings, m_settingsFile);
+        const auto mode = appSettings.colorMode == QStringLiteral("SRGB")
+            ? QColorSpace::SRgb : QColorSpace::DisplayP3;
+        if (mode != ThemeService::colorMode()) {
+            Toast::showMessage(window(), QStringLiteral("重启 DarkEye 后应用颜色模式。"),
+                               Toast::Level::Info, 3000, &m_themeService);
+        }
+    });
     auto *navigationBar =
         addSwitchRow(layout, new DesignLabel(QStringLiteral("显示左侧页面导航栏"), this),
                      m_themeService);
@@ -818,7 +845,7 @@ void CommonSettingsPage::lazyLoad()
         settings::saveApp(appSettings, m_settingsFile);
     });
 
-    connect(m_colorPicker, &ColorPicker::colorConfirmed, this,
+    connect(m_colorPicker, &ColorPicker::oklchConfirmed, this,
             &CommonSettingsPage::savePrimaryColor);
     connect(&m_themeService, &ThemeService::themeChanged, this,
             [this](ThemeId) { updatePrimaryPickerState(); });
@@ -838,28 +865,32 @@ void CommonSettingsPage::updatePrimaryPickerState()
     m_primaryColorRow->setEnabled(supportsCustomPrimary);
     if (!supportsCustomPrimary)
     {
-        AppSettings appSettings = settings::app();
+        AppSettings appSettings = settings::app(m_settingsFile);
         appSettings.customPrimary.clear();
-        settings::saveApp(appSettings);
+        appSettings.customPrimaryOklch.clear();
+        settings::saveApp(appSettings, m_settingsFile);
         return;
     }
-    const QString color = m_themeService.customPrimary().isEmpty()
-        ? ThemeService::tokens(theme).primary
-        : m_themeService.customPrimary();
+    const QString color = ThemeService::sourceTokens(theme, m_themeService.customPrimary()).primary;
     m_colorPicker->setColor(color);
+    const auto appSettings = settings::app(m_settingsFile);
+    auto primary = OklchColor::fromString(appSettings.customPrimaryOklch);
+    if (!primary) primary = OklchColor::fromHex(appSettings.customPrimary, ThemeTokens::defaultColorSpace);
+    m_colorPicker->setOklch(primary);
 }
 
-void CommonSettingsPage::savePrimaryColor(const QString &color)
+void CommonSettingsPage::savePrimaryColor(const OklchColor &color)
 {
     if (m_themeService.current() != ThemeId::Light && m_themeService.current() != ThemeId::Dark)
     {
         return;
     }
-    if (QColor(color) == QColor(m_themeService.currentTokens().primary)) return;
-    if (!m_themeService.setTheme(m_themeService.current(), color)) return;
-    AppSettings appSettings = settings::app();
-    appSettings.customPrimary = m_themeService.customPrimary();
-    settings::saveApp(appSettings);
+    if (!m_themeService.setTheme(m_themeService.current(), color.hex(ThemeService::colorMode()))) return;
+    AppSettings appSettings = settings::app(m_settingsFile);
+    appSettings.customPrimary = color.hex(ThemeTokens::defaultColorSpace);
+    appSettings.customPrimaryOklch = color.toString();
+    settings::saveApp(appSettings, m_settingsFile);
+    m_colorPicker->setOklch(color);
 }
 
 CrawlerSettingsPage::CrawlerSettingsPage(ThemeService &themeService, QWidget *parent)

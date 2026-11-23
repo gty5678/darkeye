@@ -6,155 +6,182 @@
 #include <QPainterPath>
 #include <QMouseEvent>
 #include <QtMath>
-#include <QDebug>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QClipboard>
 #include <QApplication>
-#include <QSignalBlocker>
+#include <QColorSpace>
+#include <QColorTransform>
+#include <QLabel>
+#include <QRgbaFloat>
+#include <QSurfaceFormat>
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <limits>
 #include <QConicalGradient>
-#include <QKeyEvent>
 
 
 
 namespace darkeye {
 
+namespace {
+
+constexpr float maximumP3Chroma = 0.37f;
+constexpr float gamutTolerance = 1e-5f;
+
+QRgbaFloat32 oklchToLinearSrgb(float l, float c, float h)
+{
+    float h_rad = qDegreesToRadians(h);
+
+    float a = c * std::cos(h_rad);
+    float b = c * std::sin(h_rad);
+
+    // 1. OKLCH -> LMS (pre-cube)
+    // M1
+    float l_ = l + 0.3963377774f * a + 0.2158037573f * b;
+    float m_ = l - 0.1055613458f * a - 0.0638541728f * b;
+    float s_ = l - 0.0894841775f * a - 1.2914855480f * b;
+
+    // Cube
+    float l_3 = l_ * l_ * l_;
+    float m_3 = m_ * m_ * m_;
+    float s_3 = s_ * s_ * s_;
+
+    // 2. LMS -> Linear sRGB
+    // M2
+    return {
+        4.0767416621f * l_3 - 3.3077115913f * m_3 + 0.2309699292f * s_3,
+        -1.2684380046f * l_3 + 2.6097574011f * m_3 - 0.3413193965f * s_3,
+        -0.0041960863f * l_3 - 0.7034186147f * m_3 + 1.7076147010f * s_3,
+        1.0f,
+    };
+}
+
+QRgbaFloat32 linearSrgbToLinearP3(const QRgbaFloat32 &linearSrgb)
+{
+    static const auto transform = QColorSpace(QColorSpace::SRgbLinear)
+        .transformationToColorSpace(QColorSpace(QColorSpace::Primaries::DciP3D65,
+                                                QColorSpace::TransferFunction::Linear));
+    // Keep signed components when converting colors outside sRGB.
+    return transform.map(linearSrgb);
+}
+
+QRgbaFloat32 oklchToLinearRgb(float l, float c, float h, QColorSpace::NamedColorSpace gamut)
+{
+    const auto srgb = oklchToLinearSrgb(l, c, h);
+    return gamut == QColorSpace::DisplayP3 ? linearSrgbToLinearP3(srgb) : srgb;
+}
+
+bool isInGamut(const QRgbaFloat32 &linearRgb)
+{
+    // Ignore floating-point error at the primaries and the endpoints of the gray axis.
+    const auto inRange = [](float channel) {
+        return channel >= -gamutTolerance && channel <= 1.0f + gamutTolerance;
+    };
+    return inRange(linearRgb.r) && inRange(linearRgb.g) && inRange(linearRgb.b);
+}
+
+float gamutMargin(const QRgbaFloat32 &rgb)
+{
+    return std::min({rgb.r, rgb.g, rgb.b, 1.0f - rgb.r, 1.0f - rgb.g, 1.0f - rgb.b})
+        + gamutTolerance;
+}
+
+void addGamutContour(QPainterPath &path, const QPointF &topLeft, const std::array<float, 4> &margins)
+{
+    constexpr std::array<QPointF, 4> corners{QPointF(0, 0), QPointF(1, 0),
+                                            QPointF(1, 1), QPointF(0, 1)};
+    std::array<QPointF, 4> crossings;
+    int count = 0;
+    for (int edge = 0; edge < 4; ++edge) {
+        const int next = (edge + 1) % 4;
+        if ((margins[edge] >= 0) == (margins[next] >= 0)) continue;
+        const float fraction = margins[edge] / (margins[edge] - margins[next]);
+        crossings[count++] = topLeft + corners[edge] + (corners[next] - corners[edge]) * fraction;
+    }
+    if (count == 2) {
+        path.moveTo(crossings[0]);
+        path.lineTo(crossings[1]);
+    } else if (count == 4) {
+        // Resolve the alternating-corners case using the interpolated center.
+        const float center = margins[0] + margins[1] + margins[2] + margins[3];
+        const int offset = (center >= 0) == (margins[0] >= 0) ? 0 : 1;
+        path.moveTo(crossings[offset]);
+        path.lineTo(crossings[offset + 1]);
+        path.moveTo(crossings[offset + 2]);
+        path.lineTo(crossings[(offset + 3) % 4]);
+    }
+}
+
+QRgb encodeRgb(const QRgbaFloat32 &linearRgb)
+{
+    const auto encodeChannel = [](float linear) {
+        const float clamped = qBound(0.0f, linear, 1.0f);
+        const float encoded = clamped <= 0.0031308f ? 12.92f * clamped
+            : 1.055f * std::pow(clamped, 1.0f / 2.4f) - 0.055f;
+        return qRound(encoded * 255.0f);
+    };
+    return qRgb(encodeChannel(linearRgb.r), encodeChannel(linearRgb.g), encodeChannel(linearRgb.b));
+}
+
+} // namespace
+
+QString OklchColor::toString() const
+{
+    constexpr int precision = std::numeric_limits<float>::max_digits10;
+    return QStringLiteral("%1 %2 %3").arg(QString::number(lightness, 'g', precision),
+                                          QString::number(chroma, 'g', precision),
+                                          QString::number(hue, 'g', precision));
+}
+
+QString OklchColor::hex(QColorSpace::NamedColorSpace gamut) const
+{
+    return OKLCHColorWheel::oklchToRgb(lightness, chroma, hue, true, gamut).name().toUpper();
+}
+
+std::optional<OklchColor> OklchColor::fromString(const QString &text)
+{
+    const auto values = text.split(u' ', Qt::SkipEmptyParts);
+    if (values.size() != 3) return std::nullopt;
+    bool lightnessOk, chromaOk, hueOk;
+    const OklchColor color{values[0].toFloat(&lightnessOk), values[1].toFloat(&chromaOk),
+                           values[2].toFloat(&hueOk)};
+    if (lightnessOk && chromaOk && hueOk && color.lightness >= 0 && color.lightness <= 1
+        && color.chroma >= 0 && color.chroma <= 1 && color.hue >= 0 && color.hue <= 360) {
+        return color;
+    }
+    return std::nullopt;
+}
+
+std::optional<OklchColor> OklchColor::fromHex(const QString &hex, QColorSpace::NamedColorSpace gamut)
+{
+    OklchColor color{};
+    if (OKLCHColorWheel::rgbHexToOklch(hex, color.lightness, color.chroma, color.hue, gamut))
+        return color;
+    return std::nullopt;
+}
+
 HexColorLineEdit::HexColorLineEdit(QWidget *parent)
     : QLineEdit(parent)
 {
-    setPlaceholderText("");
     setMaxLength(7);
-    QRegularExpression regex("[0-9a-fA-F]{0,6}");
-    setValidator(new QRegularExpressionValidator(regex, this));
+    const QRegularExpression pattern(QStringLiteral("#?[0-9a-fA-F]{0,6}"));
+    setValidator(new QRegularExpressionValidator(pattern, this));
     setStyleSheet("border-radius: 6px; font-size: 16px; font-family: 'Consolas';");
-    connect(this, &QLineEdit::textChanged, this, &HexColorLineEdit::onTextChanged);
+    connect(this, &QLineEdit::textEdited, this, &HexColorLineEdit::onTextEdited);
 }
 
-void HexColorLineEdit::setText(const QString &text)
+void HexColorLineEdit::onTextEdited(const QString &text)
 {
-    m_settingText = true;
-    QLineEdit::setText(text);
-    m_settingText = false;
+    const QString digits = text.startsWith(u'#') ? text.mid(1) : text;
+    if (digits.size() == 6 && hasAcceptableInput())
+        emit validHexColor(QStringLiteral("#") + digits.toUpper());
 }
 
-void HexColorLineEdit::onTextChanged(const QString &text)
-{
-    if (text.isEmpty()) {
-        return;
-    }
-    QString cleaned;
-    cleaned.reserve(6);
-    for (const QChar &ch : text) {
-        if (ch.isDigit() || (ch >= QLatin1Char('a') && ch <= QLatin1Char('f')) || (ch >= QLatin1Char('A') && ch <= QLatin1Char('F'))) {
-            cleaned.append(ch.toUpper());
-        }
-    }
-    if (cleaned.size() > 6) {
-        cleaned = cleaned.left(6);
-    }
-    cleaned.prepend("#");
-    if (cleaned != text) {
-        m_settingText = true;
-        QLineEdit::setText(cleaned);
-        setCursorPosition(cleaned.size());
-        m_settingText = false;
-        return;
-    }
-    if (m_settingText) {
-        return;
-    }
-    if (cleaned.size() == 7) {
-        emit validHexColor(cleaned);
-    }
-}
-
-void HexColorLineEdit::focusOutEvent(QFocusEvent *event)
-{
-    QString text = this->text().toUpper();
-    if (!text.isEmpty() && !text.startsWith("#")) {
-        text.prepend("#");
-    }
-    if (text.size() > 7) {
-        text = text.left(7);
-    }
-    if (text != this->text()) {
-        m_settingText = true;
-        QLineEdit::setText(text);
-        m_settingText = false;
-    }
-    QLineEdit::focusOutEvent(event);
-}
-
-void HexColorLineEdit::keyPressEvent(QKeyEvent *event)
-{
-    if (event->modifiers() & Qt::ControlModifier) {
-        if (event->key() == Qt::Key_V) {
-            QString clipboard = QApplication::clipboard()->text().trimmed().toUpper();
-            QString cleaned;
-            cleaned.reserve(6);
-            for (const QChar &ch : clipboard) {
-                if (QStringLiteral("0123456789ABCDEF").contains(ch)) {
-                    cleaned.append(ch);
-                }
-            }
-            if (cleaned.isEmpty()) {
-                return;
-            }
-            if (cleaned.size() > 6) {
-                cleaned = cleaned.left(6);
-            }
-            QString result = QStringLiteral("#") + cleaned;
-
-            int current_pos = cursorPosition();
-            QString current_text = this->text();
-            if (hasSelectedText()) {
-                QLineEdit::insert(result);
-                return;
-            }
-            QString new_text = current_text.left(current_pos) + result + current_text.mid(current_pos);
-            if (new_text.size() > 7) {
-                new_text = new_text.left(7);
-            }
-            m_settingText = true;
-            QLineEdit::setText(new_text);
-            setCursorPosition(qMin(current_pos + result.size(), new_text.size()));
-            m_settingText = false;
-            return;
-        }
-        QLineEdit::keyPressEvent(event);
-        return;
-    }
-
-    QString text = event->text().toUpper();
-
-    if (event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete ||
-        event->key() == Qt::Key_Left || event->key() == Qt::Key_Right ||
-        event->key() == Qt::Key_Home || event->key() == Qt::Key_End ||
-        event->key() == Qt::Key_Tab) {
-        QLineEdit::keyPressEvent(event);
-        return;
-    }
-
-    if (!text.isEmpty() && QStringLiteral("0123456789ABCDEF").contains(text)) {
-        QString current = this->text();
-        current.remove('#');
-        if (current.size() >= 6 && cursorPosition() > 0) {
-            if (cursorPosition() <= 1) {
-                QLineEdit::keyPressEvent(event);
-            }
-            return;
-        }
-        QLineEdit::keyPressEvent(event);
-        return;
-    }
-
-    event->ignore();
-}
-
-
-ColorLabel::ColorLabel(const QString &hexColor, bool showText, QWidget *parent)
-    : QPushButton(parent), m_color(hexColor), m_showText(showText)
+ColorLabel::ColorLabel(const QString &hexColor, bool showText, QWidget *parent,
+                       QColorSpace::NamedColorSpace gamut)
+    : QPushButton(parent), m_color(hexColor), m_showText(showText), m_gamut(gamut)
 {
     connect(this, &QPushButton::clicked, this, &ColorLabel::handleClicked);
     setCursor(Qt::PointingHandCursor);
@@ -192,7 +219,11 @@ QColor ColorLabel::textColorForBackground(const QColor &color)
 
 void ColorLabel::updateAppearance()
 {
-    QColor textColor = textColorForBackground(QColor(m_color));
+    const QColorSpace output = QSurfaceFormat::defaultFormat().colorSpace();
+    const auto transform = QColorSpace(m_gamut).transformationToColorSpace(
+        output.isValid() ? output : QColorSpace(QColorSpace::SRgb));
+    const QColor preview = QColor::fromRgb(transform.map(QColor(m_color).rgb()));
+    QColor textColor = textColorForBackground(preview);
     if (m_showText) {
         setText(m_color);
     } else {
@@ -200,12 +231,15 @@ void ColorLabel::updateAppearance()
     }
     setStyleSheet(
         QString("background-color: %1; border-radius: 6px; color: %2; font-size: 14px; padding: 6px;")
-            .arg(m_color, textColor.name())
+            .arg(preview.name(), textColor.name())
     );
 }
 
 
-OKLCHColorWheel::OKLCHColorWheel(float l, float c, float h, QWidget *parent): QWidget(parent)
+OKLCHColorWheel::OKLCHColorWheel(float l, float c, float h, QWidget *parent, RgbGamut gamut)
+    : QWidget(parent), m_gamut(gamut),
+      m_outputGamut(QSurfaceFormat::defaultFormat().colorSpace() == QColorSpace(QColorSpace::DisplayP3)
+                        ? QColorSpace::DisplayP3 : QColorSpace::SRgb)
 {
     setMinimumSize(300, 300);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -256,19 +290,41 @@ void OKLCHColorWheel::setH(float h)
     }
 }
 
-QColor OKLCHColorWheel::getCurrentColor() const
+void OKLCHColorWheel::setOklch(const OklchColor &color)
 {
-    return oklchToRgb(m_L, m_C, m_H);
+    const bool lightnessChanged = m_L != color.lightness;
+    const bool chromaChanged = m_C != color.chroma;
+    const bool hueChanged = m_H != color.hue;
+    if (!lightnessChanged && !chromaChanged && !hueChanged) return;
+
+    m_L = color.lightness;
+    m_C = color.chroma;
+    m_H = color.hue;
+    if (lightnessChanged || chromaChanged) generateInnerWheel();
+    if (hueChanged) generateSquare();
+    update();
+    if (lightnessChanged) emit LChanged(m_L);
+    if (chromaChanged) emit CChanged(m_C);
+    if (hueChanged) emit HChanged(m_H);
+    emit colorChanged(getCurrentColor());
 }
 
-QString OKLCHColorWheel::getHexColor() const
+QColor OKLCHColorWheel::getCurrentColor() const
 {
-    QColor color = getCurrentColor();
-    return QString("#%1%2%3")
-        .arg(color.red(), 2, 16, QLatin1Char('0'))
-        .arg(color.green(), 2, 16, QLatin1Char('0'))
-        .arg(color.blue(), 2, 16, QLatin1Char('0'))
-        .toUpper();
+    return oklchToRgb(m_L, m_C, m_H, true, m_gamut);
+}
+
+QString OKLCHColorWheel::getHexColor(RgbGamut gamut) const
+{
+    return oklchToRgb(m_L, m_C, m_H, true, gamut).name().toUpper();
+}
+
+QColor OKLCHColorWheel::previewColor(float l, float c, float h) const
+{
+    const auto srgb = oklchToLinearSrgb(l, c, h);
+    const auto p3 = linearSrgbToLinearP3(srgb);
+    if (!isInGamut(p3)) return Qt::white;
+    return QColor::fromRgb(encodeRgb(m_outputGamut == QColorSpace::DisplayP3 ? p3 : srgb));
 }
 
 void OKLCHColorWheel::resizeEvent(QResizeEvent *event)
@@ -296,6 +352,12 @@ void OKLCHColorWheel::updateLayout()
 
     // Side length for the square
     m_side = static_cast<int>(2.0f * m_innerRadius / 1.414f + 0.5f);
+}
+
+QRectF OKLCHColorWheel::squareRect() const
+{
+    const qreal halfSide = m_side / 2.0;
+    return {m_center.x() - halfSide, m_center.y() - halfSide, qreal(m_side), qreal(m_side)};
 }
 
 void OKLCHColorWheel::paintEvent(QPaintEvent *event)
@@ -326,12 +388,7 @@ void OKLCHColorWheel::paintEvent(QPaintEvent *event)
 
     // Draw Square
     if (!m_squarePixmap.isNull() && m_side > 0) {
-        float halfSide = m_side / 2.0f;
-        painter.drawPixmap(
-            static_cast<int>(m_center.x() - halfSide),
-            static_cast<int>(m_center.y() - halfSide),
-            m_squarePixmap
-        );
+        painter.drawPixmap(squareRect().topLeft(), m_squarePixmap);
     }
 
     // Draw Indicators
@@ -382,26 +439,9 @@ void OKLCHColorWheel::drawInnerCircle(QPainter &painter)
 {
     painter.save();
 
-    // Calculate position based on L and C
-    // L goes from 0 (left) to 1 (right)
-    // C goes from 0.37 (bottom) to 0 (top) -- Wait, Python says:
-    // self.vm.L = (pos.x() - left) / self.side
-    // self.vm.C = (bottom - pos.y()) / self.side * 0.37
-    // So C=0 is bottom? No, bottom-y means distance from bottom.
-    // If y is at bottom, distance is 0 -> C=0. 
-    // If y is at top, distance is side -> C=0.37.
-    // So Top is High Chroma, Bottom is Low Chroma (Gray).
-    // Let's check Python draw_inner_circle:
-    // relative_coordinate=QPointF((self.vm.L-0.5)*self.side,(0.5-(self.vm.C/0.37))*self.side)
-    // If C=0.37 -> y = (0.5 - 1)*side = -0.5*side (Top)
-    // If C=0    -> y = (0.5 - 0)*side = 0.5*side (Bottom)
-    
-    QPointF relativePos(
-        (m_L - 0.5f) * m_side,
-        (0.5f - (m_C / 0.37f)) * m_side
-    );
-    
-    QPointF truePoint = m_center + relativePos;
+    const auto square = squareRect();
+    const QPointF truePoint(square.left() + m_L * m_side,
+                            square.bottom() - (m_C / maximumP3Chroma) * m_side);
 
     // White outer ring
     QPen outerPen(Qt::white);
@@ -442,14 +482,10 @@ void OKLCHColorWheel::mousePressEvent(QMouseEvent *event)
             handled = true;
         }
         // Check Square
-        else {
-            float halfSide = m_side / 2.0f;
-            if (pos.x() >= m_center.x() - halfSide && pos.x() <= m_center.x() + halfSide &&
-                pos.y() >= m_center.y() - halfSide && pos.y() <= m_center.y() + halfSide) {
-                m_isChoosingSquare = true;
-                updateLCFromPos(pos);
-                handled = true;
-            }
+        else if (squareRect().contains(pos)) {
+            m_isChoosingSquare = true;
+            updateLCFromPos(pos);
+            handled = true;
         }
 
         if (handled) {
@@ -499,15 +535,10 @@ void OKLCHColorWheel::updateHFromPos(const QPointF &pos)
 
 void OKLCHColorWheel::updateLCFromPos(const QPointF &pos)
 {
-    float halfSide = m_side / 2.0f;
-    float left = m_center.x() - halfSide;
-    float bottom = m_center.y() + halfSide; // Y increases downwards
-    
-    float l = (pos.x() - left) / m_side;
-    float c = (bottom - pos.y()) / m_side * 0.37f;
-    
-    setL(qBound(0.0f, l, 1.0f));
-    setC(qBound(0.0f, c, 0.37f));
+    const auto square = squareRect();
+    const float l = qBound(0.0, (pos.x() - square.left()) / m_side, 1.0);
+    const float c = qBound(0.0, (square.bottom() - pos.y()) / m_side, 1.0) * maximumP3Chroma;
+    setOklch({l, c, m_H});
 }
 
 void OKLCHColorWheel::generateOuterWheel()
@@ -544,7 +575,7 @@ void OKLCHColorWheel::generateOuterWheel()
         // Python code: hues=0..360. Colors computed. Reversed.
         // So i=0 (0 deg in gradient) gets color from last hue.
         // Let's just try normal direction first.
-        gradient.setColorAt(i / 360.0, oklchToRgb(0.76f, 0.121f, 360.0f - i, false));
+        gradient.setColorAt(i / 360.0, previewColor(0.76f, 0.121f, 360.0f - i));
     }
     
     painter.setBrush(gradient);
@@ -577,7 +608,7 @@ void OKLCHColorWheel::generateInnerWheel()
     QConicalGradient gradient(center, 90);
     for (int i = 0; i < 360; ++i) {
         // Uses current L and C
-        gradient.setColorAt(i / 360.0, oklchToRgb(m_L, m_C, 360.0f - i, false));
+        gradient.setColorAt(i / 360.0, previewColor(m_L, m_C, 360.0f - i));
     }
 
     painter.setBrush(gradient);
@@ -590,32 +621,48 @@ void OKLCHColorWheel::generateInnerWheel()
 void OKLCHColorWheel::generateSquare()
 {
     if (m_side <= 0) return;
-    
-    QImage image(m_side, m_side, QImage::Format_RGB32);
-    
-    // Pixel loop
 
+    QImage image(m_side, m_side, QImage::Format_RGB32);
+    QPainterPath boundary;
+    QVector<float> previousMargins(m_side);
+    QVector<float> currentMargins(m_side);
     for (int y = 0; y < m_side; ++y) {
-        float c = (m_side - y - 1) / (float)m_side * 0.37f; // Flip Y for C
-        // Actually Python: (bottom - pos.y()) / side * 0.37
-        // In image coord, y=0 is top.
-        // If y=0 (top), distance from bottom (side) is 'side'. So C = 0.37.
-        // If y=side (bottom), C = 0.
-        // My code: (side - 0 - 1)/side = ~1 * 0.37. Correct.
-        
-        QRgb *line = reinterpret_cast<QRgb*>(image.scanLine(y));//��õ�ǰ�е�����ָ��x������
+        const float chroma = (1.0f - (y + 0.5f) / m_side) * maximumP3Chroma;
+        auto *line = reinterpret_cast<QRgb *>(image.scanLine(y));
         for (int x = 0; x < m_side; ++x) {
-            float l = x / (float)m_side;
-            
-            QColor col = oklchToRgb(l, c, m_H, false);
-            line[x] = col.rgb();
+            const float lightness = (x + 0.5f) / m_side;
+            const auto srgb = oklchToLinearSrgb(lightness, chroma, m_H);
+            const auto p3 = linearSrgbToLinearP3(srgb);
+            line[x] = isInGamut(p3) ? encodeRgb(m_outputGamut == QColorSpace::DisplayP3 ? p3 : srgb)
+                                    : qRgb(255, 255, 255);
+            currentMargins[x] = gamutMargin(srgb);
+            if (x > 0 && y > 0) {
+                addGamutContour(boundary, QPointF(x - 0.5, y - 0.5),
+                                {previousMargins[x - 1], previousMargins[x],
+                                 currentMargins[x], currentMargins[x - 1]});
+            }
         }
+        previousMargins.swap(currentMargins);
     }
-    
+
+    {
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(QColor(0, 0, 0, 128), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawPath(boundary);
+        painter.setPen(QPen(Qt::white, 1.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawPath(boundary);
+    }
     m_squarePixmap = QPixmap::fromImage(image);
 }
 
 bool OKLCHColorWheel::srgbHexToOklch(const QString &hex, float &L, float &C, float &H)
+{
+    return rgbHexToOklch(hex, L, C, H, RgbGamut::SRgb);
+}
+
+bool OKLCHColorWheel::rgbHexToOklch(const QString &hex, float &L, float &C, float &H,
+                                   RgbGamut gamut)
 {
     QString cleaned = hex.trimmed();
     if (cleaned.startsWith("#")) {
@@ -643,13 +690,17 @@ bool OKLCHColorWheel::srgbHexToOklch(const QString &hex, float &L, float &C, flo
         return std::pow((c + 0.055f) / 1.055f, 2.4f);
     };
 
-    float lr = srgbToLinear(sr);
-    float lg = srgbToLinear(sg);
-    float lb = srgbToLinear(sb);
+    QRgbaFloat32 linear{srgbToLinear(sr), srgbToLinear(sg), srgbToLinear(sb), 1.0f};
+    if (gamut == RgbGamut::DisplayP3) {
+        static const auto toLinearSrgb = QColorSpace(QColorSpace::Primaries::DciP3D65,
+                                                    QColorSpace::TransferFunction::Linear)
+            .transformationToColorSpace(QColorSpace(QColorSpace::SRgbLinear));
+        linear = toLinearSrgb.map(linear);
+    }
 
-    float l = 0.4122214708f * lr + 0.5363325363f * lg + 0.0514459929f * lb;
-    float m = 0.2119034982f * lr + 0.6806995451f * lg + 0.1073969566f * lb;
-    float s = 0.0883024619f * lr + 0.2817188376f * lg + 0.6299787005f * lb;
+    float l = 0.4122214708f * linear.r + 0.5363325363f * linear.g + 0.0514459929f * linear.b;
+    float m = 0.2119034982f * linear.r + 0.6806995451f * linear.g + 0.1073969566f * linear.b;
+    float s = 0.0883024619f * linear.r + 0.2817188376f * linear.g + 0.6299787005f * linear.b;
 
     float l_ = std::cbrt(l);
     float m_ = std::cbrt(m);
@@ -667,69 +718,16 @@ bool OKLCHColorWheel::srgbHexToOklch(const QString &hex, float &L, float &C, flo
     return true;
 }
 
-QColor OKLCHColorWheel::oklchToRgb(float l, float c, float h, bool autopair)
+QColor OKLCHColorWheel::oklchToRgb(float l, float c, float h, bool autopair, RgbGamut gamut)
 {
-    float h_rad = qDegreesToRadians(h);
+    const auto linearRgb = oklchToLinearRgb(l, c, h, gamut);
+    if (!autopair && !isInGamut(linearRgb)) return Qt::white;
 
-    float a = c * std::cos(h_rad);
-    float b = c * std::sin(h_rad);
-
-    // 1. OKLCH -> LMS (pre-cube)
-    // M1
-    float l_ = l + 0.3963377774f * a + 0.2158037573f * b;
-    float m_ = l - 0.1055613458f * a - 0.0638541728f * b;
-    float s_ = l - 0.0894841775f * a - 1.2914855480f * b;
-
-    // Cube
-    float l_3 = l_ * l_ * l_;
-    float m_3 = m_ * m_ * m_;
-    float s_3 = s_ * s_ * s_;
-
-    // 2. LMS -> Linear sRGB
-    // M2
-    float r_lin = 4.0767416621f * l_3 - 3.3077115913f * m_3 + 0.2309699292f * s_3;
-    float g_lin = -1.2684380046f * l_3 + 2.6097574011f * m_3 - 0.3413193965f * s_3;
-    float b_lin = -0.0041960863f * l_3 - 0.7034186147f * m_3 + 1.7076147010f * s_3;
-
-    // 3. Gamma correction
-    auto gamma = [](float x) -> float {
-        if (x <= 0.0031308f) {
-            return x * 12.92f;
-        }
-        else {
-            return 1.055f * std::pow(x, 1.0f / 2.4f) - 0.055f;
-        }
-        };
-
-    float r = gamma(r_lin);
-    float g = gamma(g_lin);
-    float b_val = gamma(b_lin);
-
-    if (autopair) {
-        r = qBound(0.0f, r, 1.0f);
-        g = qBound(0.0f, g, 1.0f);
-        b_val = qBound(0.0f, b_val, 1.0f);
-    }
-    else {
-        // Python logic: if out of bounds ( > 1.0 or < 0.0 ), return white (1.0)
-        if (r > 1.0f || g > 1.0f || b_val > 1.0f || r < 0.0f || g < 0.0f || b_val < 0.0f) {
-            return QColor(255, 255, 255);
-        }
-        r = qBound(0.0f, r, 1.0f);
-        g = qBound(0.0f, g, 1.0f);
-        b_val = qBound(0.0f, b_val, 1.0f);
-    }
-
-    return QColor(
-        static_cast<int>(r * 255 + 0.5f),
-        static_cast<int>(g * 255 + 0.5f),
-        static_cast<int>(b_val * 255 + 0.5f)
-    );
+    return QColor::fromRgb(encodeRgb(linearRgb));
 }
 
-
-
-ColorWheelSimple::ColorWheelSimple(QWidget* parent) : QWidget(parent)
+ColorWheelSimple::ColorWheelSimple(QWidget *parent, QColorSpace::NamedColorSpace gamut)
+    : QWidget(parent), m_gamut(gamut)
 {
     setupUi();
 }
@@ -742,7 +740,7 @@ void ColorWheelSimple::setupUi()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    m_wheel = new OKLCHColorWheel(0.70f, 0.12f, 100.0f, this);
+    m_wheel = new OKLCHColorWheel(0.70f, 0.12f, 100.0f, this, m_gamut);
     layout->addWidget(m_wheel, 1);
 
     m_bottomBar = new QWidget(this);
@@ -752,7 +750,7 @@ void ColorWheelSimple::setupUi()
 
     m_historyColors = { "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF" };
     for (int i = 0; i < m_historyColors.size(); ++i) {
-        ColorLabel* label = new ColorLabel(m_historyColors[i], false, m_bottomBar);
+        ColorLabel* label = new ColorLabel(m_historyColors[i], false, m_bottomBar, m_gamut);
         label->setFixedSize(30, 30);
         m_historyLabels.append(label);
         connect(label, &ColorLabel::colorClicked, this, [this, label](const QString&) {
@@ -761,23 +759,53 @@ void ColorWheelSimple::setupUi()
         m_bottomLayout->addWidget(label);
     }
 
-    m_syncLabel = new ColorLabel("#FFFFFF", false, m_bottomBar);
+    m_syncLabel = new ColorLabel("#FFFFFF", false, m_bottomBar, m_gamut);
     m_syncLabel->setFixedHeight(30);
     m_bottomLayout->addWidget(m_syncLabel);
-
-    m_hexLineEdit = new HexColorLineEdit(m_bottomBar);
-    m_hexLineEdit->setFixedSize(80, 30);
-    m_bottomLayout->addWidget(m_hexLineEdit);
-
     layout->addWidget(m_bottomBar);
 
-    connect(m_hexLineEdit, &HexColorLineEdit::validHexColor, this, &ColorWheelSimple::setHexColor);
-    connect(m_wheel, &OKLCHColorWheel::LChanged, this, &ColorWheelSimple::onWheelChanged);
-    connect(m_wheel, &OKLCHColorWheel::CChanged, this, &ColorWheelSimple::onWheelChanged);
-    connect(m_wheel, &OKLCHColorWheel::HChanged, this, &ColorWheelSimple::onWheelChanged);
+    auto *values = new QHBoxLayout;
+    values->setContentsMargins(6, 0, 6, 6);
+    values->setSpacing(6);
+    const auto addValue = [this, values](const QString &name, QLineEdit *field) {
+        auto *label = new QLabel(name, this);
+        label->setBuddy(field);
+        field->setAccessibleName(name);
+        field->setFixedSize(80, 30);
+        field->setAlignment(Qt::AlignCenter);
+        values->addWidget(label);
+        values->addWidget(field);
+    };
+    m_hexLineEdit = new HexColorLineEdit(this);
+    addValue(QStringLiteral("sRGB"), m_hexLineEdit);
+    values->addStretch();
+    m_displayP3Hex = new HexColorLineEdit(this);
+    addValue(QStringLiteral("Display P3"), m_displayP3Hex);
+
+    layout->addLayout(values);
+
+    m_gamutHint = new QLabel(QStringLiteral("P3 专属 · 超出 sRGB 色域"), this);
+    m_gamutHint->setObjectName(QStringLiteral("colorWheelGamutHint"));
+    m_gamutHint->setAlignment(Qt::AlignCenter);
+    m_gamutHint->setStyleSheet(QStringLiteral("font-size: 13px; padding-bottom: 6px;"));
+    auto hintPolicy = m_gamutHint->sizePolicy();
+    hintPolicy.setRetainSizeWhenHidden(true);
+    m_gamutHint->setSizePolicy(hintPolicy);
+    layout->addWidget(m_gamutHint);
+
+    connect(m_hexLineEdit, &HexColorLineEdit::validHexColor, this, [this](const QString &hex) {
+        setHexColorInGamut(hex, QColorSpace::SRgb);
+    });
+    connect(m_displayP3Hex, &HexColorLineEdit::validHexColor, this, [this](const QString &hex) {
+        setHexColorInGamut(hex, QColorSpace::DisplayP3);
+    });
     connect(m_wheel, &OKLCHColorWheel::mousePressed, this, &ColorWheelSimple::replaceHistory);
     connect(m_wheel, &OKLCHColorWheel::mousePressed, m_hexLineEdit, &QWidget::clearFocus);
-    connect(m_wheel, &OKLCHColorWheel::colorChanged, this, &ColorWheelSimple::colorChanged);
+    connect(m_wheel, &OKLCHColorWheel::mousePressed, m_displayP3Hex, &QWidget::clearFocus);
+    connect(m_wheel, &OKLCHColorWheel::colorChanged, this, [this] {
+        onWheelChanged();
+        emit colorChanged(getCurrentColor());
+    });
 
     onWheelChanged();
 }
@@ -819,8 +847,11 @@ void ColorWheelSimple::onWheelChanged()
     }
     QString hex = getHexColor();
     m_syncLabel->setColor(hex);
-    QSignalBlocker blocker(m_hexLineEdit);
-    m_hexLineEdit->setText(hex);
+    m_hexLineEdit->setText(m_wheel->getHexColor());
+    m_displayP3Hex->setText(m_wheel->getHexColor(OKLCHColorWheel::RgbGamut::DisplayP3));
+    const auto [l, c, h] = oklch();
+    m_gamutHint->setVisible(!isInGamut(oklchToLinearRgb(l, c, h, QColorSpace::SRgb))
+                            && isInGamut(oklchToLinearRgb(l, c, h, QColorSpace::DisplayP3)));
 }
 
 void ColorWheelSimple::setL(float l)
@@ -861,32 +892,37 @@ float ColorWheelSimple::getH() const
 
 QColor ColorWheelSimple::getCurrentColor() const
 {
-    return m_wheel ? m_wheel->getCurrentColor() : QColor();
+    return QColor(getHexColor());
 }
 
 QString ColorWheelSimple::getHexColor() const
 {
-    return m_wheel ? m_wheel->getHexColor() : QString();
+    return m_wheel ? m_wheel->getHexColor(m_gamut) : QString();
 }
 
 void ColorWheelSimple::setHexColor(const QString& hex)
 {
-    if (!m_wheel) {
-        return;
-    }
-    float l = 0.0f;
-    float c = 0.0f;
-    float h = 0.0f;
-    if (OKLCHColorWheel::srgbHexToOklch(hex, l, c, h)) {
-        m_wheel->setL(l);
-        m_wheel->setC(c);
-        m_wheel->setH(h);
-    }
+    setHexColorInGamut(hex, m_gamut);
+}
+
+void ColorWheelSimple::setHexColorInGamut(const QString &hex, QColorSpace::NamedColorSpace gamut)
+{
+    if (const auto color = OklchColor::fromHex(hex, gamut)) setOklch(*color);
 }
 
 void ColorWheelSimple::setInitialColor(const QString& hex)
 {
     setHexColor(hex);
+}
+
+void ColorWheelSimple::setOklch(const OklchColor &color)
+{
+    m_wheel->setOklch(color);
+}
+
+OklchColor ColorWheelSimple::oklch() const
+{
+    return {getL(), getC(), getH()};
 }
 
 } // namespace darkeye

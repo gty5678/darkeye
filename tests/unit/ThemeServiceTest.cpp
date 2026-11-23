@@ -18,12 +18,15 @@
 #include <QCompleter>
 #include <QHeaderView>
 #include <QListWidget>
+#include <QScopeGuard>
 #include <QScreen>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStyle>
 #include <QStyleOptionSlider>
+#include <QSurfaceFormat>
 #include <QVBoxLayout>
+#include <QWindow>
 #include <QtTest>
 
 class ThemeServiceTest final : public QObject
@@ -31,6 +34,7 @@ class ThemeServiceTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void stateOnlyMethodsDoNotApplyStyleSheet();
     void mapsAllPersistedThemeIds();
     void chamferEdgesKeepStyleAndAntialiasing();
@@ -40,6 +44,7 @@ private slots:
     void selectionIndicatorsUseThemedDiamonds();
     void comboPopupAndSelectionHaveChamferedCorners();
     void derivesCustomLightAndDarkTokens();
+    void convertsThemeColorsToWindowColorSpace();
     void appliesThemeWithoutUnresolvedTokens();
     void skipsRepolishingAnUnchangedTheme();
     void initializesCommonComponents();
@@ -48,6 +53,13 @@ private slots:
     void closesColorPickerOnFirstOutsideClick();
     void exposesCompletePythonTokenMapAndLoader();
 };
+
+void ThemeServiceTest::initTestCase()
+{
+    auto format = QSurfaceFormat::defaultFormat();
+    format.setColorSpace(QColorSpace(QColorSpace::DisplayP3));
+    QSurfaceFormat::setDefaultFormat(format);
+}
 
 void ThemeServiceTest::stateOnlyMethodsDoNotApplyStyleSheet()
 {
@@ -92,6 +104,42 @@ void ThemeServiceTest::mapsAllPersistedThemeIds()
              QStringLiteral("GREEN"));
     QCOMPARE(darkeye::ThemeService::fromSettings(QStringLiteral("unknown")),
              darkeye::ThemeId::Light);
+}
+
+void ThemeServiceTest::convertsThemeColorsToWindowColorSpace()
+{
+    using darkeye::ThemeId;
+    using darkeye::ThemeService;
+    const QColorSpace srgb(QColorSpace::SRgb);
+    const QColorSpace p3(QColorSpace::DisplayP3);
+    const auto savedFormat = QSurfaceFormat::defaultFormat();
+    const auto restoreFormat = qScopeGuard([&] { QSurfaceFormat::setDefaultFormat(savedFormat); });
+    auto format = savedFormat;
+
+    format.setColorSpace(srgb);
+    QSurfaceFormat::setDefaultFormat(format);
+    const auto lightSrgb = ThemeService::tokens(ThemeId::Light);
+    QCOMPARE(lightSrgb.colorSpace, srgb);
+
+    format.setColorSpace(p3);
+    QSurfaceFormat::setDefaultFormat(format);
+    const auto lightP3 = ThemeService::tokens(ThemeId::Light);
+    for (const auto theme : ThemeService::availableThemes()) {
+        QCOMPARE(ThemeService::sourceTokens(theme).colorSpace, p3);
+    }
+    QCOMPARE(lightP3.colorSpace, p3);
+    QCOMPARE(lightP3.primary, QStringLiteral("#00aaff"));
+    QCOMPARE(lightSrgb.primary, lightP3.convertedTo(srgb).primary);
+    QVERIFY(lightP3.primary != lightSrgb.primary);
+    QCOMPARE(lightP3.pageBackground, lightSrgb.pageBackground);
+
+    if (QGuiApplication::platformName() == QStringLiteral("cocoa")) {
+        QWidget window;
+        window.winId();
+        const auto actual = window.windowHandle()->format().colorSpace();
+        QVERIFY(actual.isValid());
+        QCOMPARE(actual.primaries(), QColorSpace::Primaries::DciP3D65);
+    }
 }
 
 void ThemeServiceTest::derivesCustomLightAndDarkTokens()

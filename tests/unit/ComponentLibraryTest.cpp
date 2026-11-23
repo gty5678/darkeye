@@ -33,6 +33,7 @@
 #include "darkeye_ui/components/VerticalText.h"
 #include "ui/components/PersonCard.h"
 #include "ui/components/WorkCompletenessIndicators.h"
+#include "ui/pages/SettingsPage.h"
 
 #include <QApplication>
 #include <QAbstractItemView>
@@ -46,8 +47,10 @@
 #include <QGraphicsScene>
 #include <QHeaderView>
 #include <QImage>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStandardItemModel>
+#include <QSurfaceFormat>
 #include <QTabBar>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -102,6 +105,9 @@ private slots:
     void makerComboDelegateKeepsTableEditContract();
     void paginationKeepsDynamicPageSizeContract();
     void oklchColorWheelKeepsPickerContract();
+    void oklchColorWheelMarksP3OnlyColors();
+    void oklchColorWheelDrawsP3AndSrgbBoundary();
+    void colorModeSettingsKeepTheSameOklchSelection();
     void toastKeepsPythonFactoriesAndStackingContract();
     void personCardKeepsAvatarInteractionContract();
     void idCheckListKeepsStableSelectionWhileFiltering();
@@ -388,7 +394,8 @@ void ComponentLibraryTest::animatedIndicatorsKeepStateContract()
     QCOMPARE(toggle.offset(), 26.0);
     const QString customPrimary = QStringLiteral("#b73971");
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark, customPrimary));
-    QCOMPARE(toggle.backgroundColor(), QColor(customPrimary));
+    QCOMPARE(themes.customPrimary(), customPrimary);
+    QCOMPARE(toggle.backgroundColor(), QColor(themes.currentTokens().primary));
 
     darkeye::CircularLoading loading(32, 4, &themes);
     loading.show();
@@ -895,6 +902,8 @@ void ComponentLibraryTest::paginationKeepsDynamicPageSizeContract()
 
 void ComponentLibraryTest::oklchColorWheelKeepsPickerContract()
 {
+    using ColorWheel = darkeye::OKLCHColorWheel;
+    constexpr auto displayP3 = ColorWheel::RgbGamut::DisplayP3;
     float lightness = 0.0F;
     float chroma = 0.0F;
     float hue = 0.0F;
@@ -905,13 +914,43 @@ void ComponentLibraryTest::oklchColorWheelKeepsPickerContract()
     QVERIFY(qAbs(roundTrip.green() - 0x66) <= 1);
     QVERIFY(qAbs(roundTrip.blue() - 0x99) <= 1);
 
+    QVERIFY(ColorWheel::srgbHexToOklch(QStringLiteral("#00FF00"), lightness, chroma, hue));
+    QCOMPARE(ColorWheel::oklchToRgb(lightness, chroma, hue, true, displayP3),
+             QColor(QStringLiteral("#75FB4C")));
+    // Display P3 green has signed linear sRGB components before conversion.
+    QCOMPARE(ColorWheel::oklchToRgb(0.84883f, 0.36853f, 145.645f, true, displayP3),
+             QColor(QStringLiteral("#00FF00")));
+
     darkeye::ColorWheelSimple popup;
     QSignalSpy changed(&popup, &darkeye::ColorWheelSimple::colorChanged);
     popup.setInitialColor(QStringLiteral("#123456"));
     QVERIFY(changed.count() >= 1);
     QVERIFY(popup.getHexColor().compare(QStringLiteral("#123456"), Qt::CaseInsensitive) == 0);
+    const auto fields = popup.findChildren<QLineEdit *>();
+    const auto fieldWithName = [&fields](const QString &name) -> QLineEdit * {
+        for (auto *field : fields) {
+            if (field->accessibleName() == name) return field;
+        }
+        return nullptr;
+    };
+    const auto *srgbField = fieldWithName(QStringLiteral("sRGB"));
+    auto *p3Field = fieldWithName(QStringLiteral("Display P3"));
+    QVERIFY(srgbField);
+    QVERIFY(p3Field);
+    QVERIFY(!p3Field->isReadOnly());
+    QCOMPARE(srgbField->text(), popup.getHexColor());
+    const QString previousP3 = p3Field->text();
+    QVERIFY(previousP3 != srgbField->text());
+    popup.setH(40.0f);
+    QCOMPARE(srgbField->text(), popup.getHexColor());
+    QCOMPARE(p3Field->text(), popup.findChild<ColorWheel *>()->getHexColor(displayP3));
+    QVERIFY(p3Field->text() != previousP3);
     popup.show();
     QTRY_VERIFY(popup.isVisible());
+    p3Field->selectAll();
+    QTest::keyClicks(p3Field, QStringLiteral("00FF00"));
+    QVERIFY(popup.oklch().chroma > 0.35f);
+    QCOMPARE(popup.getHexColor(), QStringLiteral("#00FF00"));
     popup.hide();
 
     darkeye::RatingSelector rating;
@@ -925,6 +964,137 @@ void ComponentLibraryTest::oklchColorWheelKeepsPickerContract()
     QCOMPARE(ratings.count(), 1);
     QVERIFY(hearts.at(2)->property("active").toBool());
     QVERIFY(!hearts.at(3)->property("active").toBool());
+}
+
+void ComponentLibraryTest::oklchColorWheelMarksP3OnlyColors()
+{
+    darkeye::ColorWheelSimple wheel(nullptr, QColorSpace::DisplayP3);
+    const auto *hint = wheel.findChild<QLabel *>(QStringLiteral("colorWheelGamutHint"));
+    QVERIFY(hint);
+
+    const auto srgbGreen = darkeye::OklchColor::fromHex(QStringLiteral("#00FF00"), QColorSpace::SRgb);
+    const auto p3Green = darkeye::OklchColor::fromHex(QStringLiteral("#00FF00"), QColorSpace::DisplayP3);
+    QVERIFY(srgbGreen);
+    QVERIFY(p3Green);
+
+    wheel.setOklch(*srgbGreen);
+    wheel.show();
+    QVERIFY(!hint->isVisible());
+    const auto size = wheel.sizeHint();
+    wheel.setOklch(*p3Green);
+    QVERIFY(hint->isVisible());
+    QCOMPARE(wheel.sizeHint(), size);
+    QCOMPARE(p3Green->hex(QColorSpace::SRgb), p3Green->hex(QColorSpace::DisplayP3));
+
+    wheel.setOklch({0.5f, 0.37f, 0.0f});
+    QVERIFY(!hint->isVisible());
+    wheel.setInitialColor(QStringLiteral("#FFFFFF"));
+    QVERIFY(!hint->isVisible());
+}
+
+void ComponentLibraryTest::oklchColorWheelDrawsP3AndSrgbBoundary()
+{
+    const auto savedFormat = QSurfaceFormat::defaultFormat();
+    const auto restoreFormat = qScopeGuard([&] { QSurfaceFormat::setDefaultFormat(savedFormat); });
+    auto format = savedFormat;
+    format.setColorSpace(QColorSpace(QColorSpace::DisplayP3));
+    QSurfaceFormat::setDefaultFormat(format);
+
+    using Wheel = darkeye::OKLCHColorWheel;
+    constexpr float greenHue = 145.645f;
+    Wheel wheel(0.25f, 0.04f, greenHue, nullptr, QColorSpace::SRgb);
+    auto palette = wheel.palette();
+    palette.setColor(QPalette::Window, Qt::black);
+    wheel.setPalette(palette);
+    wheel.setAutoFillBackground(true);
+    wheel.resize(300, 300);
+    wheel.show();
+    const QImage image = wheel.grab().toImage();
+    const auto point = [&wheel](qreal lightness, qreal chroma) {
+        constexpr qreal side = 167;
+        const QPointF center = QRectF(wheel.rect()).center();
+        return (center + QPointF((lightness - 0.5) * side, (0.5 - chroma / 0.37) * side)).toPoint();
+    };
+    const auto pixel = [&image](const QPoint &position) {
+        return image.pixelColor((QPointF(position) * image.devicePixelRatio()).toPoint());
+    };
+
+    const QColor sample = pixel(point(0.85, 0.33));
+    const QColor expected = Wheel::oklchToRgb(0.85f, 0.33f, greenHue, true, QColorSpace::DisplayP3);
+    QVERIFY(qAbs(sample.red() - expected.red()) < 12);
+    QVERIFY(qAbs(sample.green() - expected.green()) < 12);
+    QVERIFY(qAbs(sample.blue() - expected.blue()) < 12);
+    QCOMPARE(pixel(point(0.50, 0.34)), QColor(Qt::white));
+
+    const auto boundary = point(0.85, 0.2623);
+    bool foundWhite = false;
+    for (int dy = -2; dy <= 2; ++dy) {
+        const QColor color = pixel(boundary + QPoint(0, dy));
+        foundWhite |= color.red() > 210 && color.green() > 210 && color.blue() > 210;
+    }
+    QVERIFY(foundWhite);
+
+    QTest::mousePress(&wheel, Qt::LeftButton, Qt::NoModifier, point(0.50, 0.15));
+    const QPoint outsideP3 = point(0.50, 0.34);
+    QMouseEvent drag(QEvent::MouseMove, outsideP3, wheel.mapToGlobal(outsideP3),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&wheel, &drag);
+    QTest::mouseRelease(&wheel, Qt::LeftButton, Qt::NoModifier, outsideP3);
+    QVERIFY(qAbs(wheel.getC() - 0.34f) < 0.003f);
+    QCOMPARE(Wheel::oklchToRgb(wheel.getL(), wheel.getC(), wheel.getH(), false,
+                               QColorSpace::DisplayP3), QColor(Qt::white));
+}
+
+void ComponentLibraryTest::colorModeSettingsKeepTheSameOklchSelection()
+{
+    const auto green = darkeye::OklchColor::fromHex(QStringLiteral("#00FF00"), QColorSpace::SRgb);
+    QVERIFY(green);
+    const auto saved = darkeye::OklchColor::fromString(green->toString());
+    QVERIFY(saved);
+    QCOMPARE(saved->toString(), green->toString());
+    QCOMPARE(saved->hex(QColorSpace::SRgb), QStringLiteral("#00FF00"));
+    QCOMPARE(saved->hex(QColorSpace::DisplayP3), QStringLiteral("#75FB4C"));
+
+    darkeye::ColorWheelSimple p3Wheel(nullptr, QColorSpace::DisplayP3);
+    p3Wheel.setOklch(*saved);
+    QCOMPARE(p3Wheel.getHexColor(), saved->hex(QColorSpace::DisplayP3));
+    const auto fields = p3Wheel.findChildren<darkeye::HexColorLineEdit *>();
+    QCOMPARE(fields.size(), 2);
+    auto *p3Input = fields.at(1);
+    QCOMPARE(p3Input->accessibleName(), QStringLiteral("Display P3"));
+    auto *srgbInput = fields.at(0);
+    QVERIFY(!srgbInput->isReadOnly());
+    QVERIFY(!p3Input->isReadOnly());
+    p3Input->selectAll();
+    QTest::keyClicks(p3Input, QStringLiteral("00FF00"));
+    QCOMPARE(p3Wheel.getHexColor(), QStringLiteral("#00FF00"));
+    QVERIFY(p3Wheel.oklch().chroma > saved->chroma);
+    srgbInput->selectAll();
+    QTest::keyClicks(srgbInput, QStringLiteral("00FF00"));
+    QCOMPARE(p3Wheel.oklch().toString(), saved->toString());
+    QCOMPARE(p3Input->text(), QStringLiteral("#75FB4C"));
+    QCOMPARE(p3Wheel.getHexColor(), QStringLiteral("#75FB4C"));
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("settings.ini"));
+    darkeye::ThemeService themes(*qApp);
+    darkeye::CommonSettingsPage page(themes, nullptr, path);
+    page.initialize();
+    auto *picker = page.findChild<darkeye::ColorPicker *>();
+    QVERIFY(picker);
+    emit picker->oklchConfirmed(*green);
+    QCOMPARE(darkeye::settings::app(path).customPrimaryOklch, saved->toString());
+    QCOMPARE(themes.currentTokens().primary,
+             darkeye::ThemeService::tokens(darkeye::ThemeId::Light,
+                                          saved->hex(darkeye::ThemeService::colorMode())).primary);
+
+    auto *selector = page.findChild<QComboBox *>(QStringLiteral("colorModeSelector"));
+    QVERIFY(selector);
+    selector->setCurrentIndex(selector->findData(QStringLiteral("SRGB")));
+    const auto settings = darkeye::settings::app(path);
+    QCOMPARE(settings.colorMode, QStringLiteral("SRGB"));
+    QCOMPARE(settings.customPrimaryOklch, saved->toString());
 }
 
 void ComponentLibraryTest::toastKeepsPythonFactoriesAndStackingContract()

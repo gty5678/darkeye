@@ -19,6 +19,8 @@ struct AppSettings final
 
     QString themeId = QStringLiteral("LIGHT");
     QString customPrimary;
+    QString customPrimaryOklch;
+    QString colorMode = QStringLiteral("DISPLAY_P3");
 
     bool firstLaunch = true;
     bool maximized = false;

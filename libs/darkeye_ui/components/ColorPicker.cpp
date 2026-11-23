@@ -1,6 +1,6 @@
 #include "darkeye_ui/components/ColorPicker.h"
-#include "darkeye_ui/components/ColorWheel.h"
 #include "darkeye_ui/theme/ChamferPath.h"
+#include "darkeye_ui/theme/ThemeService.h"
 
 #include <QtMath>
 
@@ -14,9 +14,10 @@
 namespace darkeye {
 
 ColorPicker::ColorPicker(const QColor &color, bool showText, Shape shape,
-                         QWidget *parent)
+                         QWidget *parent, QColorSpace::NamedColorSpace gamut)
     : QLabel(parent), m_color(color.isValid() ? color : QColor("#cccccc")),
-      m_showText(showText), m_shape(shape)
+      m_showText(showText), m_shape(shape), m_gamut(gamut),
+      m_toOutput(QColorSpace(gamut).transformationToColorSpace(ThemeService::outputColorSpace()))
 {
     setObjectName(QStringLiteral("DesignColorPicker"));
     setAlignment(Qt::AlignCenter);
@@ -31,9 +32,16 @@ void ColorPicker::setColor(const QString &color)
     const QColor candidate(color);
     if (!candidate.isValid() || candidate == m_color) return;
     m_color = candidate;
+    m_oklch.reset();
     if (m_shape == Shape::Rectangle && m_showText) setText(m_color.name());
     update();
     emit colorChanged(m_color.name());
+}
+
+void ColorPicker::setOklch(std::optional<OklchColor> color)
+{
+    if (color) setColor(color->hex(m_gamut));
+    m_oklch = color;
 }
 
 void ColorPicker::setShowText(bool show) { m_showText = show; updateDisplay(); }
@@ -48,9 +56,10 @@ void ColorPicker::paintEvent(QPaintEvent *event)
     // A regular octagon has equal horizontal, vertical and diagonal sides.
     const qreal corner = m_shape == Shape::Octagon
         ? qMin(bounds.width(), bounds.height()) / (2 + qSqrt(2.0)) : 6;
-    painter.fillPath(chamferPath(bounds, corner), m_color);
+    const QColor preview = QColor::fromRgb(m_toOutput.map(m_color.rgb()));
+    painter.fillPath(chamferPath(bounds, corner), preview);
     if (m_shape == Shape::Rectangle && m_showText) {
-        painter.setPen(m_color.lightness() > 128 ? Qt::black : Qt::white);
+        painter.setPen(preview.lightness() > 128 ? Qt::black : Qt::white);
         painter.setFont(font());
         painter.drawText(rect(), alignment(), text());
     }
@@ -65,17 +74,22 @@ void ColorPicker::mousePressEvent(QMouseEvent *event)
             return;
         }
         if (m_colorWheel == nullptr) {
-            m_colorWheel = new ColorWheelSimple(this);
+            m_colorWheel = new ColorWheelSimple(this, m_gamut);
             m_colorWheel->setWindowFlags(Qt::FramelessWindowHint |
                                          Qt::WindowStaysOnTopHint | Qt::Popup);
-            connect(m_colorWheel, &ColorWheelSimple::colorChanged, this,
-                    [this](const QColor &color) { setColor(color.name()); });
+            connect(m_colorWheel, &ColorWheelSimple::colorChanged, this, [this](const QColor &color) {
+                setColor(color.name());
+                m_oklch = m_colorWheel->oklch();
+                m_colorEdited = true;
+            });
             qApp->installEventFilter(this);
         }
         {
             const QSignalBlocker blocker(m_colorWheel);
-            m_colorWheel->setInitialColor(m_color.name(QColor::HexRgb));
+            if (m_oklch) m_colorWheel->setOklch(*m_oklch);
+            else m_colorWheel->setInitialColor(m_color.name(QColor::HexRgb));
         }
+        m_colorEdited = false;
         m_colorWheel->adjustSize();
         const QPoint topLeft = mapToGlobal(QPoint(0, 0));
         const QRect available = screen() != nullptr
@@ -100,6 +114,11 @@ void ColorPicker::mousePressEvent(QMouseEvent *event)
 bool ColorPicker::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == m_colorWheel && event->type() == QEvent::Hide) {
+        if (m_colorEdited && m_oklch) {
+            m_colorEdited = false;
+            const auto color = *m_oklch;
+            emit oklchConfirmed(color);
+        }
         emit colorConfirmed(m_color.name());
     }
     // Observe clicks before child widgets or native popup handling consume them.

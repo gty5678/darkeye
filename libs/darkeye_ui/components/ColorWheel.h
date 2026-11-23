@@ -4,24 +4,34 @@
 #include <QPixmap>
 #include <QImage>
 #include <QColor>
+#include <QColorSpace>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QVector>
 #include <QString>
-#include <QRegularExpression>
-#include <QRegularExpressionValidator>
 #include <QRectF>
-#include <QKeyEvent>
+#include <optional>
 
 
 
 // 前置声明，减少头文件依赖，加快编译速度
 class QVBoxLayout;
 class QLabel;
-class QFocusEvent;
 
 namespace darkeye {
+
+struct OklchColor
+{
+    float lightness;
+    float chroma;
+    float hue;
+
+    [[nodiscard]] QString toString() const;
+    [[nodiscard]] QString hex(QColorSpace::NamedColorSpace gamut) const;
+    static std::optional<OklchColor> fromString(const QString &text);
+    static std::optional<OklchColor> fromHex(const QString &hex, QColorSpace::NamedColorSpace gamut);
+};
 
 class HexColorLineEdit : public QLineEdit
 {
@@ -29,20 +39,12 @@ class HexColorLineEdit : public QLineEdit
 
 public:
     explicit HexColorLineEdit(QWidget *parent = nullptr);
-    void setText(const QString &text);
 
 signals:
     void validHexColor(const QString &hex);
 
-protected:
-    void focusOutEvent(QFocusEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
-
-private slots:
-    void onTextChanged(const QString &text);
-
 private:
-    bool m_settingText = false;
+    void onTextEdited(const QString &text);
 };
 
 class ColorLabel : public QPushButton
@@ -50,7 +52,8 @@ class ColorLabel : public QPushButton
     Q_OBJECT
 
 public:
-    explicit ColorLabel(const QString &hexColor = "#FFFFFF", bool showText = true, QWidget *parent = nullptr);
+    explicit ColorLabel(const QString &hexColor = "#FFFFFF", bool showText = true,
+                        QWidget *parent = nullptr, QColorSpace::NamedColorSpace gamut = QColorSpace::SRgb);
 
     QString getColor() const;
     void setColor(const QString &color);
@@ -67,6 +70,7 @@ private:
 
     QString m_color;
     bool m_showText = true;
+    QColorSpace::NamedColorSpace m_gamut;
 };
 
 class OKLCHColorWheel : public QWidget
@@ -74,20 +78,25 @@ class OKLCHColorWheel : public QWidget
     Q_OBJECT
 
 public:
-    explicit OKLCHColorWheel(float l = 0.70f, float c = 0.12f, float h = 100.0f, QWidget *parent = nullptr);
+    using RgbGamut = QColorSpace::NamedColorSpace;
+    explicit OKLCHColorWheel(float l = 0.70f, float c = 0.12f, float h = 100.0f,
+                            QWidget *parent = nullptr, RgbGamut gamut = RgbGamut::SRgb);
 
     void setL(float l);
     void setC(float c);
     void setH(float h);
+    void setOklch(const OklchColor &color);
 
     float getL() const { return m_L; }
     float getC() const { return m_C; }
     float getH() const { return m_H; }
     QColor getCurrentColor() const;
-    QString getHexColor() const;
+    QString getHexColor(RgbGamut gamut = RgbGamut::SRgb) const;
 
     static bool srgbHexToOklch(const QString &hex, float &L, float &C, float &H);
-    static QColor oklchToRgb(float l, float c, float h, bool autopair = true);
+    static bool rgbHexToOklch(const QString &hex, float &L, float &C, float &H, RgbGamut gamut);
+    static QColor oklchToRgb(float l, float c, float h, bool autopair = true,
+                             RgbGamut gamut = RgbGamut::SRgb);
 
 signals:
     void colorChanged(const QColor &color);
@@ -105,6 +114,7 @@ protected:
 
 private:
     void updateLayout();
+    [[nodiscard]] QRectF squareRect() const;
     void generateOuterWheel();
     void generateInnerWheel();
     void generateSquare();
@@ -112,11 +122,14 @@ private:
     void drawInnerCircle(QPainter &painter);
     void updateHFromPos(const QPointF &pos);
     void updateLCFromPos(const QPointF &pos);
+    [[nodiscard]] QColor previewColor(float l, float c, float h) const;
 
 private:
     float m_L = 0.70f;
     float m_C = 0.12f;
     float m_H = 100.0f;
+    RgbGamut m_gamut;
+    RgbGamut m_outputGamut;
 
     bool m_isChoosingRing = false;
     bool m_isChoosingSquare = false;
@@ -138,7 +151,8 @@ class ColorWheelSimple : public QWidget
     Q_OBJECT
 
 public:
-    explicit ColorWheelSimple(QWidget *parent = nullptr);
+    explicit ColorWheelSimple(QWidget *parent = nullptr,
+                              QColorSpace::NamedColorSpace gamut = QColorSpace::SRgb);
 
     void setL(float l);
     void setC(float c);
@@ -152,6 +166,8 @@ public:
 
     void setHexColor(const QString &hex);
     void setInitialColor(const QString &hex);
+    void setOklch(const OklchColor &color);
+    [[nodiscard]] OklchColor oklch() const;
 
 signals:
     void colorChanged(const QColor &color);
@@ -161,6 +177,7 @@ private:
     void replaceHistory();
     void swapColor(ColorLabel *label);
     void onWheelChanged();
+    void setHexColorInGamut(const QString &hex, QColorSpace::NamedColorSpace gamut);
 
 private:
     OKLCHColorWheel *m_wheel = nullptr;
@@ -170,6 +187,9 @@ private:
     QVector<QString> m_historyColors;
     ColorLabel *m_syncLabel = nullptr;
     HexColorLineEdit *m_hexLineEdit = nullptr;
+    HexColorLineEdit *m_displayP3Hex = nullptr;
+    QLabel *m_gamutHint = nullptr;
+    QColorSpace::NamedColorSpace m_gamut;
 };
 
 } // namespace darkeye

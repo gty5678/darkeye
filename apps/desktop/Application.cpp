@@ -3,6 +3,7 @@
 #include "app/LogService.h"
 #include "app/Resources.h"
 #include "crawler/ManagedCollector.h"
+#include "darkeye_ui/components/ColorWheel.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "http/LocalApiServer.h"
 #include "MainWindow.h"
@@ -26,6 +27,7 @@
 #include <QSettings>
 #include <QStackedWidget>
 #include <QSplashScreen>
+#include <QSurfaceFormat>
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
@@ -59,6 +61,15 @@ Application::Application(int &argc, char **argv)
         return;
     }
     m_paths = settings::Paths();
+    const auto appSettings = settings::app(m_paths.settingsFile());
+    ThemeService::setColorMode(appSettings.colorMode == QStringLiteral("SRGB")
+                                   ? QColorSpace::SRgb : QColorSpace::DisplayP3);
+#ifdef Q_OS_MACOS
+    // Cocoa takes the backing surface's color space when creating the window.
+    auto format = QSurfaceFormat::defaultFormat();
+    format.setColorSpace(QColorSpace(ThemeService::colorMode()));
+    QSurfaceFormat::setDefaultFormat(format);
+#endif
     m_application.setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
     const QPixmap logo(QStringLiteral(":/icons/logo.svg"));
     m_splash = std::make_unique<QSplashScreen>(logo);
@@ -322,9 +333,11 @@ void Application::configureIdentity()
 
 void Application::applyInitialTheme()
 {
-    const AppSettings appSettings = settings::app();
+    const AppSettings appSettings = settings::app(m_paths.settingsFile());
+    auto primary = OklchColor::fromString(appSettings.customPrimaryOklch);
+    if (!primary) primary = OklchColor::fromHex(appSettings.customPrimary, ThemeTokens::defaultColorSpace);
     m_themeService.setTheme(ThemeService::fromSettings(appSettings.themeId),
-                            appSettings.customPrimary);
+                            primary ? primary->hex(ThemeService::colorMode()) : QString());
 }
 
 } // namespace darkeye

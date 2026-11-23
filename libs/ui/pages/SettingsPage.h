@@ -28,6 +28,7 @@ namespace darkeye
 {
 
 class ColorPicker;
+struct OklchColor;
 class ToggleSwitch;
 class MultiplePathManagement;
 
@@ -108,7 +109,7 @@ signals:
 private:
     void lazyLoad() override;
     void updatePrimaryPickerState();
-    void savePrimaryColor(const QString &color);
+    void savePrimaryColor(const OklchColor &color);
 
     ThemeService &m_themeService;
     QString m_settingsFile;

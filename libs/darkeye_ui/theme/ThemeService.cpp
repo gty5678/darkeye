@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QColorTransform>
 #include <QFile>
 #include <QPalette>
 #include <QPainter>
@@ -11,6 +12,7 @@
 #include <QResource>
 #include <QRegularExpression>
 #include <QStyleOption>
+#include <QSurfaceFormat>
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +26,8 @@ void initializeDarkeyeUiResourceCollection()
 
 namespace darkeye {
 namespace {
+
+auto themeColorMode = ThemeTokens::defaultColorSpace;
 
 ThemeTokens lightTokens()
 {
@@ -77,23 +81,25 @@ ThemeTokens baseTokens(ThemeId theme)
     return lightTokens();
 }
 
-double luminance(const QColor &color)
+double luminance(const QColor &color, const QColorSpace &space)
 {
     const auto linear = [](double channel) {
         return channel <= 0.04045 ? channel / 12.92
                                   : std::pow((channel + 0.055) / 1.055, 2.4);
     };
-    return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF())
-        + 0.0722 * linear(color.blueF());
+    const bool p3 = space.primaries() == QColorSpace::Primaries::DciP3D65;
+    return (p3 ? 0.228975 : 0.2126) * linear(color.redF())
+        + (p3 ? 0.691739 : 0.7152) * linear(color.greenF())
+        + (p3 ? 0.079287 : 0.0722) * linear(color.blueF());
 }
 
 QString focusBorder(const ThemeTokens &tokens)
 {
-    const double surfaces[] = {luminance(QColor(tokens.pageBackground)),
-                               luminance(QColor(tokens.background)),
-                               luminance(QColor(tokens.inputBackground))};
+    const double surfaces[] = {luminance(QColor(tokens.pageBackground), tokens.colorSpace),
+                               luminance(QColor(tokens.background), tokens.colorSpace),
+                               luminance(QColor(tokens.inputBackground), tokens.colorSpace)};
     const auto contrast = [&](const QColor &color) {
-        const double edge = luminance(color);
+        const double edge = luminance(color, tokens.colorSpace);
         double minimum = 21.0;
         for (const double surface : surfaces)
             minimum = std::min(minimum, (std::max(edge, surface) + 0.05)
@@ -252,12 +258,37 @@ QMap<QString, QString> ThemeTokens::toMap() const
     };
 }
 
+ThemeTokens ThemeTokens::convertedTo(const QColorSpace &target) const
+{
+    if (!target.isValid() || colorSpace == target) return *this;
+
+    const auto transform = colorSpace.transformationToColorSpace(target);
+    ThemeTokens result = *this;
+    result.colorSpace = target;
+    constexpr QString ThemeTokens::*colors[] = {
+        &ThemeTokens::primary, &ThemeTokens::primaryHover, &ThemeTokens::background,
+        &ThemeTokens::inputBackground, &ThemeTokens::pageBackground, &ThemeTokens::border,
+        &ThemeTokens::borderFocus, &ThemeTokens::text, &ThemeTokens::textInverse,
+        &ThemeTokens::textPlaceholder, &ThemeTokens::textDisabled, &ThemeTokens::success,
+        &ThemeTokens::warning, &ThemeTokens::error, &ThemeTokens::info, &ThemeTokens::icon,
+        &ThemeTokens::iconDisabled, &ThemeTokens::modified, &ThemeTokens::imageDropOutline,
+    };
+    for (const auto member : colors) {
+        const QColor color(this->*member);
+        if (color.isValid()) {
+            result.*member = QColor::fromRgba(transform.map(color.rgba())).name(
+                color.alpha() == 255 ? QColor::HexRgb : QColor::HexArgb);
+        }
+    }
+    return result;
+}
+
 ThemeService::ThemeService(QApplication &application)
     : QObject(&application), m_application(application)
 {
     // Use the same base widget style for every application using our theme.
     m_indicatorStyle = new SelectionIndicatorStyle;
-    m_indicatorStyle->setColors(lightTokens());
+    m_indicatorStyle->setColors(currentTokens());
     m_application.setStyle(m_indicatorStyle);
     new ChamferStyle(this);
 }
@@ -413,21 +444,35 @@ QVector<ThemeId> ThemeService::availableThemes()
             ThemeId::Yellow, ThemeId::Blue, ThemeId::Purple};
 }
 
-ThemeTokens ThemeService::tokens(ThemeId theme, const QString &customPrimary)
+QColorSpace ThemeService::outputColorSpace()
 {
-    ThemeTokens result = baseTokens(theme);
+    const QColorSpace formatSpace = QSurfaceFormat::defaultFormat().colorSpace();
+    return formatSpace.isValid() ? formatSpace : QColorSpace(QColorSpace::SRgb);
+}
+
+QColorSpace::NamedColorSpace ThemeService::colorMode()
+{
+    return themeColorMode;
+}
+
+void ThemeService::setColorMode(QColorSpace::NamedColorSpace mode)
+{
+    themeColorMode = mode;
+}
+
+ThemeTokens ThemeService::sourceTokens(ThemeId theme, const QString &customPrimary)
+{
+    ThemeTokens result = baseTokens(theme).convertedTo(QColorSpace(colorMode()));
     if (theme == ThemeId::Blue)
     {
         result.fontSizeWorkspaceTab = QStringLiteral("16px");
     }
     if (theme != ThemeId::Light && theme != ThemeId::Dark) {
-        result.borderFocus = focusBorder(result);
         return result;
     }
 
     const QColor primary(customPrimary.trimmed());
     if (!primary.isValid()) {
-        result.borderFocus = focusBorder(result);
         return result;
     }
 
@@ -450,6 +495,12 @@ ThemeTokens ThemeService::tokens(ThemeId theme, const QString &customPrimary)
                                 1.0F),
                          alpha)
             .name();
+    return result;
+}
+
+ThemeTokens ThemeService::tokens(ThemeId theme, const QString &customPrimary)
+{
+    auto result = sourceTokens(theme, customPrimary).convertedTo(outputColorSpace());
     result.borderFocus = focusBorder(result);
     return result;
 }

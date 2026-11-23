@@ -146,6 +146,8 @@ AppSettings app(QString settingsFile)
     AppSettings settings;
     settings.themeId = m_store.value(QStringLiteral("App/Theme"), settings.themeId).toString();
     settings.customPrimary = m_store.value(QStringLiteral("App/CustomPrimary")).toString();
+    settings.customPrimaryOklch = m_store.value(QStringLiteral("App/CustomPrimaryOklch")).toString();
+    settings.colorMode = m_store.value(QStringLiteral("App/ColorMode"), settings.colorMode).toString();
     settings.firstLaunch =
         m_store.value(QStringLiteral("window/first_lunch"), settings.firstLaunch).toBool();
     settings.maximized =
@@ -308,6 +310,8 @@ void saveApp(const AppSettings &settings, QString settingsFile)
     m_store.setValues({
         {QStringLiteral("App/Theme"), settings.themeId},
         {QStringLiteral("App/CustomPrimary"), settings.customPrimary},
+        {QStringLiteral("App/CustomPrimaryOklch"), settings.customPrimaryOklch},
+        {QStringLiteral("App/ColorMode"), settings.colorMode},
         {QStringLiteral("window/first_lunch"), settings.firstLaunch},
         {QStringLiteral("window/maximized"), settings.maximized},
         {QStringLiteral("window/size"), settings.windowSize},

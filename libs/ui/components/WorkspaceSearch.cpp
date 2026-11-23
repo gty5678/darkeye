@@ -295,6 +295,7 @@ void WorkspaceSearch::updateResults() {
             {QStringLiteral("男优库"), QStringLiteral("actor")},
             {QStringLiteral("商店"), QStringLiteral("home")},
             {QStringLiteral("作品"), QStringLiteral("mutiwork")},
+            {QStringLiteral("添加作品"), QStringLiteral("add_quick_work")},
             {QStringLiteral("书架"), QStringLiteral("shelf")},
             {QStringLiteral("作品过滤器"), QStringLiteral("work_filters")},
             {QStringLiteral("女演员详情"), QStringLiteral("actress_detail")},

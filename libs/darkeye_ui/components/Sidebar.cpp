@@ -1,6 +1,7 @@
 #include "darkeye_ui/components/Sidebar.h"
 
 #include "darkeye_ui/components/IconButton.h"
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/theme/IconProvider.h"
 #include "darkeye_ui/components/ChamferButton.h"
 #include "darkeye_ui/components/LoadingFeedback.h"
@@ -15,7 +16,6 @@
 #include <QStyle>
 #include <QTimer>
 #include <QPainter>
-#include <QPainterPath>
 #include <QVBoxLayout>
 
 namespace darkeye {
@@ -284,22 +284,12 @@ void Sidebar2::paintEvent(QPaintEvent *)
         m_themes == nullptr ? ThemeId::Light : m_themes->current(),
         m_themes == nullptr ? QString() : m_themes->customPrimary());
     const QRectF area = rect().adjusted(5, 20, -5, -20);
-    constexpr qreal cut = 12;
-    QPainterPath path;
-    path.moveTo(area.left() + cut, area.top());
-    path.lineTo(area.right() - cut, area.top());
-    path.lineTo(area.right(), area.top() + cut);
-    path.lineTo(area.right(), area.bottom() - cut);
-    path.lineTo(area.right() - cut, area.bottom());
-    path.lineTo(area.left() + cut, area.bottom());
-    path.lineTo(area.left(), area.bottom() - cut);
-    path.lineTo(area.left(), area.top() + cut);
-    path.closeSubpath();
+    if (area.isEmpty()) return;
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(tokens.background));
-    painter.drawPath(path);
+    painter.drawPath(chamferPath(area, 12));
 }
 
 void Sidebar2::handleClick(const QString &menuId)

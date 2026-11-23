@@ -743,26 +743,27 @@ void ColorWheelSimple::setupUi()
     m_wheel = new OKLCHColorWheel(0.70f, 0.12f, 100.0f, this, m_gamut);
     layout->addWidget(m_wheel, 1);
 
-    m_bottomBar = new QWidget(this);
-    m_bottomLayout = new QHBoxLayout(m_bottomBar);
-    m_bottomLayout->setSpacing(3);
-    m_bottomLayout->setContentsMargins(6, 6, 6, 6);
+    auto *bottomBar = new QWidget(this);
+    auto *bottomLayout = new QHBoxLayout(bottomBar);
+    bottomLayout->setSpacing(3);
+    bottomLayout->setContentsMargins(6, 6, 6, 6);
 
-    m_historyColors = { "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF" };
-    for (int i = 0; i < m_historyColors.size(); ++i) {
-        ColorLabel* label = new ColorLabel(m_historyColors[i], false, m_bottomBar, m_gamut);
+    constexpr int historySize = 5;
+    const auto initialColor = QStringLiteral("#FFFFFF");
+    for (int i = 0; i < historySize; ++i) {
+        auto *label = new ColorLabel(initialColor, false, bottomBar, m_gamut);
         label->setFixedSize(30, 30);
         m_historyLabels.append(label);
-        connect(label, &ColorLabel::colorClicked, this, [this, label](const QString&) {
-            swapColor(label);
-            });
-        m_bottomLayout->addWidget(label);
+        connect(label, &ColorLabel::colorClicked, this, [this, label] {
+            swapColor(*label);
+        });
+        bottomLayout->addWidget(label);
     }
 
-    m_syncLabel = new ColorLabel("#FFFFFF", false, m_bottomBar, m_gamut);
+    m_syncLabel = new ColorLabel(initialColor, false, bottomBar, m_gamut);
     m_syncLabel->setFixedHeight(30);
-    m_bottomLayout->addWidget(m_syncLabel);
-    layout->addWidget(m_bottomBar);
+    bottomLayout->addWidget(m_syncLabel);
+    layout->addWidget(bottomBar);
 
     auto *values = new QHBoxLayout;
     values->setContentsMargins(6, 0, 6, 6);
@@ -812,32 +813,16 @@ void ColorWheelSimple::setupUi()
 
 void ColorWheelSimple::replaceHistory()
 {
-    if (m_historyLabels.isEmpty()) {
-        return;
-    }
-    QString current = getHexColor();
-    m_historyColors.append(current);
-    while (m_historyColors.size() > m_historyLabels.size()) {
-        m_historyColors.removeFirst();
-    }
-    for (int i = 0; i < m_historyLabels.size(); ++i) {
-        m_historyLabels[i]->setColor(m_historyColors[i]);
-    }
+    for (qsizetype i = 1; i < m_historyLabels.size(); ++i)
+        m_historyLabels[i - 1]->setColor(m_historyLabels[i]->getColor());
+    m_historyLabels.last()->setColor(getHexColor());
 }
 
-void ColorWheelSimple::swapColor(ColorLabel* label)
+void ColorWheelSimple::swapColor(ColorLabel &label)
 {
-    if (!label) {
-        return;
-    }
-    QString current = getHexColor();
-    QString clicked = label->getColor();
-    label->setColor(current);
+    const QString clicked = label.getColor();
+    label.setColor(getHexColor());
     setHexColor(clicked);
-    int idx = m_historyLabels.indexOf(label);
-    if (idx >= 0 && idx < m_historyColors.size()) {
-        m_historyColors[idx] = current;
-    }
 }
 
 void ColorWheelSimple::onWheelChanged()

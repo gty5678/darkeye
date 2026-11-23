@@ -20,6 +20,7 @@ private slots:
     void waterfallUsesShortestColumn();
     void lazyAreaLoadsOnePageAtATime();
     void lazyAreaReleasesItemsOutsideViewport();
+    void lazyAreaCanReplaceAndClearViewportHandler();
     void lazyAreaSupportsHeaderAndPreloadsUntilScrollable();
     void lazyAreaLoadsNextPageWhenScrolledNearBottom();
     void lazyAreaScrollRangeCoversWholeWaterfall();
@@ -192,6 +193,37 @@ void LayoutTest::lazyAreaReleasesItemsOutsideViewport()
 
     area.hide();
     QTRY_VERIFY(active.isEmpty());
+}
+
+void LayoutTest::lazyAreaCanReplaceAndClearViewportHandler()
+{
+    QSet<QWidget *> firstActive;
+    QSet<QWidget *> secondActive;
+    darkeye::LazyScrollArea area(100);
+    area.resize(140, 150);
+    area.setViewportItemHandler([&firstActive](QWidget *widget, bool active) {
+        if (active) firstActive.insert(widget);
+        else firstActive.remove(widget);
+    });
+    auto *card = new QLabel;
+    card->setFixedSize(100, 100);
+    area.setLoader([card](int, int) { return QList<QWidget *>{card}; });
+    area.show();
+    QTRY_VERIFY(firstActive.contains(card));
+
+    area.setViewportItemHandler([&secondActive](QWidget *widget, bool active) {
+        if (active) secondActive.insert(widget);
+        else secondActive.remove(widget);
+    });
+    QVERIFY(firstActive.isEmpty());
+    QTRY_VERIFY(secondActive.contains(card));
+
+    area.hide();
+    area.setViewportItemHandler({});
+    QVERIFY(secondActive.isEmpty());
+    QCoreApplication::processEvents();
+    area.setLoader({});
+    QCOMPARE(area.itemCount(), 0);
 }
 
 void LayoutTest::lazyAreaSupportsHeaderAndPreloadsUntilScrollable()

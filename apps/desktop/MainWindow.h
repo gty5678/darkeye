@@ -74,7 +74,7 @@ private:
     QString workspaceFile() const;
     std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
     void updateWindowTitle();
-    void registerPage(const QString &menuTitle, const QString &routeName, const QString &icon);
+    void registerPage(const QString &menuTitle, const QString &routeName, const QString &icon = {});
     QWidget *createPage(const QString &menuTitle, const QString &routeName,
                         QWidget *parent);
     QWidget *ensurePage(const QString &routeName, qint64 switchActressId = 0);

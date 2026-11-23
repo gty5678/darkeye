@@ -11,6 +11,7 @@
 #include <QProxyStyle>
 #include <QResource>
 #include <QRegularExpression>
+#include <QStringView>
 #include <QStyleOption>
 #include <QSurfaceFormat>
 
@@ -28,6 +29,29 @@ namespace darkeye {
 namespace {
 
 auto themeColorMode = ThemeTokens::defaultColorSpace;
+
+struct ThemeInfo {
+    ThemeId id;
+    QStringView settingsKey;
+    QStringView displayName;
+};
+
+constexpr ThemeInfo themes[] = {
+    {ThemeId::Light, u"LIGHT", u"亮色"},
+    {ThemeId::Dark, u"DARK", u"暗色"},
+    {ThemeId::Red, u"RED", u"红色"},
+    {ThemeId::Green, u"GREEN", u"绿色"},
+    {ThemeId::Yellow, u"YELLOW", u"黄色"},
+    {ThemeId::Blue, u"BLUE", u"蓝色"},
+    {ThemeId::Purple, u"PURPLE", u"紫色"},
+};
+
+const ThemeInfo &themeInfo(ThemeId id)
+{
+    for (const auto &theme : themes)
+        if (theme.id == id) return theme;
+    return themes[0];
+}
 
 ThemeTokens lightTokens()
 {
@@ -401,47 +425,27 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
 ThemeId ThemeService::fromSettings(const QString &value)
 {
     const QString normalized = value.trimmed().toUpper();
-    if (normalized == "DARK") return ThemeId::Dark;
-    if (normalized == "RED") return ThemeId::Red;
-    if (normalized == "GREEN") return ThemeId::Green;
-    if (normalized == "YELLOW") return ThemeId::Yellow;
-    if (normalized == "BLUE") return ThemeId::Blue;
-    if (normalized == "PURPLE") return ThemeId::Purple;
-    return ThemeId::Light;
+    for (const auto &theme : themes)
+        if (theme.settingsKey == normalized) return theme.id;
+    return themes[0].id;
 }
 
 QString ThemeService::toSettings(ThemeId theme)
 {
-    switch (theme) {
-    case ThemeId::Dark: return QStringLiteral("DARK");
-    case ThemeId::Red: return QStringLiteral("RED");
-    case ThemeId::Green: return QStringLiteral("GREEN");
-    case ThemeId::Yellow: return QStringLiteral("YELLOW");
-    case ThemeId::Blue: return QStringLiteral("BLUE");
-    case ThemeId::Purple: return QStringLiteral("PURPLE");
-    case ThemeId::Light: return QStringLiteral("LIGHT");
-    }
-    return QStringLiteral("LIGHT");
+    return themeInfo(theme).settingsKey.toString();
 }
 
 QString ThemeService::displayName(ThemeId theme)
 {
-    switch (theme) {
-    case ThemeId::Light: return QStringLiteral("亮色");
-    case ThemeId::Dark: return QStringLiteral("暗色");
-    case ThemeId::Red: return QStringLiteral("红色");
-    case ThemeId::Green: return QStringLiteral("绿色");
-    case ThemeId::Yellow: return QStringLiteral("黄色");
-    case ThemeId::Blue: return QStringLiteral("蓝色");
-    case ThemeId::Purple: return QStringLiteral("紫色");
-    }
-    return QStringLiteral("亮色");
+    return themeInfo(theme).displayName.toString();
 }
 
 QVector<ThemeId> ThemeService::availableThemes()
 {
-    return {ThemeId::Light, ThemeId::Dark, ThemeId::Red, ThemeId::Green,
-            ThemeId::Yellow, ThemeId::Blue, ThemeId::Purple};
+    QVector<ThemeId> ids;
+    for (const auto &theme : themes)
+        ids.append(theme.id);
+    return ids;
 }
 
 QColorSpace ThemeService::outputColorSpace()

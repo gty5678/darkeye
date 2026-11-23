@@ -155,6 +155,7 @@ PyQt/PySide 中可以用 QListView + QAbstractListModel + delegate 模拟瀑布�
 
 ## 1.2.6(未发布)
 ### 新功能
+ - [x] 超级高度自由度的界面组合
 
  - [ ] sod的封面超分与拼现有的图片
  - [ ] avwikidb 这个网站弄到作品的cid，把cid也加入数据库，这个网站有男优添加这个作品的查询，这个网站也有cloudflare反爬，这个网站是没有作品的故事介绍的。
@@ -162,7 +163,7 @@ PyQt/PySide 中可以用 QListView + QAbstractListModel + delegate 模拟瀑布�
  - [ ] 自动备份sqlite数据库，在启动软件，和关闭软件前。现在发现sqlite数据库老是坏
 这个网站只是转fanza上的，也就是说蚊香社的没有
 ### 优化
-
+ - [x] 精细美化界面
 ### 修bug
  - [ ] 插件过cloudflare
  - [ ] 修复爬虫bug

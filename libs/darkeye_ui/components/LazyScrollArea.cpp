@@ -34,15 +34,22 @@ void LazyScrollArea::setLoader(Loader loader)
 
 void LazyScrollArea::setViewportItemHandler(std::function<void(QWidget *, bool)> handler)
 {
-    m_viewportItemHandler = std::move(handler);
+    auto previousHandler = std::exchange(m_viewportItemHandler, std::move(handler));
+    const auto previousItems = std::exchange(m_activeItems, {});
+    if (previousHandler) {
+        for (QWidget *widget : previousItems)
+            previousHandler(widget, false);
+    }
     scheduleViewportUpdate();
 }
 
 void LazyScrollArea::reset()
 {
-    for (QWidget *widget : std::as_const(m_activeItems))
-        m_viewportItemHandler(widget, false);
-    m_activeItems.clear();
+    const auto previousItems = std::exchange(m_activeItems, {});
+    if (m_viewportItemHandler) {
+        for (QWidget *widget : previousItems)
+            m_viewportItemHandler(widget, false);
+    }
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
             // Match the Python implementation: remove cards from the content
@@ -194,6 +201,8 @@ void LazyScrollArea::scheduleViewportUpdate()
 
 void LazyScrollArea::updateViewportItems()
 {
+    if (!m_viewportItemHandler) return;
+
     QSet<QWidget *> active;
     if (viewport()->isVisible()) {
         m_layout->activate();

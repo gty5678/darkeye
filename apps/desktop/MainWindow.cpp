@@ -103,6 +103,13 @@ constexpr qsizetype recentWorkspaceLimit = 9;
 const auto actressSwitchRoute = QStringLiteral("actress_detail/switch");
 const auto restoreWorkspacePresetCommand = QStringLiteral("restore_workspace_preset");
 
+const QList<QPair<QString, QString>> dialogNavigationActions{
+    {QStringLiteral("add_quick_work"), QStringLiteral("plus")},
+    {QStringLiteral("add_sexual_rousal_record"), QStringLiteral("sprout")},
+    {QStringLiteral("add_makelove_record"), QStringLiteral("love_off")},
+    {QStringLiteral("add_masturbation_record"), QStringLiteral("note_pen")},
+};
+
 const auto libraryOverviewRoute = QStringLiteral("library_overview");
 const auto topActressesRoute = QStringLiteral("top_actresses");
 const auto recordHeatmapRoute = QStringLiteral("record_heatmap");
@@ -535,7 +542,7 @@ void MainWindow::buildUi()
     registerPage(QStringLiteral("全局关系图"), QStringLiteral("graph"), QStringLiteral("share_2"));
     registerPage(QStringLiteral("暗黑界知识库"), QStringLiteral("av"), QStringLiteral("tv"));
     registerPage(QStringLiteral("采集任务"), QStringLiteral("inbox"), QStringLiteral("arrow_down_to_line"));
-    registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"), QStringLiteral("layout_waterfall"));
+    registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"));
     registerPage(QStringLiteral("女演员详情（跟随切换）"), QStringLiteral("actress_detail"), QStringLiteral("eye"));
     registerPage(QStringLiteral("修改女演员"), QStringLiteral("modify_actress"), QStringLiteral("square_pen"));
     registerPage(QStringLiteral("修改男演员"), QStringLiteral("modify_actor"), QStringLiteral("square_pen"));
@@ -576,6 +583,12 @@ void MainWindow::buildUi()
             [this] { queueWorkspaceRefresh(ActressesChanged); });
     layout->addWidget(m_workspace);
     registerApplicationActions();
+    QMap<QString, QString> dialogCommands;
+    for (const auto &entry : dialogNavigationActions) {
+        const auto *action = m_shortcutActions->findChild<QAction *>(entry.first);
+        dialogCommands.insert(action->objectName(), action->text());
+    }
+    m_globalSearch->addCommands(dialogCommands);
     m_navigationBar = buildNavigationBar(centralWidget);
     mainLayout->addWidget(m_navigationBar);
     mainLayout->addWidget(workspaceContainer, 1);
@@ -685,9 +698,12 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
     };
     auto *toggle = addButton(layout, QStringLiteral("toggle_navigation"),
                              QStringLiteral("收起页面导航"), QStringLiteral("panel_left_close"));
+    addActionButton(layout, QStringLiteral("workspace_search"), QStringLiteral("搜索实体"), QStringLiteral("search"));
     layout->addWidget(scroll, 1);
-    addActionButton(pageLayout, QStringLiteral("workspace_search"), QStringLiteral("搜索实体"), QStringLiteral("search"));
-    addActionButton(pageLayout, QStringLiteral("add_quick_work"), QStringLiteral("添加作品"), QStringLiteral("plus"));
+    for (const auto &[id, icon] : dialogNavigationActions) {
+        const auto *action = m_shortcutActions->findChild<QAction *>(id);
+        addActionButton(pageLayout, id, action->text(), icon);
+    }
 
     using SearchMode = WorkspaceSearch::Mode;
     const auto addPicker = [this, &addButton, pageLayout](const QString &id, const QString &title,
@@ -712,7 +728,7 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
     }
     addPicker(QStringLiteral("work_edit"), QStringLiteral("编辑作品"),
               QStringLiteral("square_pen"), SearchMode::EditWork);
-    addActionButton(pageLayout, QStringLiteral("workspace_commands"), QStringLiteral("更多页面与命令"), QStringLiteral("terminal"));
+    addActionButton(layout, QStringLiteral("workspace_commands"), QStringLiteral("更多页面与命令"), QStringLiteral("terminal"));
     addActionButton(layout, QStringLiteral("open_help"), QStringLiteral("帮助"), QStringLiteral("circle_question"));
     addActionButton(layout, QStringLiteral("open_settings"), QStringLiteral("设置"), QStringLiteral("settings"));
 
@@ -1318,7 +1334,7 @@ void MainWindow::registerPage(const QString &menuTitle, const QString &routeName
 {
     // Registration is metadata only; each page is created on demand.
     m_routeTitles.insert(routeName, menuTitle);
-    m_navigationPages.append({routeName, icon});
+    if (!icon.isEmpty()) m_navigationPages.append({routeName, icon});
     m_routePages.insert(routeName, nullptr);
 }
 
@@ -1695,6 +1711,13 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
     }
     if (routeName == QStringLiteral("setting")) {
         openSettings();
+        return;
+    }
+    if (std::ranges::any_of(dialogNavigationActions, [&routeName](const auto &entry) {
+            return entry.first == routeName;
+        })) {
+        m_globalSearch->hide();
+        m_shortcutActions->findChild<QAction *>(routeName)->trigger();
         return;
     }
     if (routeName == QStringLiteral("open_help")) {

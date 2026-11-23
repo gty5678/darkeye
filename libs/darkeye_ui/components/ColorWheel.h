@@ -7,7 +7,6 @@
 #include <QColorSpace>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QHBoxLayout>
 #include <QVector>
 #include <QString>
 #include <QRectF>
@@ -175,16 +174,13 @@ signals:
 private:
     void setupUi();
     void replaceHistory();
-    void swapColor(ColorLabel *label);
+    void swapColor(ColorLabel &label);
     void onWheelChanged();
     void setHexColorInGamut(const QString &hex, QColorSpace::NamedColorSpace gamut);
 
 private:
     OKLCHColorWheel *m_wheel = nullptr;
-    QWidget *m_bottomBar = nullptr;
-    QHBoxLayout *m_bottomLayout = nullptr;
     QVector<ColorLabel *> m_historyLabels;
-    QVector<QString> m_historyColors;
     ColorLabel *m_syncLabel = nullptr;
     HexColorLineEdit *m_hexLineEdit = nullptr;
     HexColorLineEdit *m_displayP3Hex = nullptr;

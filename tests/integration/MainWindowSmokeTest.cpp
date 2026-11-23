@@ -1411,9 +1411,10 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(!routes.contains(QStringLiteral("manage_batch")));
 
     paletteInput->setText(QStringLiteral("批量"));
-    QCOMPARE(paletteResults->count(), 7);
+    QCOMPARE(paletteResults->count(), 8);
     QCOMPARE(paletteResults->item(0)->data(Qt::UserRole).toString(), QStringLiteral("manage_deleted"));
-    for (int index = 1; index < paletteResults->count(); ++index)
+    QCOMPARE(paletteResults->item(1)->data(Qt::UserRole).toString(), QStringLiteral("add_quick_work"));
+    for (int index = 2; index < paletteResults->count(); ++index)
         QVERIFY(paletteResults->item(index)->text().startsWith(QStringLiteral("命令 · 批量操作 · ")));
     paletteInput->setText(QStringLiteral("覆盖已有中文"));
     QCOMPARE(paletteResults->count(), 1);
@@ -2297,7 +2298,7 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
         QStringLiteral("home"), QStringLiteral("mutiwork"), QStringLiteral("shelf"),
         QStringLiteral("actress"), QStringLiteral("actor"), QStringLiteral("chart"),
         QStringLiteral("graph"), QStringLiteral("av"), QStringLiteral("inbox"),
-        QStringLiteral("fanart"), QStringLiteral("actress_detail"),
+        QStringLiteral("actress_detail"),
         darkeye::WorkspaceSearch::independentActressCommand,
         QStringLiteral("modify_actress"), QStringLiteral("modify_actor"), QStringLiteral("work_edit"),
         QStringLiteral("library_overview"), QStringLiteral("top_actresses"), QStringLiteral("record_heatmap"),
@@ -2308,6 +2309,7 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     };
     for (const auto &route : pageRoutes)
         QVERIFY2(buttons.contains(route), qPrintable(route));
+    QVERIFY(!buttons.contains(QStringLiteral("fanart")));
 
     auto *navigationToggle = buttons.value(QStringLiteral("toggle_navigation"));
     QVERIFY(navigationToggle && navigationToggle->isVisible());
@@ -2364,11 +2366,21 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     auto *scroll = bar->findChild<QScrollArea *>();
     QVERIFY(scroll && scroll->verticalScrollBar()->maximum() > 0);
     QVERIFY(!scroll->verticalScrollBar()->isVisible());
+    auto *searchButton = buttons.value(QStringLiteral("workspace_search"));
+    auto *commandsButton = buttons.value(QStringLiteral("workspace_commands"));
+    QVERIFY(searchButton && searchButton->isVisible());
+    QVERIFY(commandsButton && commandsButton->isVisible());
+    const auto searchPosition = searchButton->mapTo(bar, QPoint());
+    const auto commandsPosition = commandsButton->mapTo(bar, QPoint());
+    QVERIFY(searchPosition.y() + searchButton->height() <= scroll->mapTo(bar, QPoint()).y());
+    QVERIFY(commandsPosition.y() >= scroll->mapTo(bar, QPoint(0, scroll->height())).y());
     const auto scrollPoint = scroll->viewport()->rect().center();
     QWheelEvent wheel(scrollPoint, scroll->viewport()->mapToGlobal(scrollPoint), {},
                       QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
     QCoreApplication::sendEvent(scroll->viewport(), &wheel);
     QVERIFY(scroll->verticalScrollBar()->value() > 0);
+    QCOMPARE(searchButton->mapTo(bar, QPoint()), searchPosition);
+    QCOMPARE(commandsButton->mapTo(bar, QPoint()), commandsPosition);
     const auto filterRoute = QStringLiteral("work_filters");
     auto *filter = buttons.value(filterRoute);
     scroll->ensureWidgetVisible(filter, 0, 0);
@@ -2382,6 +2394,49 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     QTRY_VERIFY(search->isVisible());
     QVERIFY(input->placeholderText().contains(QStringLiteral("编辑")));
     search->hide();
+
+    auto *results = search->findChild<QListWidget *>(QStringLiteral("workspaceSearchResults"));
+    QVERIFY(results);
+    struct DialogEntry {
+        QString id;
+        QString query;
+        QString windowTitle;
+    };
+    const DialogEntry dialogs[] = {
+        {QStringLiteral("add_sexual_rousal_record"), QStringLiteral("晨勃"),
+         QStringLiteral("添加无意识性器官唤醒记录")},
+        {QStringLiteral("add_quick_work"), QStringLiteral("添加作品"),
+         QStringLiteral("批量录入与补全作品")},
+        {QStringLiteral("add_makelove_record"), QStringLiteral("做爱"), QStringLiteral("添加做爱记录")},
+        {QStringLiteral("add_masturbation_record"), QStringLiteral("自慰"), QStringLiteral("添加自慰记录")},
+    };
+    const auto openedDialogTitle = [&window](auto activate) {
+        QString title;
+        QTimer timer;
+        timer.setSingleShot(true);
+        connect(&timer, &QTimer::timeout, &window, [&title] {
+            if (auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget())) {
+                title = dialog->windowTitle();
+                dialog->reject();
+            }
+        });
+        timer.start(0);
+        activate();
+        return title;
+    };
+    for (const auto &[id, query, windowTitle] : dialogs) {
+        auto *button = buttons.value(id);
+        QVERIFY(button);
+        scroll->ensureWidgetVisible(button, 0, 0);
+        QCOMPARE(openedDialogTitle([button] { QTest::mouseClick(button, Qt::LeftButton); }), windowTitle);
+
+        commands->trigger();
+        QTRY_VERIFY(search->isVisible());
+        input->setText(query);
+        QTRY_VERIFY(results->count() == 1 && results->item(0)->data(Qt::UserRole).toString() == id);
+        QCOMPARE(openedDialogTitle([input] { QTest::keyClick(input, Qt::Key_Return); }), windowTitle);
+        QVERIFY(search->isHidden());
+    }
 
     auto *help = buttons.value(QStringLiteral("open_help"));
     auto *settingsButton = buttons.value(QStringLiteral("open_settings"));

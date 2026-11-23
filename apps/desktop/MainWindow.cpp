@@ -526,33 +526,33 @@ void MainWindow::buildUi()
             this, &MainWindow::updateTimelineFocus);
     setCentralWidget(centralWidget);
 
-    registerPage(QStringLiteral("作品展厅"), QStringLiteral("home"));
-    registerPage(QStringLiteral("作品库"), QStringLiteral("mutiwork"));
-    registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"));
-    registerPage(QStringLiteral("女演员"), QStringLiteral("actress"));
-    registerPage(QStringLiteral("男演员"), QStringLiteral("actor"));
-    registerPage(QStringLiteral("女演员详情（跟随切换）"), QStringLiteral("actress_detail"));
-    registerPage(QStringLiteral("修改女演员"), QStringLiteral("modify_actress"));
-    registerPage(QStringLiteral("修改男演员"), QStringLiteral("modify_actor"));
-    registerPage(QStringLiteral("统计"), QStringLiteral("chart"));
-    registerPage(QStringLiteral("库藏概览"), libraryOverviewRoute);
-    registerPage(QStringLiteral("最喜欢的女优"), topActressesRoute);
-    registerPage(QStringLiteral("个人记录热力图"), recordHeatmapRoute);
-    registerPage(QStringLiteral("全局关系图"), QStringLiteral("graph"));
-    registerPage(QStringLiteral("局部关系图"), QStringLiteral("local_graph"));
-    registerPage(QStringLiteral("作品时间轴"), QStringLiteral("timeline"));
-    registerPage(QStringLiteral("DVD 书架"), QStringLiteral("shelf"));
-    registerPage(QStringLiteral("暗黑界知识库"), QStringLiteral("av"));
-    registerPage(QStringLiteral("采集任务"), QStringLiteral("inbox"));
-
-    registerPage(QStringLiteral("标签管理"), QStringLiteral("manage_tags"));
-    registerPage(QStringLiteral("片商管理"), QStringLiteral("manage_makers"));
-    registerPage(QStringLiteral("厂牌管理"), QStringLiteral("manage_labels"));
-    registerPage(QStringLiteral("系列管理"), QStringLiteral("manage_series"));
-    registerPage(QStringLiteral("资料汇总"), QStringLiteral("manage_summary"));
-    registerPage(QStringLiteral("个人记录"), QStringLiteral("manage_records"));
-    registerPage(QStringLiteral("批量移入回收站"), QStringLiteral("manage_deleted"));
-    registerPage(QStringLiteral("回收站"), QStringLiteral("manage_trash"));
+    registerPage(QStringLiteral("作品展厅"), QStringLiteral("home"), QStringLiteral("house"));
+    registerPage(QStringLiteral("作品库"), QStringLiteral("mutiwork"), QStringLiteral("film"));
+    registerPage(QStringLiteral("DVD 书架"), QStringLiteral("shelf"), QStringLiteral("library_big"));
+    registerPage(QStringLiteral("女演员"), QStringLiteral("actress"), QStringLiteral("venus"));
+    registerPage(QStringLiteral("男演员"), QStringLiteral("actor"), QStringLiteral("mars"));
+    registerPage(QStringLiteral("统计"), QStringLiteral("chart"), QStringLiteral("chart_line"));
+    registerPage(QStringLiteral("全局关系图"), QStringLiteral("graph"), QStringLiteral("share_2"));
+    registerPage(QStringLiteral("暗黑界知识库"), QStringLiteral("av"), QStringLiteral("tv"));
+    registerPage(QStringLiteral("采集任务"), QStringLiteral("inbox"), QStringLiteral("arrow_down_to_line"));
+    registerPage(QStringLiteral("剧照浏览"), QStringLiteral("fanart"), QStringLiteral("layout_waterfall"));
+    registerPage(QStringLiteral("女演员详情（跟随切换）"), QStringLiteral("actress_detail"), QStringLiteral("eye"));
+    registerPage(QStringLiteral("修改女演员"), QStringLiteral("modify_actress"), QStringLiteral("square_pen"));
+    registerPage(QStringLiteral("修改男演员"), QStringLiteral("modify_actor"), QStringLiteral("square_pen"));
+    registerPage(QStringLiteral("库藏概览"), libraryOverviewRoute, QStringLiteral("database"));
+    registerPage(QStringLiteral("最喜欢的女优"), topActressesRoute, QStringLiteral("love_on"));
+    registerPage(QStringLiteral("个人记录热力图"), recordHeatmapRoute, QStringLiteral("layout_grid"));
+    registerPage(QStringLiteral("局部关系图"), QStringLiteral("local_graph"), QStringLiteral("link"));
+    registerPage(QStringLiteral("作品时间轴"), QStringLiteral("timeline"), QStringLiteral("list_x"));
+    registerPage(QStringLiteral("标签管理"), QStringLiteral("manage_tags"), QStringLiteral("link"));
+    registerPage(QStringLiteral("片商管理"), QStringLiteral("manage_makers"), QStringLiteral("layout_grid"));
+    registerPage(QStringLiteral("厂牌管理"), QStringLiteral("manage_labels"), QStringLiteral("note_pen"));
+    registerPage(QStringLiteral("系列管理"), QStringLiteral("manage_series"), QStringLiteral("library_big"));
+    registerPage(QStringLiteral("资料汇总"), QStringLiteral("manage_summary"), QStringLiteral("scroll_text"));
+    registerPage(QStringLiteral("个人记录"), QStringLiteral("manage_records"), QStringLiteral("note_pen"));
+    registerPage(QStringLiteral("批量移入回收站"), QStringLiteral("manage_deleted"), QStringLiteral("list_x"));
+    registerPage(QStringLiteral("回收站"), QStringLiteral("manage_trash"), QStringLiteral("trash_2"));
+    registerPage(m_workFilter->windowTitle(), QStringLiteral("work_filters"), QStringLiteral("funnel"));
     m_globalSearch = new WorkspaceSearch(m_publicDatabase, workspaceCommandPages(), centralWidget);
     auto commands = SettingsDialog::workspaceCommands();
     commands.insert(QStringLiteral("open_help"), QStringLiteral("帮助"));
@@ -584,7 +584,7 @@ void MainWindow::buildUi()
     auto *emptyState = new QWidget(workspaceContainer);
     auto *hintLayout = new QVBoxLayout(emptyState);
     hintLayout->setAlignment(Qt::AlignCenter);
-    m_navigationHint = new QLabel(QStringLiteral("点击左侧图标打开页面"), emptyState);
+    m_navigationHint = new QLabel(QStringLiteral("从左侧导航打开页面"), emptyState);
     m_navigationHint->setAlignment(Qt::AlignCenter);
     m_navigationHint->setVisible(appSettings.navigationBarVisible);
     hintLayout->addWidget(m_navigationHint);
@@ -643,15 +643,16 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
     auto *bar = new QWidget(parent);
     bar->setObjectName(QStringLiteral("pageNavigationBar"));
     bar->setAccessibleName(QStringLiteral("页面导航"));
-    bar->setFixedWidth(56);
     auto *layout = new QVBoxLayout(bar);
-    layout->setContentsMargins(0, 6, 1, 6);
+    constexpr int leftInset = 6;
+    layout->setContentsMargins(leftInset, 6, 1, 6);
     layout->setSpacing(4);
 
     auto *scroll = new QScrollArea(bar);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto *pages = new QWidget;
     pages->setObjectName(QStringLiteral("pageNavigationPages"));
     auto *pageLayout = new QVBoxLayout(pages);
@@ -659,7 +660,6 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
     pageLayout->setSpacing(4);
     pageLayout->setAlignment(Qt::AlignTop);
     scroll->setWidget(pages);
-    layout->addWidget(scroll, 1);
 
     const auto addButton = [this](QVBoxLayout *column, const QString &id,
                                   const QString &title, const QString &icon) {
@@ -668,7 +668,13 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         button->setButtonPixelSize(36);
         button->setIconPixelSize(20);
         button->setFocusPolicy(Qt::TabFocus);
-        column->addWidget(button, 0, Qt::AlignHCenter);
+        auto *row = new QHBoxLayout(button);
+        row->setContentsMargins(41, 0, 7, 0);
+        auto *label = new QLabel(title, button);
+        label->setObjectName(QStringLiteral("pageNavigationLabel"));
+        label->setAttribute(Qt::WA_TransparentForMouseEvents);
+        row->addWidget(label);
+        column->addWidget(button, 0, Qt::AlignLeft);
         return button;
     };
     const auto addActionButton = [this, &addButton](QVBoxLayout *column, const QString &id,
@@ -677,30 +683,62 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         auto *action = m_shortcutActions->findChild<QAction *>(id);
         connect(button, &QPushButton::clicked, action, &QAction::trigger);
     };
+    auto *toggle = addButton(layout, QStringLiteral("toggle_navigation"),
+                             QStringLiteral("收起页面导航"), QStringLiteral("panel_left_close"));
+    layout->addWidget(scroll, 1);
     addActionButton(pageLayout, QStringLiteral("workspace_search"), QStringLiteral("搜索实体"), QStringLiteral("search"));
     addActionButton(pageLayout, QStringLiteral("add_quick_work"), QStringLiteral("添加作品"), QStringLiteral("plus"));
 
-    const struct { const char *route; const char *icon; } entries[] = {
-        {"home", "house"},
-        {"mutiwork", "film"},
-        {"shelf", "library_big"},
-        {"actress", "venus"},
-        {"actor", "mars"},
-        {"chart", "chart_line"},
-        {"graph", "share_2"},
-        {"av", "tv"},
-        {"inbox", "arrow_down_to_line"},
+    using SearchMode = WorkspaceSearch::Mode;
+    const auto addPicker = [this, &addButton, pageLayout](const QString &id, const QString &title,
+                                                        const QString &icon, SearchMode mode) {
+        auto *button = addButton(pageLayout, id, title, icon);
+        connect(button, &QPushButton::clicked, this, [this, mode] { m_globalSearch->open(mode, {}); });
     };
-    for (const auto &entry : entries) {
-        const auto route = QString::fromLatin1(entry.route);
-        auto *button = addButton(pageLayout, route, m_routeTitles.value(route),
-                                 QString::fromLatin1(entry.icon));
-        connect(button, &QPushButton::clicked, this, [this, route] { navigateTo(route); });
+    for (const auto &[route, icon] : m_navigationPages) {
+        const auto title = m_routeTitles.value(route);
+        if (route == QStringLiteral("modify_actress")) {
+            addPicker(route, title, icon, SearchMode::EditActress);
+        } else if (route == QStringLiteral("modify_actor")) {
+            addPicker(route, title, icon, SearchMode::EditActor);
+        } else {
+            auto *button = addButton(pageLayout, route, title, icon);
+            connect(button, &QPushButton::clicked, this, [this, route] { navigateTo(route); });
+            if (route == QStringLiteral("actress_detail")) {
+                addPicker(WorkspaceSearch::independentActressCommand, QStringLiteral("女演员详情（独立页）"),
+                          QStringLiteral("eye"), SearchMode::IndependentActress);
+            }
+        }
     }
-
-    addActionButton(pageLayout, QStringLiteral("workspace_commands"), QStringLiteral("更多页面与命令"), QStringLiteral("layout_grid"));
+    addPicker(QStringLiteral("work_edit"), QStringLiteral("编辑作品"),
+              QStringLiteral("square_pen"), SearchMode::EditWork);
+    addActionButton(pageLayout, QStringLiteral("workspace_commands"), QStringLiteral("更多页面与命令"), QStringLiteral("terminal"));
     addActionButton(layout, QStringLiteral("open_help"), QStringLiteral("帮助"), QStringLiteral("circle_question"));
     addActionButton(layout, QStringLiteral("open_settings"), QStringLiteral("设置"), QStringLiteral("settings"));
+
+    const auto applyExpanded = [bar, toggle](bool expanded) {
+        bar->setProperty("expanded", expanded);
+        const auto title = expanded ? QStringLiteral("收起页面导航") : QStringLiteral("展开页面导航");
+        toggle->setIconName(expanded ? QStringLiteral("panel_left_close") : QStringLiteral("panel_left_open"));
+        toggle->setAccessibleName(title);
+        toggle->setToolTip(title);
+        bar->setFixedWidth(expanded ? 208 : 56);
+        for (auto *button : bar->findChildren<IconButton *>()) {
+            auto *label = button->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"));
+            label->setText(button->accessibleName());
+            label->setVisible(expanded);
+            button->setFixedWidth(expanded ? 195 : 36);
+        }
+    };
+    const auto expandedKey = QStringLiteral("Workspace/NavigationBarExpanded");
+    QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
+    applyExpanded(settings.value(expandedKey, true).toBool());
+    connect(toggle, &QPushButton::clicked, this, [this, bar, expandedKey, applyExpanded] {
+        const bool expanded = !bar->property("expanded").toBool();
+        applyExpanded(expanded);
+        QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
+        settings.setValue(expandedKey, expanded);
+    });
     return bar;
 }
 
@@ -1276,10 +1314,11 @@ void MainWindow::closeCurrentTab()
     if (pane) pane->removeContent(pane->currentContentId());
 }
 
-void MainWindow::registerPage(const QString &menuTitle, const QString &routeName)
+void MainWindow::registerPage(const QString &menuTitle, const QString &routeName, const QString &icon)
 {
     // Registration is metadata only; each page is created on demand.
     m_routeTitles.insert(routeName, menuTitle);
+    m_navigationPages.append({routeName, icon});
     m_routePages.insert(routeName, nullptr);
 }
 
@@ -1287,7 +1326,6 @@ QMap<QString, QString> MainWindow::workspaceCommandPages() const
 {
     auto pages = m_routeTitles;
     pages.insert(QStringLiteral("setting"), QStringLiteral("设置"));
-    pages.insert(QStringLiteral("work_filters"), m_workFilter->windowTitle());
     pages.insert(WorkspaceSearch::independentActressCommand, QStringLiteral("女演员详情（独立页）"));
     for (const auto &route : {QStringLiteral("fanart"),
                               QStringLiteral("modify_actress"), QStringLiteral("modify_actor")})

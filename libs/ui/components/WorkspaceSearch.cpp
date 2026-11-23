@@ -103,6 +103,15 @@ void WorkspaceSearch::open(Mode mode, QList<QPair<QString, QString>> recent) {
         case Mode::IndependentActress:
             m_input->setPlaceholderText(QStringLiteral("输入女演员姓名，在独立页打开详情"));
             break;
+        case Mode::EditActress:
+            m_input->setPlaceholderText(QStringLiteral("输入要编辑的女演员姓名"));
+            break;
+        case Mode::EditActor:
+            m_input->setPlaceholderText(QStringLiteral("输入要编辑的男演员姓名"));
+            break;
+        case Mode::EditWork:
+            m_input->setPlaceholderText(QStringLiteral("输入要编辑的作品番号或标题"));
+            break;
         case Mode::Entities:
             m_input->setPlaceholderText(QStringLiteral("搜索人物、作品、标签或分类"));
             break;
@@ -249,7 +258,7 @@ void WorkspaceSearch::updateResults() {
         auto *item = new QListWidgetItem(title, m_results);
         item->setData(Qt::UserRole, route);
     };
-    const auto addPeople = [&](PersonKind kind) {
+    const auto addPeople = [&](PersonKind kind, const QString &route) {
         if (!m_database.isOpen()) return;
         PersonSearch query;
         query.kind = kind;
@@ -259,7 +268,18 @@ void WorkspaceSearch::updateResults() {
         if (m_fullResults && persons.size() == m_limit) m_more->show();
         for (const auto &person : persons)
             add((kind == PersonKind::Actress ? QStringLiteral("女演员 · ") : QStringLiteral("男演员 · ")) + person.name,
-                (kind == PersonKind::Actress ? QStringLiteral("actress_detail/") : QStringLiteral("actor_works/")) + QString::number(person.id));
+                route + u'/' + QString::number(person.id));
+    };
+    const auto addWorks = [&](const QString &route) {
+        if (!m_database.isOpen()) return;
+        WorkSearch query;
+        query.keyword = text;
+        query.limit = m_limit;
+        const auto works = WorkRepository(m_database).search(query);
+        if (m_fullResults && works.size() == m_limit) m_more->show();
+        for (const auto &work : works)
+            add(QStringLiteral("作品 · %1  %2").arg(work.serialNumber, work.chineseTitle),
+                route + u'/' + QString::number(work.id));
     };
     if (m_mode == Mode::Commands) {
         const auto pagePrefix = QStringLiteral("页面 · ");
@@ -323,16 +343,26 @@ void WorkspaceSearch::updateResults() {
         if (m_results->count() == 0) add(QStringLiteral("没有匹配的命令"), {});
     } else if (m_mode == Mode::IndependentActress) {
         if (!text.isEmpty()) {
-            addPeople(PersonKind::Actress);
+            addPeople(PersonKind::Actress, QStringLiteral("actress_detail"));
             if (m_results->count() == 0) add(QStringLiteral("没有匹配的女演员"), {});
+        }
+    } else if (m_mode != Mode::Entities) {
+        if (!text.isEmpty()) {
+            if (m_mode == Mode::EditActress)
+                addPeople(PersonKind::Actress, QStringLiteral("modify_actress"));
+            else if (m_mode == Mode::EditActor)
+                addPeople(PersonKind::Actor, QStringLiteral("modify_actor"));
+            else
+                addWorks(QStringLiteral("work_edit"));
+            if (m_results->count() == 0) add(QStringLiteral("没有匹配结果"), {});
         }
     } else if (text.isEmpty()) {
         for (const auto &[route, title] : m_recent)
             add(title, route);
     } else {
         if (m_database.isOpen()) {
-            addPeople(PersonKind::Actress);
-            addPeople(PersonKind::Actor);
+            addPeople(PersonKind::Actress, QStringLiteral("actress_detail"));
+            addPeople(PersonKind::Actor, QStringLiteral("actor_works"));
             WorkRepository works(m_database);
             const auto matches = [&text](const QString &name) {
                 return name.contains(text, Qt::CaseInsensitive);
@@ -342,11 +372,7 @@ void WorkspaceSearch::updateResults() {
                     add(QStringLiteral("导演 · ") + director,
                         QStringLiteral("director/") + QString::fromLatin1(QUrl::toPercentEncoding(director)));
             }
-            WorkSearch query; query.keyword = text; query.limit = m_limit;
-            const auto foundWorks = works.search(query);
-            if (m_fullResults && foundWorks.size() == m_limit) m_more->show();
-            for (const auto &work : foundWorks)
-                add(QStringLiteral("作品 · %1  %2").arg(work.serialNumber, work.chineseTitle), QStringLiteral("work_detail/") + QString::number(work.id));
+            addWorks(QStringLiteral("work_detail"));
             for (const auto &tag : works.tagOptions())
                 if ((tag.name + tag.aliases.join(' ')).contains(text, Qt::CaseInsensitive))
                     add(QStringLiteral("标签 · ") + tag.name, QStringLiteral("tag/") + QString::number(tag.id));

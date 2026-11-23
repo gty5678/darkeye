@@ -10,6 +10,7 @@
 #include <QFileSystemModel>
 #include <QInputDialog>
 #include <QMimeData>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QToolButton>
@@ -25,6 +26,7 @@ private slots:
     void editsAndAutomaticallySavesMarkdown();
     void importsDroppedImagesInBothEditorModes();
     void followsDarkeyeThemeWhileEditing();
+    void scrollsWithoutChamferingTheWikiEditor();
 };
 
 void AvPageTest::buildsDocumentTreeAndRendersMarkdown()
@@ -110,7 +112,7 @@ void AvPageTest::editsAndAutomaticallySavesMarkdown()
 
     page.resize(900, 600);
     page.show();
-    QTRY_VERIFY(tree->width() >= 280);
+    QTRY_VERIFY(tree->width() >= 175 && tree->width() <= 200);
     auto *addFolder = page.findChild<QToolButton *>(QStringLiteral("addProjectFolderButton"));
     auto *addFile = page.findChild<QToolButton *>(QStringLiteral("newProjectFileButton"));
     QVERIFY(addFolder != nullptr);
@@ -231,6 +233,39 @@ void AvPageTest::followsDarkeyeThemeWhileEditing()
     QVERIFY(themes.setTheme(darkeye::ThemeId::Purple));
     QCOMPARE(live->palette().color(QPalette::Base), QColor(themes.currentTokens().background));
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+}
+
+void AvPageTest::scrollsWithoutChamferingTheWikiEditor()
+{
+    darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QFile file(directory.filePath(QStringLiteral("scroll.md")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(QByteArray("Text that scrolls past the top of the editor.\n\n").repeated(100)) > 0);
+    file.close();
+
+    darkeye::AvPage page(directory.path(), themes);
+    page.resize(800, 480);
+    page.initialize();
+    page.show();
+    auto *tree = page.findChild<mdedit::ProjectFileTree *>();
+    auto *editor = page.findChild<MarkdownEditorWidget *>();
+    QVERIFY(tree);
+    QVERIFY(editor);
+    auto *live = editor->findChild<QTextBrowser *>(QStringLiteral("markdownPreview"));
+    QVERIFY(live);
+    QTRY_COMPARE(tree->fileModel()->rowCount(tree->rootIndex()), 1);
+    tree->clicked(tree->fileModel()->index(0, 0, tree->rootIndex()));
+    auto *scrollBar = live->verticalScrollBar();
+    QTRY_VERIFY(scrollBar->maximum() > 2);
+    scrollBar->setValue(scrollBar->maximum() / 2);
+    QCoreApplication::processEvents();
+
+    QVERIFY(scrollBar->value() > 0);
+    QVERIFY(!editor->graphicsEffect());
+    QVERIFY(!live->graphicsEffect());
 }
 
 QTEST_MAIN(AvPageTest)

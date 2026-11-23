@@ -74,7 +74,7 @@ private:
     QString workspaceFile() const;
     std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
     void updateWindowTitle();
-    void registerPage(const QString &menuTitle, const QString &routeName);
+    void registerPage(const QString &menuTitle, const QString &routeName, const QString &icon);
     QWidget *createPage(const QString &menuTitle, const QString &routeName,
                         QWidget *parent);
     QWidget *ensurePage(const QString &routeName, qint64 switchActressId = 0);
@@ -151,6 +151,7 @@ private:
     WorkspaceChanges m_pendingWorkspaceChanges;
     QSet<qint64> m_pendingChangedWorkIds;
     bool m_refreshAllGraphWorks = false;
+    QList<QPair<QString, QString>> m_navigationPages;
     QMap<QString, QString> m_routeTitles;
     QMap<QString, QPointer<QWidget>> m_routePages;
 };

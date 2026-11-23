@@ -88,6 +88,7 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QWheelEvent>
 #include <QInputMethodEvent>
 #include <QWindow>
 #include <QtTest>
@@ -2274,6 +2275,7 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     QVERIFY(paths.ensureRuntimeDirectories());
     QVERIFY(saveEmptyWorkspace(paths));
     darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
     darkeye::MainWindow window(themes, {}, {}, paths);
     window.resize(900, 700);
     window.show();
@@ -2286,8 +2288,51 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
         QVERIFY(!button->icon().isNull());
         QVERIFY(!button->isCheckable());
         QVERIFY(!button->accessibleName().isEmpty());
+        auto *label = button->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"));
+        QVERIFY(label && !label->isHidden());
+        QCOMPARE(label->text(), button->accessibleName());
         buttons.insert(button->property("navigationId").toString(), button);
     }
+    const QStringList pageRoutes{
+        QStringLiteral("home"), QStringLiteral("mutiwork"), QStringLiteral("shelf"),
+        QStringLiteral("actress"), QStringLiteral("actor"), QStringLiteral("chart"),
+        QStringLiteral("graph"), QStringLiteral("av"), QStringLiteral("inbox"),
+        QStringLiteral("fanart"), QStringLiteral("actress_detail"),
+        darkeye::WorkspaceSearch::independentActressCommand,
+        QStringLiteral("modify_actress"), QStringLiteral("modify_actor"), QStringLiteral("work_edit"),
+        QStringLiteral("library_overview"), QStringLiteral("top_actresses"), QStringLiteral("record_heatmap"),
+        QStringLiteral("local_graph"), QStringLiteral("timeline"), QStringLiteral("work_filters"),
+        QStringLiteral("manage_tags"), QStringLiteral("manage_makers"), QStringLiteral("manage_labels"),
+        QStringLiteral("manage_series"), QStringLiteral("manage_summary"), QStringLiteral("manage_records"),
+        QStringLiteral("manage_deleted"), QStringLiteral("manage_trash")
+    };
+    for (const auto &route : pageRoutes)
+        QVERIFY2(buttons.contains(route), qPrintable(route));
+
+    auto *navigationToggle = buttons.value(QStringLiteral("toggle_navigation"));
+    QVERIFY(navigationToggle && navigationToggle->isVisible());
+    const int buttonLeft = navigationToggle->mapTo(bar, QPoint()).x();
+    for (auto *button : std::as_const(buttons))
+        QCOMPARE(button->mapTo(bar, QPoint()).x(), buttonLeft);
+    auto *home = buttons.value(QStringLiteral("home"));
+    const QRect iconArea(0, 0, 29, home->height());
+    const auto expandedIcon = home->grab(iconArea).toImage();
+    const auto expandedWidth = bar->width();
+    QTest::mouseClick(navigationToggle, Qt::LeftButton);
+    QVERIFY(bar->width() < expandedWidth);
+    for (auto *button : std::as_const(buttons)) {
+        QVERIFY(button->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"))->isHidden());
+        QCOMPARE(button->mapTo(bar, QPoint()).x(), buttonLeft);
+    }
+    QCOMPARE(home->grab(iconArea).toImage(), expandedIcon);
+    {
+        darkeye::MainWindow reopened(themes, {}, {}, paths);
+        auto *reopenedBar = reopened.findChild<QWidget *>(barName);
+        QVERIFY(reopenedBar);
+        QCOMPARE(reopenedBar->width(), bar->width());
+    }
+    QTest::mouseClick(navigationToggle, Qt::LeftButton);
+    QCOMPARE(bar->width(), expandedWidth);
 
     auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>();
     const auto inboxRoute = QStringLiteral("inbox");
@@ -2315,6 +2360,28 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     QTest::keyClick(input, Qt::Key_Return);
     QCOMPARE(workspace->findPaneByContentId(inboxRoute), sidebar);
     QVERIFY(workspace->isSidebarOpen(darkeye::myads::SidebarSide::Right));
+
+    auto *scroll = bar->findChild<QScrollArea *>();
+    QVERIFY(scroll && scroll->verticalScrollBar()->maximum() > 0);
+    QVERIFY(!scroll->verticalScrollBar()->isVisible());
+    const auto scrollPoint = scroll->viewport()->rect().center();
+    QWheelEvent wheel(scrollPoint, scroll->viewport()->mapToGlobal(scrollPoint), {},
+                      QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(scroll->viewport(), &wheel);
+    QVERIFY(scroll->verticalScrollBar()->value() > 0);
+    const auto filterRoute = QStringLiteral("work_filters");
+    auto *filter = buttons.value(filterRoute);
+    scroll->ensureWidgetVisible(filter, 0, 0);
+    QVERIFY(scroll->viewport()->rect().contains(filter->mapTo(scroll->viewport(), filter->rect().center())));
+    QTest::mouseClick(filter, Qt::LeftButton);
+    QVERIFY(workspace->findPaneByContentId(filterRoute));
+
+    auto *edit = buttons.value(QStringLiteral("work_edit"));
+    scroll->ensureWidgetVisible(edit, 0, 0);
+    QTest::mouseClick(edit, Qt::LeftButton);
+    QTRY_VERIFY(search->isVisible());
+    QVERIFY(input->placeholderText().contains(QStringLiteral("编辑")));
+    search->hide();
 
     auto *help = buttons.value(QStringLiteral("open_help"));
     auto *settingsButton = buttons.value(QStringLiteral("open_settings"));

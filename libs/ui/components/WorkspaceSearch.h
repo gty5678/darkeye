@@ -15,7 +15,7 @@ public:
     enum class Presentation { Popup, ResultsPage };
     WorkspaceSearch(QSqlDatabase database, QMap<QString, QString> pages, QWidget *parent = nullptr,
                     Presentation presentation = Presentation::Popup);
-    enum class Mode { Entities, Commands, IndependentActress };
+    enum class Mode { Entities, Commands, IndependentActress, EditActress, EditActor, EditWork };
     inline static const auto independentActressCommand = QStringLiteral("actress_detail_independent");
     void open(Mode mode, QList<QPair<QString, QString>> recent);
     void search(const QString &text);

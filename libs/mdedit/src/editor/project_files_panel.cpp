@@ -118,7 +118,7 @@ ProjectFilesPanel::ProjectFilesPanel(QWidget *parent)
 QSize ProjectFilesPanel::sizeHint() const
 {
     QSize size = QWidget::sizeHint();
-    size.setWidth(300);
+    size.setWidth(200);
     return size;
 }
 

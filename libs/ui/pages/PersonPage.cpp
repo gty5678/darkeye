@@ -49,6 +49,7 @@ void PersonPage::buildUi()
 
     auto *filterBar = new QWidget(this);
     filterBar->setObjectName(QStringLiteral("PersonFilterBar"));
+    filterBar->setAttribute(Qt::WA_StyledBackground);
     filterBar->setFixedHeight(34);
     auto *filters = new QHBoxLayout(filterBar);
     filters->setContentsMargins(10, 0, 10, 2);

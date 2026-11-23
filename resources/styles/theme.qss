@@ -84,6 +84,10 @@ QWidget#StatisticsContent {
     background-color: {{color_bg_page}};
 }
 
+QWidget#PersonFilterBar {
+    background-color: {{color_bg_page}};
+}
+
 QLabel#StatisticsHeading {
     background-color: transparent;
     font-size: 26px;
@@ -165,8 +169,7 @@ QComboBox > QLineEdit {
 }
 
 QTextEdit#DesignTextEdit,
-QPlainTextEdit#DesignPlainTextEdit,
-QPlainTextEdit#AvWikiEditor {
+QPlainTextEdit#DesignPlainTextEdit {
     background-color: {{color_bg_input}};
     border: {{border_width}} solid {{color_border}};
     border-radius: {{radius_md}};
@@ -186,8 +189,7 @@ QComboBox:hover:focus,
 QLineEdit#DesignInput:focus,
 QLineEdit#WorkSearchInput:focus,
 QTextEdit#DesignTextEdit:focus,
-QPlainTextEdit#DesignPlainTextEdit:focus,
-QPlainTextEdit#AvWikiEditor:focus {
+QPlainTextEdit#DesignPlainTextEdit:focus {
     border-color: {{color_border_focus}};
 }
 
@@ -340,8 +342,18 @@ QWidget#pageNavigationBar QScrollArea QWidget {
     background-color: {{color_bg}};
 }
 
+QWidget#pageNavigationBar QPushButton#DesignIconPushButton {
+    border: {{border_width_thin}} solid transparent;
+    text-align: left;
+    padding: 0 7px;
+}
+
 QWidget#pageNavigationBar QPushButton#DesignIconPushButton:focus {
-    border: {{border_width_thin}} solid {{color_border_focus}};
+    border-color: {{color_border_focus}};
+}
+
+QWidget#pageNavigationBar QLabel#pageNavigationLabel {
+    background-color: transparent;
 }
 
 QLabel#DesignAsyncImage {

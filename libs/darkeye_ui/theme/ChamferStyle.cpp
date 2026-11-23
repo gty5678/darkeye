@@ -283,8 +283,12 @@ bool usesCutCorners(QWidget *widget)
     if (qobject_cast<QPushButton *>(widget) || qobject_cast<QToolButton *>(widget)
         || qobject_cast<QLineEdit *>(widget)
         || qobject_cast<QAbstractSpinBox *>(widget)
-        || qobject_cast<QComboBox *>(widget) || qobject_cast<QTextEdit *>(widget)
-        || qobject_cast<QPlainTextEdit *>(widget))
+        || qobject_cast<QComboBox *>(widget))
+        return true;
+    // A frameless editor can scroll text up to its edge, where the effect
+    // would sample that text as a border.
+    if (auto *frame = qobject_cast<QFrame *>(widget); frame && frame->frameShape() != QFrame::NoFrame
+        && (qobject_cast<QTextEdit *>(widget) || qobject_cast<QPlainTextEdit *>(widget)))
         return true;
     return chamferNames.contains(name)
         || name == QLatin1String("ShelfFilterBar")

@@ -89,7 +89,7 @@ int main(int argc,char **argv){
             while(!condition()&&timer.elapsed()<3000)app.processEvents(QEventLoop::WaitForMoreEvents,10);
             return condition();
         };
-        CHECK(waitFor([&]{ return tree->width() >= 280; }));
+        CHECK(waitFor([&]{ return tree->width() >= 175 && tree->width() <= 200; }));
         const auto clickWikiLink=[&](MarkdownEditorWidget *surface,const QString &label){
             auto *view=surface->findChild<QTextBrowser *>("markdownPreview");
             auto cursor=view->document()->find(label);

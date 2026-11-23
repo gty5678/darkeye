@@ -375,6 +375,7 @@ void MyAdsTest::closingTabsKeepsWidthsUntilPointerLeaves()
         QTest::mouseMove(pane.windowHandle(), bar->mapTo(&pane, point));
     };
 
+    moveOverBar(QPoint(10, bar->height() + 10));
     for (int remaining : {2, 1}) {
         auto *button = bar->tabButton(0, QTabBar::RightSide);
         moveOverBar(bar->tabRect(0).center());
@@ -448,7 +449,7 @@ void MyAdsTest::draggingTabFollowsPointer()
     QCOMPARE(resting.pixelColor(trailingBackground * resting.devicePixelRatio()),
              theme.tabBarBackground);
     const auto checkStripEdges = [&](const QImage &image) {
-        const int stripBottom = bar->mapTo(pane, QPoint(0, bar->height() - 1)).y();
+        const int stripBottom = bar->mapTo(pane, QPoint(0, DockTabBarHeight - 1)).y();
         const QImage baseline = pane->grab(
             QRect(0, stripBottom, pane->width(), 1)).toImage();
         const QRect left = bar->tabRect(0);
@@ -466,6 +467,12 @@ void MyAdsTest::draggingTabFollowsPointer()
     const qreal restingScale = resting.devicePixelRatio();
     QCOMPARE(resting.pixelColor(QPoint(middle.center().x(), middle.top()) * restingScale),
              theme.border);
+    QCOMPARE(resting.pixelColor(QPoint(middle.center().x(), middle.top() + 1) * restingScale),
+             theme.background);
+    QCOMPARE(resting.pixelColor(QPoint(middle.center().x(), middle.top() + 2) * restingScale),
+             theme.background);
+    QCOMPARE(resting.pixelColor(QPoint(middle.center().x(), middle.top() + 3) * restingScale),
+             theme.tabSelected);
     QCOMPARE(resting.pixelColor(QPoint(middle.center().x(), middle.bottom()) * restingScale),
              theme.tabSelected);
     const auto move = [bar](const QPoint &position) {
@@ -751,6 +758,7 @@ void MyAdsTest::closedPagesAreDeletedAfterTheCurrentEvent()
 void MyAdsTest::paneUsesPageAndContentColors()
 {
     WorkspaceWidget workspace;
+    workspace.setObjectName(QStringLiteral("mainWorkspace"));
     workspace.resize(400, 300);
     auto *pane = workspace.rootPane();
     workspace.show();
@@ -760,8 +768,8 @@ void MyAdsTest::paneUsesPageAndContentColors()
     const QPoint middle = pane->contentRect().center();
     auto *bar = pane->findChild<QTabBar *>();
     QVERIFY(bar);
-    const int tabBarEnd = bar->mapTo(pane, QPoint(0, bar->height())).y();
-    QCOMPARE(pane->contentRect().top() - tabBarEnd, 2);
+    const int tabBarEnd = bar->mapTo(pane, QPoint(0, DockTabBarHeight)).y();
+    QCOMPARE(pane->contentRect().top() - tabBarEnd, DockGap);
     const auto colorAt = [](const QImage &image, const QPoint &point) {
         return image.pixelColor(point * image.devicePixelRatio());
     };
@@ -777,10 +785,21 @@ void MyAdsTest::paneUsesPageAndContentColors()
         const QRect tab = bar->tabRect(0);
         const QPoint tabFill = bar->mapTo(pane, QPoint(tab.center().x(), tab.bottom() - 2));
         const QImage occupied = pane->grab().toImage();
+        const QImage frame = workspace.grab().toImage();
+        for (int offset = 0; offset < DockGap; ++offset) {
+            QCOMPARE(colorAt(frame, QPoint(workspace.width() / 2, offset)), contentColor);
+            QCOMPARE(colorAt(frame, QPoint(workspace.width() / 2, workspace.height() - 1 - offset)),
+                     contentColor);
+            QCOMPARE(colorAt(frame, QPoint(offset, workspace.height() / 2)), contentColor);
+            QCOMPARE(colorAt(frame, QPoint(workspace.width() - 1 - offset, workspace.height() / 2)),
+                     contentColor);
+        }
         QCOMPARE(colorAt(occupied, top), pageColor);
         QCOMPARE(colorAt(occupied, tabFill), pageColor);
-        QCOMPARE(colorAt(occupied, QPoint(middle.x(), tabBarEnd)), pageColor);
-        QCOMPARE(colorAt(occupied, QPoint(middle.x(), tabBarEnd + 1)), pageColor);
+        for (int offset = 0; offset < DockGap; ++offset) {
+            QCOMPARE(colorAt(occupied, QPoint(tabFill.x(), tabBarEnd + offset)), pageColor);
+            QCOMPARE(colorAt(occupied, QPoint(middle.x(), tabBarEnd + offset)), contentColor);
+        }
         QCOMPARE(colorAt(occupied, middle), contentColor);
 
         QVERIFY(pane->removeContent("page"));
@@ -917,7 +936,8 @@ void MyAdsTest::workspacePreservesContentWhileSplitting()
     QTabBar *tabBar = rootGuard->findChild<QTabBar *>(QStringLiteral("MyAdsTabBar"));
     QVERIFY(tabBar);
     QVERIFY(tabBar->isVisible());
-    QCOMPARE(tabBar->height(), 32);
+    QCOMPARE(tabBar->height(), DockTabBarHeight + DockGap);
+    QCOMPARE(tabBar->tabRect(0).height(), DockTabBarHeight);
 }
 
 void MyAdsTest::workspaceBatchesProgrammaticSplits()
@@ -1452,6 +1472,17 @@ void MyAdsTest::tabStripJoinsSplitterAcrossNestedPanes()
     };
     QImage image(workspace.size(), QImage::Format_RGB32);
     workspace.render(&image);
+    const int horizontalGapY = stripBottom(right) + DockTabBarHeight;
+    const auto *verticalHandle = vertical->handle(1);
+    const QPoint verticalGap = verticalHandle->mapTo(&workspace, verticalHandle->rect().center());
+    QCOMPARE(image.pixelColor(editor->mapTo(&workspace, QPoint(editor->width() - 8, 0))),
+             theme.tabBarBackground);
+    for (int offset = 1; offset <= DockGap; ++offset) {
+        QCOMPARE(image.pixelColor(divider - offset, horizontalGapY), theme.background);
+        QCOMPARE(image.pixelColor(divider + offset, horizontalGapY), theme.background);
+        QCOMPARE(image.pixelColor(verticalGap - QPoint(0, offset)), theme.background);
+        QCOMPARE(image.pixelColor(verticalGap + QPoint(0, offset)), theme.background);
+    }
     QCOMPARE(image.pixelColor(divider, stripBottom(right)), theme.border);
     QCOMPARE(image.pixelColor(divider, stripBottom(editor)), theme.border);
     const int basicLeft = basic->mapTo(&workspace, QPoint()).x();

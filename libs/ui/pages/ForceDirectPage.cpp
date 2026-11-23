@@ -194,7 +194,8 @@ void ForceDirectPage::applyTheme()
     if (m_graphView == nullptr) return;
     auto *view = m_graphView->view();
     const ThemeTokens tokens = m_themeService.currentTokens();
-    view->setBackgroundColor(QColor(tokens.background));
+    const QColor background(tokens.pageBackground);
+    view->setBackgroundColor(background);
     view->setEdgeColor(QColor(tokens.border));
     view->setEdgeDimColor(QColor(tokens.pageBackground));
     view->setBaseColor(QColor(tokens.text));
@@ -203,7 +204,7 @@ void ForceDirectPage::applyTheme()
     view->setTextColor(QColor(tokens.text));
     view->setTextDimColor(QColor(tokens.pageBackground));
     QPalette overlayPalette = m_loadingOverlay->palette();
-    overlayPalette.setColor(QPalette::Window, QColor(tokens.background));
+    overlayPalette.setColor(QPalette::Window, background);
     overlayPalette.setColor(QPalette::WindowText, QColor(tokens.text));
     m_loadingOverlay->setPalette(overlayPalette);
 }

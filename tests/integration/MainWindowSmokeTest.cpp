@@ -2406,7 +2406,7 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
     QCOMPARE(right->contentsMargins(), QMargins(0, 0, 6, 0));
     const auto verifyStripLine = [workspace, left, right] {
         const auto *pane = qobject_cast<darkeye::myads::PaneWidget *>(left->parentWidget());
-        const int y = pane->mapTo(workspace, pane->contentRect().topLeft()).y() - 1;
+        const int y = pane->mapTo(workspace, QPoint(0, darkeye::myads::DockTabBarHeight - 1)).y();
         const auto snapshot = workspace->grab();
         const auto image = snapshot.toImage();
         QList<QRect> selectedTabs;
@@ -2419,9 +2419,9 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
         const int lastX = right->mapTo(workspace, right->rect().topRight()).x();
         for (int x = firstX; x <= lastX; ++x) {
             const QPoint pixel = QPoint(x, y) * snapshot.devicePixelRatio();
-            // The selected tab covers the line, with antialiased edges at its feet.
+            // The 2 px inner highlight blends into the baseline near the tab's feet.
             if (std::ranges::any_of(selectedTabs, [x](const QRect &tab) {
-                    return qAbs(x - tab.left()) <= 1 || qAbs(x - tab.right()) <= 1;
+                    return qAbs(x - tab.left()) <= 3 || qAbs(x - tab.right()) <= 3;
                 })) continue;
             const bool selected = std::ranges::any_of(selectedTabs, [x](const QRect &tab) {
                 return x >= tab.left() && x <= tab.right();

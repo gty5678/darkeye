@@ -20,7 +20,7 @@ DockTheme DockTheme::dark()
 QString DockTheme::styleSheet() const
 {
     return QStringLiteral(
-        "#MyAdsWorkspace { background:%1; color:%2; }"
+        "QWidget[myadsWorkspace=\"true\"] { background:%1; color:%2; }"
         "QWidget[myadsPane=\"true\"] { background:%7; border:none; }"
         "QWidget#MyAdsLeftSidebar { border-right:1px solid %8; }"
         "QWidget#MyAdsRightSidebar { border-left:1px solid %8; }"

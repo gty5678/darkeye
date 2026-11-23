@@ -37,11 +37,22 @@ namespace darkeye::myads {
 namespace {
 
 constexpr int TabBevel = 8;
+constexpr qreal TabOutlineWidth = 1;
+constexpr qreal TabHighlightWidth = 2;
+constexpr qreal TabHighlightInset = (TabOutlineWidth + TabHighlightWidth) / 2;
 constexpr int PreferredTabWidth = 168;
 constexpr int MinimumTabWidth = 120;
 
+void drawTabStrip(QPainter &painter, int width, const QColor &strip,
+                  const QColor &border, const QColor &gap)
+{
+    painter.fillRect(0, 0, width, DockTabBarHeight - 1, strip);
+    painter.fillRect(0, DockTabBarHeight - 1, width, 1, border);
+    painter.fillRect(0, DockTabBarHeight, width, DockGap, gap);
+}
+
 void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color,
-                   qreal detached = 0, const QColor &border = {})
+                   qreal detached = 0, const QColor &border = {}, const QColor &highlight = {})
 {
     const qreal top = bounds.top();
     const qreal bottom = bounds.bottom();
@@ -62,8 +73,20 @@ void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color
     painter->setBrush(color);
     painter->drawPolygon(outline);
     if (border.isValid()) {
-        painter->setPen(QPen(border, 1));
+        painter->setPen(QPen(border, TabOutlineWidth));
         painter->drawPolyline(outline);
+    }
+    if (highlight.isValid()) {
+        const qreal inset = TabHighlightInset;
+        const qreal center = bounds.center().x();
+        const QPolygonF inner{
+            {left + footInset + inset, bottom}, {left + inset, bottom - bevel},
+            {left + inset, top + bevel + inset}, {qMin(center, left + bevel + inset), top + inset},
+            {qMax(center, right - bevel - inset), top + inset}, {right - inset, top + bevel + inset},
+            {right - inset, bottom - bevel}, {right - footInset - inset, bottom},
+        };
+        painter->setPen(QPen(highlight, TabHighlightWidth));
+        painter->drawPolyline(inner);
     }
     painter->restore();
 }
@@ -90,12 +113,12 @@ public:
         m_strip = theme.tabBarBackground;
         m_selected = theme.tabSelected;
         m_border = theme.border;
+        m_gap = theme.background;
     }
 
-    void drawStrip(QPainter *painter, const QRect &area) const
+    void drawStrip(QPainter &painter, int width) const
     {
-        painter->fillRect(area, m_strip);
-        painter->fillRect(area.left(), area.bottom(), area.width(), 1, m_border);
+        drawTabStrip(painter, width, m_strip, m_border, m_gap);
     }
 
     void setDragPosition(QStyleOptionTab::TabPosition position)
@@ -170,7 +193,9 @@ public:
 
         if (tab->state.testFlag(State_Selected)) {
             const QRectF bounds = selectedTabBounds(*tab).adjusted(0, 0.5, 0, 0);
-            drawBeveledTab(painter, bounds, m_selected, 0, m_border);
+            const QRectF gap(bounds.left(), bounds.bottom(), bounds.width(), DockGap);
+            painter->fillRect(gap.adjusted(TabHighlightInset, 0, -TabHighlightInset, 0), m_selected);
+            drawBeveledTab(painter, bounds, m_selected, 0, m_border, m_gap);
         } else if (tab->position != QStyleOptionTab::Beginning
                    && tab->position != QStyleOptionTab::OnlyOneTab
                    && tab->selectedPosition != QStyleOptionTab::PreviousIsSelected) {
@@ -185,6 +210,7 @@ private:
     QColor m_strip;
     QColor m_selected;
     QColor m_border;
+    QColor m_gap;
     QStyleOptionTab::TabPosition m_dragPosition = QStyleOptionTab::OnlyOneTab;
 };
 
@@ -303,7 +329,7 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        m_tabStyle.drawStrip(&painter, rect());
+        m_tabStyle.drawStrip(painter, width());
         for (const auto &tab : m_tabs)
             painter.drawPixmap(position(tab), tab.pixmap);
         painter.drawPixmap(m_draggedPosition, m_draggedTab);
@@ -341,11 +367,12 @@ public:
         setExpanding(false);
         setElideMode(Qt::ElideRight);
         setUsesScrollButtons(false);
-        setFixedHeight(DockTabBarHeight);
+        setFixedHeight(DockTabBarHeight + DockGap);
         setAttribute(Qt::WA_Hover);
         connect(this, &QTabBar::currentChanged, this, [this](int index) {
             revealTab(index);
             updateCloseButtons();
+            update();
         });
     }
 
@@ -400,10 +427,11 @@ public:
     QSize tabSizeHint(int index) const override
     {
         if (!m_pane->iconOnly())
-            return QSize(m_heldTabWidths.value(tabData(index).toString(), PreferredTabWidth), height());
+            return QSize(m_heldTabWidths.value(tabData(index).toString(), PreferredTabWidth),
+                         DockTabBarHeight);
         const QString id = tabData(index).toString();
-        if (!m_pane->isContentCloseable(id)) return QSize(30, height());
-        return QSize(QTabBar::tabSizeHint(index).width(), height());
+        if (!m_pane->isContentCloseable(id)) return QSize(30, DockTabBarHeight);
+        return QSize(QTabBar::tabSizeHint(index).width(), DockTabBarHeight);
     }
 
 protected:
@@ -416,7 +444,7 @@ protected:
     void paintEvent(QPaintEvent *event) override
     {
         QPainter painter(this);
-        m_tabStyle->drawStrip(&painter, rect());
+        m_tabStyle->drawStrip(painter, width());
         painter.end();
         QTabBar::paintEvent(event);
     }
@@ -455,7 +483,8 @@ protected:
     QSize minimumTabSizeHint(int index) const override
     {
         if (!m_pane->iconOnly())
-            return QSize(m_heldTabWidths.value(tabData(index).toString(), MinimumTabWidth), height());
+            return QSize(m_heldTabWidths.value(tabData(index).toString(), MinimumTabWidth),
+                         DockTabBarHeight);
         return QTabBar::minimumTabSizeHint(index);
     }
 
@@ -521,7 +550,8 @@ protected:
             if (tabData(i).toString() == contentId) { currentIndex = i; break; }
         if (currentIndex < 0) return;
 
-        const QRect visibleTabs(mapFromParent(QPoint()), parentWidget()->size());
+        const QRect visibleTabs(mapFromParent(QPoint()),
+                                QSize(parentWidget()->width(), DockTabBarHeight));
         if (visibleTabs.contains(position)) {
             const int draggedCenter = m_pressTabCenter + position.x() - m_pressPosition.x();
             const QRect currentTab = tabRect(currentIndex);
@@ -642,7 +672,8 @@ private:
     QPixmap tabPixmap(int index, const QStyleOptionTab &tab, int overlap,
                       QStyle::ControlElement element)
     {
-        const QSize size = tab.rect.size() + QSize(2 * overlap, 0);
+        const int gap = element == QStyle::CE_TabBarTab ? DockGap : 0;
+        const QSize size = tab.rect.size() + QSize(2 * overlap, gap);
         QPixmap pixmap(size * devicePixelRatioF());
         pixmap.setDevicePixelRatio(devicePixelRatioF());
         pixmap.fill(Qt::transparent);
@@ -689,7 +720,7 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent, bool retainFocusO
     setAcceptDrops(true);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(2);
+    layout->setSpacing(0);
     auto *tabScrollArea = new QScrollArea(this);
     tabScrollArea->setFrameShape(QFrame::NoFrame);
     tabScrollArea->setFocusPolicy(Qt::NoFocus);
@@ -739,7 +770,8 @@ QString PaneWidget::paneId() const { return m_paneId; }
 int PaneWidget::tabInsertionIndex(const QPoint &globalPosition) const
 {
     const QWidget *viewport = m_tabBar->parentWidget();
-    if (!viewport->rect().contains(viewport->mapFromGlobal(globalPosition))) return -1;
+    const QRect strip(0, 0, viewport->width(), DockTabBarHeight);
+    if (!strip.contains(viewport->mapFromGlobal(globalPosition))) return -1;
     const QPoint local = m_tabBar->mapFromGlobal(globalPosition);
     const bool rtl = m_tabBar->layoutDirection() == Qt::RightToLeft;
     for (int i = 0; i < m_tabBar->count(); ++i) {
@@ -764,7 +796,7 @@ QRect PaneWidget::tabInsertionRect(int index) const
     const QWidget *viewport = m_tabBar->parentWidget();
     x = qBound(1, m_tabBar->mapToParent(QPoint(x, 0)).x(), qMax(1, viewport->width() - 2));
     return QRect(viewport->mapTo(this, QPoint(x - 1, 2)),
-                 QSize(3, qMax(1, m_tabBar->height() - 4)));
+                 QSize(3, DockTabBarHeight - 4));
 }
 
 QRect PaneWidget::contentRect() const { return m_stack->geometry(); }
@@ -990,8 +1022,7 @@ bool PaneWidget::setCurrentContentId(const QString &contentId)
 void PaneWidget::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
-    painter.fillRect(0, 0, width(), DockTabBarHeight, m_theme.tabBarBackground);
-    painter.fillRect(0, DockTabBarHeight - 1, width(), 1, m_theme.border);
+    drawTabStrip(painter, width(), m_theme.tabBarBackground, m_theme.border, m_theme.background);
 }
 
 void PaneWidget::addTabBarButton(QWidget *button, Qt::Edge edge)

@@ -6,6 +6,7 @@
 namespace darkeye::myads {
 
 inline constexpr int DockTabBarHeight = 32;
+inline constexpr int DockGap = 2;
 
 struct DockTheme
 {

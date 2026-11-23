@@ -29,8 +29,6 @@
 namespace darkeye::myads {
 
 namespace {
-constexpr int WorkspaceInset = 2;
-
 class SidebarToggleButton final : public QToolButton
 {
 public:
@@ -94,7 +92,7 @@ public:
         : QSplitter(orientation, parent)
     {
         setObjectName(QStringLiteral("MyAdsSplitter"));
-        setHandleWidth(5);
+        setHandleWidth(2 * DockGap + 1);
         applyTheme(theme);
     }
 
@@ -266,6 +264,8 @@ WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool w
     : QWidget(parent), m_theme(theme)
 {
     setObjectName(QStringLiteral("MyAdsWorkspace"));
+    setProperty("myadsWorkspace", true);
+    setAttribute(Qt::WA_StyledBackground);
     auto *layout = new QHBoxLayout(this);
     updateWorkspaceMargins();
     m_sidebarSplitter = new WorkspaceSplitter(Qt::Horizontal, this, theme);
@@ -555,7 +555,7 @@ void WorkspaceWidget::updateWorkspaceMargins()
             return;
         }
     }
-    layout()->setContentsMargins(WorkspaceInset, WorkspaceInset, WorkspaceInset, WorkspaceInset);
+    layout()->setContentsMargins(DockGap, DockGap, DockGap, DockGap);
 }
 
 bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)

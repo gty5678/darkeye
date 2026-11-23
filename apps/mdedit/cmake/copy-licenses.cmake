@@ -1,0 +1,7 @@
+file(GLOB licenses "${SHARE_DIR}/*/copyright")
+foreach(license IN LISTS licenses)
+  get_filename_component(package_dir "${license}" DIRECTORY)
+  get_filename_component(package_name "${package_dir}" NAME)
+  file(MAKE_DIRECTORY "${DEST_DIR}/${package_name}")
+  file(COPY "${license}" DESTINATION "${DEST_DIR}/${package_name}")
+endforeach()

@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(Qt6 6.5 CONFIG COMPONENTS Widgets)
+find_dependency(tinyxml2 CONFIG)
+include("${CMAKE_CURRENT_LIST_DIR}/MicroTeXTargets.cmake")
+set_and_check(MicroTeX_RESOURCE_DIR "${PACKAGE_PREFIX_DIR}/share/microtex/res")

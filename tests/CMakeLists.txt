@@ -212,6 +212,7 @@ if(WIN32)
     set_tests_properties(darkeye_shelf_page_tests PROPERTIES DISABLED TRUE)
 endif()
 darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
+target_link_libraries(darkeye_av_page_tests PRIVATE MdEdit::Editor)
 darkeye_add_qt_test(darkeye_person_page_tests integration/PersonPageTest.cpp)
 
 darkeye_add_qt_test(darkeye_llama_runtime_tests integration/LlamaRuntimeTest.cpp)

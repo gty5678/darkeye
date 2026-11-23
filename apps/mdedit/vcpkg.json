@@ -1,0 +1,73 @@
+{
+  "name": "mdedit",
+  "version": "1.1.0",
+  "dependencies": [
+    {
+      "name": "qtbase",
+      "default-features": false,
+      "features": [
+        "network",
+        "jpeg",
+        "png",
+        "widgets"
+      ]
+    },
+    {
+      "name": "qtbase",
+      "default-features": false,
+      "features": [
+        "openssl",
+        "fontconfig",
+        "xcb",
+        "xcb-xlib",
+        "xrender"
+      ],
+      "platform": "linux"
+    },
+    {
+      "name": "qtbase",
+      "default-features": false,
+      "features": [
+        "doubleconversion",
+        "windeployqt"
+      ],
+      "platform": "windows"
+    },
+    {
+      "name": "qtbase",
+      "default-features": false,
+      "features": [
+        "securetransport"
+      ],
+      "platform": "osx"
+    }
+  ],
+  "default-features": [
+    "full"
+  ],
+  "features": {
+    "full": {
+      "description": "Formula, PDF, SVG, WebP and TIFF support",
+      "dependencies": [
+        "microtex",
+        "qtsvg",
+        {
+          "name": "qtimageformats",
+          "default-features": false,
+          "features": [
+            "tiff",
+            "webp"
+          ]
+        },
+        {
+          "name": "qtwebengine",
+          "default-features": false,
+          "features": [
+            "pdf"
+          ]
+        },
+        "tinyxml2"
+      ]
+    }
+  }
+}

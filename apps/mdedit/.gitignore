@@ -1,0 +1,7 @@
+/build/
+/build-*/
+/dist/
+/out/
+/vcpkg_installed/
+/CMakeUserPresets.json
+!/综合测试/assets/resources/text/long.log

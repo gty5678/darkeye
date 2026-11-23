@@ -8,6 +8,8 @@ add_subdirectory(graph_view)
 add_subdirectory(render3d)
 add_subdirectory(dvd_scene)
 add_subdirectory(darkeye_ui)
+set(MDEDIT_LITE ON)
+add_subdirectory(mdedit)
 add_subdirectory(ui)
 
 # Complete application facade used by executables and integration tests.

@@ -23,3 +23,5 @@ cmake --build --preset release --target darkeye_graph_view_demo darkeye_render3d
 graph 与 3D demo 分别由 `DARKEYE_BUILD_GRAPH_VIEW_DEMO`、`DARKEYE_BUILD_RENDER3D_DEMO` 控制，默认 ON；gallery 始终包含。测试构建也提供这些目标，自动化测试和冒烟测试注册仍位于 `tests/`。这些开发程序部署运行依赖，但不加入主程序安装包。
 
 封面 Demo 由 `DARKEYE_BUILD_COVER_MAKER_DEMO` 控制，默认 ON。详见 [cover_maker_demo/README.md](cover_maker_demo/README.md)。
+
+[MdEdit 完整版](mdedit/README.md)位于 `apps/mdedit/`，使用独立的 CMake 构建目录和依赖清单。

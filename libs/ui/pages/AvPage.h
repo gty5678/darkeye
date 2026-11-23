@@ -2,63 +2,45 @@
 
 #include "darkeye_ui/base/LazyWidget.h"
 
-#include <QHash>
 #include <QString>
 
-class QFileSystemWatcher;
-class QPlainTextEdit;
-class QShowEvent;
-class QStackedWidget;
-class QTextBrowser;
+class QLabel;
+class MarkdownEditorWidget;
 class QTimer;
-class QTreeWidget;
-class QTreeWidgetItem;
-class QUrl;
-namespace darkeye { class DesignButton; }
+
+namespace mdedit { class ProjectFileTree; class ProjectFilesPanel; }
 
 namespace darkeye
 {
+
+class ThemeService;
 
 class AvPage final : public LazyWidget
 {
 public:
     explicit AvPage(QWidget *parent = nullptr);
     explicit AvPage(QString wikiDirectory, QWidget *parent = nullptr);
-
-protected:
-    void showEvent(QShowEvent *event) override;
+    AvPage(QString wikiDirectory, ThemeService &themes, QWidget *parent = nullptr);
 
 private:
     void lazyLoad() override;
+    void applyTheme();
     [[nodiscard]] QString resolveWikiDirectory() const;
-    void rebuildTree();
-    void restoreSelection();
-    void selectFirstDocument();
-    [[nodiscard]] QTreeWidgetItem *firstDocument(QTreeWidgetItem *item) const;
-    void openItem(QTreeWidgetItem *item);
-    void loadDocument(const QString &filePath);
-    void loadEditor(const QString &filePath);
-    void autoSave();
-    void switchToPreview();
-    void switchToEdit();
-    void watchDirectory();
-    void handleLink(const QUrl &url);
+    void openDocument(const QString &filePath);
+    void createDocument(const QString &filePath);
+    void closeDocument();
+    bool loadEditor(const QString &filePath);
+    bool autoSave();
 
     QString m_requestedWikiDirectory;
     QString m_wikiDirectory;
     QString m_currentPath;
-    QTreeWidget *m_tree = nullptr;
-    QTextBrowser *m_browser = nullptr;
-    QPlainTextEdit *m_editor = nullptr;
-    QStackedWidget *m_contentStack = nullptr;
-    DesignButton *m_previewButton = nullptr;
-    DesignButton *m_editButton = nullptr;
-    QFileSystemWatcher *m_watcher = nullptr;
+    mdedit::ProjectFileTree *m_tree = nullptr;
+    mdedit::ProjectFilesPanel *m_filesPanel = nullptr;
+    MarkdownEditorWidget *m_editor = nullptr;
+    QLabel *m_emptyMessage = nullptr;
     QTimer *m_saveTimer = nullptr;
-    QHash<QString, QString> m_stemToPath;
-    QHash<QString, QTreeWidgetItem *> m_pathToItem;
-    bool m_editDirty = false;
-    bool m_loadingEditor = false;
+    ThemeService *m_themes = nullptr;
 };
 
 } // namespace darkeye

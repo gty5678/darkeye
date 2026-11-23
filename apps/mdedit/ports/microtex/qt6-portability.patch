@@ -1,0 +1,43 @@
+diff --git a/src/latex.cpp b/src/latex.cpp
+index 0dbb516..302dbbb 100644
+--- a/src/latex.cpp
++++ b/src/latex.cpp
+@@ -53,10 +53,7 @@ string LaTeX::queryResourceLocation(string& custom_path) {
+   // to potential paths.
+   char* home = getenv("HOME");
+   if (home != NULL && strcmp(home, "") != 0) {
+-    char* userdata_fallback;
+-    asprintf(&userdata_fallback, "%s/.local/share/clatexmath/", home);
+-    paths.push(string(userdata_fallback));
+-    delete userdata_fallback;
++    paths.push(string(home) + "/.local/share/clatexmath/");
+   }
+   paths.push("/usr/share/clatexmath/");
+   paths.push("/usr/local/share/clatexmath/");
+diff --git a/src/platform/qt/graphic_qt.cpp b/src/platform/qt/graphic_qt.cpp
+index 2d1a8a4..813df49 100644
+--- a/src/platform/qt/graphic_qt.cpp
++++ b/src/platform/qt/graphic_qt.cpp
+@@ -72,14 +72,14 @@ Font_qt::Font_qt(const string& file, float size)
+     return;
+   }
+ 
+-  QFontDatabase db;
+-  int id = db.addApplicationFont(filename);
++  
++  int id = QFontDatabase::addApplicationFont(filename);
+   if( id == -1 ) {
+ #ifdef HAVE_LOG
+     __log << file << " failed to load\n";
+ #endif
+   } else {
+-    QStringList families = db.applicationFontFamilies(id);
++    QStringList families = QFontDatabase::applicationFontFamilies(id);
+     if( families.size() > 0 ) {
+       _loaded_families[filename] = families.first();
+       _font.setFamily(families.first());
+@@ -337,3 +337,4 @@ void Graphics2D_qt::fillRoundRect(float x, float y, float w, float h, float rx,
+ 
+ 
+ #endif
++

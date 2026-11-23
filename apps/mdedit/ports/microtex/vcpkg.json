@@ -1,0 +1,25 @@
+{
+  "name": "microtex",
+  "version-string": "0e3707f",
+  "description": "MicroTeX offline math renderer with Qt 6 backend",
+  "homepage": "https://github.com/NanoMichael/MicroTeX",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "qtbase",
+      "default-features": false,
+      "features": [
+        "widgets"
+      ]
+    },
+    "tinyxml2",
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}

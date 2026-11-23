@@ -30,5 +30,6 @@ target_link_libraries(darkeye_business_ui PUBLIC
     darkeye::docking
     darkeye::dvd_scene
     Qt6::Widgets
+    PRIVATE MdEdit::Editor
 )
 darkeye_apply_compiler_options(darkeye_business_ui)

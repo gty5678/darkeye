@@ -1638,7 +1638,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     }
     if (routeName == QStringLiteral("av"))
     {
-        return new AvPage(parent);
+        return new AvPage(m_paths.wikiDirectory(), m_themeService, parent);
     }
     if (routeName == QStringLiteral("inbox"))
     {

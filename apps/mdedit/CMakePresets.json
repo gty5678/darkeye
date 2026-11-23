@@ -1,0 +1,310 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "vcpkg-release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-vcpkg",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+      },
+      "hidden": true
+    },
+    {
+      "name": "release",
+      "inherits": "vcpkg-release",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-mingw",
+      "hidden": true,
+      "inherits": "vcpkg-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/build/windows-deps/vcpkg_installed"
+      }
+    },
+    {
+      "name": "windows-debug",
+      "inherits": "windows-mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-release",
+      "inherits": "windows-mingw"
+    },
+    {
+      "name": "macos-release",
+      "inherits": "vcpkg-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "inherits": "linux-release",
+      "binaryDir": "${sourceDir}/build/linux-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-release",
+      "inherits": "vcpkg-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "macos-qt",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{HOME}/Qt/6.12.0/macos;${sourceDir}/build-local/qt612-deps;${sourceDir}/build-vcpkg/vcpkg_installed/arm64-osx",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/build-vcpkg/vcpkg_installed",
+        "VCPKG_TARGET_TRIPLET": "arm64-osx",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+      }
+    },
+    {
+      "name": "macos-qt-debug",
+      "displayName": "macOS Qt 6.12 Debug",
+      "inherits": "macos-qt",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "macos-qt-release",
+      "displayName": "macOS Qt 6.12 Release",
+      "inherits": "macos-qt",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "windows-qt-debug",
+      "displayName": "Windows x64 Qt Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-qt-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_POLICY_DEFAULT_CMP0141": "NEW",
+        "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT": "Embedded",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.12.0/msvc2022_64;${sourceDir}/build/windows-debug-deps/x64-windows",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/build/windows-debug-deps",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "MDEDIT_DEPLOY_WINDOWS_RUNTIME": true
+      }
+    },
+    {
+      "name": "windows-qt-release",
+      "displayName": "Windows x64 Qt Release with Debug Info",
+      "inherits": "windows-qt-debug",
+      "binaryDir": "${sourceDir}/build/windows-qt-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.12.0/msvc2022_64;${sourceDir}/build/validation-installed/x64-windows",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/build/validation-installed"
+      }
+    },
+    {
+      "name": "linux-qt",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{HOME}/Qt/6.12.0/gcc_64;${sourceDir}/build-local/qt612-deps",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+      }
+    },
+    {
+      "name": "linux-qt-debug",
+      "inherits": "linux-qt",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-qt-release",
+      "inherits": "linux-qt",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release"
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos-release"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "macos-qt-debug",
+      "configurePreset": "macos-qt-debug"
+    },
+    {
+      "name": "macos-qt-release",
+      "configurePreset": "macos-qt-release"
+    },
+    {
+      "name": "windows-qt-debug",
+      "configurePreset": "windows-qt-debug"
+    },
+    {
+      "name": "windows-qt-release",
+      "configurePreset": "windows-qt-release"
+    },
+    {
+      "name": "linux-qt-debug",
+      "configurePreset": "linux-qt-debug"
+    },
+    {
+      "name": "linux-qt-release",
+      "configurePreset": "linux-qt-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-qt-debug",
+      "configurePreset": "macos-qt-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-qt-release",
+      "configurePreset": "macos-qt-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-qt-debug",
+      "configurePreset": "windows-qt-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-qt-release",
+      "configurePreset": "windows-qt-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-qt-debug",
+      "configurePreset": "linux-qt-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-qt-release",
+      "configurePreset": "linux-qt-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

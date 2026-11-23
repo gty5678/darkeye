@@ -77,6 +77,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QUuid>
+#include <QVariantAnimation>
 #include <algorithm>
 
 #include <utility>
@@ -653,12 +654,15 @@ void MainWindow::buildUi()
 
 QWidget *MainWindow::buildNavigationBar(QWidget *parent)
 {
+    constexpr int expandedWidth = 208;
+    constexpr int collapsedWidth = 56;
+    constexpr int buttonSize = 36;
+    constexpr int horizontalInset = (collapsedWidth - buttonSize) / 2;
     auto *bar = new QWidget(parent);
     bar->setObjectName(QStringLiteral("pageNavigationBar"));
     bar->setAccessibleName(QStringLiteral("页面导航"));
     auto *layout = new QVBoxLayout(bar);
-    constexpr int leftInset = 6;
-    layout->setContentsMargins(leftInset, 6, 1, 6);
+    layout->setContentsMargins(horizontalInset, 6, horizontalInset, 6);
     layout->setSpacing(4);
 
     auto *scroll = new QScrollArea(bar);
@@ -678,7 +682,8 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
                                   const QString &title, const QString &icon) {
         auto *button = new IconButton(icon, title, &m_themeService, column->parentWidget());
         button->setProperty("navigationId", id);
-        button->setButtonPixelSize(36);
+        button->setButtonPixelSize(buttonSize);
+        button->setMaximumWidth(QWIDGETSIZE_MAX);
         button->setIconPixelSize(20);
         button->setFocusPolicy(Qt::TabFocus);
         auto *row = new QHBoxLayout(button);
@@ -686,8 +691,9 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         auto *label = new QLabel(title, button);
         label->setObjectName(QStringLiteral("pageNavigationLabel"));
         label->setAttribute(Qt::WA_TransparentForMouseEvents);
+        label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         row->addWidget(label);
-        column->addWidget(button, 0, Qt::AlignLeft);
+        column->addWidget(button);
         return button;
     };
     const auto addActionButton = [this, &addButton](QVBoxLayout *column, const QString &id,
@@ -732,26 +738,47 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
     addActionButton(layout, QStringLiteral("open_help"), QStringLiteral("帮助"), QStringLiteral("circle_question"));
     addActionButton(layout, QStringLiteral("open_settings"), QStringLiteral("设置"), QStringLiteral("settings"));
 
-    const auto applyExpanded = [bar, toggle](bool expanded) {
+    const auto updateToggle = [bar, toggle](bool expanded) {
         bar->setProperty("expanded", expanded);
         const auto title = expanded ? QStringLiteral("收起页面导航") : QStringLiteral("展开页面导航");
         toggle->setIconName(expanded ? QStringLiteral("panel_left_close") : QStringLiteral("panel_left_open"));
         toggle->setAccessibleName(title);
         toggle->setToolTip(title);
-        bar->setFixedWidth(expanded ? 208 : 56);
-        for (auto *button : bar->findChildren<IconButton *>()) {
-            auto *label = button->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"));
-            label->setText(button->accessibleName());
-            label->setVisible(expanded);
-            button->setFixedWidth(expanded ? 195 : 36);
-        }
+        toggle->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"))->setText(title);
     };
+    const auto labels = bar->findChildren<QLabel *>(QStringLiteral("pageNavigationLabel"));
+    const auto setLabelsVisible = [labels](bool visible) {
+        for (auto *label : labels)
+            label->setVisible(visible);
+    };
+    auto *animation = new QVariantAnimation(bar);
+    animation->setDuration(220);
+    animation->setEasingCurve(QEasingCurve::InOutCubic);
+    connect(animation, &QVariantAnimation::valueChanged, bar, [bar, animation](const QVariant &width) {
+        if (animation->state() == QAbstractAnimation::Running)
+            bar->setFixedWidth(width.toInt());
+    });
+    connect(animation, &QVariantAnimation::finished, bar, [bar, setLabelsVisible] {
+        setLabelsVisible(bar->property("expanded").toBool());
+    });
+
     const auto expandedKey = QStringLiteral("Workspace/NavigationBarExpanded");
     QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
-    applyExpanded(settings.value(expandedKey, true).toBool());
-    connect(toggle, &QPushButton::clicked, this, [this, bar, expandedKey, applyExpanded] {
+    const bool initiallyExpanded = settings.value(expandedKey, true).toBool();
+    updateToggle(initiallyExpanded);
+    setLabelsVisible(initiallyExpanded);
+    bar->setFixedWidth(initiallyExpanded ? expandedWidth : collapsedWidth);
+    connect(toggle, &QPushButton::clicked, this,
+            [this, bar, animation, expandedKey, updateToggle, setLabelsVisible] {
         const bool expanded = !bar->property("expanded").toBool();
-        applyExpanded(expanded);
+        const int currentWidth = bar->width();
+        animation->stop();
+        updateToggle(expanded);
+        if (expanded)
+            setLabelsVisible(true);
+        animation->setStartValue(currentWidth);
+        animation->setEndValue(expanded ? expandedWidth : collapsedWidth);
+        animation->start();
         QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
         settings.setValue(expandedKey, expanded);
     });

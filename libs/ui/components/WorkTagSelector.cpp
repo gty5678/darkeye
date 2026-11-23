@@ -479,7 +479,9 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     m_tabs->setObjectName(QStringLiteral("WorkTagTypeTabs"));
     m_tabs->setTabPosition(QTabWidget::West);
     vt->setTabBar(new TokenVerticalTabBar(themes, vt));
-    m_tabs->setUsesScrollButtons(false);
+    // Let the category rail scroll when the parent gives the selector less height.
+    m_tabs->setUsesScrollButtons(true);
+    m_tabs->setElideMode(Qt::ElideNone);
     pl->addWidget(m_tabs);
     root->addWidget(m_panel, 1, 1);
     setAvailablePanelWidth(panelWidth);

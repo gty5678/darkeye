@@ -185,16 +185,17 @@ void StatisticsRepositoryTest::shootingAgeHistogramKeepsBarsVisibleUnderCurve()
     const QImage image = screenshot.toImage();
     const qreal dpr = screenshot.devicePixelRatio();
     const QRect plot = chart->rect().adjusted(88, 85, -48, -68);
-    // The single age falls in [20.0, 20.5). Sample away from the curve,
+    // The single age falls in [19 years 10 months, 20 years 2 months).
+    // Sample away from the curve,
     // percentile marker and gridlines, including the adjacent empty bin.
     const auto pixelAtAge = [&](qreal age) {
         const int x = qRound((plot.left() + plot.width() * (age - 16.5) / 24) * dpr);
-        const int y = qRound((plot.bottom() - plot.height() * .12) * dpr);
+        const int y = qRound((plot.bottom() - plot.height() * .15) * dpr);
         return image.pixelColor(x, y);
     };
     const QColor background(themes.currentTokens().background);
-    QVERIFY(pixelAtAge(20.25) != background);
-    QCOMPARE(pixelAtAge(19.75), background);
+    QVERIFY(pixelAtAge(20.08) != background);
+    QCOMPARE(pixelAtAge(20.25), background);
 }
 
 void StatisticsRepositoryTest::rendersPersonalDataPanels()

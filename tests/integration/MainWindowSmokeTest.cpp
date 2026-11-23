@@ -2320,11 +2320,17 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     const QRect iconArea(0, 0, 29, home->height());
     const auto expandedIcon = home->grab(iconArea).toImage();
     const auto expandedWidth = bar->width();
+    constexpr int collapsedWidth = 56;
     QTest::mouseClick(navigationToggle, Qt::LeftButton);
-    QVERIFY(bar->width() < expandedWidth);
-    for (auto *button : std::as_const(buttons)) {
-        QVERIFY(button->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"))->isHidden());
+    QCOMPARE(bar->width(), expandedWidth);
+    QTRY_VERIFY(bar->width() > collapsedWidth && bar->width() < expandedWidth);
+    for (auto *button : std::as_const(buttons))
         QCOMPARE(button->mapTo(bar, QPoint()).x(), buttonLeft);
+    QTRY_COMPARE(bar->width(), collapsedWidth);
+    for (auto *button : std::as_const(buttons)) {
+        QTRY_VERIFY(button->findChild<QLabel *>(QStringLiteral("pageNavigationLabel"))->isHidden());
+        QTRY_COMPARE(button->mapTo(bar, QPoint()).x(), buttonLeft);
+        QTRY_COMPARE(button->mapTo(bar, QPoint()).x(), (bar->width() - button->width()) / 2);
     }
     QCOMPARE(home->grab(iconArea).toImage(), expandedIcon);
     {
@@ -2334,7 +2340,13 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
         QCOMPARE(reopenedBar->width(), bar->width());
     }
     QTest::mouseClick(navigationToggle, Qt::LeftButton);
-    QCOMPARE(bar->width(), expandedWidth);
+    QCOMPARE(bar->width(), collapsedWidth);
+    QTRY_VERIFY(bar->width() > collapsedWidth && bar->width() < expandedWidth);
+    for (auto *button : std::as_const(buttons))
+        QCOMPARE(button->mapTo(bar, QPoint()).x(), buttonLeft);
+    QTRY_COMPARE(bar->width(), expandedWidth);
+    for (auto *button : std::as_const(buttons))
+        QTRY_COMPARE(button->mapTo(bar, QPoint()).x(), buttonLeft);
 
     auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>();
     const auto inboxRoute = QStringLiteral("inbox");

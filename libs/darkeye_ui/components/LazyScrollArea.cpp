@@ -12,10 +12,10 @@
 
 namespace darkeye {
 
-LazyScrollArea::LazyScrollArea(int columnWidth, QWidget *parent, int spacing)
+LazyScrollArea::LazyScrollArea(int columnWidth, QWidget *parent, int spacing, int verticalSpacing)
     : QScrollArea(parent), m_contentWidget(new QWidget(this)),
       m_waterfallWidget(m_contentWidget),
-      m_layout(new WaterfallLayout(m_waterfallWidget, columnWidth, 0, spacing))
+      m_layout(new WaterfallLayout(m_waterfallWidget, columnWidth, 0, spacing, verticalSpacing))
 {
     setObjectName(QStringLiteral("DesignLazyScrollArea"));
     setWidgetResizable(true);

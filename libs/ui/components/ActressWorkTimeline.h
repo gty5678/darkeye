@@ -47,6 +47,7 @@ private:
     void fitDefaultWindow();
 
     QWidget *m_axisHead = nullptr;
+    QWidget *m_thumbnailViewport = nullptr;
     QString m_coverDirectory;
     QString m_actressImageDirectory;
     ThemeService *m_themes;

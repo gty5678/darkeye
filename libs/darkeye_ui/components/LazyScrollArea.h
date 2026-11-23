@@ -18,7 +18,8 @@ class LazyScrollArea final : public QScrollArea
 public:
     using Loader = std::function<QList<QWidget *>(int pageIndex, int pageSize)>;
 
-    explicit LazyScrollArea(int columnWidth = 220, QWidget *parent = nullptr, int spacing = 10);
+    explicit LazyScrollArea(int columnWidth = 220, QWidget *parent = nullptr, int spacing = 10,
+                            int verticalSpacing = -1);
 
     void setLoader(Loader loader);
     void setViewportItemHandler(std::function<void(QWidget *, bool)> handler);

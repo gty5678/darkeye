@@ -147,7 +147,7 @@ void PersonPage::buildUi()
     filters->addWidget(trailingControls, 0, Qt::AlignRight | Qt::AlignVCenter);
     root->addWidget(filterBar);
 
-    m_lazyArea = new LazyScrollArea(150, this, 6);
+    m_lazyArea = new LazyScrollArea(150, this, 6, 16);
     root->addWidget(m_lazyArea, 1);
 
     m_filterTimer = new QTimer(this);

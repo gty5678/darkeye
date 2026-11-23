@@ -9,7 +9,7 @@ class WaterfallLayout final : public QLayout
 {
 public:
     explicit WaterfallLayout(QWidget *parent = nullptr, int columnWidth = 220,
-                             int margin = 10, int spacing = 10);
+                             int margin = 10, int spacing = 10, int verticalSpacing = -1);
     ~WaterfallLayout() override;
 
     void addItem(QLayoutItem *item) override;
@@ -32,6 +32,7 @@ private:
 
     QList<QLayoutItem *> m_items;
     int m_columnWidth;
+    int m_verticalSpacing;
     bool m_uniformRows = false;
 };
 

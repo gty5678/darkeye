@@ -18,6 +18,7 @@ private slots:
     void verticalFlowLayoutWrapsItemsToTheLeft();
     void verticalTextLayoutKeepsPythonPunctuationAndRuns();
     void waterfallUsesShortestColumn();
+    void waterfallSupportsSeparateVerticalSpacing();
     void lazyAreaLoadsOnePageAtATime();
     void lazyAreaReleasesItemsOutsideViewport();
     void lazyAreaCanReplaceAndClearViewportHandler();
@@ -126,6 +127,25 @@ void LayoutTest::waterfallUsesShortestColumn()
     layout->setUniformRows(false);
     layout->setGeometry(QRect(0, 0, 210, 200));
     QCOMPARE(third->geometry(), QRect(0, 50, 100, 30));
+}
+
+void LayoutTest::waterfallSupportsSeparateVerticalSpacing()
+{
+    QWidget parent;
+    auto *layout = new darkeye::WaterfallLayout(&parent, 100, 0, 6, 16);
+    for (int index = 0; index < 3; ++index) {
+        auto *card = new QLabel(&parent);
+        card->setFixedSize(100, 40);
+        layout->addWidget(card);
+    }
+
+    for (bool uniformRows : {false, true}) {
+        layout->setUniformRows(uniformRows);
+        layout->setGeometry(QRect(0, 0, 206, 100));
+        QCOMPARE(layout->itemAt(1)->geometry(), QRect(106, 0, 100, 40));
+        QCOMPARE(layout->itemAt(2)->geometry(), QRect(0, 56, 100, 40));
+        QCOMPARE(layout->heightForWidth(206), 96);
+    }
 }
 
 void LayoutTest::lazyAreaLoadsOnePageAtATime()

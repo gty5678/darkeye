@@ -53,6 +53,7 @@ ProjectFilesPanel::ProjectFilesPanel(QWidget *parent)
     auto *fileActions=new QWidget(this);
     m_fileActions=fileActions;
     fileActions->setObjectName("projectFileActions");
+    fileActions->setAttribute(Qt::WA_StyledBackground);
     auto *fileActionsLayout=new QHBoxLayout(fileActions);
     fileActionsLayout->setContentsMargins(1,0,1,4);
     fileActionsLayout->setSpacing(5);
@@ -128,7 +129,8 @@ void ProjectFilesPanel::setThemePalette(const QPalette &palette)
     setStyleSheet(QStringLiteral("QWidget#projectFilesPanel, QWidget#projectFileActions { background: %1; }")
                       .arg(palette.color(QPalette::AlternateBase).name()));
     m_fileActions->setStyleSheet(QStringLiteral(R"(
-        QToolButton { background: %1; border: 1px solid %2; border-radius: 6px; padding: 4px; }
+        QWidget#projectFileActions { border-bottom: 1px solid %2; }
+        QToolButton { background: %1; border: 1px solid %2; padding: 4px; }
         QToolButton:hover:enabled { background: %3; }
         QToolButton:pressed { background: %3; border-color: %4; }
         QToolButton:focus { border-color: %4; }

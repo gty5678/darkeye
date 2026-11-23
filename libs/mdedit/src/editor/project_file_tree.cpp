@@ -142,7 +142,7 @@ void ProjectFileTree::setThemePalette(const QPalette &palette)
         }
         QTreeView#projectFileTree::item {
             padding: 4px 6px; min-height: 18px;
-            margin: 1px 0; border: 1px solid transparent; border-radius: 6px;
+            margin: 1px 0; border: 1px solid transparent;
         }
         QTreeView#projectFileTree::item:hover { background: %3; }
         QTreeView#projectFileTree::item:selected { background: %4; border-color: %5; color: %6; }

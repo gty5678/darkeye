@@ -22,6 +22,7 @@
 #include <QtMath>
 #include "ChamferPath.h"
 #include <QRegularExpression>
+#include <QRegion>
 #include <QWidget>
 #include <QSet>
 #include <array>
@@ -30,6 +31,11 @@ namespace darkeye {
 namespace {
 QSet<QString> chamferNames;
 constexpr int cut = 6;
+
+qreal chamferDepth(const QRectF &bounds)
+{
+    return qMin(qreal(cut), qMin(bounds.width(), bounds.height()) / 3);
+}
 
 void paintScrollBar(QScrollBar *bar)
 {
@@ -189,7 +195,7 @@ protected:
         QImage result = source.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
         result.setDevicePixelRatio(dpr);
         const QRectF bounds(QPointF(), source.deviceIndependentSize());
-        const qreal corner = qMin(qreal(cut), qMin(bounds.width(), bounds.height()) / 3);
+        const qreal corner = chamferDepth(bounds);
         QPainterPath outer = chamferPath(bounds, corner);
         if (m_squareTop) {
             QPainterPath top;
@@ -331,7 +337,7 @@ void updateSearchResults(QWidget *widget)
     }
 }
 
-void updateComboPopup(QWidget *widget)
+void updateComboPopup(QWidget *widget, QEvent::Type eventType)
 {
     if (widget->windowType() != Qt::Popup) return;
 
@@ -343,6 +349,16 @@ void updateComboPopup(QWidget *widget)
         view = qobject_cast<QAbstractItemView *>(widget);
     }
     if (!view) return;
+
+#ifdef Q_OS_WIN
+    // Clip the native popup as well as its painting. An opaque backing store
+    // can display the effect's transparent corners as black.
+    const QRectF bounds(widget->rect());
+    const auto outline = chamferPath(bounds, chamferDepth(bounds));
+    const QRegion mask(outline.toFillPolygon().toPolygon());
+    if (widget->mask() != mask) widget->setMask(mask);
+#endif
+    if (eventType == QEvent::Resize) return;
 
     widget->setAttribute(Qt::WA_TranslucentBackground);
     // Let the effect capture the styled frame of a standalone popup view.
@@ -434,9 +450,11 @@ bool ChamferStyle::eventFilter(QObject *object, QEvent *event)
                 editor->setTextMargins(margins);
             }
         }
-        updateComboPopup(widget);
         updateSearchResults(widget);
     }
+    if (event->type() == QEvent::Show || event->type() == QEvent::Polish
+        || event->type() == QEvent::Resize)
+        updateComboPopup(widget, event->type());
     if (usesCutCorners(widget)) updateCorners(widget);
     return false;
 }

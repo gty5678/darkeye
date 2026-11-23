@@ -901,7 +901,6 @@ bool PaneWidget::addContent(const QString &contentId, const QString &title, QWid
         ? m_tabBar->insertTab(target, m_iconOnly ? QString() : title)
         : m_tabBar->insertTab(target, icon, m_iconOnly ? QString() : title);
     m_tabBar->setTabData(inserted, contentId);
-    m_tabBar->setTabToolTip(inserted, title);
     m_titles.insert(contentId, title);
     m_closeable.insert(contentId, closeable);
     m_closePolicies.insert(contentId, closePolicy);

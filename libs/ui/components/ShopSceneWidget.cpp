@@ -18,6 +18,11 @@ constexpr int rowHeightPixels = 200;
 constexpr float rowSpacing = 0.25f;
 constexpr float firstShelfY = 1.01f;
 constexpr float firstCoverY = 1.115f;
+constexpr float panelTopY = firstShelfY + rowSpacing + 0.01f;
+constexpr float panelExtraHeight = 0.02f;
+constexpr float panelFrontZ = -0.05f;
+constexpr float shelfFrontZ = -0.02f;
+constexpr float verticalPadding = 0.015f;
 
 class Outline final : public QWidget {
 public:
@@ -126,10 +131,10 @@ void ShopSceneWidget::rebuildRows() {
 
     // The original back panel spans -0.01 to 0.76 in model space.
     // Keep its top edge in place and extend its bottom to the last shelf.
-    const float panelScale = (m_rows * rowSpacing + 0.02f) / 0.77f;
+    const float panelScale = (m_rows * rowSpacing + panelExtraHeight) / 0.77f;
     auto &panel = m_backModel.nodes.front().transform;
     panel.scale.setY(panelScale);
-    panel.translation.setY(firstShelfY + rowSpacing + 0.01f - 0.76f * panelScale);
+    panel.translation.setY(panelTopY - 0.76f * panelScale);
     (void)m_backModel.instantiate(*m_scene);
 
     auto &shelf = m_shelfModel.nodes.front().transform;
@@ -212,10 +217,15 @@ void ShopSceneWidget::updateCamera() {
         rebuildRows();
     }
     const float aspect = float(std::max(1, m_canvas->width())) / std::max(1, m_canvas->height());
-    const float halfHeight = (m_rows * rowSpacing + 0.05f) / 2;
-    m_camera.target = {0, firstCoverY - (m_rows - 1) * rowSpacing / 2, 0};
+    const float panelHalfHeight = (m_rows * rowSpacing + panelExtraHeight) / 2;
+    const float halfHeight = panelHalfHeight + verticalPadding;
     m_camera.distance = std::max(halfHeight, 0.52f / aspect)
         / std::tan(m_camera.verticalFov * std::numbers::pi_v<float> / 360);
+    // The back panel forms the top edge, and the closer shelf forms the bottom edge.
+    const float topDepth = m_camera.distance - panelFrontZ;
+    const float bottomDepth = m_camera.distance - shelfFrontZ;
+    const float centerY = panelTopY - 2 * panelHalfHeight * topDepth / (topDepth + bottomDepth);
+    m_camera.target = {0, centerY, 0};
     m_canvas->setCamera(m_camera);
     if (rowsChanged) emit coverCapacityChanged();
     requestCovers();

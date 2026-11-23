@@ -658,6 +658,17 @@ void ThemeServiceTest::comboPopupAndSelectionHaveChamferedCorners()
         QCoreApplication::processEvents();
         QVERIFY(view->selectionModel()->isSelected(view->currentIndex()));
 
+#ifdef Q_OS_WIN
+        // A widget grab has alpha even when the native popup's backing store lacks it.
+        const QRegion mask = popup->mask();
+        const QRect bounds = popup->rect();
+        QVERIFY(mask.contains(bounds.center()));
+        QVERIFY(!mask.contains(bounds.topLeft()));
+        QVERIFY(!mask.contains(bounds.topRight()));
+        QVERIFY(!mask.contains(bounds.bottomLeft()));
+        QVERIFY(!mask.contains(bounds.bottomRight()));
+#endif
+
         const auto tokens = service.currentTokens();
         const QImage image = popup->grab().toImage();
         const qreal dpr = image.devicePixelRatio();

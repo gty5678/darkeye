@@ -187,8 +187,8 @@ void MarkdownEditorWidget::setThemePalette(const QPalette &palette)
             border: 0; background: %1; color: %2;
             selection-background-color: %3; selection-color: %4;
         }
-        QScrollBar:vertical { background: %1; width: 10px; }
-        QScrollBar::handle:vertical { background: %5; min-height: 28px; border-radius: 4px; }
+        QScrollBar:vertical { background: %1; width: 8px; }
+        QScrollBar::handle:vertical { background: %5; min-height: 28px; }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         QToolTip { background: %6; color: %2; }
     )").arg(palette.color(QPalette::Base).name(), palette.color(QPalette::Text).name(),

@@ -55,7 +55,7 @@ const ThemeInfo &themeInfo(ThemeId id)
 
 ThemeTokens lightTokens()
 {
-    return {"#00aaff", "#0099ee", "#ffffff", "#f5f5f5", "#f4f4f4",
+    return {"#00aaff", "#0099ee", "#ffffff", "#ffffff", "#f4f4f4",
             "#cccccc", "#00aaff", "#333333", "#ffffff", "#bbbbbb",
             "#999999", "#2e7d32", "#ed6c02", "#c62828", "#0288d1",
             "#333333", "#999999"};

@@ -32,6 +32,7 @@
 namespace darkeye {
 namespace {
 constexpr int axisY = 38;
+constexpr int rulerHeight = axisY + 1;
 constexpr int thumbnailSize = 32;
 constexpr int markerSize = 16;
 constexpr int laneStride = 20;
@@ -133,9 +134,10 @@ public:
 
     ~TimelineCanvas() override { delete m_popup; }
 
-    void setTracks(QList<QList<PersonWorkSummary>> tracks)
+    void setTracks(QList<QList<PersonWorkSummary>> tracks, bool hasThumbnails)
     {
         m_tracks = std::move(tracks);
+        m_firstTrackY = hasThumbnails ? rulerHeight + thumbnailSize / 2 : axisY;
         rebuild();
     }
     QList<PersonWorkSummary> works() const
@@ -177,8 +179,6 @@ protected:
         const int rulerTop = m_scroll->verticalScrollBar()->value();
         const int rulerBottom = rulerTop + axisY;
         painter.fillRect(exposed, colors.color(QPalette::Base));
-        painter.fillRect(exposed.intersected(QRect(0, rulerTop, width(), axisY)),
-                         colors.color(QPalette::AlternateBase));
         painter.setRenderHint(QPainter::Antialiasing);
 
         if (m_dateMin.isValid() && m_numDays > 0)
@@ -190,8 +190,7 @@ protected:
             painter.drawText(label, Qt::AlignCenter, QStringLiteral("日期未知"));
         }
 
-        // At rest the first row of markers straddles the ruler's baseline.
-        if (rulerTop > 0) {
+        if (rulerTop > 0 || m_firstTrackY > axisY) {
             painter.setPen(colors.color(QPalette::Mid));
             painter.drawLine(exposed.left(), rulerBottom, exposed.right(), rulerBottom);
             painter.setClipRect(QRect(QPoint(0, rulerBottom + 1), rect().bottomRight()));
@@ -336,7 +335,6 @@ private:
     void applyTheme(const ThemeTokens &tokens)
     {
         m_colors.setColor(QPalette::Base, QColor(tokens.pageBackground));
-        m_colors.setColor(QPalette::AlternateBase, QColor(tokens.inputBackground));
         m_colors.setColor(QPalette::Mid, QColor(tokens.border));
         m_colors.setColor(QPalette::Text, QColor(tokens.text));
         m_colors.setColor(QPalette::PlaceholderText, QColor(tokens.textPlaceholder));
@@ -409,7 +407,8 @@ private:
     const Marker *markerAt(const QPoint &position) const
     {
         const int rulerTop = m_scroll->verticalScrollBar()->value();
-        if (rulerTop > 0 && position.y() <= rulerTop + axisY) return nullptr;
+        if ((rulerTop > 0 || m_firstTrackY > axisY) && position.y() <= rulerTop + axisY)
+            return nullptr;
         const auto marker = std::find_if(m_markers.cbegin(), m_markers.cend(),
             [&position](const Marker &item) { return item.rect.contains(position); });
         return marker == m_markers.cend() ? nullptr : &*marker;
@@ -493,7 +492,7 @@ private:
         }
         const int endX = qRound(trackPad + qMax(0, m_numDays - 1) * m_ppd);
         m_unknownX = m_hasUnknownDates ? endX + unknownGap + unknownWidth / 2 : -1;
-        int trackY = axisY;
+        int trackY = m_firstTrackY;
         int bottom = axisY;
         for (const auto &track : m_tracks) {
             m_axes.append(trackY);
@@ -557,6 +556,7 @@ private:
     TimelineHoverPopup *m_popup = nullptr;
     QTimer *m_hideTimer = nullptr;
     QList<QList<PersonWorkSummary>> m_tracks;
+    int m_firstTrackY = axisY;
     QList<int> m_axes;
     QList<Marker> m_markers;
     QList<QLine> m_stems;
@@ -576,6 +576,7 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
       m_actressImageDirectory(std::move(actressImageDirectory)), m_themes(themes)
 {
     setObjectName(QStringLiteral("ActressWorkTimeline"));
+    setAttribute(Qt::WA_StyledBackground);
     setMinimumHeight(130);
 }
 
@@ -588,6 +589,10 @@ void ActressWorkTimeline::lazyLoad()
     m_axisHead = new QWidget(this);
     m_axisHead->setFixedWidth(8 + thumbnailSize + 6);
     root->addWidget(m_axisHead);
+    auto *thumbnailLayout = new QVBoxLayout(m_axisHead);
+    thumbnailLayout->setContentsMargins(0, rulerHeight, 0, 0);
+    m_thumbnailViewport = new QWidget(m_axisHead);
+    thumbnailLayout->addWidget(m_thumbnailViewport);
 
     auto *layout = new QVBoxLayout;
     root->addLayout(layout, 1);
@@ -621,7 +626,8 @@ void ActressWorkTimeline::setActresses(const QList<PersonDetails> &actresses)
     tracks.reserve(actresses.size());
     for (qsizetype i = 0; i < actresses.size(); ++i) {
         if (i == m_actressThumbnails.size()) {
-            auto *thumbnail = new OctImage({}, m_actressImageDirectory, thumbnailSize, false, m_axisHead, true);
+            auto *thumbnail = new OctImage({}, m_actressImageDirectory, thumbnailSize, false,
+                                           m_thumbnailViewport, true);
             thumbnail->setObjectName(QStringLiteral("TimelineActressThumbnail"));
             m_actressThumbnails.append(thumbnail);
         }
@@ -659,7 +665,7 @@ void ActressWorkTimeline::updateTracks(QList<QList<PersonWorkSummary>> tracks, c
                                                                 : QStringLiteral("暂无关联作品"));
     m_empty->setVisible(empty);
     m_scroll->setVisible(!empty);
-    m_canvas->setTracks(std::move(tracks));
+    m_canvas->setTracks(std::move(tracks), !m_actressThumbnails.isEmpty());
     m_initialFitPending = !empty && m_canvas->dateMinimum().isValid();
     if (isVisible()) fitDefaultWindow();
 }
@@ -667,7 +673,7 @@ void ActressWorkTimeline::updateTracks(QList<QList<PersonWorkSummary>> tracks, c
 void ActressWorkTimeline::positionThumbnails()
 {
     const auto &axes = m_canvas->axes();
-    const int offset = m_scroll->verticalScrollBar()->value();
+    const int offset = m_scroll->verticalScrollBar()->value() + rulerHeight;
     for (qsizetype i = 0; i < qMin(axes.size(), m_actressThumbnails.size()); ++i)
         m_actressThumbnails.at(i)->move(8, axes.at(i) - thumbnailSize / 2 - offset);
 }

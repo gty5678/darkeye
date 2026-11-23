@@ -783,7 +783,7 @@ void StatisticsChartPage::lazyLoad()
     const QList<QList<ChartOption>> categories{
         {
             {Metric::ReleaseYears, QStringLiteral("作品发行趋势"), QStringLiteral("按发行年份统计作品")},
-            {Metric::WorkAge, QStringLiteral("拍摄年龄分布"), QStringLiteral("按作品统计出演女优的平均拍摄年龄，每柱 6 个月")},
+            {Metric::WorkAge, QStringLiteral("拍摄年龄分布"), QStringLiteral("按作品统计出演女优的平均拍摄年龄，每柱 4 个月")},
             {Metric::AddedDates, QStringLiteral("作品入库趋势"), QStringLiteral("公共数据库 · 按入库日期累计作品数量"), false},
         },
         {
@@ -858,7 +858,7 @@ void StatisticsChartPage::lazyLoad()
             break;
         case Metric::WorkAge:
             canvas->histogram(repository.workActressAges(filter, &error),
-                              QStringLiteral("平均拍摄年龄（岁）"), 48, 1, 16.5, 40.5);
+                              QStringLiteral("平均拍摄年龄（岁）"), 72, 1, 16.5, 40.5);
             break;
         case Metric::AddedDates:
             canvas->line(repository.workAddedDates(&error));

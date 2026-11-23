@@ -65,6 +65,7 @@ private slots:
     void editorLayoutsPersistSeparately();
     void actressTimelineSupportsPreviewAndMiddleButtonPan();
     void actressTimelineScrollsWithHiddenBars();
+    void actressTimelineClipsThumbnailsAtRuler();
     void actressTimelineFitsAfterLayout();
     void actressTimelineStacksSameDayWorksBelowAxis();
     void actressTimelineZoomKeepsPointerAnchor();
@@ -179,7 +180,9 @@ void PersonPageTest::actressTimelineFollowsTheme()
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
     darkeye::ActressWorkTimeline timeline(nullptr, {}, {}, &themes);
     timeline.resize(640, 180);
-    timeline.setWorks({{1, QStringLiteral("TEST"), {}, QStringLiteral("2020-05-01")}});
+    darkeye::PersonDetails actress;
+    actress.works.append({1, QStringLiteral("TEST"), {}, QStringLiteral("2020-05-01")});
+    timeline.setActress(actress);
     timeline.show();
     QCoreApplication::processEvents();
 
@@ -191,12 +194,15 @@ void PersonPageTest::actressTimelineFollowsTheme()
     for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Red, darkeye::ThemeId::Dark}) {
         QVERIFY(themes.setTheme(theme));
         const auto tokens = themes.currentTokens();
-        QCOMPARE(sample(QPoint(2, 2)), QColor(tokens.inputBackground));
+        QCOMPARE(sample(QPoint(2, 2)), QColor(tokens.pageBackground));
+        QCOMPARE(timeline.grab(QRect(2, 2, 1, 1)).toImage().pixelColor(0, 0),
+                 QColor(tokens.pageBackground));
         QCOMPARE(sample(QPoint(2, 70)), QColor(tokens.pageBackground));
         QCOMPARE(sample(timeline.markerCenter(1)), QColor(tokens.primary));
     }
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark, QStringLiteral("#ab1234")));
-    QCOMPARE(sample(timeline.markerCenter(1)), QColor(QStringLiteral("#ab1234")));
+    QCOMPARE(themes.customPrimary(), QStringLiteral("#ab1234"));
+    QCOMPARE(sample(timeline.markerCenter(1)), QColor(themes.currentTokens().primary));
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
 }
 
@@ -481,6 +487,63 @@ void PersonPageTest::actressTimelineScrollsWithHiddenBars()
     QCOMPARE(rulerImage(), shiftedRuler);
     vertical->setValue(0);
     QCOMPARE(rulerImage(), shiftedRuler);
+}
+
+void PersonPageTest::actressTimelineClipsThumbnailsAtRuler()
+{
+    darkeye::ActressWorkTimeline timeline;
+    timeline.resize(760, 130);
+    darkeye::PersonWorkSummary firstWork;
+    firstWork.id = 1;
+    firstWork.releaseDate = QStringLiteral("2019-01-01");
+    darkeye::PersonDetails first;
+    first.works.append(firstWork);
+    for (int id = 2; id <= 12; ++id) {
+        auto work = firstWork;
+        work.id = id;
+        work.releaseDate = QStringLiteral("2020-06-18");
+        first.works.append(work);
+    }
+    auto secondWork = firstWork;
+    secondWork.id = 13;
+    darkeye::PersonDetails second;
+    second.works.append(secondWork);
+    timeline.setActresses({first, second});
+    timeline.show();
+
+    auto *scroll = timeline.findChild<QScrollArea *>();
+    QVERIFY(scroll);
+    const auto thumbnails = timeline.findChildren<darkeye::OctImage *>(
+        QStringLiteral("TimelineActressThumbnail"));
+    QCOMPARE(thumbnails.size(), 2);
+    auto *firstThumbnail = thumbnails.at(0);
+    auto *secondThumbnail = thumbnails.at(1);
+    QTRY_VERIFY(scroll->horizontalScrollBar()->value() > 0);
+    const auto thumbnailTop = [&](const QWidget *thumbnail) {
+        return thumbnail->mapTo(&timeline, QPoint(0, 0)).y();
+    };
+    const auto verifyAligned = [&](const QWidget *thumbnail, qint64 workId) {
+        const int markerY = scroll->widget()->mapTo(&timeline, timeline.markerCenter(workId)).y();
+        QCOMPARE(thumbnailTop(thumbnail) + thumbnail->height() / 2, markerY);
+    };
+
+    QCOMPARE(firstThumbnail->visibleRegion().boundingRect(), firstThumbnail->rect());
+    verifyAligned(firstThumbnail, firstWork.id);
+    const int initialTop = thumbnailTop(firstThumbnail);
+    auto *vertical = scroll->verticalScrollBar();
+    const int partialOffset = firstThumbnail->height() / 2;
+    QVERIFY(vertical->maximum() > partialOffset);
+    vertical->setValue(partialOffset);
+    QCOMPARE(thumbnailTop(firstThumbnail), initialTop - partialOffset);
+    QCOMPARE(firstThumbnail->visibleRegion().boundingRect(), firstThumbnail->rect().adjusted(0, partialOffset, 0, 0));
+
+    vertical->setValue(vertical->maximum());
+    QVERIFY(firstThumbnail->visibleRegion().isEmpty());
+    QCOMPARE(secondThumbnail->visibleRegion().boundingRect(), secondThumbnail->rect());
+    verifyAligned(secondThumbnail, secondWork.id);
+
+    vertical->setValue(0);
+    QCOMPARE(firstThumbnail->visibleRegion().boundingRect(), firstThumbnail->rect());
 }
 
 void PersonPageTest::actressTimelineFitsAfterLayout()

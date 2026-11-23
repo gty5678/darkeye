@@ -1,5 +1,6 @@
 #include "ui/components/WorkFilter.h"
 
+#include "darkeye_ui/components/CollapsibleSection.h"
 #include "darkeye_ui/components/CompleterLineEdit.h"
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/DesignInput.h"
@@ -15,6 +16,8 @@
 #include "ui/components/WorkTagSelector.h"
 
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QEvent>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -35,6 +38,21 @@ namespace darkeye
 namespace
 {
 const QString initialDefaultTagName = QStringLiteral("绿色封面");
+
+class WorkFilterScrollArea final : public QScrollArea
+{
+public:
+    using QScrollArea::QScrollArea;
+
+    QSize sizeHint() const override
+    {
+        QSize hint = QScrollArea::sizeHint();
+        // The form's preferred height changes when the disclosure is toggled.
+        if (widget())
+            hint.setHeight(widget()->sizeHint().height());
+        return hint;
+    }
+};
 
 QList<MakerOption> selectorOptions(const QList<NamedIdOption> &options)
 {
@@ -76,6 +94,7 @@ void WorkFilter::lazyLoad()
 void WorkFilter::focusNotes()
 {
     initialize();
+    m_moreFilters->expand();
     m_searchInput->setFocus(Qt::ShortcutFocusReason);
     m_searchInput->selectAll();
 }
@@ -127,6 +146,7 @@ void WorkFilter::filterByReference(Reference reference, qint64 id)
 {
     initialize();
     clearInputs();
+    m_moreFilters->expand();
     MakerSelector *selector = m_makerFilter;
     switch (reference) {
     case Reference::Maker: break;
@@ -145,6 +165,7 @@ void WorkFilter::filterByDirector(const QString &director)
 {
     initialize();
     clearInputs();
+    m_moreFilters->expand();
     m_directorFilter->setText(director);
     applyFilters();
 }
@@ -153,6 +174,7 @@ void WorkFilter::filterByActor(qint64 id, const QString &name)
 {
     initialize();
     clearInputs();
+    m_moreFilters->expand();
     m_actorFilter->setText(name);
     m_actorId = id;
     applyFilters();
@@ -184,21 +206,32 @@ void WorkFilter::buildUi()
     auto *filterBar = new QWidget(this);
     filterBar->setObjectName(QStringLiteral("WorkFilterBar"));
     auto *filterBarLayout = new QVBoxLayout(filterBar);
-    filterBarLayout->setContentsMargins(10, 0, 10, 0);
-    filterBarLayout->setSpacing(6);
+    filterBarLayout->setContentsMargins(0, 8, 0, 10);
+    filterBarLayout->setSpacing(8);
 
     auto *filterContent = new QWidget(filterBar);
+    filterContent->setObjectName(QStringLiteral("WorkFilterContent"));
     filterContent->setMaximumWidth(580);
     auto *filters = new QFormLayout(filterContent);
     filters->setContentsMargins(0, 0, 0, 0);
     filters->setSpacing(6);
     filters->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     filters->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    const auto addFilter = [filters, filterContent](const QString &label, QWidget *input)
+    m_moreFilters = new TokenCollapsibleSection(QStringLiteral("更多筛选"), &m_themeService,
+                                                filterContent);
+    auto *moreContent = m_moreFilters->contentWidget();
+    auto *moreFilters = new QFormLayout;
+    m_moreFilters->contentLayout()->setContentsMargins(0, 6, 0, 0);
+    m_moreFilters->contentLayout()->addLayout(moreFilters);
+    moreFilters->setContentsMargins(0, 0, 0, 0);
+    moreFilters->setSpacing(6);
+    moreFilters->setLabelAlignment(filters->labelAlignment());
+    moreFilters->setFieldGrowthPolicy(filters->fieldGrowthPolicy());
+    const auto addFilter = [](QFormLayout *form, const QString &label, QWidget *input)
     {
-        auto *caption = new DesignLabel(label, filterContent);
+        auto *caption = new DesignLabel(label);
         caption->setBuddy(input);
-        filters->addRow(caption, input);
+        form->addRow(caption, input);
     };
     const QString databasePath = m_database.databaseName();
     const auto loadSuggestions = [databasePath](auto query)
@@ -233,25 +266,25 @@ void WorkFilter::buildUi()
         [loadSuggestions]
         { return loadSuggestions(&WorkRepository::actressSuggestions); }, filterContent);
     m_actressFilter->setProperty("workControlId", QStringLiteral("WorkActressFilter"));
-    m_titleFilter = new DesignLineEdit(filterContent);
+    m_titleFilter = new DesignLineEdit(moreContent);
     m_titleFilter->setProperty("workControlId", QStringLiteral("WorkTitleFilter"));
-    m_searchInput = new DesignLineEdit(filterContent);
+    m_searchInput = new DesignLineEdit(moreContent);
     m_searchInput->setProperty("workControlId", QStringLiteral("WorkNotesFilter"));
-    m_storyFilter = new DesignLineEdit(filterContent);
+    m_storyFilter = new DesignLineEdit(moreContent);
     m_storyFilter->setProperty("workControlId", QStringLiteral("WorkStoryFilter"));
     m_directorFilter = new CompleterLineEdit(
         [loadSuggestions]
-        { return loadSuggestions(&WorkRepository::directorSuggestions); }, filterContent);
+        { return loadSuggestions(&WorkRepository::directorSuggestions); }, moreContent);
     m_directorFilter->setProperty("workControlId", QStringLiteral("WorkDirectorFilter"));
     m_actorFilter = new CompleterLineEdit(
         [loadSuggestions]
-        { return loadSuggestions(&WorkRepository::actorSuggestions); }, filterContent);
+        { return loadSuggestions(&WorkRepository::actorSuggestions); }, moreContent);
     m_actorFilter->setProperty("workControlId", QStringLiteral("WorkActorFilter"));
-    m_makerFilter = new MakerSelector({}, filterContent);
+    m_makerFilter = new MakerSelector({}, moreContent);
     m_makerFilter->setProperty("workControlId", QStringLiteral("WorkMakerFilter"));
-    m_labelFilter = new MakerSelector({}, filterContent);
+    m_labelFilter = new MakerSelector({}, moreContent);
     m_labelFilter->setProperty("workControlId", QStringLiteral("WorkLabelFilter"));
-    m_seriesFilter = new MakerSelector({}, filterContent);
+    m_seriesFilter = new MakerSelector({}, moreContent);
     m_seriesFilter->setProperty("workControlId", QStringLiteral("WorkSeriesFilter"));
 
     auto *refreshButton = new RotateButton(QStringLiteral("refresh_cw"), &m_themeService,
@@ -310,32 +343,34 @@ void WorkFilter::buildUi()
                                QStringLiteral("本地有视频")});
     m_scopeSelector->setCurrentIndex(0);
     m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏、观看记录或本地视频范围"));
-    addFilter(QStringLiteral("范围"), m_scopeSelector);
-    addFilter(QStringLiteral("排序"), m_sortSelector);
-    addFilter(QStringLiteral("番号"), m_serialFilter);
-    addFilter(QStringLiteral("女优"), m_actressFilter);
-    addFilter(QStringLiteral("标题包含"), m_titleFilter);
-    addFilter(QStringLiteral("故事包含"), m_storyFilter);
-    addFilter(QStringLiteral("笔记包含"), m_searchInput);
-    addFilter(QStringLiteral("导演"), m_directorFilter);
-    addFilter(QStringLiteral("男优"), m_actorFilter);
-    addFilter(QStringLiteral("片商"), m_makerFilter);
-    addFilter(QStringLiteral("厂牌"), m_labelFilter);
-    addFilter(QStringLiteral("系列"), m_seriesFilter);
+    addFilter(filters, QStringLiteral("范围"), m_scopeSelector);
+    addFilter(filters, QStringLiteral("排序"), m_sortSelector);
+    addFilter(filters, QStringLiteral("番号"), m_serialFilter);
+    addFilter(filters, QStringLiteral("女优"), m_actressFilter);
+    addFilter(moreFilters, QStringLiteral("标题包含"), m_titleFilter);
+    addFilter(moreFilters, QStringLiteral("故事包含"), m_storyFilter);
+    addFilter(moreFilters, QStringLiteral("笔记包含"), m_searchInput);
+    addFilter(moreFilters, QStringLiteral("导演"), m_directorFilter);
+    addFilter(moreFilters, QStringLiteral("男优"), m_actorFilter);
+    addFilter(moreFilters, QStringLiteral("片商"), m_makerFilter);
+    addFilter(moreFilters, QStringLiteral("厂牌"), m_labelFilter);
+    addFilter(moreFilters, QStringLiteral("系列"), m_seriesFilter);
+    filters->addRow(m_moreFilters);
     auto *toolbar = new QHBoxLayout;
     toolbar->addStretch();
     toolbar->addWidget(m_countLabel);
     toolbar->addWidget(clearButton);
     toolbar->addWidget(refreshButton);
     filterBarLayout->addLayout(toolbar);
-    auto *filterScroll = new QScrollArea(this);
+    auto *filterScroll = new WorkFilterScrollArea(filterBar);
     filterScroll->setObjectName(QStringLiteral("WorkFilterScrollArea"));
+    filterScroll->viewport()->setObjectName(QStringLiteral("WorkFilterViewport"));
     filterScroll->setWidgetResizable(true);
     filterScroll->setFrameShape(QFrame::NoFrame);
     filterScroll->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     filterScroll->setWidget(filterContent);
     filterScroll->setMinimumHeight(100);
-    filterScroll->setMaximumHeight(filterContent->sizeHint().height() + 8);
+    filterScroll->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
     filterBarLayout->addWidget(filterScroll, 1);
     root->addWidget(filterBar);
 
@@ -368,8 +403,23 @@ void WorkFilter::buildUi()
             return repository.tagOptions();
         });
     tagLayout->addWidget(tagScroll);
-    tagPanel->setMinimumHeight(140);
     root->addWidget(tagPanel, 1);
+
+    connect(m_moreFilters, &TokenCollapsibleSection::toggled, this,
+            [this, filters, filterScroll, filterBar, root]
+            {
+                // Commit the form height and scroll offset before repainting either panel.
+                const bool repaint = updatesEnabled();
+                if (repaint) setUpdatesEnabled(false);
+                m_moreFilters->layout()->activate();
+                filters->activate();
+                filterScroll->updateGeometry();
+                filterBar->updateGeometry();
+                root->activate();
+                QEvent request(QEvent::LayoutRequest);
+                QCoreApplication::sendEvent(filterScroll, &request);
+                if (repaint) setUpdatesEnabled(true);
+            });
 
     connect(refreshButton, &QPushButton::clicked, this,
             [this]
@@ -412,7 +462,8 @@ void WorkFilter::buildUi()
             qOverload<>(&QTimer::start));
     connect(m_scopeSelector, &QComboBox::currentIndexChanged, m_filterTimer,
             qOverload<>(&QTimer::start));
-    loadReferenceOptionsAsync();
+    connect(m_moreFilters, &TokenCollapsibleSection::toggled, this,
+            &WorkFilter::loadReferenceOptionsAsync, Qt::SingleShotConnection);
 }
 
 void WorkFilter::applyInitialDefaultTagFilter(const QList<TagOption> &tags)

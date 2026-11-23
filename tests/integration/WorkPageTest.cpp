@@ -111,6 +111,7 @@ class WorkPageTest final : public QObject
     void editorCompletesExistingDirectorsAndRefreshes();
     void addWorkBasicInfoKeepsRowsHorizontalWhenNarrow();
     void editorAutomaticallySavesLayoutWithoutSettings();
+    void normalWorkCardTitleFitsTwoLines();
     void workCardCopiesSerialAndActivatesOnlyCover();
     void matchesPythonWorkListSqlContract();
     void loadsConfiguredRealDatabaseWhenAvailable();
@@ -656,6 +657,27 @@ void WorkPageTest::groupsAndSelectsTags()
     reload->click();
     QCOMPARE(tabs->count(), 1);
     QCOMPARE(tabs->tabText(0), QStringLiteral("新类型"));
+
+    QList<darkeye::TagOption> categories;
+    for (int id = 1; id <= 12; ++id)
+        categories.append({id, QStringLiteral("标签"), QStringLiteral("分类%1").arg(id), {}});
+    selector.setLoader([categories] { return categories; });
+    reload->click();
+    QCOMPARE(tabs->count(), 12);
+    auto *availableView = qobject_cast<QGraphicsView *>(tabs->currentWidget());
+    QVERIFY(availableView != nullptr);
+    const int selectedHeight = selectedView->viewport()->height();
+    const int availableHeight = availableView->viewport()->height();
+
+    selectorHost.resize(800, 210);
+    QTRY_COMPARE(selector.height(), 210);
+    QVERIFY(selectedView->viewport()->height() < selectedHeight);
+    QVERIFY(availableView->viewport()->height() < availableHeight);
+
+    selectorHost.resize(800, 500);
+    QTRY_COMPARE(selector.height(), 500);
+    QCOMPARE(selectedView->viewport()->height(), selectedHeight);
+    QCOMPARE(availableView->viewport()->height(), availableHeight);
 }
 
 void WorkPageTest::tagSelectorMatchesPythonGeometryAndNavigation()
@@ -1638,6 +1660,35 @@ void WorkPageTest::importsCoverAndRollsBackOnDatabaseFailure()
     QVERIFY(darkeye::FanartStripWidget::parseJson(withoutLocalFanart->fanartJson, &remainingFanart, &errorMessage));
     QCOMPARE(remainingFanart.size(), 1);
     QCOMPARE(remainingFanart.first().url, QStringLiteral("https://example.invalid/scene.jpg"));
+}
+
+void WorkPageTest::normalWorkCardTitleFitsTwoLines()
+{
+    const auto titleName = QStringLiteral("WorkCardTitle");
+    darkeye::WorkSummary work;
+    work.chineseTitle = QStringLiteral("作品标题");
+    darkeye::WorkCard shortCard(work, {}, true);
+    const auto *shortTitle = shortCard.findChild<QLabel *>(titleName);
+    QVERIFY(shortTitle);
+    QCOMPARE(shortTitle->text(), work.chineseTitle);
+
+    work.chineseTitle = QStringLiteral("很长的作品标题").repeated(20);
+    darkeye::WorkCard longCard(work, {}, true);
+    const auto *longTitle = longCard.findChild<QLabel *>(titleName);
+    QVERIFY(longTitle);
+    const auto lines = longTitle->text().split(QLatin1Char('\n'));
+    QCOMPARE(lines.size(), 2);
+    QVERIFY(lines.last().endsWith(QChar(0x2026)));
+    for (const auto &line : lines)
+        QVERIFY(longTitle->fontMetrics().horizontalAdvance(line) <= longTitle->contentsRect().width());
+    QVERIFY(longTitle->height() >= longTitle->sizeHint().height());
+    QCOMPARE(longCard.height(), shortCard.height());
+
+    darkeye::WorkCard waterfallCard(work, {}, false);
+    const auto *waterfallTitle = waterfallCard.findChild<QLabel *>(titleName);
+    QVERIFY(waterfallTitle);
+    QCOMPARE(waterfallTitle->text(), work.chineseTitle);
+    QVERIFY(waterfallTitle->wordWrap());
 }
 
 void WorkPageTest::workCardCopiesSerialAndActivatesOnlyCover()

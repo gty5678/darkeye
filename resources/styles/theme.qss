@@ -27,9 +27,14 @@ QAbstractItemView#DesignComboBoxPopup {
     selection-background-color: {{color_primary}};
 }
 
-QComboBoxPrivateContainer > QAbstractItemView::item,
 QAbstractItemView#DesignComboBoxPopup::item {
     padding: {{space_3}} 0;
+}
+
+/* Match the closed field's text inset after the popup's thinner border. */
+QComboBoxPrivateContainer > QAbstractItemView::item,
+QComboBoxPrivateContainer > QAbstractItemView#DesignComboBoxPopup::item {
+    padding: {{space_3}} 0 {{space_3}} {{space_2}};
 }
 
 QListWidget#mainSidebar {
@@ -80,11 +85,29 @@ QFrame#WorkspaceSearch[searchPopup="true"] QListWidget#workspaceSearchResults::i
     padding: {{space_5}} {{space_10}};
 }
 
-QWidget#StatisticsContent {
+QWidget#StatisticsContent,
+QWidget#ActressWorkTimeline {
     background-color: {{color_bg_page}};
 }
 
 QWidget#PersonFilterBar {
+    background-color: {{color_bg_page}};
+}
+
+QWidget#WorkFilterBar {
+    background-color: {{color_bg_page}};
+    border: 0;
+    border-bottom: {{border_width_thin}} solid {{color_border}};
+}
+
+QScrollArea#WorkFilterScrollArea,
+QWidget#WorkFilterViewport,
+QWidget#WorkFilterContent {
+    background-color: {{color_bg_page}};
+    border: 0;
+}
+
+QScrollArea#WorkFilterScrollArea::corner {
     background-color: {{color_bg_page}};
 }
 
@@ -1085,3 +1108,13 @@ QSplitter#StatisticsSplitter::handle {
     margin: 0;
 }
 QSplitter#StatisticsSplitter::handle:hover { background-color: {{color_border_focus}}; }
+
+QSplitter#AvWikiSplitter::handle:horizontal {
+    background-color: {{color_border}};
+    border: none;
+    margin: 0 4px;
+}
+QSplitter#AvWikiSplitter::handle:horizontal:hover,
+QSplitter#AvWikiSplitter::handle:horizontal:pressed {
+    background-color: {{color_border_focus}};
+}

@@ -31,6 +31,11 @@ namespace {
 
 constexpr auto kAnonymousImagePath = ":/icons/anonymous.jpg";
 
+qreal avatarShadowMargin(int diameter, bool shadow)
+{
+    return shadow ? qMin(8.0, diameter / 8.0) : 0.0;
+}
+
 QImage renderAvatar(const QImage &source, const QSize &size, const QPainterPath &path,
                     bool shadow, qreal dpr)
 {
@@ -72,9 +77,11 @@ OctImage::OctImage(const QString &imagePath, const QString &basePath, int diamet
       m_imageActive(!deferImage), m_verticalAlignment(verticalAlignment)
 {
     setObjectName(QStringLiteral("DesignOctImage"));
-    // The compact shadow fits within avatarPath()'s inset; extra bottom padding
-    // would leave an unnecessary gap before the person's name.
-    setFixedSize(m_diameter, m_diameter);
+    // Top alignment removes the upper inset. Shorten the widget by the same
+    // amount to keep the lower inset reserved for the shadow.
+    const qreal topInset = verticalAlignment == Qt::AlignTop
+        ? avatarShadowMargin(m_diameter, m_shadow) : 0.0;
+    setFixedSize(m_diameter, qCeil(m_diameter - topInset));
     setAlignment(Qt::AlignCenter);
     setCursor(Qt::ArrowCursor);
     setMouseTracking(true);
@@ -191,7 +198,7 @@ bool OctImage::event(QEvent *event)
 
 QPainterPath OctImage::avatarPath() const
 {
-    const qreal margin = m_shadow ? qMin(8.0, m_diameter / 8.0) : 0.0;
+    const qreal margin = avatarShadowMargin(m_diameter, m_shadow);
     QRectF bounds = QRectF(0, 0, m_diameter, m_diameter)
                         .adjusted(margin, margin, -margin, -margin);
     if (m_verticalAlignment == Qt::AlignTop)

@@ -1,6 +1,7 @@
 #include "ui/pages/AvPage.h"
 
 #include "darkeye_ui/components/ToastNotification.h"
+#include "darkeye_ui/theme/ChamferPath.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "editor/markdown_editor_widget.h"
 #include "editor/project_file_tree.h"
@@ -13,6 +14,7 @@
 #include <QFileInfo>
 #include <QFileSystemModel>
 #include <QLabel>
+#include <QPainter>
 #include <QSaveFile>
 #include <QSignalBlocker>
 #include <QSplitter>
@@ -26,6 +28,24 @@ namespace darkeye
 {
 namespace
 {
+constexpr int wikiCorner = 6;
+
+class WikiDocumentPanel final : public QWidget
+{
+public:
+    using QWidget::QWidget;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(palette().color(QPalette::Mid));
+        painter.setBrush(palette().color(QPalette::Base));
+        painter.drawPath(chamferPath(QRectF(rect()).adjusted(.5, .5, -.5, -.5), wikiCorner));
+    }
+};
+
 QString normalizedPath(const QString &path)
 {
     return QDir::cleanPath(QFileInfo(path).absoluteFilePath());
@@ -50,20 +70,22 @@ AvPage::AvPage(QString wikiDirectory, ThemeService &themes, QWidget *parent)
 void AvPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(0, 8, 8, 8);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setObjectName(QStringLiteral("AvWikiSplitter"));
     splitter->setChildrenCollapsible(false);
+    splitter->setHandleWidth(9);
 
     m_filesPanel = new mdedit::ProjectFilesPanel(splitter);
     m_tree = m_filesPanel->tree();
 
-    auto *content = new QWidget(splitter);
-    auto *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(0, 0, 0, 0);
+    m_documentPanel = new WikiDocumentPanel(splitter);
+    auto *contentLayout = new QVBoxLayout(m_documentPanel);
+    // Keep the scrolling viewport inside the frame's diagonals.
+    contentLayout->setContentsMargins(wikiCorner, wikiCorner, wikiCorner, wikiCorner);
 
-    m_editor = new MarkdownEditorWidget(content);
+    m_editor = new MarkdownEditorWidget(m_documentPanel);
     m_editor->setObjectName(QStringLiteral("AvWikiEditor"));
     m_editor->applyBaseFontSize(13);
     m_editor->setLiveMode(true);
@@ -71,13 +93,13 @@ void AvPage::lazyLoad()
     m_editor->hide();
     contentLayout->addWidget(m_editor, 1);
 
-    m_emptyMessage = new QLabel(content);
+    m_emptyMessage = new QLabel(m_documentPanel);
     m_emptyMessage->setAlignment(Qt::AlignCenter);
     m_emptyMessage->setWordWrap(true);
     contentLayout->addWidget(m_emptyMessage, 1);
 
     splitter->addWidget(m_filesPanel);
-    splitter->addWidget(content);
+    splitter->addWidget(m_documentPanel);
     splitter->setStretchFactor(1, 1);
     layout->addWidget(splitter);
 
@@ -158,7 +180,7 @@ void AvPage::applyTheme()
     themed.setColor(QPalette::Highlight, mix(background, primary, 0.32));
     themed.setColor(QPalette::HighlightedText, text);
     themed.setColor(QPalette::Light, mix(background, QColor(tokens.warning), 0.26));
-    m_emptyMessage->setPalette(themed);
+    m_documentPanel->setPalette(themed);
     m_filesPanel->setThemePalette(themed);
     m_editor->setThemePalette(themed);
 }

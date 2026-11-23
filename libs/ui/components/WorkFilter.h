@@ -15,6 +15,7 @@ class CompleterLineEdit;
 class DesignLineEdit;
 class MakerSelector;
 class ThemeService;
+class TokenCollapsibleSection;
 class WorkTagSelector;
 
 class WorkFilter final : public LazyWidget
@@ -71,6 +72,7 @@ private:
     MakerSelector *m_makerFilter = nullptr;
     MakerSelector *m_labelFilter = nullptr;
     MakerSelector *m_seriesFilter = nullptr;
+    TokenCollapsibleSection *m_moreFilters = nullptr;
     WorkTagSelector *m_tagSelector = nullptr;
     QComboBox *m_sortSelector = nullptr;
     QComboBox *m_scopeSelector = nullptr;

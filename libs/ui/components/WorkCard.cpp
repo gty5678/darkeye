@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QFocusEvent>
 #include <QFontMetrics>
+#include <QFontMetricsF>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
@@ -16,6 +17,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QScrollArea>
+#include <QTextLayout>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -33,6 +35,30 @@ QColor cardColor(int tagId)
     default:
         return QColor(Qt::transparent);
     }
+}
+
+QString twoLineTitle(const QString &title, const QFont &font, int width)
+{
+    const QString text = title.simplified();
+    QTextLayout layout(text, font);
+    QTextOption option;
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    layout.setTextOption(option);
+    layout.beginLayout();
+
+    auto firstLine = layout.createLine();
+    if (!firstLine.isValid()) {
+        layout.endLayout();
+        return text;
+    }
+    firstLine.setLineWidth(width);
+    const auto secondStart = firstLine.textLength();
+    layout.endLayout();
+    if (secondStart == text.size())
+        return text;
+
+    return text.left(secondStart).trimmed() + QLatin1Char('\n')
+         + QFontMetricsF(font).elidedText(text.mid(secondStart), Qt::ElideRight, width);
 }
 
 } // namespace
@@ -89,24 +115,21 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     m_cover->installEventFilter(this);
     layout->addWidget(m_cover, 0, Qt::AlignCenter);
 
-    QString displayedTitle = work.chineseTitle;
-    if (largeCoverView) {
-        displayedTitle = displayedTitle.left(40);
-    }
-    auto *title = new DesignLabel(displayedTitle, this);
+    auto *title = new DesignLabel(largeCoverView ? QString{} : work.chineseTitle, this);
     m_title = title;
     title->setObjectName(QStringLiteral("WorkCardTitle"));
     title->ensurePolished();
     title->setAlignment(Qt::AlignCenter);
-    title->setWordWrap(true);
     title->setFixedWidth(largeCoverView ? 240 : 210);
     if (largeCoverView) {
+        title->setTextFormat(Qt::PlainText);
+        title->setText(twoLineTitle(work.chineseTitle, title->font(), title->contentsRect().width()));
         title->setFixedHeight(50);
     } else {
+        title->setWordWrap(true);
         title->setMaximumHeight(48);
-    }
-    if (!largeCoverView)
         title->setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
     layout->addWidget(title);
 
     if (largeCoverView) {
@@ -117,14 +140,14 @@ WorkCard::WorkCard(const WorkSummary &work, const QString &coverDirectory,
     if (largeCoverView) {
         setFixedHeight(248);
     } else {
-        const int titleHeight = displayedTitle.isEmpty() ? 0
+        const int titleHeight = work.chineseTitle.isEmpty() ? 0
             : QFontMetrics(title->font())
                   .boundingRect(QRect(0, 0, 210, 10000),
                                 Qt::TextWordWrap | Qt::AlignCenter,
-                                displayedTitle)
+                                work.chineseTitle)
                   .height();
         title->setFixedHeight(titleHeight);
-        const int bottomMargin = displayedTitle.isEmpty() ? 33 : 20;
+        const int bottomMargin = work.chineseTitle.isEmpty() ? 33 : 20;
         layout->setContentsMargins(5, 10, 5, bottomMargin);
         setFixedHeight(10 + serial->sizeHint().height() + 6 + imageHeight + 6
                        + titleHeight + bottomMargin);

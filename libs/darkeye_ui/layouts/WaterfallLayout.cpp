@@ -6,8 +6,8 @@
 namespace darkeye {
 
 WaterfallLayout::WaterfallLayout(QWidget *parent, int columnWidth, int margin,
-                                 int spacing)
-    : QLayout(parent), m_columnWidth(qMax(1, columnWidth))
+                                 int spacing, int verticalSpacing)
+    : QLayout(parent), m_columnWidth(qMax(1, columnWidth)), m_verticalSpacing(verticalSpacing)
 {
     setContentsMargins(margin, margin, margin, margin);
     setSpacing(spacing);
@@ -100,6 +100,7 @@ void WaterfallLayout::setUniformRows(bool enabled)
 int WaterfallLayout::layoutHeight(const QRect &rect, bool testOnly) const
 {
     const QMargins margins = contentsMargins();
+    const int verticalSpacing = m_verticalSpacing >= 0 ? m_verticalSpacing : spacing();
     const int availableWidth = qMax(1, rect.width() - margins.left() - margins.right());
     const int columns =
         qMax(1, (availableWidth + spacing()) / (m_columnWidth + spacing()));
@@ -119,9 +120,9 @@ int WaterfallLayout::layoutHeight(const QRect &rect, bool testOnly) const
                     item->setGeometry(QRect(x, y, m_columnWidth, height));
                 }
             }
-            y += rowHeight + spacing();
+            y += rowHeight + verticalSpacing;
         }
-        return y - rect.y() + margins.bottom() - (m_items.isEmpty() ? 0 : spacing());
+        return y - rect.y() + margins.bottom() - (m_items.isEmpty() ? 0 : verticalSpacing);
     }
     QVector<int> heights(columns, rect.y() + margins.top());
 
@@ -137,12 +138,12 @@ int WaterfallLayout::layoutHeight(const QRect &rect, bool testOnly) const
             item->setGeometry(QRect(offsetX + column * (m_columnWidth + spacing()),
                                     heights.at(column), m_columnWidth, itemHeight));
         }
-        heights[column] += itemHeight + spacing();
+        heights[column] += itemHeight + verticalSpacing;
     }
 
     const int tallest = m_items.isEmpty()
                             ? rect.y() + margins.top()
-                            : *std::max_element(heights.cbegin(), heights.cend()) - spacing();
+                            : *std::max_element(heights.cbegin(), heights.cend()) - verticalSpacing;
     return tallest - rect.y() + margins.bottom();
 }
 

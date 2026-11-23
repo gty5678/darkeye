@@ -38,6 +38,7 @@ private:
     mdedit::ProjectFileTree *m_tree = nullptr;
     mdedit::ProjectFilesPanel *m_filesPanel = nullptr;
     MarkdownEditorWidget *m_editor = nullptr;
+    QWidget *m_documentPanel = nullptr;
     QLabel *m_emptyMessage = nullptr;
     QTimer *m_saveTimer = nullptr;
     ThemeService *m_themes = nullptr;

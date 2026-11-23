@@ -26,7 +26,7 @@ private slots:
     void editsAndAutomaticallySavesMarkdown();
     void importsDroppedImagesInBothEditorModes();
     void followsDarkeyeThemeWhileEditing();
-    void scrollsWithoutChamferingTheWikiEditor();
+    void scrollsInsideChamferedDocumentPanel();
 };
 
 void AvPageTest::buildsDocumentTreeAndRendersMarkdown()
@@ -235,7 +235,7 @@ void AvPageTest::followsDarkeyeThemeWhileEditing()
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
 }
 
-void AvPageTest::scrollsWithoutChamferingTheWikiEditor()
+void AvPageTest::scrollsInsideChamferedDocumentPanel()
 {
     darkeye::ThemeService themes(*qApp);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
@@ -266,6 +266,13 @@ void AvPageTest::scrollsWithoutChamferingTheWikiEditor()
     QVERIFY(scrollBar->value() > 0);
     QVERIFY(!editor->graphicsEffect());
     QVERIFY(!live->graphicsEffect());
+
+    auto *panel = editor->parentWidget();
+    QImage frame(panel->size(), QImage::Format_ARGB32_Premultiplied);
+    frame.fill(Qt::transparent);
+    panel->render(&frame, {}, {}, QWidget::DrawChildren);
+    QCOMPARE(frame.pixelColor(0, 0).alpha(), 0);
+    QCOMPARE(frame.pixelColor(frame.width() / 2, 0), QColor(themes.currentTokens().border));
 }
 
 QTEST_MAIN(AvPageTest)

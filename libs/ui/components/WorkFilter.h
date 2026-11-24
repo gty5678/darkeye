@@ -38,6 +38,9 @@ public:
     WorkFilter(QSqlDatabase database, QSqlDatabase privateDatabase,
                ThemeService &themeService, QWidget *parent = nullptr, QString settingsFile = {});
 
+    static void setupScopeSelector(QComboBox &selector, int initialScope);
+    static void setupSortSelector(QComboBox &selector, int initialSortOrder);
+
     [[nodiscard]] WorkSearch search() const;
     [[nodiscard]] SearchRequest searchRequest() const;
     void focusNotes();
@@ -48,7 +51,7 @@ public:
     void filterByDirector(const QString &director);
     void filterByActor(qint64 id, const QString &name);
     void filterByTag(qint64 id);
-    void resetToPublicLibrary();
+    void resetToPublicLibrary(std::optional<WorkSortOrder> order = std::nullopt);
 
 signals:
     void changed();

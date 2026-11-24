@@ -18,7 +18,6 @@ class QPlainTextEdit;
 class QShowEvent;
 class QSpinBox;
 class QToolButton;
-class QVBoxLayout;
 class QTimer;
 
 namespace darkeye
@@ -102,7 +101,7 @@ private:
     void updateEditorActions();
     void updateModifiedFieldHighlights();
     void markEditorChanged();
-    void addManualNavigation(QVBoxLayout *layout);
+    QWidget *createManualNavigation();
     void crawlSelectedFields();
     void translateJapanese(const QPlainTextEdit &source, QPlainTextEdit &destination);
     void applyCrawledData(const QString &serialNumber, const QJsonObject &payload,

@@ -14,6 +14,7 @@
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/theme/ChamferPath.h"
 #include "ui/components/PathManagement.h"
+#include "ui/components/WorkFilter.h"
 #include "darkeye_ui/components/TokenViews.h"
 #include "services/VideoLibraryService.h"
 #include "services/LlmTranslationService.h"
@@ -35,6 +36,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDesktopServices>
+#include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileDialog>
@@ -57,6 +59,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
+#include <QRegion>
 #include <QSaveFile>
 #include <QScreen>
 #include <QScrollArea>
@@ -87,6 +90,25 @@ namespace darkeye
 {
 namespace
 {
+
+const auto navigationBarVisibilityLabel = QStringLiteral("显示左侧页面导航栏");
+
+struct SidebarSetting {
+    QString label;
+    QString objectName;
+    bool AppSettings::*member;
+};
+
+const SidebarSetting sidebarSettings[] = {
+    {QStringLiteral("显示左边栏展开／收起按钮"), QStringLiteral("leftSidebarToggleVisible"),
+     &AppSettings::leftSidebarToggleVisible},
+    {QStringLiteral("显示右边栏展开／收起按钮"), QStringLiteral("rightSidebarToggleVisible"),
+     &AppSettings::rightSidebarToggleVisible},
+    {QStringLiteral("焦点离开左边栏时自动收起"), QStringLiteral("leftSidebarAutoCollapse"),
+     &AppSettings::leftSidebarAutoCollapse},
+    {QStringLiteral("焦点离开右边栏时自动收起"), QStringLiteral("rightSidebarAutoCollapse"),
+     &AppSettings::rightSidebarAutoCollapse},
+};
 
 struct SettingsCommand
 {
@@ -187,6 +209,63 @@ ToggleSwitch *addSwitchRow(QFormLayout *form, DesignLabel *label, ThemeService &
     addRightAlignedField(form, label, toggle);
     return toggle;
 }
+
+class WorkFilterSettingsPage final : public LazyWidget
+{
+public:
+    WorkFilterSettingsPage(ThemeService &themeService, QString settingsFile, QWidget *parent)
+        : LazyWidget(parent), m_themeService(themeService), m_settingsFile(std::move(settingsFile))
+    {
+    }
+
+private:
+    void lazyLoad() override
+    {
+        auto *layout = new QFormLayout(this);
+        const auto appSettings = settings::app(m_settingsFile);
+        const auto addSelector = [this, layout](const QString &label, const QString &name) {
+            auto *selector = new DesignComboBox(this);
+            selector->setObjectName(name);
+            selector->setAccessibleName(label);
+            selector->setToolTip(QStringLiteral("下次初始化作品过滤器时生效"));
+            auto *caption = new DesignLabel(label, this);
+            caption->setBuddy(selector);
+            addRightAlignedField(layout, caption, selector);
+            return selector;
+        };
+
+        auto *scope = addSelector(QStringLiteral("初始范围"), QStringLiteral("workFilterInitialScope"));
+        WorkFilter::setupScopeSelector(*scope, appSettings.workFilterInitialScope);
+        connect(scope, &QComboBox::currentIndexChanged, this, [this, scope] {
+            auto appSettings = settings::app(m_settingsFile);
+            appSettings.workFilterInitialScope = scope->currentData().toInt();
+            settings::saveApp(appSettings, m_settingsFile);
+        });
+
+        auto *sort = addSelector(QStringLiteral("初始排序"), QStringLiteral("workFilterInitialSortOrder"));
+        WorkFilter::setupSortSelector(*sort, appSettings.workFilterInitialSortOrder);
+        connect(sort, &QComboBox::currentIndexChanged, this, [this, sort] {
+            auto appSettings = settings::app(m_settingsFile);
+            appSettings.workFilterInitialSortOrder = sort->currentData().toInt();
+            settings::saveApp(appSettings, m_settingsFile);
+        });
+
+        auto *greenCover =
+            addSwitchRow(layout, new DesignLabel(QStringLiteral("初始过滤器添加绿色封面"), this),
+                         m_themeService);
+        greenCover->setObjectName(QStringLiteral("workFilterAddGreenCover"));
+        greenCover->setToolTip(QStringLiteral("下次初始化作品过滤器时生效"));
+        greenCover->setChecked(appSettings.workFilterAddGreenCover);
+        connect(greenCover, &ToggleSwitch::toggled, this, [this](bool enabled) {
+            auto appSettings = settings::app(m_settingsFile);
+            appSettings.workFilterAddGreenCover = enabled;
+            settings::saveApp(appSettings, m_settingsFile);
+        });
+    }
+
+    ThemeService &m_themeService;
+    QString m_settingsFile;
+};
 
 } // namespace
 
@@ -791,60 +870,6 @@ void CommonSettingsPage::lazyLoad()
                                Toast::Level::Info, 3000, &m_themeService);
         }
     });
-    auto *navigationBar =
-        addSwitchRow(layout, new DesignLabel(QStringLiteral("显示左侧页面导航栏"), this),
-                     m_themeService);
-    navigationBar->setObjectName(QStringLiteral("navigationBarVisible"));
-    navigationBar->setChecked(appSettings.navigationBarVisible);
-    connect(navigationBar, &ToggleSwitch::toggled, this, [this](bool visible) {
-        auto appSettings = settings::app(m_settingsFile);
-        appSettings.navigationBarVisible = visible;
-        settings::saveApp(appSettings, m_settingsFile);
-        emit navigationBarVisibilityChanged(visible);
-    });
-
-    const auto addSidebarToggleSetting = [&](const QString &label, const QString &name,
-                                             bool AppSettings::*member) {
-        auto *toggle = addSwitchRow(layout, new DesignLabel(label, this), m_themeService);
-        toggle->setObjectName(name);
-        toggle->setChecked(appSettings.*member);
-        connect(toggle, &ToggleSwitch::toggled, this, [this, member](bool visible) {
-            auto appSettings = settings::app(m_settingsFile);
-            appSettings.*member = visible;
-            settings::saveApp(appSettings, m_settingsFile);
-            emit sidebarToggleVisibilityChanged(appSettings.leftSidebarToggleVisible,
-                                                appSettings.rightSidebarToggleVisible);
-        });
-    };
-    addSidebarToggleSetting(QStringLiteral("显示左边栏展开／收起按钮"),
-                            QStringLiteral("leftSidebarToggleVisible"), &AppSettings::leftSidebarToggleVisible);
-    addSidebarToggleSetting(QStringLiteral("显示右边栏展开／收起按钮"),
-                            QStringLiteral("rightSidebarToggleVisible"), &AppSettings::rightSidebarToggleVisible);
-
-    auto *autoCollapse =
-        addSwitchRow(layout, new DesignLabel(QStringLiteral("焦点离开边栏时自动收起"), this),
-                     m_themeService);
-    autoCollapse->setObjectName(QStringLiteral("sidebarAutoCollapse"));
-    autoCollapse->setChecked(appSettings.sidebarAutoCollapse);
-    connect(autoCollapse, &ToggleSwitch::toggled, this, [this](bool enabled) {
-        auto appSettings = settings::app(m_settingsFile);
-        appSettings.sidebarAutoCollapse = enabled;
-        settings::saveApp(appSettings, m_settingsFile);
-        emit sidebarAutoCollapseChanged(enabled);
-    });
-
-    auto *greenCover =
-        addSwitchRow(layout, new DesignLabel(QStringLiteral("初始过滤器添加绿色封面"), this),
-                     m_themeService);
-    greenCover->setObjectName(QStringLiteral("workFilterAddGreenCover"));
-    greenCover->setToolTip(QStringLiteral("下次初始化作品筛选面板时生效"));
-    greenCover->setChecked(appSettings.workFilterAddGreenCover);
-    connect(greenCover, &ToggleSwitch::toggled, this, [this](bool enabled) {
-        auto appSettings = settings::app(m_settingsFile);
-        appSettings.workFilterAddGreenCover = enabled;
-        settings::saveApp(appSettings, m_settingsFile);
-    });
-
     connect(m_colorPicker, &ColorPicker::oklchConfirmed, this,
             &CommonSettingsPage::savePrimaryColor);
     connect(&m_themeService, &ThemeService::themeChanged, this,
@@ -863,14 +888,7 @@ void CommonSettingsPage::updatePrimaryPickerState()
     const ThemeId theme = m_themeService.current();
     const bool supportsCustomPrimary = theme == ThemeId::Light || theme == ThemeId::Dark;
     m_primaryColorRow->setEnabled(supportsCustomPrimary);
-    if (!supportsCustomPrimary)
-    {
-        AppSettings appSettings = settings::app(m_settingsFile);
-        appSettings.customPrimary.clear();
-        appSettings.customPrimaryOklch.clear();
-        settings::saveApp(appSettings, m_settingsFile);
-        return;
-    }
+    if (!supportsCustomPrimary) return;
     const QString color = ThemeService::sourceTokens(theme, m_themeService.customPrimary()).primary;
     m_colorPicker->setColor(color);
     const auto appSettings = settings::app(m_settingsFile);
@@ -893,6 +911,66 @@ void CommonSettingsPage::savePrimaryColor(const OklchColor &color)
     m_colorPicker->setOklch(color);
 }
 
+SidebarSettingsPage::SidebarSettingsPage(ThemeService &themeService, QString settingsFile, QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService), m_settingsFile(std::move(settingsFile))
+{
+}
+
+void SidebarSettingsPage::lazyLoad()
+{
+    auto *layout = new QFormLayout(this);
+    const auto appSettings = settings::app(m_settingsFile);
+    for (const auto &setting : sidebarSettings) {
+        auto *toggle = addSwitchRow(layout, new DesignLabel(setting.label, this), m_themeService);
+        toggle->setObjectName(setting.objectName);
+        toggle->setChecked(appSettings.*setting.member);
+        connect(toggle, &ToggleSwitch::toggled, this, [this, member = setting.member](bool enabled) {
+            auto appSettings = settings::app(m_settingsFile);
+            appSettings.*member = enabled;
+            settings::saveApp(appSettings, m_settingsFile);
+            emit sidebarSettingsChanged();
+        });
+    }
+}
+
+NavigationSettingsPage::NavigationSettingsPage(ThemeService &themeService, QString settingsFile,
+                                               QList<QPair<QString, QString>> items, QWidget *parent)
+    : LazyWidget(parent), m_themeService(themeService), m_settingsFile(std::move(settingsFile)),
+      m_items(std::move(items))
+{
+}
+
+void NavigationSettingsPage::lazyLoad()
+{
+    auto *layout = new QFormLayout(this);
+    const auto appSettings = settings::app(m_settingsFile);
+    auto *navigationBar = addSwitchRow(layout, new DesignLabel(navigationBarVisibilityLabel, this),
+                                       m_themeService);
+    navigationBar->setObjectName(QStringLiteral("navigationBarVisible"));
+    navigationBar->setChecked(appSettings.navigationBarVisible);
+    connect(navigationBar, &ToggleSwitch::toggled, this, [this](bool visible) {
+        auto appSettings = settings::app(m_settingsFile);
+        appSettings.navigationBarVisible = visible;
+        settings::saveApp(appSettings, m_settingsFile);
+        emit navigationBarSettingsChanged();
+    });
+
+    for (const auto &[id, title] : m_items) {
+        auto *toggle = addSwitchRow(layout, new DesignLabel(title, this), m_themeService);
+        toggle->setProperty("navigationId", id);
+        toggle->setChecked(!appSettings.hiddenNavigationItems.contains(id));
+        connect(toggle, &ToggleSwitch::toggled, this, [this, id](bool visible) {
+            auto appSettings = settings::app(m_settingsFile);
+            if (visible)
+                appSettings.hiddenNavigationItems.removeAll(id);
+            else if (!appSettings.hiddenNavigationItems.contains(id))
+                appSettings.hiddenNavigationItems.append(id);
+            settings::saveApp(appSettings, m_settingsFile);
+            emit navigationBarSettingsChanged();
+        });
+    }
+}
+
 CrawlerSettingsPage::CrawlerSettingsPage(ThemeService &themeService, QWidget *parent)
     : LazyWidget(parent), m_themeService(themeService)
 {
@@ -907,7 +985,7 @@ void CrawlerSettingsPage::lazyLoad()
         label->setWordWrap(true);
         return label;
     };
-    layout->addWidget(wrappingLabel(QStringLiteral("<h3>信息补充器相关设置</h3>")));
+    layout->addWidget(wrappingLabel(QStringLiteral("<h3>外部信息服务</h3>")));
     auto *form = new QFormLayout;
     form->setRowWrapPolicy(QFormLayout::WrapLongRows);
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -934,9 +1012,26 @@ void CrawlerSettingsPage::lazyLoad()
     addUrlRow(QStringLiteral("女优 API 前缀"), values.actressApiBaseUrl, defaults.actressApiBaseUrl, &m_actressApi);
     addUrlRow(QStringLiteral("图片下载 API"), values.coverFetchApiUrl, defaults.coverFetchApiUrl, &m_coverApi);
     addUrlRow(QStringLiteral("热门女优 API"), values.topActressesApiUrl, defaults.topActressesApiUrl, &m_topActressesApi);
-    form->addRow(new DesignLabel(QStringLiteral("说明"), this),
-                 wrappingLabel(QStringLiteral("作品/女优为完整前缀，程序会追加 /{serial} 或 /{name}；"
-                                              "图片下载、热门女优请填写完整地址。")));
+    auto *apiRules = wrappingLabel(QStringLiteral(
+        "接口地址使用 HTTP 或 HTTPS。默认服务地址为 %1。\n\n"
+        "作品 · GET /api/v1/work/{serial}\n"
+        "填写到 /work 的地址前缀。程序会编码并追加番号。"
+        "成功响应包含布尔值 ok: true 和非空的作品对象 data。\n\n"
+        "女优 · GET /api/v1/actress/{name}\n"
+        "填写到 /actress 的地址前缀。程序会编码并追加日文名，"
+        "有已保存的链接时会附带 minnano_url 查询参数。"
+        "成功响应包含布尔值 ok: true，资料可放在 data 对象中或直接放在响应顶层。\n\n"
+        "图片下载 · POST /api/v1/image\n"
+        "填写完整地址。请求类型为 application/json，请求体为 {\"url\":\"图片原始地址\"}。"
+        "成功响应包含布尔值 success: true，image 为 Base64 编码的图片。\n\n"
+        "热门女优 · GET /api/v1/top-actresses\n"
+        "填写完整地址。成功响应包含布尔值 ok: true 和日文姓名数组 names，程序最多读取前 50 项。\n\n"
+        "以上四个接口均返回 JSON 对象。「测试」根据作品 API 前缀请求 GET /api/v1/exist，"
+        "收到 HTTP 响应即视为服务可达。")
+        .arg(collectorBridgeUrl(defaults.workApiBaseUrl)));
+    apiRules->setTextFormat(Qt::PlainText);
+    apiRules->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    form->addRow(new DesignLabel(QStringLiteral("接口规则"), this), apiRules);
 
     m_collectorExecutable = new DesignLineEdit(this);
     m_collectorExecutable->setText(values.collectorExecutable);
@@ -1468,17 +1563,31 @@ void DatabaseSettingsPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new DesignLabel(QStringLiteral("<h3>本地数据库运维</h3>"), this));
+    const QString publicPath = m_publicDatabase.databaseName().isEmpty()
+        ? m_paths.publicDatabase() : m_publicDatabase.databaseName();
+    const QString privatePath = m_privateDatabase.databaseName().isEmpty()
+        ? m_paths.privateDatabase() : m_privateDatabase.databaseName();
+    const auto addDatabasePath = [this, layout](const QString &title, const QString &path) {
+        auto *label = new DesignLabel(title.arg(QDir::toNativeSeparators(path)), this);
+        label->setTextFormat(Qt::PlainText);
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        label->setWordWrap(true);
+        layout->addWidget(label);
+    };
+    addDatabasePath(QStringLiteral("公共数据库位置：%1"), publicPath);
+    addDatabasePath(QStringLiteral("私有数据库位置：%1"), privatePath);
+
     auto *publicVersion = new DesignLabel(
         QStringLiteral("软件所需公共数据库版本：%1  |  当前公共数据库版本：%2")
             .arg(SchemaManager::requiredVersion(DatabaseKind::Public),
-                 detectedDatabaseVersion(m_paths.publicDatabase())), this);
+                 detectedDatabaseVersion(publicPath)), this);
     publicVersion->setTextFormat(Qt::PlainText);
     publicVersion->setWordWrap(true);
     layout->addWidget(publicVersion);
     auto *privateVersion = new DesignLabel(
         QStringLiteral("软件所需私有数据库版本：%1  |  当前私有数据库版本：%2")
             .arg(SchemaManager::requiredVersion(DatabaseKind::Private),
-                 detectedDatabaseVersion(m_paths.privateDatabase())), this);
+                 detectedDatabaseVersion(privatePath)), this);
     privateVersion->setTextFormat(Qt::PlainText);
     privateVersion->setWordWrap(true);
     layout->addWidget(privateVersion);
@@ -1727,8 +1836,10 @@ void DatabaseSettingsPage::restoreWebDavBackup()
 
 SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &shortcutActions,
                                QSqlDatabase publicDatabase, QSqlDatabase privateDatabase,
-                               settings::Paths paths, QWidget *parent)
-    : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint), m_themeService(themeService)
+                               settings::Paths paths, QWidget *parent,
+                               const QList<QPair<QString, QString>> &navigationItems)
+    : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint),
+      m_themeService(themeService)
 {
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(QStringLiteral("设置"));
@@ -1739,12 +1850,12 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
     resize(width(), qMin(720, screenSize.height() - 48));
 
     m_commonPage = new CommonSettingsPage(themeService, this, paths.settingsFile());
-    connect(m_commonPage, &CommonSettingsPage::navigationBarVisibilityChanged,
-            this, &SettingsDialog::navigationBarVisibilityChanged);
-    connect(m_commonPage, &CommonSettingsPage::sidebarAutoCollapseChanged,
-            this, &SettingsDialog::sidebarAutoCollapseChanged);
-    connect(m_commonPage, &CommonSettingsPage::sidebarToggleVisibilityChanged,
-            this, &SettingsDialog::sidebarToggleVisibilityChanged);
+    auto *sidebarPage = new SidebarSettingsPage(themeService, paths.settingsFile(), this);
+    connect(sidebarPage, &SidebarSettingsPage::sidebarSettingsChanged,
+            this, &SettingsDialog::sidebarSettingsChanged);
+    auto *navigationPage = new NavigationSettingsPage(themeService, paths.settingsFile(), navigationItems, this);
+    connect(navigationPage, &NavigationSettingsPage::navigationBarSettingsChanged,
+            this, &SettingsDialog::navigationBarSettingsChanged);
     auto *videoPage = new VideoSettingsPage(publicDatabase, this);
     auto *nfoPage = new NfoSettingsPage(publicDatabase, paths, this);
     auto *crawlerPage = new CrawlerSettingsPage(themeService, this);
@@ -1756,26 +1867,34 @@ SettingsDialog::SettingsDialog(ThemeService &themeService, const QActionGroup &s
     QStringList shortcutLabels;
     for (const auto *action : shortcutActions.actions())
         shortcutLabels.append(action->text());
+    QStringList navigationLabels{navigationBarVisibilityLabel};
+    for (const auto &item : navigationItems)
+        navigationLabels.append(item.second);
+    QStringList sidebarLabels;
+    for (const auto &setting : sidebarSettings)
+        sidebarLabels.append(setting.label);
 
     const QList<Section> sections = {
-        {QStringLiteral("常规"), m_commonPage, {QStringLiteral("主题"), QStringLiteral("主色"),
-         QStringLiteral("显示左侧页面导航栏"), QStringLiteral("显示左边栏展开／收起按钮"),
-         QStringLiteral("显示右边栏展开／收起按钮"), QStringLiteral("焦点离开边栏时自动收起"), QStringLiteral("初始过滤器添加绿色封面")}},
+        {QStringLiteral("常规"), m_commonPage, {QStringLiteral("主题"), QStringLiteral("主色")}},
+        {QStringLiteral("导航栏"), navigationPage, navigationLabels},
+        {QStringLiteral("边栏"), sidebarPage, sidebarLabels},
+        {QStringLiteral("作品过滤器"), new WorkFilterSettingsPage(themeService, paths.settingsFile(), this),
+         {QStringLiteral("初始范围"), QStringLiteral("初始排序"), QStringLiteral("初始过滤器添加绿色封面")}},
         {QStringLiteral("视频"), videoPage,
          QStringLiteral("本地播放器（可选）：|视频文件夹路径管理：|扫描本地视频提取番号并录入数据库|同步作品本地视频路径").split(u'|')},
         {QStringLiteral("NFO"), nfoPage,
          QStringLiteral("从视频路径扫描并导入 Jvedio NFO|从文件夹导入 Jvedio NFO|从 Jvedio NFO 导入作品|"
                         "从视频路径扫描并导入 MDCZ NFO|从文件夹导入 MDCZ NFO|从 MDCZ NFO 导入作品").split(u'|')},
-        {QStringLiteral("信息补充器"), crawlerPage,
-         QStringLiteral("作品 API 前缀|女优 API 前缀|图片下载 API|热门女优 API|信息补充器可执行文件|"
+        {QStringLiteral("外部信息服务"), crawlerPage,
+         QStringLiteral("作品 API 前缀|女优 API 前缀|图片下载 API|热门女优 API|接口规则|信息补充器可执行文件|"
                         "打开软件自动启动信息补充器|信息服务器控制|运行状态").split(u'|')},
-        {QStringLiteral("翻译"), new TranslationSettingsPage(themeService, this),
+        {QStringLiteral("外部翻译服务"), new TranslationSettingsPage(themeService, this),
          QStringLiteral("翻译引擎|模型|Base URL|API Key|超时（秒）|重试次数|失败回退|测试输入|测试输出|"
                         "测试翻译|llama-server|GGUF 模型|监听地址|运行模式|参数预设|上下文大小|GPU layers|"
                         "threads|threads-batch|batch-size|ubatch-size|mlock|自动回填翻译配置|打开软件自动启动|"
                         "命令预览|运行状态|日志输出").split(u'|')},
         {QStringLiteral("数据库"), new DatabaseSettingsPage(publicDatabase, privateDatabase, paths, themeService, this),
-         QStringLiteral("数据库清理碎片|图片数据一致性检查|全量备份公共数据库|全量还原公共数据库|精简备份公共数据库|"
+         QStringLiteral("公共数据库位置|私有数据库位置|数据库清理碎片|图片数据一致性检查|全量备份公共数据库|全量还原公共数据库|精简备份公共数据库|"
                         "精简还原公共数据库|备份私有数据库|还原私有数据库|重建私有库与公共库的关联|启用 WebDAV|"
                         "Profile|Base URL|Remote Root|超时(秒)|备份后自动上传|凭据管理|云端操作").split(u'|')},
         {QStringLiteral("快捷键"), new ShortcutSettingsPage(paths.shortcutsFile(), shortcutActions, this), shortcutLabels},
@@ -1960,15 +2079,25 @@ void SettingsDialog::runWorkspaceCommand(const QString &id)
     m_runWorkspaceCommand(id);
 }
 
+namespace {
+constexpr qreal settingsCornerCut = 14.0;
+}
+
+void SettingsDialog::resizeEvent(QResizeEvent *event)
+{
+    QDialog::resizeEvent(event);
+    const auto outline = chamferPath(QRectF(rect()), settingsCornerCut);
+    setMask(QRegion(outline.toFillPolygon().toPolygon()));
+}
+
 void SettingsDialog::paintEvent(QPaintEvent *)
 {
-    constexpr qreal cornerCut = 14.0;
     const auto tokens = m_themeService.currentTokens();
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setBrush(QColor(tokens.background));
     painter.setPen(QPen(QColor(tokens.border), 1));
-    painter.drawPath(chamferPath(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), cornerCut));
+    painter.drawPath(chamferPath(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), settingsCornerCut));
 }
 
 QComboBox *SettingsDialog::themeSelector() const

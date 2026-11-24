@@ -37,7 +37,7 @@ public:
     void filterByLabel(qint64 labelId);
     void filterBySeries(qint64 seriesId);
     void filterByTag(qint64 tagId);
-    void resetWorkFilters();
+    void resetWorkFilters(std::optional<WorkSortOrder> order = std::nullopt);
     [[nodiscard]] bool containsWork(qint64 workId);
     bool showWork(qint64 workId);
     [[nodiscard]] qint64 currentWorkId() const;

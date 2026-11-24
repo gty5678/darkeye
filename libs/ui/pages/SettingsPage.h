@@ -101,11 +101,6 @@ public:
 
     [[nodiscard]] QComboBox *themeSelector() const;
 
-signals:
-    void navigationBarVisibilityChanged(bool visible);
-    void sidebarAutoCollapseChanged(bool enabled);
-    void sidebarToggleVisibilityChanged(bool leftVisible, bool rightVisible);
-
 private:
     void lazyLoad() override;
     void updatePrimaryPickerState();
@@ -116,6 +111,42 @@ private:
     QWidget *m_primaryColorRow = nullptr;
     ColorPicker *m_colorPicker = nullptr;
     QComboBox *m_themeSelector = nullptr;
+};
+
+class SidebarSettingsPage final : public LazyWidget
+{
+    Q_OBJECT
+
+public:
+    SidebarSettingsPage(ThemeService &themeService, QString settingsFile, QWidget *parent);
+
+signals:
+    void sidebarSettingsChanged();
+
+private:
+    void lazyLoad() override;
+
+    ThemeService &m_themeService;
+    QString m_settingsFile;
+};
+
+class NavigationSettingsPage final : public LazyWidget
+{
+    Q_OBJECT
+
+public:
+    NavigationSettingsPage(ThemeService &themeService, QString settingsFile,
+                           QList<QPair<QString, QString>> items, QWidget *parent);
+
+signals:
+    void navigationBarSettingsChanged();
+
+private:
+    void lazyLoad() override;
+
+    ThemeService &m_themeService;
+    QString m_settingsFile;
+    QList<QPair<QString, QString>> m_items;
 };
 
 class CrawlerSettingsPage final : public LazyWidget
@@ -277,7 +308,8 @@ public:
     explicit SettingsDialog(ThemeService &themeService, const QActionGroup &shortcutActions,
                           QSqlDatabase publicDatabase = {}, QSqlDatabase privateDatabase = {},
                           settings::Paths paths = {},
-                          QWidget *parent = nullptr);
+                          QWidget *parent = nullptr,
+                          const QList<QPair<QString, QString>> &navigationItems = {});
 
     static constexpr QLatin1StringView workspaceCommandPrefix{"settings_command_"};
     static QMap<QString, QString> workspaceCommands();
@@ -285,9 +317,8 @@ public:
     [[nodiscard]] QComboBox *themeSelector() const;
 
 signals:
-    void navigationBarVisibilityChanged(bool visible);
-    void sidebarAutoCollapseChanged(bool enabled);
-    void sidebarToggleVisibilityChanged(bool leftVisible, bool rightVisible);
+    void navigationBarSettingsChanged();
+    void sidebarSettingsChanged();
     void referencesChanged(ReferenceKind kind);
     void tagsChanged();
     void actressesChanged();
@@ -297,6 +328,7 @@ signals:
 
 private:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
     ThemeService &m_themeService;
     CommonSettingsPage *m_commonPage = nullptr;

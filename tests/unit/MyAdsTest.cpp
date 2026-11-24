@@ -1095,7 +1095,7 @@ void MyAdsTest::sidebarsToggleAndCollapseOnFocusLoss()
 
     editor->setFocus();
     QTRY_VERIFY(editor->hasFocus());
-    workspace.setSidebarAutoCollapse(true);
+    workspace.setSidebarAutoCollapse(SidebarSide::Left, true);
     left->focusTabBar();
     QCoreApplication::processEvents();
     QVERIFY(left->isVisible());
@@ -1116,6 +1116,10 @@ void MyAdsTest::sidebarsToggleAndCollapseOnFocusLoss()
     QVERIFY(workspace.isSidebarOpen(SidebarSide::Right));
     QCOMPARE(workspace.activePane(), right);
     QVERIFY(rightTabs->hasFocus());
+
+    center->focusTabBar();
+    QCoreApplication::processEvents();
+    QVERIFY(workspace.isSidebarOpen(SidebarSide::Right));
 
     workspace.toggleSidebar(SidebarSide::Right);
     QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
@@ -1263,7 +1267,7 @@ void MyAdsTest::sidebarSplitsVertically()
     QCOMPARE(splitter->widget(left ? 0 : 1), moved);
     QTRY_COMPARE(moved->width(), sidebar->width());
 
-    workspace.setSidebarAutoCollapse(true);
+    workspace.setSidebarAutoCollapse(side, true);
     editor->setFocus();
     QTRY_VERIFY(editor->hasFocus());
     QCoreApplication::processEvents();

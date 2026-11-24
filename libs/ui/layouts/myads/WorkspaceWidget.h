@@ -66,7 +66,7 @@ public:
     [[nodiscard]] QList<QString> visiblePaneIds() const;
     void toggleSidebar(SidebarSide side);
     void setSidebarOpen(SidebarSide side, bool open);
-    void setSidebarAutoCollapse(bool enabled);
+    void setSidebarAutoCollapse(SidebarSide side, bool enabled);
     void setSidebarToggleVisible(SidebarSide side, bool visible);
 
     ContentConfig createContentConfig(const QString &contentId = {});
@@ -127,6 +127,7 @@ private:
     void createSidebars(LayoutTree left = {}, LayoutTree right = {});
     void hideSidebar(QWidget *host);
     [[nodiscard]] const Sidebar &sidebar(SidebarSide side) const;
+    [[nodiscard]] bool sidebarAutoCollapse(SidebarSide side) const;
     [[nodiscard]] const Sidebar *sidebarFor(const QString &paneId) const;
     LayoutTree &treeFor(const QString &paneId);
     void applySidebarWidths();
@@ -159,7 +160,8 @@ private:
     double m_rightWidthRatio = DefaultSidebarWidthRatio;
     QToolButton *m_leftSidebarToggle = nullptr;
     QToolButton *m_rightSidebarToggle = nullptr;
-    bool m_sidebarAutoCollapse = false;
+    bool m_leftSidebarAutoCollapse = false;
+    bool m_rightSidebarAutoCollapse = false;
     QHash<QString, PaneWidget *> m_panes;
     QHash<QString, PaneWidget *> m_reusablePanes;
     PreviewOverlay *m_preview = nullptr;

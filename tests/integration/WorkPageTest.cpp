@@ -1566,7 +1566,13 @@ void WorkPageTest::editorAutomaticallySavesLayoutWithoutSettings()
         else
             qputenv("DARKEYE_DATA_DIR", previousDataDir);
     });
-    const QString path = darkeye::settings::Paths().addWorkWorkspaceLayoutFile();
+    const darkeye::settings::Paths paths;
+    QFile navigationFile(paths.crawlerNavButtonsFile());
+    QVERIFY(navigationFile.open(QIODevice::WriteOnly));
+    const QByteArray navigationConfig = R"([{"name":"Test link","url":"https://example.com"}])";
+    QCOMPARE(navigationFile.write(navigationConfig), navigationConfig.size());
+    navigationFile.close();
+    const QString path = paths.addWorkWorkspaceLayoutFile();
     darkeye::SqliteConnection connection;
     QString error;
     QVERIFY2(connection.open(QDir(directory.path()).filePath(QStringLiteral("public.db")), false, &error),
@@ -1589,6 +1595,9 @@ void WorkPageTest::editorAutomaticallySavesLayoutWithoutSettings()
         auto *basic = workspace->findPaneByContentId(basicId);
         QVERIFY(navigation);
         QVERIFY(basic);
+        auto *navigationScroll = qobject_cast<QScrollArea *>(navigation->contentWidget(navigationId));
+        QVERIFY(navigationScroll);
+        QCOMPARE(navigationScroll->verticalScrollBarPolicy(), Qt::ScrollBarAsNeeded);
         destinationId = basic->paneId();
         QVERIFY(workspace->moveContent(navigation->paneId(), navigationId, destinationId,
                                        darkeye::myads::DropZone::Center));

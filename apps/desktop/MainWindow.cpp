@@ -31,6 +31,7 @@
 #include "http/LocalApiServer.h"
 #include "services/ActressSyncService.h"
 #include "darkeye_ui/base/LazyWidget.h"
+#include "darkeye_ui/components/ColorWheel.h"
 #include "graph/GraphManager.h"
 #include "ui/layouts/myads/WorkspaceWidget.h"
 #include "ui/layouts/myads/ThemeAdapter.h"
@@ -541,14 +542,12 @@ void MainWindow::buildUi()
     layout->setContentsMargins(0, 0, 0, 0);
     m_workFilter = new WorkFilter(m_publicDatabase, m_privateDatabase, m_themeService,
                                   centralWidget, m_paths.settingsFile());
-    m_workFilter->setWindowTitle(QStringLiteral("作品筛选"));
+    m_workFilter->setWindowTitle(QStringLiteral("作品过滤器"));
     m_workFilter->hide();
     m_workspace = new myads::WorkspaceWidget(workspaceContainer);
     m_workspace->setObjectName(QStringLiteral("mainWorkspace"));
     const auto appSettings = settings::app(m_paths.settingsFile());
-    m_workspace->setSidebarAutoCollapse(appSettings.sidebarAutoCollapse);
-    m_workspace->setSidebarToggleVisible(myads::SidebarSide::Left, appSettings.leftSidebarToggleVisible);
-    m_workspace->setSidebarToggleVisible(myads::SidebarSide::Right, appSettings.rightSidebarToggleVisible);
+    updateSidebarSettings(appSettings);
     myads::bindDarkeyeTheme(m_workspace, &m_themeService);
     connect(m_workspace, &myads::WorkspaceWidget::contentClosed, this, [this](const QString &route) {
         if (m_routePages.value(route) == m_localGraphSource && m_localGraphSource) {
@@ -630,7 +629,7 @@ void MainWindow::buildUi()
     m_globalSearch->addCommands(commands);
     m_globalSearch->hide();
     m_globalSearch->setAutoFillBackground(true);
-    connect(m_globalSearch, &WorkspaceSearch::openRequested, this, [this](const QString &route) { navigateTo(route); });
+    connect(m_globalSearch, &WorkspaceSearch::openRequested, this, &MainWindow::openWorkspaceSearchResult);
     connect(m_globalSearch, &WorkspaceSearch::independentActressRequested, this, [this](qint64 id) {
         navigateTo(QStringLiteral("actress_detail/%1").arg(id), true, ActressOpenMode::Independent);
     });
@@ -653,15 +652,14 @@ void MainWindow::buildUi()
     m_navigationBar = buildNavigationBar(centralWidget);
     mainLayout->addWidget(m_navigationBar);
     mainLayout->addWidget(workspaceContainer, 1);
-    m_navigationBar->setVisible(appSettings.navigationBarVisible);
 
     auto *emptyState = new QWidget(workspaceContainer);
     auto *hintLayout = new QVBoxLayout(emptyState);
     hintLayout->setAlignment(Qt::AlignCenter);
     m_navigationHint = new QLabel(QStringLiteral("从左侧导航打开页面"), emptyState);
     m_navigationHint->setAlignment(Qt::AlignCenter);
-    m_navigationHint->setVisible(appSettings.navigationBarVisible);
     hintLayout->addWidget(m_navigationHint);
+    updateNavigationBar(appSettings);
     auto *emptyHint = new QLabel(emptyState);
     hintLayout->addWidget(emptyHint);
     auto *searchAction = m_shortcutActions->findChild<QAction *>(QStringLiteral("workspace_search"));
@@ -754,6 +752,8 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         row->addWidget(label);
         column->addWidget(button);
+        if (id != QStringLiteral("toggle_navigation"))
+            m_navigationButtons.append(button);
         return button;
     };
     const auto addActionButton = [this, &addButton](QVBoxLayout *column, const QString &id,
@@ -843,6 +843,19 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
         settings.setValue(expandedKey, expanded);
     });
     return bar;
+}
+
+void MainWindow::updateNavigationBar(const AppSettings &settings)
+{
+    bool hasVisibleItem = false;
+    for (auto *button : m_navigationButtons) {
+        const bool visible = !settings.hiddenNavigationItems.contains(
+            button->property("navigationId").toString());
+        button->setVisible(visible);
+        hasVisibleItem |= visible;
+    }
+    m_navigationBar->setVisible(settings.navigationBarVisible);
+    m_navigationHint->setVisible(settings.navigationBarVisible && hasVisibleItem);
 }
 
 void MainWindow::registerApplicationActions()
@@ -1011,6 +1024,11 @@ void MainWindow::openWorkspaceSearch(bool commands)
     m_globalSearch->open(WorkspaceSearch::Mode::Entities, std::move(recent));
 }
 
+void MainWindow::openWorkspaceSearchResult(const QString &route)
+{
+    navigateTo(route, true, ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ResetToRandom);
+}
+
 QWidget *MainWindow::partialCaptureTarget()
 {
     auto *pane = m_workspace->activePane();
@@ -1064,14 +1082,18 @@ void MainWindow::populateThemeSelector()
 void MainWindow::changeTheme(int index)
 {
     const ThemeId theme = static_cast<ThemeId>(m_themeSelector->itemData(index).toInt());
-    if (!m_themeService.setTheme(theme, m_themeService.customPrimary()))
+    const QString settingsFile = m_paths.settingsFile();
+    AppSettings appSettings = settings::app(settingsFile);
+    auto primary = OklchColor::fromString(appSettings.customPrimaryOklch);
+    if (!primary)
+        primary = OklchColor::fromHex(appSettings.customPrimary, ThemeTokens::defaultColorSpace);
+    if (!m_themeService.setTheme(theme, primary ? primary->hex(ThemeService::colorMode()) : QString()))
     {
         return;
     }
 
-    AppSettings appSettings = settings::app();
     appSettings.themeId = ThemeService::toSettings(theme);
-    settings::saveApp(appSettings);
+    settings::saveApp(appSettings, settingsFile);
 }
 
 void MainWindow::refreshPersonalRecordPanels()
@@ -1445,7 +1467,7 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
     if (base == QStringLiteral("search") && !argument.isEmpty()) {
         auto *results = new WorkspaceSearch(m_publicDatabase, {}, nullptr,
                                             WorkspaceSearch::Presentation::ResultsPage);
-        connect(results, &WorkspaceSearch::openRequested, this, [this](const QString &route) { navigateTo(route); });
+        connect(results, &WorkspaceSearch::openRequested, this, &MainWindow::openWorkspaceSearchResult);
         const auto query = QUrl::fromPercentEncoding(argument.toLatin1());
         results->search(query);
         widget = results;
@@ -1521,7 +1543,10 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     if (routeName == QStringLiteral("home"))
     {
         m_homePage = new HomePage(m_publicDatabase, m_paths.workCoverDirectory(), m_themeService, parent);
-        connect(m_homePage, &HomePage::detailRequested, this, &MainWindow::showWorkInShelf);
+        connect(m_homePage, &HomePage::detailRequested, this, [this](qint64 workId) {
+            navigateTo(QStringLiteral("work_detail/") + QString::number(workId), true,
+                       ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ResetToRandom);
+        });
         return m_homePage;
     }
     if (routeName == QStringLiteral("mutiwork"))
@@ -1889,8 +1914,10 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
     if (!widget) return;
     if (work) {
         auto *shelf = static_cast<ShelfPage *>(widget);
+        if (shelfFilter == ShelfFilterPolicy::ResetToRandom)
+            shelf->resetWorkFilters(WorkSortOrder::Random);
         if (!shelf->containsWork(work->id)) {
-            if (shelfFilter == ShelfFilterPolicy::Keep) return;
+            if (shelfFilter != ShelfFilterPolicy::ClearIfExcluded) return;
             shelf->resetWorkFilters();
             if (!shelf->containsWork(work->id)) return;
         }
@@ -1944,23 +1971,30 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         chart->initialize();
 }
 
+void MainWindow::updateSidebarSettings(const AppSettings &settings)
+{
+    using myads::SidebarSide;
+    m_workspace->setSidebarAutoCollapse(SidebarSide::Left, settings.leftSidebarAutoCollapse);
+    m_workspace->setSidebarAutoCollapse(SidebarSide::Right, settings.rightSidebarAutoCollapse);
+    m_workspace->setSidebarToggleVisible(SidebarSide::Left, settings.leftSidebarToggleVisible);
+    m_workspace->setSidebarToggleVisible(SidebarSide::Right, settings.rightSidebarToggleVisible);
+}
+
 void MainWindow::ensureSettingsDialog()
 {
     if (!m_settingsDialog) {
+        QList<QPair<QString, QString>> navigationItems;
+        for (const auto *button : m_navigationButtons)
+            navigationItems.append({button->property("navigationId").toString(), button->accessibleName()});
         auto *settings = new SettingsDialog(m_themeService, *m_shortcutActions,
-                                            m_publicDatabase, m_privateDatabase, m_paths, this);
+                                            m_publicDatabase, m_privateDatabase, m_paths, this,
+                                            navigationItems);
         m_settingsDialog = settings;
-        connect(settings, &SettingsDialog::navigationBarVisibilityChanged,
-                this, [this](bool visible) {
-            m_navigationBar->setVisible(visible);
-            m_navigationHint->setVisible(visible);
+        connect(settings, &SettingsDialog::navigationBarSettingsChanged, this, [this] {
+            updateNavigationBar(settings::app(m_paths.settingsFile()));
         });
-        connect(settings, &SettingsDialog::sidebarAutoCollapseChanged,
-                m_workspace, &myads::WorkspaceWidget::setSidebarAutoCollapse);
-        connect(settings, &SettingsDialog::sidebarToggleVisibilityChanged,
-                this, [this](bool leftVisible, bool rightVisible) {
-            m_workspace->setSidebarToggleVisible(myads::SidebarSide::Left, leftVisible);
-            m_workspace->setSidebarToggleVisible(myads::SidebarSide::Right, rightVisible);
+        connect(settings, &SettingsDialog::sidebarSettingsChanged, this, [this] {
+            updateSidebarSettings(settings::app(m_paths.settingsFile()));
         });
         connect(settings, &SettingsDialog::worksChanged, this,
                 [this] { queueWorkspaceRefresh(WorksChanged); });
@@ -1987,7 +2021,15 @@ void MainWindow::ensureSettingsDialog()
 void MainWindow::openSettings()
 {
     ensureSettingsDialog();
-    if (!m_settingsDialog->isVisible()) m_settingsDialog->open();
+    if (!m_settingsDialog->isVisible()) {
+#ifdef Q_OS_MACOS
+        // QDialog::open() presents a native sheet on Cocoa, which draws its own rounded frame.
+        m_settingsDialog->setWindowModality(Qt::ApplicationModal);
+        m_settingsDialog->show();
+#else
+        m_settingsDialog->open();
+#endif
+    }
     m_settingsDialog->raise();
     m_settingsDialog->activateWindow();
 }

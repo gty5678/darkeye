@@ -151,9 +151,13 @@ private slots:
     void makerManagementSearchMatchesPythonBehavior();
     void histogramShowsPercentileLines();
     void homeAdaptsRandomRowsToHeight();
+    void homeOpensWorkWithPublicRandomFilters();
     void exposesAllPrimaryNavigationPages();
-    void navigationBarOpensPagesAndRemembersVisibility();
+    void navigationBarOpensPages();
+    void navigationBarSettingsRememberVisibility();
     void settingsDialogClosesWithoutTitleBar();
+    void workFilterUsesSavedStartupOptions();
+    void settingsThemeSwitchPreservesCustomPrimary();
     void workspaceSearchShortcutsOpenBothModes();
     void settingsCommandsOpenExistingOperations();
     void restoresBrowsingWorkspacePreset();
@@ -1006,6 +1010,68 @@ void MainWindowSmokeTest::settingsDialogClosesWithoutTitleBar()
     QVERIFY(dialog.isHidden());
 }
 
+void MainWindowSmokeTest::workFilterUsesSavedStartupOptions()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")),
+                                         directory.path());
+    darkeye::SqliteConnection database;
+    QString error;
+    QVERIFY2(database.open(directory.filePath(QStringLiteral("works.db")), false, &error), qPrintable(error));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+        database, darkeye::DatabaseKind::Public, &error), qPrintable(error));
+    QList<qint64> greenCoverTags;
+    for (const auto &tag : darkeye::WorkRepository(database.database()).tagOptions())
+        if (tag.name == QStringLiteral("绿色封面")) greenCoverTags.append(tag.id);
+    QVERIFY(!greenCoverTags.isEmpty());
+
+    QSettings legacy(paths.settingsFile(), QSettings::IniFormat);
+    legacy.setValue(QStringLiteral("WorkFilter/AddGreenCover"), true);
+    legacy.sync();
+
+    darkeye::ThemeService themes(*qApp);
+    darkeye::WorkFilter initialFilter(database.database(), {}, themes, nullptr, paths.settingsFile());
+    initialFilter.initialize();
+    QCOMPARE(initialFilter.searchRequest().scope, darkeye::WorkFilter::Scope::Public);
+    QCOMPARE(initialFilter.search().order, darkeye::WorkSortOrder::CreatedDescending);
+    QCOMPARE(initialFilter.search().tagIds, greenCoverTags);
+
+    QWidget parent;
+    QActionGroup shortcuts(&parent);
+    darkeye::SettingsDialog dialog(themes, shortcuts, database.database(), {}, paths, &parent);
+    dialog.open();
+    auto *menu = dialog.findChild<QListWidget *>();
+    auto *search = dialog.findChild<QLineEdit *>();
+    QVERIFY(menu && search);
+    search->setText(QStringLiteral("初始排序"));
+    QCOMPARE(menu->count(), 1);
+    QCOMPARE(menu->item(0)->text(), QStringLiteral("初始排序 · 作品过滤器"));
+    QTest::keyClick(search, Qt::Key_Return);
+
+    auto *scope = dialog.findChild<QComboBox *>(QStringLiteral("workFilterInitialScope"));
+    auto *sort = dialog.findChild<QComboBox *>(QStringLiteral("workFilterInitialSortOrder"));
+    auto *greenCover = dialog.findChild<darkeye::ToggleSwitch *>(QStringLiteral("workFilterAddGreenCover"));
+    QVERIFY(scope && sort && greenCover);
+    QCOMPARE(scope->currentText(), QStringLiteral("公共库范围"));
+    QCOMPARE(sort->currentText(), QStringLiteral("添加逆序"));
+    QVERIFY(greenCover->isChecked());
+
+    scope->setCurrentIndex(scope->findText(QStringLiteral("本地有视频")));
+    sort->setCurrentIndex(sort->findText(QStringLiteral("番号顺序")));
+    greenCover->setChecked(false);
+    QCOMPARE(initialFilter.searchRequest().scope, darkeye::WorkFilter::Scope::Public);
+    QCOMPARE(initialFilter.search().order, darkeye::WorkSortOrder::CreatedDescending);
+    QCOMPARE(initialFilter.search().tagIds, greenCoverTags);
+
+    darkeye::WorkFilter nextFilter(database.database(), {}, themes, nullptr, paths.settingsFile());
+    nextFilter.initialize();
+    QCOMPARE(nextFilter.searchRequest().scope, darkeye::WorkFilter::Scope::LocalVideo);
+    QVERIFY(nextFilter.search().requireLocalVideo);
+    QCOMPARE(nextFilter.search().order, darkeye::WorkSortOrder::SerialAscending);
+    QVERIFY(nextFilter.search().tagIds.isEmpty());
+}
+
 void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
 {
     // The offscreen plugin needs explicit fonts for readable preview images.
@@ -1104,10 +1170,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
         return widget->mapTo(commonPage, widget->rect().topRight()).x();
     };
     QTRY_COMPARE(rightEdge(primaryColor), rightEdge(themeSelector));
-    const auto commonSwitches = commonPage->findChildren<darkeye::ToggleSwitch *>();
-    QCOMPARE(commonSwitches.size(), 5);
-    for (const auto *toggle : commonSwitches)
-        QCOMPARE(rightEdge(toggle), rightEdge(themeSelector));
+    QVERIFY(commonPage->findChildren<darkeye::ToggleSwitch *>().isEmpty());
     QCOMPARE(settingsDialog->minimumWidth(), settingsDialog->maximumWidth());
     QVERIFY(!workspace->findPaneByContentId(QStringLiteral("setting")));
     QCOMPARE(currentWidget(), statisticsPage);
@@ -1115,11 +1178,13 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     auto *settingsSearch = settingsDialog->findChild<QLineEdit *>();
     auto *settingsStack = settingsDialog->findChild<QStackedWidget *>();
     QVERIFY(settingsMenu && settingsSearch && settingsStack);
-    QCOMPARE(settingsMenu->count(), 8);
+    QCOMPARE(settingsMenu->count(), 11);
     const int settingsWidth = settingsDialog->width();
     settingsDialog->setFixedWidth(qMin(settingsWidth, 560));
+    const auto crawlerItems = settingsMenu->findItems(QStringLiteral("外部信息服务"), Qt::MatchExactly);
+    QCOMPARE(crawlerItems.size(), 1);
     QTest::mouseClick(settingsMenu->viewport(), Qt::LeftButton, Qt::NoModifier,
-                      settingsMenu->visualItemRect(settingsMenu->item(3)).center());
+                      settingsMenu->visualItemRect(crawlerItems.front()).center());
     auto *crawlerArea = qobject_cast<QScrollArea *>(settingsStack->currentWidget());
     QVERIFY(crawlerArea);
     auto *crawlerPage = crawlerArea->findChild<darkeye::CrawlerSettingsPage *>();
@@ -1128,15 +1193,17 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QTRY_COMPARE(crawlerArea->horizontalScrollBar()->maximum(), 0);
     const auto crawlerLabels = crawlerArea->findChildren<QLabel *>();
     const auto explanation = std::ranges::find_if(crawlerLabels, [](const QLabel *label) {
-        return label->text().startsWith(QStringLiteral("作品/女优为完整前缀"));
+        return label->text().startsWith(QStringLiteral("接口地址使用 HTTP 或 HTTPS"));
     });
     QVERIFY(explanation != crawlerLabels.end());
     QVERIFY((*explanation)->wordWrap());
     QTRY_VERIFY((*explanation)->height() > (*explanation)->fontMetrics().height());
     settingsDialog->setFixedWidth(settingsWidth);
 
+    const auto videoItems = settingsMenu->findItems(QStringLiteral("视频"), Qt::MatchExactly);
+    QCOMPARE(videoItems.size(), 1);
     QTest::mouseClick(settingsMenu->viewport(), Qt::LeftButton, Qt::NoModifier,
-                      settingsMenu->visualItemRect(settingsMenu->item(1)).center());
+                      settingsMenu->visualItemRect(videoItems.front()).center());
     QVERIFY(window.findChild<darkeye::VideoSettingsPage *>()->isVisible());
     auto *translation = window.findChild<darkeye::TranslationSettingsPage *>();
     QVERIFY(translation && !translation->isInitialized());
@@ -1151,8 +1218,8 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QVERIFY(translationArea);
     QTRY_VERIFY(translationArea->verticalScrollBar()->value() > 0);
     settingsSearch->clear();
-    QCOMPARE(settingsMenu->count(), 8);
-    QCOMPARE(settingsMenu->currentItem()->text(), QStringLiteral("翻译"));
+    QCOMPARE(settingsMenu->count(), 11);
+    QCOMPARE(settingsMenu->currentItem()->text(), QStringLiteral("外部翻译服务"));
     QTest::keyClick(settingsSearch, Qt::Key_Escape);
     QVERIFY(settingsDialog->isHidden());
     window.activateWindow();
@@ -1324,7 +1391,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QTest::keyClick(commandInput, Qt::Key_Return);
     QCOMPARE(currentWidget(), workFilter);
     QCOMPARE(workspace->activePane()->contentTitle(QStringLiteral("work_filters")),
-             QStringLiteral("作品筛选"));
+             QStringLiteral("作品过滤器"));
     auto *tagSelector = workFilter->findChild<darkeye::WorkTagSelector *>();
     QVERIFY(tagSelector && tagSelector->isVisible());
     QVERIFY(!findWorkControl<QPushButton>(workFilter, QStringLiteral("WorkTagPanelButton")));
@@ -1608,6 +1675,57 @@ void MainWindowSmokeTest::actressPartialCaptureSavesCard()
     QCOMPARE(QImage(path).size(), cardImageSize);
 }
 
+void MainWindowSmokeTest::homeOpensWorkWithPublicRandomFilters()
+{
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
+    darkeye::SqliteConnection publicDatabase, privateDatabase;
+    QString error;
+    QVERIFY(publicDatabase.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(publicDatabase, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("HOME-001");
+    const auto workId = darkeye::WorkRepository(publicDatabase.database()).insertComplete(work, {}, {}, {}, &error);
+    QVERIFY(workId);
+
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    darkeye::MainWindow window(themes, publicDatabase.database(), privateDatabase.database(), paths);
+    window.resize(1400, 700);
+    window.show();
+    auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+    auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    auto *filter = window.findChild<darkeye::WorkFilter *>();
+    QVERIFY(search && workspace && filter);
+    filter->initialize();
+    auto *serial = findWorkControl<QLineEdit>(filter, QStringLiteral("WorkSerialFilter"));
+    auto *scope = findWorkControl<QComboBox>(filter, QStringLiteral("WorkScopeSelector"));
+    auto *sort = findWorkControl<QComboBox>(filter, QStringLiteral("WorkSortSelector"));
+    QVERIFY(serial && scope && sort);
+    serial->setText(QStringLiteral("OTHER-001"));
+    scope->setCurrentIndex(scope->findData(static_cast<int>(darkeye::WorkFilter::Scope::Favorites)));
+    sort->setCurrentIndex(sort->findData(static_cast<int>(darkeye::WorkSortOrder::SerialAscending)));
+
+    search->openRequested(QStringLiteral("home"));
+    auto *pane = workspace->rootPane();
+    auto *home = qobject_cast<darkeye::HomePage *>(pane->contentWidget(QStringLiteral("home")));
+    QVERIFY(home);
+    emit home->detailRequested(*workId);
+
+    QCOMPARE(pane->currentContentId(), QStringLiteral("shelf"));
+    QVERIFY(serial->text().isEmpty());
+    QCOMPARE(scope->currentData().toInt(), static_cast<int>(darkeye::WorkFilter::Scope::Public));
+    QCOMPARE(sort->currentData().toInt(), static_cast<int>(darkeye::WorkSortOrder::Random));
+    auto *shelf = qobject_cast<darkeye::ShelfPage *>(pane->contentWidget(QStringLiteral("shelf")));
+    QVERIFY(shelf);
+    QCOMPARE(shelf->filteredWorkIds(), QSet<qint64>{*workId});
+    QCOMPARE(shelf->currentWorkId(), *workId);
+    QTRY_COMPARE(shelf->expandedWorkId(), *workId);
+}
+
 void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
 {
     QTemporaryDir directory;
@@ -1699,7 +1817,8 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
 
     workspace->setActivePane(sourcePane);
     search->openRequested(QStringLiteral("mutiwork"));
-    auto *workPage = sourcePane->contentWidget(QStringLiteral("mutiwork"));
+    auto *workList = qobject_cast<darkeye::WorkPage *>(sourcePane->contentWidget(QStringLiteral("mutiwork")));
+    QVERIFY(workList);
     auto *serial = findWorkControl<QLineEdit>(window.findChild<darkeye::WorkFilter *>(), QStringLiteral("WorkSerialFilter"));
     QVERIFY(serial);
     auto *tags = window.findChild<darkeye::WorkFilter *>()->findChild<darkeye::WorkTagSelector *>();
@@ -1722,7 +1841,7 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     auto *scene = shelf->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
     QVERIFY(scene);
     QCOMPARE(shelf->filteredWorkIds(), unrelatedOnly);
-    search->openRequested(QStringLiteral("work_detail/%1").arg(*sharedId));
+    emit workList->detailRequested(*sharedId);
     QCOMPARE(shelf->filteredWorkIds(), unrelatedOnly);
     QCOMPARE(shelf->currentWorkId(), 0);
     serial->clear();
@@ -1768,8 +1887,6 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     QTRY_VERIFY(timelineIds().isEmpty());
 
     search->openRequested(QStringLiteral("mutiwork"));
-    auto *workList = qobject_cast<darkeye::WorkPage *>(workPage);
-    QVERIFY(workList);
     serial->setText(unrelated.serialNumber);
     tags->clearSelection();
     QTRY_COMPARE(workList->filteredWorkIds(), unrelatedOnly);
@@ -2079,6 +2196,44 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
     QVERIFY(search->isHidden());
 }
 
+void MainWindowSmokeTest::settingsThemeSwitchPreservesCustomPrimary()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const darkeye::settings::Paths paths(QCoreApplication::applicationDirPath(), temp.path());
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
+    darkeye::ThemeService themes(*qApp);
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+    darkeye::MainWindow window(themes, {}, {}, paths);
+    auto *openSettings = window.findChild<QAction *>(QStringLiteral("open_settings"));
+    QVERIFY(openSettings);
+    openSettings->trigger();
+    auto *selector = findThemeSelector(&window);
+    auto *picker = window.findChild<darkeye::ColorPicker *>();
+    QVERIFY(selector && picker);
+
+    const darkeye::OklchColor color{0.55f, 0.15f, 245.0f};
+    const QString expected = color.hex(darkeye::ThemeService::colorMode()).toLower();
+    emit picker->oklchConfirmed(color);
+    QCOMPARE(themes.customPrimary(), expected);
+    for (const auto theme : darkeye::ThemeService::availableThemes())
+    {
+        if (theme == darkeye::ThemeId::Light) continue;
+        const int index = selector->findData(static_cast<int>(theme));
+        QVERIFY(index >= 0);
+        selector->setCurrentIndex(index);
+        QCOMPARE(themes.current(), theme);
+        selector->setCurrentIndex(selector->findData(static_cast<int>(darkeye::ThemeId::Light)));
+        QCOMPARE(themes.current(), darkeye::ThemeId::Light);
+        QCOMPARE(themes.customPrimary(), expected);
+        QCOMPARE(picker->color(), expected);
+    }
+    const auto saved = darkeye::settings::app(paths.settingsFile());
+    QCOMPARE(saved.customPrimaryOklch, color.toString());
+    QCOMPARE(saved.customPrimary, color.hex(darkeye::ThemeTokens::defaultColorSpace));
+}
+
 void MainWindowSmokeTest::settingsCommandsOpenExistingOperations()
 {
     const bool usedQtDialogs = QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
@@ -2269,7 +2424,7 @@ void MainWindowSmokeTest::nativeCommandShortcuts()
 }
 #endif
 
-void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
+void MainWindowSmokeTest::navigationBarOpensPages()
 {
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
@@ -2467,11 +2622,59 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     auto *settingsButton = buttons.value(QStringLiteral("open_settings"));
     QVERIFY(help && settingsButton && help->isVisible() && settingsButton->isVisible());
     QVERIFY(help->mapTo(bar, QPoint()).y() < settingsButton->mapTo(bar, QPoint()).y());
+}
+
+void MainWindowSmokeTest::navigationBarSettingsRememberVisibility()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const darkeye::settings::Paths paths(QCoreApplication::applicationDirPath(), temp.path());
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
+    darkeye::ThemeService themes(*qApp);
+    darkeye::MainWindow window(themes, {}, {}, paths);
+    window.resize(900, 700);
+    window.show();
+
+    const auto barName = QStringLiteral("pageNavigationBar");
+    auto *bar = window.findChild<QWidget *>(barName);
+    QVERIFY(bar && bar->isVisible());
+    QMap<QString, QPushButton *> buttons;
+    for (auto *button : bar->findChildren<QPushButton *>())
+        buttons.insert(button->property("navigationId").toString(), button);
+    auto *help = buttons.value(QStringLiteral("open_help"));
+    auto *settingsButton = buttons.value(QStringLiteral("open_settings"));
+    QVERIFY(help && settingsButton && help->isVisible() && settingsButton->isVisible());
     QTest::mouseClick(settingsButton, Qt::LeftButton);
     auto *settings = window.findChild<darkeye::SettingsDialog *>();
     QVERIFY(settings && settings->isVisible());
+    auto *settingsMenu = settings->findChild<QListWidget *>(QStringLiteral("DesignListWidget"));
+    QVERIFY(settingsMenu);
+    const auto navigationSections = settingsMenu->findItems(QStringLiteral("导航栏"), Qt::MatchExactly);
+    QCOMPARE(navigationSections.size(), 1);
+    QTest::mouseClick(settingsMenu->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      settingsMenu->visualItemRect(navigationSections.first()).center());
     auto *toggle = settings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("navigationBarVisible"));
     QVERIFY(toggle && toggle->isChecked());
+
+    QSet<QString> configurableItems;
+    darkeye::ToggleSwitch *helpToggle = nullptr;
+    for (auto *item : settings->findChildren<darkeye::ToggleSwitch *>()) {
+        const auto id = item->property("navigationId").toString();
+        if (id.isEmpty()) continue;
+        QVERIFY(item->isChecked());
+        configurableItems.insert(id);
+        if (id == QStringLiteral("open_help"))
+            helpToggle = item;
+    }
+    QCOMPARE(configurableItems.size(), buttons.size() - 1);
+    QVERIFY(helpToggle);
+    helpToggle->click();
+    QVERIFY(help->isHidden());
+    QVERIFY(settingsButton->isVisible());
+    QCOMPARE(darkeye::settings::app(paths.settingsFile()).hiddenNavigationItems,
+             QStringList{QStringLiteral("open_help")});
+
     toggle->click();
     QVERIFY(bar->isHidden());
     QVERIFY(!darkeye::settings::app(paths.settingsFile()).navigationBarVisible);
@@ -2479,6 +2682,11 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
         darkeye::MainWindow reopened(themes, {}, {}, paths);
         auto *reopenedBar = reopened.findChild<QWidget *>(barName);
         QVERIFY(reopenedBar && reopenedBar->isHidden());
+        const auto reopenedButtons = reopenedBar->findChildren<QPushButton *>();
+        const auto reopenedHelp = std::ranges::find_if(reopenedButtons, [](const auto *button) {
+            return button->property("navigationId").toString() == QStringLiteral("open_help");
+        });
+        QVERIFY(reopenedHelp != reopenedButtons.end() && (*reopenedHelp)->isHidden());
     }
 
     settings->hide();
@@ -2489,6 +2697,10 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     toggle->click();
     QVERIFY(bar->isVisible());
     QVERIFY(darkeye::settings::app(paths.settingsFile()).navigationBarVisible);
+    QVERIFY(help->isHidden());
+    helpToggle->click();
+    QVERIFY(help->isVisible());
+    QVERIFY(darkeye::settings::app(paths.settingsFile()).hiddenNavigationItems.isEmpty());
 }
 
 void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
@@ -2626,8 +2838,11 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
     settingsAction->trigger();
     auto *settings = window.findChild<darkeye::SettingsDialog *>();
     QVERIFY(settings && settings->isVisible());
-    auto *leftSetting = settings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("leftSidebarToggleVisible"));
-    auto *rightSetting = settings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("rightSidebarToggleVisible"));
+    auto *sidebarSettings = settings->findChild<darkeye::SidebarSettingsPage *>();
+    QVERIFY(sidebarSettings);
+    sidebarSettings->initialize();
+    auto *leftSetting = sidebarSettings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("leftSidebarToggleVisible"));
+    auto *rightSetting = sidebarSettings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("rightSidebarToggleVisible"));
     QVERIFY(leftSetting && leftSetting->isChecked());
     QVERIFY(rightSetting && rightSetting->isChecked());
     leftSetting->click();
@@ -2676,11 +2891,23 @@ void MainWindowSmokeTest::sidebarShortcutsAndAutoCollapseSetting()
     QTest::keyClick(window.windowHandle(), Qt::Key_Comma, Qt::ControlModifier);
     auto *settings = window.findChild<darkeye::SettingsDialog *>();
     QVERIFY(settings && settings->isVisible());
-    auto *autoCollapse = settings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("sidebarAutoCollapse"));
-    QVERIFY(autoCollapse);
-    QVERIFY(!autoCollapse->isChecked());
-    autoCollapse->click();
-    QVERIFY(darkeye::settings::app(paths.settingsFile()).sidebarAutoCollapse);
+    auto *settingsMenu = settings->findChild<QListWidget *>(QStringLiteral("DesignListWidget"));
+    QVERIFY(settingsMenu);
+    const auto sidebarSections = settingsMenu->findItems(QStringLiteral("边栏"), Qt::MatchExactly);
+    QCOMPARE(sidebarSections.size(), 1);
+    QTest::mouseClick(settingsMenu->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      settingsMenu->visualItemRect(sidebarSections.first()).center());
+    auto *sidebarSettings = settings->findChild<darkeye::SidebarSettingsPage *>();
+    QVERIFY(sidebarSettings && sidebarSettings->isVisible());
+    auto *leftAutoCollapse =
+        sidebarSettings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("leftSidebarAutoCollapse"));
+    auto *rightAutoCollapse =
+        sidebarSettings->findChild<darkeye::ToggleSwitch *>(QStringLiteral("rightSidebarAutoCollapse"));
+    QVERIFY(leftAutoCollapse && !leftAutoCollapse->isChecked());
+    QVERIFY(rightAutoCollapse && !rightAutoCollapse->isChecked());
+    leftAutoCollapse->click();
+    QVERIFY(darkeye::settings::app(paths.settingsFile()).leftSidebarAutoCollapse);
+    QVERIFY(!darkeye::settings::app(paths.settingsFile()).rightSidebarAutoCollapse);
     QTRY_VERIFY(!workspace->isSidebarOpen(SidebarSide::Left));
     settings->hide();
     window.activateWindow();
@@ -2690,6 +2917,24 @@ void MainWindowSmokeTest::sidebarShortcutsAndAutoCollapseSetting()
     QTRY_VERIFY(workspace->isSidebarOpen(SidebarSide::Left));
     workspace->rootPane()->focusTabBar();
     QTRY_VERIFY(!workspace->isSidebarOpen(SidebarSide::Left));
+    QTest::keyClick(window.windowHandle(), Qt::Key_2, modifiers);
+    QTRY_VERIFY(workspace->isSidebarOpen(SidebarSide::Right));
+    workspace->rootPane()->focusTabBar();
+    QCoreApplication::processEvents();
+    QVERIFY(workspace->isSidebarOpen(SidebarSide::Right));
+
+    const auto legacyFile = temp.filePath(QStringLiteral("legacy.ini"));
+    QSettings legacy(legacyFile, QSettings::IniFormat);
+    legacy.setValue(QStringLiteral("Workspace/SidebarAutoCollapse"), true);
+    legacy.sync();
+    auto migrated = darkeye::settings::app(legacyFile);
+    QVERIFY(migrated.leftSidebarAutoCollapse);
+    QVERIFY(migrated.rightSidebarAutoCollapse);
+    migrated.rightSidebarAutoCollapse = false;
+    darkeye::settings::saveApp(migrated, legacyFile);
+    const auto saved = darkeye::settings::app(legacyFile);
+    QVERIFY(saved.leftSidebarAutoCollapse);
+    QVERIFY(!saved.rightSidebarAutoCollapse);
 }
 
 void MainWindowSmokeTest::paneTabShortcutsCanBeCustomized()
@@ -3096,11 +3341,23 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         QCOMPARE(pane->contentCount(), count + 1);
         QVERIFY(pane->currentContentId().startsWith(firstRoute + u'/'));
         QVERIFY(pane->removeContent(pane->currentContentId()));
+        auto *filter = window.findChild<darkeye::WorkFilter *>();
+        QVERIFY(filter);
+        auto *serial = findWorkControl<QLineEdit>(filter, QStringLiteral("WorkSerialFilter"));
+        auto *scope = findWorkControl<QComboBox>(filter, QStringLiteral("WorkScopeSelector"));
+        auto *sort = findWorkControl<QComboBox>(filter, QStringLiteral("WorkSortSelector"));
+        QVERIFY(serial && scope && sort);
+        serial->setText(otherWork.serialNumber);
+        scope->setCurrentIndex(scope->findData(static_cast<int>(darkeye::WorkFilter::Scope::Favorites)));
+        sort->setCurrentIndex(sort->findData(static_cast<int>(darkeye::WorkSortOrder::SerialAscending)));
         openSearch();
         QTRY_VERIFY(search->isVisible());
         QTest::keyClicks(input, QStringLiteral("search-001"));
         QCOMPARE(input->text(), QStringLiteral("search-001"));
         QTest::keyClick(input, Qt::Key_Return);
+        QVERIFY(serial->text().isEmpty());
+        QCOMPARE(scope->currentData().toInt(), static_cast<int>(darkeye::WorkFilter::Scope::Public));
+        QCOMPARE(sort->currentData().toInt(), static_cast<int>(darkeye::WorkSortOrder::Random));
         QVERIFY(!workspace->findPaneByContentId(workRoute));
         QCOMPARE(workspace->findPaneByContentId(shelfRoute), pane);
         auto *shelfPage = qobject_cast<darkeye::ShelfPage *>(pane->contentWidget(shelfRoute));
@@ -3143,7 +3400,6 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
             QVERIFY(!workspace->findPaneByContentId(filterRoute));
             QCOMPARE(shelfPage->filteredWorkIds(), QSet<qint64>{expectedWorkId});
         }
-        auto *filter = window.findChild<darkeye::WorkFilter *>();
         auto *clearFilter = findWorkControl<QPushButton>(filter, QStringLiteral("WorkClearButton"));
         QVERIFY(clearFilter);
         clearFilter->click();

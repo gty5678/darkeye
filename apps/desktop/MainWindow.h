@@ -24,6 +24,7 @@ class QActionGroup;
 class QComboBox;
 class QLabel;
 class QJsonObject;
+class QPushButton;
 class QStackedWidget;
 
 namespace darkeye
@@ -73,6 +74,8 @@ protected:
 private:
     void buildUi();
     QWidget *buildNavigationBar(QWidget *parent);
+    void updateNavigationBar(const AppSettings &settings);
+    void updateSidebarSettings(const AppSettings &settings);
     void openPerson(PersonKind kind, qint64 personId);
     void openWorkEditor(qint64 workId);
     void closeCurrentTab();
@@ -97,7 +100,7 @@ private:
     void changeTheme(int index);
     void saveWindowState() const;
     enum class ActressOpenMode { Automatic, Switching, Independent };
-    enum class ShelfFilterPolicy { Keep, ClearIfExcluded };
+    enum class ShelfFilterPolicy { Keep, ClearIfExcluded, ResetToRandom };
     void navigateTo(const QString &routeName, bool recordRecent = true,
                     ActressOpenMode actressMode = ActressOpenMode::Automatic,
                     myads::PaneWidget *preferredPane = nullptr,
@@ -124,6 +127,7 @@ private:
     void showWorkInShelf(qint64 workId);
     void registerApplicationActions();
     void openWorkspaceSearch(bool commands);
+    void openWorkspaceSearchResult(const QString &route);
     [[nodiscard]] QWidget *partialCaptureTarget();
     void captureWidget(QWidget *widget);
     void attachLocalApi(LocalApiServer &api);
@@ -142,6 +146,7 @@ private:
     QSet<qint64> m_pendingActressSyncIds;
     QWidget *m_navigationBar = nullptr;
     QLabel *m_navigationHint = nullptr;
+    QList<QPushButton *> m_navigationButtons;
     myads::WorkspaceWidget *m_workspace = nullptr;
     WorkFilter *m_workFilter = nullptr;
     WorkspaceSearch *m_globalSearch = nullptr;

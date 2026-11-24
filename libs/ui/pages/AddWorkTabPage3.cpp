@@ -564,8 +564,10 @@ void AddWorkTabPage3::lazyLoad()
     auto *editorLayout = container(QStringLiteral("editor"), QStringLiteral("自由记录区"));
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->addWidget(m_notes);
-    auto *navLayout = container(QStringLiteral("nav"), QStringLiteral("外部导航"), false);
-    addManualNavigation(navLayout);
+    auto *navigation = createManualNavigation();
+    navigation->setProperty("addwork_slot", QStringLiteral("nav"));
+    navigation->setProperty("addwork_title", QStringLiteral("外部导航"));
+    m_slotWidgets.insert(QStringLiteral("nav"), navigation);
 
     auto *pageLayout = new QVBoxLayout(this);
     pageLayout->setContentsMargins(0, 0, 0, 0);
@@ -776,30 +778,29 @@ void AddWorkTabPage3::playLocalVideo()
         play(selected->data().toString());
 }
 
-void AddWorkTabPage3::addManualNavigation(QVBoxLayout *layout)
+QWidget *AddWorkTabPage3::createManualNavigation()
 {
     QFile file(settings::Paths().crawlerNavButtonsFile());
     if (!file.open(QIODevice::ReadOnly))
     {
-        auto *message = new QLabel(QStringLiteral("未找到 crawler_nav_buttons.json"),
-                                   m_slotWidgets.value(QStringLiteral("nav")));
+        auto *message = new QLabel(QStringLiteral("未找到 crawler_nav_buttons.json"), this);
         message->setAlignment(Qt::AlignCenter);
-        layout->addWidget(message);
-        return;
+        message->setMargin(8);
+        return message;
     }
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
     if (!document.isArray())
     {
         auto *message = new QLabel(QStringLiteral("导航配置格式无效：%1").arg(parseError.errorString()),
-                                   m_slotWidgets.value(QStringLiteral("nav")));
+                                   this);
         message->setWordWrap(true);
-        layout->addWidget(message);
-        return;
+        message->setMargin(8);
+        return message;
     }
     // 与 Python CrawlerManualNavPage 相同：按钮网格位于滚动区内，不能把 MyADS 窗格
     // 的最小高度顶大。
-    auto *scroll = new QScrollArea(m_slotWidgets.value(QStringLiteral("nav")));
+    auto *scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -847,7 +848,7 @@ void AddWorkTabPage3::addManualNavigation(QVBoxLayout *layout)
             Toast::showError(window(), QStringLiteral("无法打开配置文件位置"), &m_themes);
     });
     scroll->setWidget(gridHost);
-    layout->addWidget(scroll, 1);
+    return scroll;
 }
 
 void AddWorkTabPage3::setWorkCreationEnabled(bool enabled)

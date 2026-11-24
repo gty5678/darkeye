@@ -2,6 +2,7 @@
 #include "ui/pages/PageScrollArea.h"
 
 #include "app/Resources.h"
+#include "ui/components/SceneEnvironment.h"
 #include "ui/components/ShopSceneWidget.h"
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/InteractionEffects.h"
@@ -23,7 +24,7 @@ HomePage::HomePage(QSqlDatabase database, const QString &coverDirectory, ThemeSe
 {
     setObjectName(QStringLiteral("HomePage"));
     m_search.order = WorkSortOrder::Random;
-    connect(&m_themes, &ThemeService::themeChanged, this, &HomePage::updateOutlineColor);
+    connect(&m_themes, &ThemeService::themeChanged, this, &HomePage::applyTheme);
 }
 
 void HomePage::lazyLoad()
@@ -58,14 +59,22 @@ void HomePage::lazyLoad()
     const auto modelError = m_view->canvas()->property("modelError").toString();
     if (!modelError.isEmpty())
         ToastNotification::showMessage(window(), modelError, ToastNotification::Level::Error);
-    updateOutlineColor();
+    applyTheme();
     refresh();
 }
 
-void HomePage::updateOutlineColor()
+void HomePage::applyTheme()
 {
-    if (m_view != nullptr)
-        m_view->setOutlineColor(QColor(m_themes.currentTokens().primary));
+    if (!m_view)
+        return;
+
+    m_view->setOutlineColor(QColor(m_themes.currentTokens().primary));
+    auto *canvas = m_view->canvas();
+    const auto theme = m_themes.current();
+    auto lighting = canvas->lighting();
+    lighting.keyLightDirection = sceneKeyLightDirection(theme);
+    canvas->setEnvironment(sceneEnvironment(theme));
+    canvas->setLighting(lighting);
 }
 
 void HomePage::openCover(int index)

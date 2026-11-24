@@ -291,14 +291,14 @@ WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool w
     rebuild(false);
     if (withSidebars) createSidebars();
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now) {
-        if (!m_sidebarAutoCollapse) return;
-        for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host}) {
-            if (sidebar && !sidebar->isHidden() && containsWidget(sidebar, old)
-                && !containsWidget(sidebar, now)) {
-                QTimer::singleShot(0, sidebar, [this, sidebar] {
-                    if (m_sidebarAutoCollapse && !containsWidget(sidebar, QApplication::focusWidget())
-                        && !containsWidget(sidebar, QApplication::activePopupWidget()))
-                        hideSidebar(sidebar);
+        for (auto side : {SidebarSide::Left, SidebarSide::Right}) {
+            auto *host = sidebar(side).host;
+            if (sidebarAutoCollapse(side) && host && !host->isHidden()
+                && containsWidget(host, old) && !containsWidget(host, now)) {
+                QTimer::singleShot(0, host, [this, side, host] {
+                    if (sidebarAutoCollapse(side) && !containsWidget(host, QApplication::focusWidget())
+                        && !containsWidget(host, QApplication::activePopupWidget()))
+                        hideSidebar(host);
                 });
             }
         }
@@ -509,13 +509,19 @@ void WorkspaceWidget::updateSidebarToggles()
     update(m_rightSidebarToggle, SidebarSide::Right);
 }
 
-void WorkspaceWidget::setSidebarAutoCollapse(bool enabled)
+bool WorkspaceWidget::sidebarAutoCollapse(SidebarSide side) const
 {
-    m_sidebarAutoCollapse = enabled;
-    if (!enabled) return;
-    auto *focused = QApplication::focusWidget();
-    for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host})
-        if (sidebar && !containsWidget(sidebar, focused)) hideSidebar(sidebar);
+    return side == SidebarSide::Left ? m_leftSidebarAutoCollapse : m_rightSidebarAutoCollapse;
+}
+
+void WorkspaceWidget::setSidebarAutoCollapse(SidebarSide side, bool enabled)
+{
+    auto &current = side == SidebarSide::Left ? m_leftSidebarAutoCollapse : m_rightSidebarAutoCollapse;
+    if (current == enabled) return;
+    current = enabled;
+    auto *host = sidebar(side).host;
+    if (enabled && host && !containsWidget(host, QApplication::focusWidget()))
+        hideSidebar(host);
 }
 
 PaneWidget *WorkspaceWidget::rootPane() const
@@ -629,14 +635,15 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
             return true;
         }
     }
-    if (event->type() == QEvent::MouseButtonPress && receiver && receiver->window() == window()
-        && m_sidebarAutoCollapse) {
-        for (auto *sidebar : {m_leftSidebar.host, m_rightSidebar.host}) {
-            if (sidebar && !sidebar->isHidden() && !containsWidget(sidebar, receiver)
-                && receiver != (sidebar == m_leftSidebar.host ? m_leftSidebarToggle : m_rightSidebarToggle)
-                && receiver != m_sidebarSplitter->handle(sidebar == m_leftSidebar.host ? 1 : 2))
-                QTimer::singleShot(0, sidebar, [this, sidebar] {
-                    if (m_sidebarAutoCollapse) hideSidebar(sidebar);
+    if (event->type() == QEvent::MouseButtonPress && receiver && receiver->window() == window()) {
+        for (auto side : {SidebarSide::Left, SidebarSide::Right}) {
+            auto *host = sidebar(side).host;
+            const bool left = side == SidebarSide::Left;
+            if (sidebarAutoCollapse(side) && host && !host->isHidden() && !containsWidget(host, receiver)
+                && receiver != (left ? m_leftSidebarToggle : m_rightSidebarToggle)
+                && receiver != m_sidebarSplitter->handle(left ? 1 : 2))
+                QTimer::singleShot(0, host, [this, side, host] {
+                    if (sidebarAutoCollapse(side)) hideSidebar(host);
                 });
         }
     }

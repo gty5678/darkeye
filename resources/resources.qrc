@@ -29,6 +29,7 @@
         <file alias="shop/darkeye-shop.glb">../libs/dvd/darkeye-shop.glb</file>
         <file alias="dvd/dvd.glb">../libs/dvd/dvd.glb</file>
         <file alias="hdr/lebombo_1k.hdr">hdr/lebombo_1k.hdr</file>
+        <file alias="hdr/fireplace_1k.hdr">hdr/fireplace_1k.hdr</file>
         <file alias="maps/0.png">maps/0.png</file>
     </qresource>
 </RCC>

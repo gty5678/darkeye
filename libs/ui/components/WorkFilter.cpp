@@ -84,6 +84,50 @@ WorkFilter::WorkFilter(QSqlDatabase database, QSqlDatabase privateDatabase,
 {
 }
 
+void WorkFilter::setupScopeSelector(QComboBox &selector, int initialScope)
+{
+    selector.addItem(QStringLiteral("公共库范围"), static_cast<int>(Scope::Public));
+    selector.addItem(QStringLiteral("收藏库范围"), static_cast<int>(Scope::Favorites));
+    selector.addItem(QStringLiteral("收藏未观看"), static_cast<int>(Scope::UnwatchedFavorites));
+    selector.addItem(QStringLiteral("已撸过"), static_cast<int>(Scope::Watched));
+    selector.addItem(QStringLiteral("本地有视频"), static_cast<int>(Scope::LocalVideo));
+
+    const int index = selector.findData(initialScope);
+    selector.setCurrentIndex(index >= 0 ? index : selector.findData(static_cast<int>(Scope::Public)));
+}
+
+void WorkFilter::setupSortSelector(QComboBox &selector, int initialSortOrder)
+{
+    selector.addItem(QStringLiteral("随机顺序"), static_cast<int>(WorkSortOrder::Random));
+    selector.addItem(QStringLiteral("添加逆序"),
+                     static_cast<int>(WorkSortOrder::CreatedDescending));
+    selector.addItem(QStringLiteral("添加顺序"),
+                     static_cast<int>(WorkSortOrder::CreatedAscending));
+    selector.addItem(QStringLiteral("番号顺序"),
+                     static_cast<int>(WorkSortOrder::SerialAscending));
+    selector.addItem(QStringLiteral("番号逆序"),
+                     static_cast<int>(WorkSortOrder::SerialDescending));
+    selector.addItem(QStringLiteral("制作商顺序"),
+                     static_cast<int>(WorkSortOrder::MakerAscending));
+    selector.addItem(QStringLiteral("制作商逆序"),
+                     static_cast<int>(WorkSortOrder::MakerDescending));
+    selector.addItem(QStringLiteral("更新时间顺序"),
+                     static_cast<int>(WorkSortOrder::UpdatedAscending));
+    selector.addItem(QStringLiteral("更新时间逆序"),
+                     static_cast<int>(WorkSortOrder::UpdatedDescending));
+    selector.addItem(QStringLiteral("发布时间逆序"),
+                     static_cast<int>(WorkSortOrder::ReleaseDateDescending));
+    selector.addItem(QStringLiteral("发布时间顺序"),
+                     static_cast<int>(WorkSortOrder::ReleaseDateAscending));
+    selector.addItem(QStringLiteral("拍摄年龄顺序"),
+                     static_cast<int>(WorkSortOrder::ActressAgeAscending));
+    selector.addItem(QStringLiteral("拍摄年龄逆序"),
+                     static_cast<int>(WorkSortOrder::ActressAgeDescending));
+    const int index = selector.findData(initialSortOrder);
+    selector.setCurrentIndex(index >= 0 ? index
+        : selector.findData(static_cast<int>(WorkSortOrder::CreatedDescending)));
+}
+
 void WorkFilter::lazyLoad()
 {
     m_randomSeed = QRandomGenerator::global()->bounded(1, 1'000'001);
@@ -123,9 +167,11 @@ void WorkFilter::clearFilters()
     applyFilters();
 }
 
-void WorkFilter::resetToPublicLibrary()
+void WorkFilter::resetToPublicLibrary(std::optional<WorkSortOrder> order)
 {
-    m_scopeSelector->setCurrentIndex(0);
+    m_scopeSelector->setCurrentIndex(m_scopeSelector->findData(static_cast<int>(Scope::Public)));
+    if (order)
+        m_sortSelector->setCurrentIndex(m_sortSelector->findData(static_cast<int>(*order)));
     clearFilters();
 }
 
@@ -307,43 +353,16 @@ void WorkFilter::buildUi()
     m_countLabel->setFixedWidth(100);
     m_countLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
+    const auto appSettings = settings::app(m_settingsFile);
     m_sortSelector = new DesignComboBox(filterBar);
     m_sortSelector->setProperty("compactFilter", true);
     m_sortSelector->setProperty("workControlId", QStringLiteral("WorkSortSelector"));
-    m_sortSelector->addItem(QStringLiteral("随机顺序"), static_cast<int>(WorkSortOrder::Random));
-    m_sortSelector->addItem(QStringLiteral("添加逆序"),
-                            static_cast<int>(WorkSortOrder::CreatedDescending));
-    m_sortSelector->addItem(QStringLiteral("添加顺序"),
-                            static_cast<int>(WorkSortOrder::CreatedAscending));
-    m_sortSelector->addItem(QStringLiteral("番号顺序"),
-                            static_cast<int>(WorkSortOrder::SerialAscending));
-    m_sortSelector->addItem(QStringLiteral("番号逆序"),
-                            static_cast<int>(WorkSortOrder::SerialDescending));
-    m_sortSelector->addItem(QStringLiteral("制作商顺序"),
-                            static_cast<int>(WorkSortOrder::MakerAscending));
-    m_sortSelector->addItem(QStringLiteral("制作商逆序"),
-                            static_cast<int>(WorkSortOrder::MakerDescending));
-    m_sortSelector->addItem(QStringLiteral("更新时间顺序"),
-                            static_cast<int>(WorkSortOrder::UpdatedAscending));
-    m_sortSelector->addItem(QStringLiteral("更新时间逆序"),
-                            static_cast<int>(WorkSortOrder::UpdatedDescending));
-    m_sortSelector->addItem(QStringLiteral("发布时间逆序"),
-                            static_cast<int>(WorkSortOrder::ReleaseDateDescending));
-    m_sortSelector->addItem(QStringLiteral("发布时间顺序"),
-                            static_cast<int>(WorkSortOrder::ReleaseDateAscending));
-    m_sortSelector->addItem(QStringLiteral("拍摄年龄顺序"),
-                            static_cast<int>(WorkSortOrder::ActressAgeAscending));
-    m_sortSelector->addItem(QStringLiteral("拍摄年龄逆序"),
-                            static_cast<int>(WorkSortOrder::ActressAgeDescending));
-    m_sortSelector->setCurrentIndex(1);
+    setupSortSelector(*m_sortSelector, appSettings.workFilterInitialSortOrder);
 
     m_scopeSelector = new DesignComboBox(filterBar);
     m_scopeSelector->setProperty("compactFilter", true);
     m_scopeSelector->setProperty("workControlId", QStringLiteral("WorkScopeSelector"));
-    m_scopeSelector->addItems({QStringLiteral("公共库范围"), QStringLiteral("收藏库范围"),
-                               QStringLiteral("收藏未观看"), QStringLiteral("已撸过"),
-                               QStringLiteral("本地有视频")});
-    m_scopeSelector->setCurrentIndex(0);
+    setupScopeSelector(*m_scopeSelector, appSettings.workFilterInitialScope);
     m_scopeSelector->setToolTip(QStringLiteral("选择公共库、收藏、观看记录或本地视频范围"));
     addFilter(filters, QStringLiteral("范围"), m_scopeSelector);
     addFilter(filters, QStringLiteral("排序"), m_sortSelector);
@@ -389,7 +408,7 @@ void WorkFilter::buildUi()
     tagScroll->setWidget(m_tagSelector);
     m_tagSelector->setSelectedColumnLayout(WorkTagSelector::SelectedColumnLayout::Compact);
     m_tagSelector->useResponsiveLayout();
-    if (settings::app(m_settingsFile).workFilterAddGreenCover)
+    if (appSettings.workFilterAddGreenCover)
         applyInitialDefaultTagFilter(tagOptions);
     m_tagSelector->setLoader(
         [this]
@@ -584,7 +603,7 @@ WorkFilter::SearchRequest WorkFilter::searchRequest() const
     search.tagIds = m_tagSelector->selectedIds();
     if (search.tagIds.isEmpty() && m_routeTagId > 0) search.tagIds.append(m_routeTagId);
     search.order = selectedSortOrder();
-    return {std::move(search), static_cast<Scope>(m_scopeSelector->currentIndex()),
+    return {std::move(search), static_cast<Scope>(m_scopeSelector->currentData().toInt()),
             m_privateDatabase.databaseName()};
 }
 

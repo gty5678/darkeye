@@ -1,4 +1,5 @@
 #include "ui/components/DvdShelfView.h"
+#include "ui/components/SceneEnvironment.h"
 
 #include "app/Resources.h"
 #include "database/SqliteConnection.h"
@@ -314,8 +315,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         m_sceneError->setText(QStringLiteral("DVD 模型载入失败：%1").arg(model.error));
         m_sceneError->show();
     }
-    QString environmentError;
-    static const auto environment=render3d::EnvironmentMap::loadHdr(QStringLiteral(":/assets/hdr/lebombo_1k.hdr"),&environmentError);
+    const auto environment = sceneEnvironment(ThemeId::Light);
     m_scene->renderWidget()->setEnvironment(environment);
     render3d::LightingSettings lighting;
     lighting.environmentBackground=lighting.imageBasedLighting=bool(environment);
@@ -327,12 +327,11 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     lighting.environmentRotation=155;
     lighting.exposure=0.95f;
     lighting.environmentIntensity=1.0f;
-    lighting.keyLightDirection={-0.5f,0.8f,1.0f};
+    lighting.keyLightDirection=sceneKeyLightDirection(ThemeId::Light);
     lighting.keyLightIntensity=2.2f;
-    // Keep the key light fixed above-left of the initial camera view.
+    // Keep the key light fixed in world space while the camera moves.
     lighting.keyLightCameraRelative=false;
     m_scene->renderWidget()->setLighting(lighting);
-    if(!environment) qWarning().noquote()<<environmentError;
 }
 
 void DvdShelfView::bindTheme(ThemeService &themes)
@@ -340,6 +339,14 @@ void DvdShelfView::bindTheme(ThemeService &themes)
     auto *renderer = m_scene->renderWidget();
     const auto apply = [renderer, &themes] {
         renderer->setClearColor(QColor(themes.currentTokens().pageBackground));
+        const auto theme = themes.current();
+        const auto environment = sceneEnvironment(theme);
+        auto lighting = renderer->lighting();
+        lighting.keyLightDirection = sceneKeyLightDirection(theme);
+        lighting.environmentBackground = lighting.imageBasedLighting = bool(environment);
+        lighting.displayClearColor = !environment;
+        renderer->setEnvironment(environment);
+        renderer->setLighting(lighting);
     };
     apply();
     connect(&themes, &ThemeService::themeChanged, this, apply);

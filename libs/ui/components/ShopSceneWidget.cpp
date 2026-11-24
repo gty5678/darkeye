@@ -1,4 +1,5 @@
 #include "ShopSceneWidget.h"
+#include "SceneEnvironment.h"
 #include "render3d/GltfLoader.h"
 #include "render3d/Raycaster.h"
 #include <QMouseEvent>
@@ -110,9 +111,9 @@ ShopSceneWidget::ShopSceneWidget(QWidget *parent)
     lighting.toneMapping = true;
     lighting.environmentRotation = 155;
     lighting.keyLightIntensity = 1.8f;
-    lighting.keyLightDirection = {-0.5f,0.8f,1};
+    lighting.keyLightDirection = sceneKeyLightDirection(ThemeId::Light);
     m_canvas->setLighting(lighting);
-    m_canvas->setEnvironment(EnvironmentMap::loadHdr(QStringLiteral(":/assets/hdr/lebombo_1k.hdr")));
+    m_canvas->setEnvironment(sceneEnvironment(ThemeId::Light));
     m_camera.rotationMode = Camera::RotationMode::InPlace;
     m_camera.verticalFov = 50;
     m_camera.nearPlane = 0.06f;

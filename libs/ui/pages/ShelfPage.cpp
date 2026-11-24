@@ -129,10 +129,10 @@ void ShelfPage::filterByTag(qint64 tagId)
     m_filter->filterByTag(tagId);
 }
 
-void ShelfPage::resetWorkFilters()
+void ShelfPage::resetWorkFilters(std::optional<WorkSortOrder> order)
 {
     initialize();
-    m_filter->resetToPublicLibrary();
+    m_filter->resetToPublicLibrary(order);
 }
 
 bool ShelfPage::containsWork(qint64 workId)

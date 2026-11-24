@@ -162,14 +162,24 @@ AppSettings app(QString settingsFile)
                                       .toBool();
     settings.navigationBarVisible = m_store.value(QStringLiteral("Workspace/NavigationBarVisible"),
                                                   settings.navigationBarVisible).toBool();
-    settings.sidebarAutoCollapse = m_store.value(QStringLiteral("Workspace/SidebarAutoCollapse"),
-                                                settings.sidebarAutoCollapse).toBool();
+    settings.hiddenNavigationItems = m_store.value(QStringLiteral("Workspace/HiddenNavigationItems")).toStringList();
+    const bool legacySidebarAutoCollapse =
+        m_store.value(QStringLiteral("Workspace/SidebarAutoCollapse"), false).toBool();
+    settings.leftSidebarAutoCollapse =
+        m_store.value(QStringLiteral("Workspace/LeftSidebarAutoCollapse"), legacySidebarAutoCollapse).toBool();
+    settings.rightSidebarAutoCollapse =
+        m_store.value(QStringLiteral("Workspace/RightSidebarAutoCollapse"), legacySidebarAutoCollapse).toBool();
     settings.leftSidebarToggleVisible = m_store.value(QStringLiteral("Workspace/LeftSidebarToggleVisible"),
                                                      settings.leftSidebarToggleVisible).toBool();
     settings.rightSidebarToggleVisible = m_store.value(QStringLiteral("Workspace/RightSidebarToggleVisible"),
                                                       settings.rightSidebarToggleVisible).toBool();
     settings.workFilterAddGreenCover = m_store.value(QStringLiteral("WorkFilter/AddGreenCover"),
                                                     settings.workFilterAddGreenCover).toBool();
+    bool validOption = false;
+    const int scope = m_store.value(QStringLiteral("WorkFilter/InitialScope")).toInt(&validOption);
+    if (validOption) settings.workFilterInitialScope = scope;
+    const int sortOrder = m_store.value(QStringLiteral("WorkFilter/InitialSortOrder")).toInt(&validOption);
+    if (validOption) settings.workFilterInitialSortOrder = sortOrder;
     settings.workTagSelectorVisible = m_store
                                           .value(QStringLiteral("WorkPage/TagSelectorVisible"),
                                                  settings.workTagSelectorVisible)
@@ -318,10 +328,14 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("window/pos"), settings.windowPosition},
         {QStringLiteral("WorkPage/LargeCoverView"), settings.workLargeCoverView},
         {QStringLiteral("Workspace/NavigationBarVisible"), settings.navigationBarVisible},
-        {QStringLiteral("Workspace/SidebarAutoCollapse"), settings.sidebarAutoCollapse},
+        {QStringLiteral("Workspace/HiddenNavigationItems"), settings.hiddenNavigationItems},
+        {QStringLiteral("Workspace/LeftSidebarAutoCollapse"), settings.leftSidebarAutoCollapse},
+        {QStringLiteral("Workspace/RightSidebarAutoCollapse"), settings.rightSidebarAutoCollapse},
         {QStringLiteral("Workspace/LeftSidebarToggleVisible"), settings.leftSidebarToggleVisible},
         {QStringLiteral("Workspace/RightSidebarToggleVisible"), settings.rightSidebarToggleVisible},
         {QStringLiteral("WorkFilter/AddGreenCover"), settings.workFilterAddGreenCover},
+        {QStringLiteral("WorkFilter/InitialScope"), settings.workFilterInitialScope},
+        {QStringLiteral("WorkFilter/InitialSortOrder"), settings.workFilterInitialSortOrder},
         {QStringLiteral("WorkPage/TagSelectorVisible"), settings.workTagSelectorVisible},
         {QStringLiteral("ShelfPage/TagSelectorVisible"), settings.shelfTagSelectorVisible},
         {QStringLiteral("Video/LocalPlayerExe"), settings.localVideoPlayer.trimmed()},

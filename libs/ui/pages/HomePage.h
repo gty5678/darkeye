@@ -27,7 +27,7 @@ private:
     void lazyLoad() override;
     void refresh();
     void loadCovers();
-    void updateOutlineColor();
+    void applyTheme();
     ThemeService &m_themes;
     QSqlDatabase m_database;
     QString m_coverDirectory;

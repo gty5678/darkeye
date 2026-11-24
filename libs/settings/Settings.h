@@ -28,10 +28,14 @@ struct AppSettings final
     QPoint windowPosition{100, 100};
 
     bool navigationBarVisible = true;
-    bool sidebarAutoCollapse = false;
+    QStringList hiddenNavigationItems;
+    bool leftSidebarAutoCollapse = false;
+    bool rightSidebarAutoCollapse = false;
     bool leftSidebarToggleVisible = true;
     bool rightSidebarToggleVisible = true;
     bool workFilterAddGreenCover = false;
+    int workFilterInitialScope = -1;
+    int workFilterInitialSortOrder = -1;
     bool workLargeCoverView = false;
     bool workTagSelectorVisible = true;
     bool shelfTagSelectorVisible = true;

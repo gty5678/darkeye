@@ -362,7 +362,7 @@ https://huggingface.co/SakuraLLM/Sakura-14B-Qwen3-v1.5-GGUF
 
 #### llama.cpp
 
-先打开软件中的 `设置 -> 翻译`，使用 **llama.cpp 辅助启动**：
+先在软件中打开「设置 → 外部翻译服务」，进入 **llama.cpp 辅助启动**：
 
 1. 点击 `打开 llama.cpp Releases` 下载对应平台的 `llama-server.exe`
 2. 填写 `llama-server.exe` 与 `GGUF 模型` 路径

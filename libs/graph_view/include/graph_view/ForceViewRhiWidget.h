@@ -149,7 +149,10 @@ public:
     // 返回当前图内容的场景坐标包围盒。
     QRectF getContentRect() const;
     // 将视图缩放和平移到完整显示当前图内容。
-    void fitViewToContent();
+    enum class FitViewMode { Standard, Initial, GlobalInitial };
+    void fitViewToContent(FitViewMode mode = FitViewMode::Standard);
+    void setInitialFitMode(FitViewMode mode) { m_initialFitMode = mode; }
+    void fitInitialViewToContent() { fitViewToContent(m_initialFitMode); }
 
     // 返回当前视图中心 X。
     float getPanX() const { return m_panX; }
@@ -493,6 +496,7 @@ private:
     float m_panX = 0.0f;
     float m_panY = 0.0f;
     float m_zoom = 1.0f;
+    FitViewMode m_initialFitMode = FitViewMode::Initial;
     int m_viewportW = 1;
     int m_viewportH = 1;
     bool m_isPanning = false;

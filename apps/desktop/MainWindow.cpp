@@ -90,6 +90,7 @@
 #elif defined(Q_OS_MACOS)
 #include "MacWindowAppearance.h"
 #include "MacWorkspaceShortcuts.h"
+#include <QShowEvent>
 #include <mach/mach.h>
 #include <sys/resource.h>
 #include <QThread>
@@ -189,10 +190,14 @@ bool isRecentEntityRoute(const QString &route)
         && base != u"manage_work" && base != u"actor_detail";
 }
 
-QString formatMemory(qint64 bytes)
+QString formatMemory(qint64 bytes, int fieldWidth = 0)
 {
-    return QStringLiteral("%1 MiB").arg(bytes / 1024.0 / 1024.0, 0, 'f', 1);
+    return QStringLiteral("%1 MiB").arg(bytes / 1024.0 / 1024.0, fieldWidth, 'f', 1);
 }
+
+#ifdef Q_OS_MACOS
+constexpr int macMemoryFieldWidth = 9;
+#endif
 
 QString processMemoryUsage()
 {
@@ -210,6 +215,7 @@ QString processMemoryUsage()
             .arg(formatMemory(sharedWorkingSet), formatMemory(privateWorkingSet));
     }
 #elif defined(Q_OS_MACOS)
+    const auto fields = QStringLiteral("内存占用 %1 | 驻留内存 %2");
     task_vm_info_data_t counters{};
     mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
     if (task_info(mach_task_self(), TASK_VM_INFO,
@@ -217,12 +223,16 @@ QString processMemoryUsage()
     {
         // Activity Monitor reports physical footprint, not internal + external
         // resident pages. The latter are not a private/shared memory split.
-        return QStringLiteral("内存占用 %1 | 驻留内存 %2")
-            .arg(formatMemory(static_cast<qint64>(counters.phys_footprint)),
-                 formatMemory(static_cast<qint64>(counters.resident_size)));
+        return fields.arg(formatMemory(static_cast<qint64>(counters.phys_footprint), macMemoryFieldWidth),
+                          formatMemory(static_cast<qint64>(counters.resident_size), macMemoryFieldWidth));
     }
+    const QString unavailable = QStringLiteral("N/A").rightJustified(macMemoryFieldWidth)
+        + QStringLiteral(" MiB");
+    return fields.arg(unavailable, unavailable);
 #endif
+#ifndef Q_OS_MACOS
     return QStringLiteral("内存 N/A");
+#endif
 }
 
 QString processCpuUsage()
@@ -302,7 +312,7 @@ QString processCpuUsage()
     const int processorCount = qMax(QThread::idealThreadCount(), 1);
     const double usage = qBound(0.0, static_cast<double>(cpuTimeDelta) * 100000.0 /
         static_cast<double>(elapsedNanoseconds) / processorCount, 100.0);
-    return QStringLiteral("%1%").arg(usage, 5, 'f', 1, QLatin1Char('0'));
+    return QStringLiteral("%1%").arg(usage, 0, 'f', 1);
 #else
     return QStringLiteral("N/A");
 #endif
@@ -317,6 +327,15 @@ MainWindow::MainWindow(ThemeService &themeService,
       m_paths(std::move(paths)), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase))
 {
+#ifdef Q_OS_WIN
+    // Paint the window background behind the native title bar. QMainWindow's
+    // layout respects the safe area, keeping navigation and tabs below it.
+    setWindowFlags(windowFlags() | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
+#endif
+#ifdef Q_OS_MACOS
+    setWindowFlag(Qt::NoTitleBarBackgroundHint);
+    connect(&m_themeService, &ThemeService::themeChanged, this, &MainWindow::updateMacTitleBarBackground);
+#endif
     updateWindowTitle();
 #ifdef Q_OS_WIN
     connect(&m_themeService, &ThemeService::themeChanged, this, &MainWindow::updateNativeTitleBarColors);
@@ -413,14 +432,26 @@ void MainWindow::updateNativeTitleBarColors()
 }
 #endif
 
+#ifdef Q_OS_MACOS
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    updateMacTitleBarBackground();
+}
+
+void MainWindow::updateMacTitleBarBackground()
+{
+    if (!internalWinId()) return;
+    const ThemeTokens tokens = m_themeService.currentTokens();
+    setMacTitleBarBackground(*this, QColor(tokens.pageBackground), tokens.colorSpace,
+                             m_themeService.current() == ThemeId::Dark);
+}
+#endif
+
 void MainWindow::showInitial()
 {
     // Apply the initial geometry after Qt creates the native window.
-#ifdef Q_OS_MACOS
-    hideMacTitleBarSeparator(*this);
-#else
     winId();
-#endif
     if (const auto *initialScreen = screen()) {
         const QSize availableSize = initialScreen->availableGeometry().size();
         if (!availableSize.isEmpty()) resize(availableSize * 0.85);
@@ -1280,9 +1311,6 @@ void MainWindow::connectShelfPage(ShelfPage *shelf)
     });
     connect(shelf, &ShelfPage::actorRequested, this, [this](qint64 personId) {
         openPerson(PersonKind::Actor, personId);
-    });
-    connect(shelf, &ShelfPage::tagRequested, this, [this](qint64 tagId) {
-        navigateTo(QStringLiteral("tag/") + QString::number(tagId));
     });
 }
 

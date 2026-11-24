@@ -188,15 +188,16 @@ void MainWindowSmokeTest::resourceUsageAppearsInWindowTitle()
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::MainWindow window(themes);
+    const auto titleText = [&window] { return window.windowTitle(); };
 #ifdef Q_OS_MACOS
     const QRegularExpression metrics(QStringLiteral(
-        "CPU ([0-9]+\\.[0-9]+)% \\| 内存占用 ([0-9]+\\.[0-9]+) MiB \\| 驻留内存 ([0-9]+\\.[0-9]+) MiB"));
+        "CPU +([0-9]+\\.[0-9]+)% \\| 内存占用 +([0-9]+\\.[0-9]+) MiB \\| 驻留内存 +([0-9]+\\.[0-9]+) MiB"));
 #else
     const QRegularExpression metrics(QStringLiteral(
         "CPU ([0-9]+\\.[0-9]+)% \\| 公共内存 ([0-9]+\\.[0-9]+) MiB \\| 私有内存 ([0-9]+\\.[0-9]+) MiB"));
 #endif
-    QTRY_VERIFY_WITH_TIMEOUT(metrics.match(window.windowTitle()).hasMatch(), 3000);
-    auto sample = metrics.match(window.windowTitle());
+    QTRY_VERIFY_WITH_TIMEOUT(metrics.match(titleText()).hasMatch(), 3000);
+    auto sample = metrics.match(titleText());
     QVERIFY(sample.captured(2).toDouble() + sample.captured(3).toDouble() > 0.0);
 
     // Accumulate CPU time between timer samples to catch unit conversion and
@@ -205,8 +206,8 @@ void MainWindowSmokeTest::resourceUsageAppearsInWindowTitle()
     work.start();
     while (work.elapsed() < 250) {}
     QTRY_VERIFY_WITH_TIMEOUT(
-        metrics.match(window.windowTitle()).captured(1).toDouble() > 0.0, 3000);
-    sample = metrics.match(window.windowTitle());
+        metrics.match(titleText()).captured(1).toDouble() > 0.0, 3000);
+    sample = metrics.match(titleText());
     QVERIFY(sample.captured(1).toDouble() <= 100.0);
 #else
     QSKIP("Process resource metrics are implemented for Windows and macOS");
@@ -2284,6 +2285,8 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     const auto barName = QStringLiteral("pageNavigationBar");
     auto *bar = window.findChild<QWidget *>(barName);
     QVERIFY(bar && bar->isVisible());
+    const auto tokens = themes.currentTokens();
+    QCOMPARE(bar->grab(QRect(2, 2, 1, 1)).toImage().pixelColor(0, 0), QColor(tokens.pageBackground));
     QMap<QString, QPushButton *> buttons;
     for (auto *button : bar->findChildren<QPushButton *>()) {
         QVERIFY(!button->icon().isNull());
@@ -2352,10 +2355,20 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     const auto inboxRoute = QStringLiteral("inbox");
     auto *inbox = buttons.value(inboxRoute);
     QVERIFY(workspace && inbox && inbox->isVisible());
+    auto *scroll = bar->findChild<QScrollArea *>();
+    QVERIFY(scroll);
+    const int initialScrollValue = scroll->verticalScrollBar()->value();
+    scroll->ensureWidgetVisible(inbox, 0, 0);
+    const QRect buttonBackground(inbox->width() / 2, 4, 1, 1);
+    QTest::mouseMove(window.windowHandle(), inbox->mapTo(&window, inbox->rect().center()));
+    QVERIFY(inbox->underMouse());
+    QTRY_COMPARE(inbox->grab(buttonBackground).toImage().pixelColor(0, 0), QColor(tokens.inputBackground));
     QTest::mouseClick(inbox, Qt::LeftButton);
     QCOMPARE(workspace->activePane(), workspace->sidebarPane(darkeye::myads::SidebarSide::Right));
     QVERIFY(workspace->isSidebarOpen(darkeye::myads::SidebarSide::Right));
     QCOMPARE(workspace->activePane()->currentContentId(), inboxRoute);
+    QTest::mouseMove(window.windowHandle(), bar->mapTo(&window, QPoint(2, 2)));
+    QTRY_COMPARE(inbox->grab(buttonBackground).toImage().pixelColor(0, 0), QColor(tokens.pageBackground));
     QTest::mouseClick(inbox, Qt::LeftButton);
     QCOMPARE(workspace->activePane()->contentCount(), 1);
     QVERIFY(!inbox->isChecked());
@@ -2375,8 +2388,8 @@ void MainWindowSmokeTest::navigationBarOpensPagesAndRemembersVisibility()
     QCOMPARE(workspace->findPaneByContentId(inboxRoute), sidebar);
     QVERIFY(workspace->isSidebarOpen(darkeye::myads::SidebarSide::Right));
 
-    auto *scroll = bar->findChild<QScrollArea *>();
-    QVERIFY(scroll && scroll->verticalScrollBar()->maximum() > 0);
+    scroll->verticalScrollBar()->setValue(initialScrollValue);
+    QVERIFY(scroll->verticalScrollBar()->maximum() > 0);
     QVERIFY(!scroll->verticalScrollBar()->isVisible());
     auto *searchButton = buttons.value(QStringLiteral("workspace_search"));
     auto *commandsButton = buttons.value(QStringLiteral("workspace_commands"));

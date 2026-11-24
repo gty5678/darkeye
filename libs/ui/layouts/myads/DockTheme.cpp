@@ -26,7 +26,7 @@ QString DockTheme::styleSheet() const
         "QWidget#MyAdsRightSidebar { border-left:1px solid %8; }"
         "QTabBar#MyAdsTabBar { background:%7; color:%2; border:none; "
         "font-family:\"%4\"; font-size:%5px; }"
-        "QStackedWidget#MyAdsPageStack { background:transparent; }"
+        "QStackedWidget#MyAdsPageStack { background:%7; }"
         "QStackedWidget#MyAdsPageStack > QWidget { background:%1; }"
         "QToolButton#MyAdsCloseButton { padding:0; margin:0; border:none; background:transparent; }"
         "QToolButton#MyAdsCloseButton:hover { background:%3; border-radius:2px; }"

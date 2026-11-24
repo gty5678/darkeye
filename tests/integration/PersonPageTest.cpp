@@ -13,6 +13,7 @@
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/components/OctImage.h"
 #include "ui/components/ImageDropWidget.h"
+#include "ui/components/PersonCard.h"
 #include "ui/pages/ModifyActorPage.h"
 #include "ui/pages/ModifyActressPage.h"
 #include "ui/components/PersonInfoPanel.h"
@@ -227,8 +228,15 @@ void PersonPageTest::filterBarsShareGeometry()
     auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
     darkeye::ThemeService themes(*application);
     darkeye::PersonRepository people(publicConnection.database());
-    QVERIFY(people.create(darkeye::PersonKind::Actress, QStringLiteral("女演员"), {}));
-    QVERIFY(people.create(darkeye::PersonKind::Actor, QStringLiteral("男演员"), {}));
+    for (auto kind : {darkeye::PersonKind::Actress, darkeye::PersonKind::Actor}) {
+        QVERIFY(people.create(kind, QStringLiteral("A"), {}));
+        for (int index = 1; index < 8; ++index)
+            QVERIFY(people.create(kind, QStringLiteral("演员姓名 %1").arg(index), {}));
+    }
+    const QString portraitPath = temporaryDirectory.filePath(QStringLiteral("portrait.png"));
+    QImage portrait(100, 240, QImage::Format_RGB32);
+    portrait.fill(Qt::blue);
+    QVERIFY(portrait.save(portraitPath));
     for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
         QVERIFY(themes.setTheme(theme));
         darkeye::PersonPage actress(darkeye::PersonKind::Actress,
@@ -248,6 +256,7 @@ void PersonPageTest::filterBarsShareGeometry()
         auto *maleInput = actor.findChild<darkeye::CompleterLineEdit *>();
         QVERIFY(femaleInput && maleInput);
         QCOMPARE(rect(femaleInput, &actress), rect(maleInput, &actor));
+        int cardHeight = 0;
         for (auto *page : {&actress, &actor}) {
             auto *bar = page->findChild<QWidget *>(QStringLiteral("PersonFilterBar"));
             QVERIFY(bar);
@@ -272,6 +281,24 @@ void PersonPageTest::filterBarsShareGeometry()
             QVERIFY(avatar);
             QCOMPARE(rect(avatar, area->viewport()).top(), 0);
             QVERIFY(avatar->containsAvatarPoint(QPointF(avatar->width() / 2.0, 0.5)));
+
+            const auto cards = area->findChildren<darkeye::PersonCard *>();
+            QCOMPARE(cards.size(), 8);
+            auto *firstCard = cards.first();
+            firstCard->updateData(firstCard->personId(), firstCard->name(), portraitPath);
+            QTRY_VERIFY(!firstCard->avatar()->pixmap().isNull());
+            if (cardHeight == 0) cardHeight = firstCard->height();
+            const int columns = (area->viewport()->width() + 6) / (firstCard->width() + 6);
+            QVERIFY(columns > 1 && columns < cards.size());
+            for (qsizetype index = 0; index < cards.size(); ++index) {
+                const auto *card = cards.at(index);
+                QCOMPARE(card->minimumHeight(), cardHeight);
+                QCOMPARE(card->maximumHeight(), cardHeight);
+                QCOMPARE(card->height(), cardHeight);
+                QCOMPARE(card->pos() - firstCard->pos(),
+                         QPoint(int(index % columns) * (firstCard->width() + 6),
+                                int(index / columns) * (cardHeight + 16)));
+            }
 
             const auto preview = qEnvironmentVariable("DARKEYE_PERSON_BAR_PREVIEW");
             if (!preview.isEmpty()) {

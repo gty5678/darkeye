@@ -219,6 +219,8 @@ void WorkFilter::buildUi()
     filters->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_moreFilters = new TokenCollapsibleSection(QStringLiteral("更多筛选"), &m_themeService,
                                                 filterContent);
+    // Paint the borderless section directly so field edges cannot be sampled as its frame.
+    m_moreFilters->setObjectName(QStringLiteral("WorkMoreFilters"));
     auto *moreContent = m_moreFilters->contentWidget();
     auto *moreFilters = new QFormLayout;
     m_moreFilters->contentLayout()->setContentsMargins(0, 6, 0, 0);
@@ -560,6 +562,11 @@ WorkSortOrder WorkFilter::selectedSortOrder() const
 
 WorkSearch WorkFilter::search() const
 {
+    return searchRequest().resolve();
+}
+
+WorkFilter::SearchRequest WorkFilter::searchRequest() const
+{
     WorkSearch search;
     search.serialNumber = m_serialFilter->text().trimmed();
     search.title = m_titleFilter->text().trimmed();
@@ -574,23 +581,32 @@ WorkSearch WorkFilter::search() const
     search.seriesId = m_seriesFilter->maker();
     search.randomSeed = m_randomSeed;
     search.randomSeed2 = m_randomSeed2;
-    const int scope = m_scopeSelector->currentIndex();
-    search.requireLocalVideo = scope == 4;
-    search.restrictToIncludedWorkIds = scope >= 1 && scope <= 3;
-    if (search.restrictToIncludedWorkIds) {
-        SqliteConnection connection;
-        if (connection.open(m_privateDatabase.databaseName(), true)) {
-            PrivateRepository repository(connection.database());
-            switch (scope) {
-            case 1: search.includedWorkIds = repository.favoriteWorkIds(); break;
-            case 2: search.includedWorkIds = repository.favoriteUnwatchedWorkIds(); break;
-            case 3: search.includedWorkIds = repository.masturbationWorkIds(); break;
-            }
-        }
-    }
     search.tagIds = m_tagSelector->selectedIds();
     if (search.tagIds.isEmpty() && m_routeTagId > 0) search.tagIds.append(m_routeTagId);
     search.order = selectedSortOrder();
+    return {std::move(search), static_cast<Scope>(m_scopeSelector->currentIndex()),
+            m_privateDatabase.databaseName()};
+}
+
+WorkSearch WorkFilter::SearchRequest::resolve(QString *error) const
+{
+    WorkSearch search = filters;
+    search.requireLocalVideo = scope == Scope::LocalVideo;
+    search.restrictToIncludedWorkIds =
+        scope == Scope::Favorites || scope == Scope::UnwatchedFavorites || scope == Scope::Watched;
+    if (!search.restrictToIncludedWorkIds) return search;
+
+    SqliteConnection connection;
+    if (!connection.open(privateDatabasePath, true, error)) return search;
+    PrivateRepository repository(connection.database());
+    switch (scope) {
+    case Scope::Favorites: search.includedWorkIds = repository.favoriteWorkIds(error); break;
+    case Scope::UnwatchedFavorites: search.includedWorkIds = repository.favoriteUnwatchedWorkIds(error); break;
+    case Scope::Watched: search.includedWorkIds = repository.masturbationWorkIds(error); break;
+    case Scope::Public:
+    case Scope::LocalVideo:
+        break;
+    }
     return search;
 }
 

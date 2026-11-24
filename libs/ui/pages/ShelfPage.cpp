@@ -44,7 +44,7 @@ void ShelfPage::lazyLoad()
     });
     connect(m_shelfView, &DvdShelfView::actressRequested, this, &ShelfPage::actressRequested);
     connect(m_shelfView, &DvdShelfView::actorRequested, this, &ShelfPage::actorRequested);
-    connect(m_shelfView, &DvdShelfView::tagRequested, this, &ShelfPage::tagRequested);
+    connect(m_shelfView, &DvdShelfView::tagRequested, this, &ShelfPage::filterByTag, Qt::QueuedConnection);
     connect(m_shelfView, &DvdShelfView::directorRequested, this, &ShelfPage::filterByDirector);
     connect(m_shelfView, &DvdShelfView::makerRequested, this, &ShelfPage::filterByMaker);
     connect(m_shelfView, &DvdShelfView::labelRequested, this, &ShelfPage::filterByLabel);

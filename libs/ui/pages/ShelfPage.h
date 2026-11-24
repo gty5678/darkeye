@@ -57,7 +57,6 @@ signals:
     void favoriteChanged(qint64 workId, bool favorite);
     void actressRequested(qint64 actressId);
     void actorRequested(qint64 actorId);
-    void tagRequested(qint64 tagId);
 
 private:
     void lazyLoad() override;

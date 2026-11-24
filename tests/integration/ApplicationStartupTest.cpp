@@ -127,6 +127,32 @@ int main(int argc, char **argv)
                 // Check after startup's finish() has returned and the first
                 // background services have had a chance to execute.
                 QTimer::singleShot(1500, qApp, [&, window] {
+#ifdef Q_OS_WIN
+                    constexpr auto titleBarHints =
+                        Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint;
+                    const auto *nativeWindow = window->windowHandle();
+                    const QMargins safeArea = nativeWindow->safeAreaMargins();
+                    if (!nativeWindow->flags().testFlags(titleBarHints) || safeArea.top() <= 0
+                        || !window->rect().marginsRemoved(safeArea)
+                                .contains(window->centralWidget()->geometry())) {
+                        qWarning() << "Unexpected main window title bar layout:"
+                                   << nativeWindow->flags() << safeArea
+                                   << window->centralWidget()->geometry();
+                        failed = true;
+                    }
+#endif
+#ifdef Q_OS_MACOS
+                    const auto *nativeWindow = window->windowHandle();
+                    const auto hasNativeTitleBar = [nativeWindow] {
+                        return !nativeWindow->flags().testFlag(Qt::ExpandedClientAreaHint)
+                            && nativeWindow->frameMargins().top() > 0;
+                    };
+                    if (!hasNativeTitleBar()) {
+                        qWarning() << "Mac title bar must be outside the client area"
+                                   << nativeWindow->flags() << nativeWindow->frameMargins();
+                        failed = true;
+                    }
+#endif
                     if (const auto *screen = window->screen()) {
                         const QSize expected = screen->availableGeometry().size() * 0.85;
                         if (window->size() != expected) {
@@ -164,6 +190,22 @@ int main(int argc, char **argv)
                             || renderer->statistics().samples != 4
                             || !renderer->lastError().isEmpty();
                     }
+#ifdef Q_OS_MACOS
+                    window->windowHandle()->showFullScreen();
+                    const bool enteredFullScreen = QTest::qWaitFor([&] {
+                        return window->isFullScreen();
+                    }, 5000);
+                    window->windowHandle()->showNormal();
+                    const bool restoredTitleBar = QTest::qWaitFor([&] {
+                        return !window->isFullScreen() && hasNativeTitleBar();
+                    }, 5000);
+                    if (!enteredFullScreen || !restoredTitleBar) {
+                        qWarning() << "Unexpected title bar after fullscreen round trip:"
+                                   << enteredFullScreen << restoredTitleBar << window->windowState()
+                                   << nativeWindow->frameMargins();
+                        failed = true;
+                    }
+#endif
                     QCoreApplication::quit();
                 });
             }

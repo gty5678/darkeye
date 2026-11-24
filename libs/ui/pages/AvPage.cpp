@@ -14,6 +14,7 @@
 #include <QFileInfo>
 #include <QFileSystemModel>
 #include <QLabel>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QSaveFile>
 #include <QSignalBlocker>
@@ -30,10 +31,13 @@ namespace
 {
 constexpr int wikiCorner = 6;
 
-class WikiDocumentPanel final : public QWidget
+class WikiPanel final : public QWidget
 {
 public:
-    using QWidget::QWidget;
+    WikiPanel(QPalette::ColorRole fillRole, QWidget *parent)
+        : QWidget(parent), m_fillRole(fillRole)
+    {
+    }
 
 protected:
     void paintEvent(QPaintEvent *) override
@@ -41,9 +45,12 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setPen(palette().color(QPalette::Mid));
-        painter.setBrush(palette().color(QPalette::Base));
+        painter.setBrush(palette().color(m_fillRole));
         painter.drawPath(chamferPath(QRectF(rect()).adjusted(.5, .5, -.5, -.5), wikiCorner));
     }
+
+private:
+    QPalette::ColorRole m_fillRole;
 };
 
 QString normalizedPath(const QString &path)
@@ -67,20 +74,33 @@ AvPage::AvPage(QString wikiDirectory, ThemeService &themes, QWidget *parent)
     m_themes = &themes;
 }
 
+void AvPage::paintEvent(QPaintEvent *event)
+{
+    if (m_themes) {
+        // The workspace stylesheet supplies a default background for docked pages.
+        QPainter painter(this);
+        painter.fillRect(event->rect(), palette().brush(QPalette::Window));
+    }
+}
+
 void AvPage::lazyLoad()
 {
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 8, 8, 8);
+    layout->setContentsMargins(0, 0, 0, 0);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setObjectName(QStringLiteral("AvWikiSplitter"));
     splitter->setChildrenCollapsible(false);
-    splitter->setHandleWidth(9);
+    splitter->setHandleWidth(5);
 
-    m_filesPanel = new mdedit::ProjectFilesPanel(splitter);
+    m_filesFrame = new WikiPanel(QPalette::AlternateBase, splitter);
+    auto *filesLayout = new QVBoxLayout(m_filesFrame);
+    filesLayout->setContentsMargins(wikiCorner, wikiCorner, wikiCorner, wikiCorner);
+    m_filesPanel = new mdedit::ProjectFilesPanel(m_filesFrame);
+    filesLayout->addWidget(m_filesPanel);
     m_tree = m_filesPanel->tree();
 
-    m_documentPanel = new WikiDocumentPanel(splitter);
+    m_documentPanel = new WikiPanel(QPalette::Base, splitter);
     auto *contentLayout = new QVBoxLayout(m_documentPanel);
     // Keep the scrolling viewport inside the frame's diagonals.
     contentLayout->setContentsMargins(wikiCorner, wikiCorner, wikiCorner, wikiCorner);
@@ -98,7 +118,7 @@ void AvPage::lazyLoad()
     m_emptyMessage->setWordWrap(true);
     contentLayout->addWidget(m_emptyMessage, 1);
 
-    splitter->addWidget(m_filesPanel);
+    splitter->addWidget(m_filesFrame);
     splitter->addWidget(m_documentPanel);
     splitter->setStretchFactor(1, 1);
     layout->addWidget(splitter);
@@ -145,7 +165,7 @@ void AvPage::lazyLoad()
     const bool exists = QFileInfo(m_wikiDirectory).isDir();
     if (exists)
         m_tree->setDirectory(m_wikiDirectory);
-    m_filesPanel->setVisible(exists);
+    m_filesFrame->setVisible(exists);
     m_emptyMessage->setTextFormat(Qt::PlainText);
     m_emptyMessage->setText(exists ? QStringLiteral("请选择一篇知识库文档")
                                   : QStringLiteral("未找到知识库目录：%1").arg(m_wikiDirectory));
@@ -159,7 +179,8 @@ void AvPage::lazyLoad()
 void AvPage::applyTheme()
 {
     const auto tokens = m_themes->currentTokens();
-    const QColor background(tokens.pageBackground);
+    const QColor pageBackground(tokens.pageBackground);
+    const QColor inputBackground(tokens.inputBackground);
     const QColor text(tokens.text);
     const QColor primary(tokens.primary);
     const auto mix = [](const QColor &from, const QColor &to, double weight) {
@@ -167,21 +188,33 @@ void AvPage::applyTheme()
                                 from.greenF() * (1 - weight) + to.greenF() * weight,
                                 from.blueF() * (1 - weight) + to.blueF() * weight);
     };
-    QPalette themed = palette();
-    themed.setColor(QPalette::Window, background);
+    QPalette pagePalette = palette();
+    pagePalette.setColor(QPalette::Window, pageBackground);
+    setPalette(pagePalette);
+
+    QPalette themed = pagePalette;
     themed.setColor(QPalette::WindowText, text);
-    themed.setColor(QPalette::Base, background);
-    themed.setColor(QPalette::AlternateBase, background);
-    themed.setColor(QPalette::Button, QColor(tokens.inputBackground));
+    themed.setColor(QPalette::Base, inputBackground);
+    themed.setColor(QPalette::AlternateBase, pageBackground);
+    themed.setColor(QPalette::Button, inputBackground);
     themed.setColor(QPalette::ButtonText, text);
     themed.setColor(QPalette::Text, text);
     themed.setColor(QPalette::Mid, QColor(tokens.border));
     themed.setColor(QPalette::Link, mix(primary, text, 0.45));
-    themed.setColor(QPalette::Highlight, mix(background, primary, 0.32));
+    themed.setColor(QPalette::Highlight, mix(inputBackground, primary, 0.32));
     themed.setColor(QPalette::HighlightedText, text);
-    themed.setColor(QPalette::Light, mix(background, QColor(tokens.warning), 0.26));
+    themed.setColor(QPalette::Light, mix(inputBackground, QColor(tokens.warning), 0.26));
     m_documentPanel->setPalette(themed);
-    m_filesPanel->setThemePalette(themed);
+
+    QPalette filesPalette = themed;
+    filesPalette.setColor(QPalette::AlternateBase, inputBackground);
+    // The file tree uses Button for row hover, and the toolbar uses it for buttons.
+    filesPalette.setColor(QPalette::Button, pageBackground);
+    m_filesFrame->setPalette(filesPalette);
+    m_filesPanel->setThemePalette(filesPalette);
+
+    // MdEdit uses the Button role for code block backgrounds.
+    themed.setColor(QPalette::Button, pageBackground);
     m_editor->setThemePalette(themed);
 }
 

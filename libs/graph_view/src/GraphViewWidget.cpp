@@ -177,7 +177,7 @@ void GraphViewWidget::showEvent(QShowEvent *event)
     if (!m_pendingVisibleLoad && !m_pendingManagerChange && m_loaded) {
         // Hidden preparation already started the layout and atlas build. Fit
         // the prepared positions to the now-visible viewport without reloading.
-        if (m_prepareWhileHidden) m_view->fitViewToContent();
+        if (m_prepareWhileHidden) m_view->fitInitialViewToContent();
         return;
     }
 
@@ -312,12 +312,15 @@ void GraphViewWidget::loadVisibleSnapshot()
         m_pendingVisibleLoad = true;
         return;
     }
+    m_view->setInitialFitMode(m_session.filterMode() == graph::GraphFilterMode::All
+                                 ? ForceViewRhiWidget::FitViewMode::GlobalInitial
+                                 : ForceViewRhiWidget::FitViewMode::Initial);
     m_presenter.load(m_session.reload(), m_style);
     m_loaded = true;
     m_pendingVisibleLoad = false;
     m_pendingManagerChange = false;
     QTimer::singleShot(0, m_view, [view = m_view] {
-        view->fitViewToContent();
+        view->fitInitialViewToContent();
         view->update();
     });
 }

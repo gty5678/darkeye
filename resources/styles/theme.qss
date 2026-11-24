@@ -96,8 +96,6 @@ QWidget#PersonFilterBar {
 
 QWidget#WorkFilterBar {
     background-color: {{color_bg_page}};
-    border: 0;
-    border-bottom: {{border_width_thin}} solid {{color_border}};
 }
 
 QScrollArea#WorkFilterScrollArea,
@@ -356,13 +354,13 @@ QPushButton#DesignIconPushButton:pressed {
 }
 
 QWidget#pageNavigationBar {
-    background-color: {{color_bg}};
+    background-color: {{color_bg_page}};
     border-right: {{border_width_thin}} solid {{color_border}};
 }
 
 QWidget#pageNavigationBar QScrollArea,
 QWidget#pageNavigationBar QScrollArea QWidget {
-    background-color: {{color_bg}};
+    background-color: {{color_bg_page}};
 }
 
 QWidget#pageNavigationBar QPushButton#DesignIconPushButton {
@@ -373,6 +371,10 @@ QWidget#pageNavigationBar QPushButton#DesignIconPushButton {
 
 QWidget#pageNavigationBar QPushButton#DesignIconPushButton:focus {
     border-color: {{color_border_focus}};
+}
+
+QWidget#pageNavigationBar QPushButton#DesignIconPushButton:hover:!pressed {
+    background-color: {{color_bg_input}};
 }
 
 QWidget#pageNavigationBar QLabel#pageNavigationLabel {
@@ -760,7 +762,8 @@ QToolButton#DesignCollapsibleToggle {
 QToolButton#DesignCollapsibleToggle:checked {
     background-color: {{color_bg}};
 }
-QWidget#PersonAliasSection QToolButton#DesignCollapsibleToggle:checked {
+QWidget#PersonAliasSection QToolButton#DesignCollapsibleToggle:checked,
+QWidget#WorkMoreFilters QToolButton#DesignCollapsibleToggle:checked {
     background-color: {{color_bg_page}};
 }
 QWidget#DesignCollapsibleContent { background-color: transparent; }
@@ -1112,7 +1115,7 @@ QSplitter#StatisticsSplitter::handle:hover { background-color: {{color_border_fo
 QSplitter#AvWikiSplitter::handle:horizontal {
     background-color: {{color_border}};
     border: none;
-    margin: 0 4px;
+    margin: 0 2px;
 }
 QSplitter#AvWikiSplitter::handle:horizontal:hover,
 QSplitter#AvWikiSplitter::handle:horizontal:pressed {

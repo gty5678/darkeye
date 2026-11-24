@@ -1962,12 +1962,13 @@ void SettingsDialog::runWorkspaceCommand(const QString &id)
 
 void SettingsDialog::paintEvent(QPaintEvent *)
 {
+    constexpr qreal cornerCut = 14.0;
     const auto tokens = m_themeService.currentTokens();
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setBrush(QColor(tokens.background));
     painter.setPen(QPen(QColor(tokens.border), 1));
-    painter.drawPath(chamferPath(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5)));
+    painter.drawPath(chamferPath(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), cornerCut));
 }
 
 QComboBox *SettingsDialog::themeSelector() const

@@ -780,20 +780,20 @@ void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()
     tabs.resize(tabs.sizeHint());
     const auto tabBackground = [&tabs](int index) {
         const QImage image = tabs.grab().toImage();
-        const QPoint point(tabs.width() - 1, tabs.tabRect(index).center().y());
+        const QPoint point(3, tabs.tabRect(index).center().y());
         return image.pixelColor(point * image.devicePixelRatio());
     };
     for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark}) {
         QVERIFY(themes.setTheme(theme));
         const auto tokens = themes.currentTokens();
         const QColor page(tokens.pageBackground);
-        const QColor border(tokens.border);
+        const QColor selected(tokens.text);
         tabs.setCurrentIndex(0);
-        QCOMPARE(tabBackground(0), page);
-        QCOMPARE(tabBackground(1), border);
-        tabs.setCurrentIndex(1);
+        QCOMPARE(tabBackground(0), selected);
         QCOMPARE(tabBackground(1), page);
-        QCOMPARE(tabBackground(0), border);
+        tabs.setCurrentIndex(1);
+        QCOMPARE(tabBackground(1), selected);
+        QCOMPARE(tabBackground(0), page);
     }
 }
 

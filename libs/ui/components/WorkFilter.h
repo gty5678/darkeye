@@ -24,11 +24,22 @@ class WorkFilter final : public LazyWidget
 
 public:
     enum class Reference { Maker, Label, Series };
+    enum class Scope { Public, Favorites, UnwatchedFavorites, Watched, LocalVideo };
+
+    struct SearchRequest
+    {
+        WorkSearch filters;
+        Scope scope;
+        QString privateDatabasePath;
+
+        [[nodiscard]] WorkSearch resolve(QString *error = nullptr) const;
+    };
 
     WorkFilter(QSqlDatabase database, QSqlDatabase privateDatabase,
                ThemeService &themeService, QWidget *parent = nullptr, QString settingsFile = {});
 
     [[nodiscard]] WorkSearch search() const;
+    [[nodiscard]] SearchRequest searchRequest() const;
     void focusNotes();
     bool flush();
     void updateCount(int total);

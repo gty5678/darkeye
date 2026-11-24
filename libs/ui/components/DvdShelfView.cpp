@@ -158,6 +158,31 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     tool("ShelfCoverEdit",":/icons/dvd/square-pen.svg",QStringLiteral("编辑"),[this]{on_edit_clicked(selectedIndex());});
     tool("ShelfCoverDelete",":/icons/dvd/trash-2.svg",QStringLiteral("删除"),[this]{on_delete_clicked(selectedIndex());});
     m_coverActions->setFixedSize(40,136); m_coverActions->hide();
+    const auto navigationButton = [this](const QString &name, const QString &icon,
+                                         const QString &label, int step) {
+        auto *button = new QToolButton(this);
+        button->setObjectName(name);
+        button->setFixedSize(36, 36);
+        button->setIcon(QIcon(icon));
+        button->setIconSize(QSize(20, 20));
+        button->setAccessibleName(label);
+        button->setToolTip(label);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setStyleSheet(QStringLiteral(
+            "QToolButton { background:rgba(26,34,48,175); border:1px solid rgba(255,255,255,55);"
+            "border-radius:18px; }"
+            "QToolButton:hover, QToolButton:focus { background:rgba(26,34,48,230);"
+            "border-color:rgba(255,255,255,155); }"));
+        connect(button, &QToolButton::clicked, this, [this, step] {
+            navigateWorkHistory(step);
+        });
+        button->hide();
+        return button;
+    };
+    m_previousWork = navigationButton(QStringLiteral("ShelfPreviousWork"),
+        QStringLiteral(":/icons/dvd/chevron-left.svg"), QStringLiteral("上一部"), -1);
+    m_nextWork = navigationButton(QStringLiteral("ShelfNextWork"),
+        QStringLiteral(":/icons/dvd/chevron-right.svg"), QStringLiteral("下一部"), 1);
     connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::updateCoverInfo);
     connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::layoutOverlays);
     connect(m_scene,&dvd_scene::DvdSceneWidget::presentationChanged,this,&DvdShelfView::layoutOverlays);
@@ -199,6 +224,10 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     connect(this, &DvdShelfView::expandedWorkFavoritedChanged, this, &DvdShelfView::updateActions);
     connect(m_scene, &dvd_scene::DvdSceneWidget::selectionChanged, this, [this] {
         if (m_settingWorks) return;
+        if (m_pendingHistoryIndex && m_workHistory[*m_pendingHistoryIndex] != currentWorkId())
+            m_pendingHistoryIndex.reset();
+        if (!m_temporaryWorks.isEmpty() && selectedIndex() < m_works.size())
+            clearTemporaryWorks();
         if (m_scene->selectedId().isEmpty() && m_returnCameraX) {
             const qreal cameraX = *m_returnCameraX;
             m_returnCameraX.reset();
@@ -216,6 +245,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         updateSelection();
     });
     connect(m_scene, &dvd_scene::DvdSceneWidget::expandedChanged, this, [this] {
+        if (!m_settingWorks) recordOpenedWork();
         updateSelection();
         if (!m_settingWorks) emit expandedWorkChanged();
     });
@@ -320,32 +350,36 @@ void DvdShelfView::setWorks(const QList<WorkSummary> &works)
     m_settingWorks=true;
     m_returnCameraX.reset();
     m_pendingOpen.clear();
+    m_pendingHistoryIndex.reset();
     m_scene->setItems({});
+    m_temporaryWorks.clear();
     m_works=works;
     m_useInitialCamera=true;
     clearExpandedMeta();
     hideOverlays();
     QList<dvd_scene::DvdItemViewModel> items;
     items.reserve(works.size());
-    for(int i=0;i<works.size();++i) {
-        const auto &work=works[i];
-        QString cover=work.imageUrl.trimmed();
-        const QUrl url(cover);
-        if(url.isLocalFile()) cover=url.toLocalFile();
-        else if(cover.startsWith("qrc:/")) cover=QStringLiteral(":")+cover.mid(4);
-        else if(!cover.isEmpty() && !QFileInfo(cover).isAbsolute()) cover=QDir(m_coverDirectory).filePath(cover);
-        if(!cover.isEmpty() && !QFileInfo::exists(cover)) {
-            qWarning().noquote()<<"Shelf cover file missing for work"<<work.id<<":"<<cover;
-            cover.clear();
-        }
-        if(cover.isEmpty()) cover=QStringLiteral(":/assets/maps/0.png");
-        const auto title=!work.chineseTitle.isEmpty()?work.chineseTitle:work.serialNumber;
-        items.append({QString::number(work.id),cover,title,i,false,!work.videoUrl.trimmed().isEmpty()});
-    }
+    for(int i=0;i<works.size();++i) items.append(sceneItem(works[i], i));
     m_scene->setItems(std::move(items));
     updateInitialCamera();
     m_settingWorks=false;
     updateSelection();
+}
+
+dvd_scene::DvdItemViewModel DvdShelfView::sceneItem(const WorkSummary &work, int index) const
+{
+    QString cover = work.imageUrl.trimmed();
+    const QUrl url(cover);
+    if (url.isLocalFile()) cover = url.toLocalFile();
+    else if (cover.startsWith("qrc:/")) cover = QStringLiteral(":") + cover.mid(4);
+    else if (!cover.isEmpty() && !QFileInfo(cover).isAbsolute()) cover = QDir(m_coverDirectory).filePath(cover);
+    if (!cover.isEmpty() && !QFileInfo::exists(cover)) {
+        qWarning().noquote() << "Shelf cover file missing for work" << work.id << ":" << cover;
+        cover.clear();
+    }
+    if (cover.isEmpty()) cover = QStringLiteral(":/assets/maps/0.png");
+    const auto title = work.chineseTitle.isEmpty() ? work.serialNumber : work.chineseTitle;
+    return {QString::number(work.id), cover, title, index, false, !work.videoUrl.trimmed().isEmpty()};
 }
 
 qreal DvdShelfView::initialCameraX() const
@@ -369,11 +403,23 @@ void DvdShelfView::set_camera_x(qreal x)
     m_useInitialCamera=false;
     m_scene->setCameraX(float(x));
 }
-qint64 DvdShelfView::workIdAt(int index) const { return index>=0 && index<m_works.size()?m_works[index].id:0; }
+const WorkSummary *DvdShelfView::workAt(int index) const
+{
+    if (index < 0) return nullptr;
+    if (index < m_works.size()) return &m_works[index];
+    index -= m_works.size();
+    return index < m_temporaryWorks.size() ? &m_temporaryWorks[index] : nullptr;
+}
+
+qint64 DvdShelfView::workIdAt(int index) const
+{
+    const auto *work = workAt(index);
+    return work ? work->id : 0;
+}
 int DvdShelfView::selectedIndex() const
 {
     const auto id=currentWorkId();
-    for(int i=0;i<m_works.size();++i) if(m_works[i].id==id) return i;
+    for(int i=0;i<m_works.size()+m_temporaryWorks.size();++i) if(workIdAt(i)==id) return i;
     return -1;
 }
 bool DvdShelfView::isReturningToShelf() const
@@ -503,6 +549,8 @@ void DvdShelfView::layoutOverlays()
         if(m_coverInfo) m_coverInfo->hide();
         if(m_coverActions) m_coverActions->hide();
         if(m_fanartContainer) m_fanartContainer->hide();
+        m_previousWork->hide();
+        m_nextWork->hide();
         return;
     }
     const auto offset=m_scene->renderWidget()->mapTo(this,QPoint());
@@ -514,6 +562,8 @@ void DvdShelfView::layoutOverlays()
         m_coverInfo->hide();
         m_coverActions->hide();
         m_fanartContainer->hide();
+        m_previousWork->hide();
+        m_nextWork->hide();
         return;
     }
     const int width=int(std::floor(std::min(availableCover.width(),std::clamp(m_scene->height()*0.55,240.0,600.0))));
@@ -549,6 +599,28 @@ void DvdShelfView::layoutOverlays()
     if(const auto disc=m_scene->selectedDiscCenter())
         set_fanart_strip_layout(disc->x()+offset.x()-width*0.5,
             disc->y()+offset.y()+m_scene->height()*0.41-124,width);
+    layoutWorkNavigation(offset);
+}
+
+void DvdShelfView::layoutWorkNavigation(const QPoint &offset)
+{
+    const auto bounds = m_scene->selectedCaseRect();
+    const bool visible = bounds.has_value();
+    if (visible) {
+        const auto box = bounds->translated(offset);
+        constexpr int gap = 10;
+        constexpr int margin = 8;
+        const int buttonSize = m_previousWork->width();
+        const int right = std::max(margin, width() - margin - buttonSize);
+        const int bottom = std::max(margin, height() - margin - buttonSize);
+        const int y = std::clamp(qRound(box.center().y() - buttonSize * 0.5), margin, bottom);
+        m_previousWork->move(std::clamp(qRound(box.left()) - gap - buttonSize, margin, right), y);
+        m_nextWork->move(std::clamp(qRound(box.right()) + gap, margin, right), y);
+        m_previousWork->raise();
+        m_nextWork->raise();
+    }
+    m_previousWork->setVisible(visible);
+    m_nextWork->setVisible(visible);
 }
 
 void DvdShelfView::refresh_expanded_work_meta(int virtualIndex)
@@ -658,7 +730,7 @@ void DvdShelfView::on_heart_clicked(int virtualIndex)
     }
     const bool changed = favorite
         ? privateRepository.removeFavoriteWork(workId, &error)
-        : privateRepository.addFavoriteWork(workId, m_works.at(virtualIndex).serialNumber, &error);
+        : privateRepository.addFavoriteWork(workId, workAt(virtualIndex)->serialNumber, &error);
     if (!changed)
     {
         ToastNotification::showError(window(), QStringLiteral("收藏操作失败：%1").arg(error));
@@ -808,14 +880,21 @@ QSet<qint64> DvdShelfView::displayedWorkIds() const
 
 bool DvdShelfView::openWork(qint64 workId, bool restoreCameraOnClose)
 {
-    int index=-1;
-    for(int i=0;i<m_works.size();++i) if(m_works[i].id==workId) { index=i; break; }
-    if(index<0) return false;
+    for (int i = 0; i < m_works.size(); ++i) {
+        if (m_works[i].id != workId) continue;
+        m_pendingHistoryIndex.reset();
+        return focusWork(i, restoreCameraOnClose);
+    }
+    return false;
+}
+
+bool DvdShelfView::focusWork(int index, bool restoreCameraOnClose)
+{
     if (restoreCameraOnClose && !m_returnCameraX) m_returnCameraX = m_scene->cameraTargetX();
     m_useInitialCamera=false;
     hideOverlays();
     m_scene->setCameraX(float(index*dvdSpacing),true);
-    m_pendingOpen=QString::number(workId);
+    m_pendingOpen=QString::number(workIdAt(index));
     if(!m_scene->focusItem(m_pendingOpen)) {
         m_pendingOpen.clear();
         if (m_returnCameraX) set_camera_x(*m_returnCameraX);
@@ -828,6 +907,71 @@ bool DvdShelfView::openWork(qint64 workId, bool restoreCameraOnClose)
     }
     updateSelection();
     return true;
+}
+
+void DvdShelfView::recordOpenedWork()
+{
+    const auto workId = expandedWorkId();
+    if (workId <= 0) return;
+    if (m_pendingHistoryIndex) {
+        const auto index = *m_pendingHistoryIndex;
+        m_pendingHistoryIndex.reset();
+        if (m_workHistory[index] == workId) {
+            m_historyIndex = index;
+            return;
+        }
+    }
+    if (m_workHistory.value(m_historyIndex) == workId) return;
+    m_workHistory.resize(m_historyIndex + 1);
+    m_workHistory.append(workId);
+    m_historyIndex = m_workHistory.size() - 1;
+}
+
+void DvdShelfView::navigateWorkHistory(int step)
+{
+    if (expandedWorkId() <= 0) return;
+    for (auto index = m_historyIndex + step; index >= 0 && index < m_workHistory.size(); index += step) {
+        const auto workId = m_workHistory[index];
+        if (workId == expandedWorkId()) continue;
+        const int workIndex = ensureHistoryWork(workId);
+        if (workIndex < 0) continue;
+        m_pendingHistoryIndex = index;
+        if (focusWork(workIndex, true)) return;
+        m_pendingHistoryIndex.reset();
+    }
+    ToastNotification::showMessage(window(), step < 0 ? QStringLiteral("没有上一部") : QStringLiteral("没有下一部"),
+                                   ToastNotification::Level::Info, 1800);
+}
+
+int DvdShelfView::ensureHistoryWork(qint64 workId)
+{
+    const int count = m_works.size() + m_temporaryWorks.size();
+    for (int i = 0; i < count; ++i)
+        if (workIdAt(i) == workId) return i;
+
+    SqliteConnection connection;
+    if (!connection.open(m_database.databaseName(), true)) return -1;
+    WorkSearch search;
+    search.restrictToIncludedWorkIds = true;
+    search.includedWorkIds = {workId};
+    const auto works = WorkRepository(connection.database()).search(search);
+    if (works.isEmpty()) return -1;
+
+    // History may cross filters. Add the target to the 3D scene only.
+    auto items = m_scene->items();
+    items.append(sceneItem(works.first(), count));
+    if (!m_scene->setItems(std::move(items))) return -1;
+    m_temporaryWorks.append(works.first());
+    return count;
+}
+
+void DvdShelfView::clearTemporaryWorks()
+{
+    if (m_temporaryWorks.isEmpty()) return;
+    auto items = m_scene->items();
+    items.resize(m_works.size());
+    m_temporaryWorks.clear();
+    m_scene->setItems(std::move(items));
 }
 
 void DvdShelfView::hideOverlays()

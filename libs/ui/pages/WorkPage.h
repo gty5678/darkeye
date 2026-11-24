@@ -10,6 +10,7 @@
 #include <QUrl>
 #include <optional>
 
+class QFutureWatcherBase;
 
 namespace darkeye
 {
@@ -29,6 +30,7 @@ public:
         QString fanartDirectory = {},
         QUrl imageFetchEndpoint = QUrl(QStringLiteral("http://127.0.0.1:56790/api/v1/image")),
         QWidget *parent = nullptr, WorkFilter *filter = nullptr);
+    ~WorkPage() override;
 
     void refresh();
     void refreshReferences();
@@ -52,7 +54,7 @@ private:
     void buildUi();
     void refreshData();
     void toggleCoverSize();
-    [[nodiscard]] QList<QWidget *> loadCardPage(int pageIndex, int pageSize);
+    void loadCardPage(quint64 request, int pageIndex, int pageSize);
     void showWorkDetails(qint64 workId);
     void loadWork(qint64 workId);
 
@@ -65,7 +67,7 @@ private:
     WorkFilter *m_filter;
     std::optional<WorkSearch> m_appliedSearch;
     std::optional<QSet<qint64>> m_filteredWorkIds;
-    QString m_lastCountError;
+    QFutureWatcherBase *m_pageQuery = nullptr;
     IconButton *m_viewButton = nullptr;
     LazyScrollArea *m_lazyArea = nullptr;
     bool m_largeCoverView = false;

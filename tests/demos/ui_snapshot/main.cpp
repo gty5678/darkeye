@@ -71,8 +71,9 @@ int main(int argc, char *argv[])
         return 4;
     auto *workFilter = window.findChild<darkeye::WorkFilter *>();
     auto *workCount = findWorkControl<QLabel>(workFilter, QStringLiteral("WorkCountLabel"));
-    if (workCount == nullptr || workCount->text() == QStringLiteral("过滤总数:0") ||
-        workPage->findChildren<darkeye::WorkCard *>().isEmpty())
+    if (workCount == nullptr || !QTest::qWaitFor([workPage] {
+            return !workPage->findChildren<darkeye::WorkCard *>().isEmpty();
+        }) || workCount->text() == QStringLiteral("过滤总数:0"))
     {
         return 28;
     }

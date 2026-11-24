@@ -1,10 +1,13 @@
 #pragma once
 
+class QColor;
+class QColorSpace;
 class QWidget;
 
 namespace darkeye
 {
 
-void hideMacTitleBarSeparator(QWidget &window);
+void setMacTitleBarBackground(QWidget &window, const QColor &color,
+                              const QColorSpace &colorSpace, bool dark);
 
 }

@@ -170,10 +170,8 @@ void MakerManagementWidget::lazyLoad()
     splitter->addWidget(m_makerTable);
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
-    root->addWidget(splitter, 1);
 
     auto *searchLayout = new QHBoxLayout;
-    searchLayout->setContentsMargins(9, 9, 9, 9);
     m_search = new DesignLineEdit(this);
     m_search->setProperty("makerControlId", QStringLiteral("MakerManagementSearch"));
     m_search->setAccessibleName(QStringLiteral("搜索当前表格"));
@@ -196,8 +194,6 @@ void MakerManagementWidget::lazyLoad()
     searchLayout->addWidget(m_searchResult);
     searchLayout->addWidget(m_previousSearch);
     searchLayout->addWidget(m_nextSearch);
-    searchLayout->addStretch();
-    root->addLayout(searchLayout);
     connect(m_search, &QLineEdit::textChanged, this, [this] { performSearch(); });
     connect(m_previousSearch, &QPushButton::clicked, this, [this] { navigateSearch(-1); });
     connect(m_nextSearch, &QPushButton::clicked, this, [this] { navigateSearch(1); });
@@ -229,9 +225,11 @@ void MakerManagementWidget::lazyLoad()
     for (QPushButton *button : {newButton, removeButton, saveButton, revertButton, refreshButton,
                                 exportButton, importButton})
         buttons->addWidget(button);
-    buttons->addStretch();
     buttons->addWidget(redirectButton);
+    buttons->addStretch();
+    buttons->addLayout(searchLayout);
     root->addLayout(buttons);
+    root->addWidget(splitter, 1);
 
     auto *forms = new QHBoxLayout;
     auto *prefixForm = new QFormLayout;

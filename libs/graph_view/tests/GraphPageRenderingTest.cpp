@@ -326,6 +326,8 @@ void GraphPageRenderingTest::loadsFirstGraphSnapshotAfterAnInitiallyEmptyView()
     QTest::qWait(50);
     QVERIFY(graphWidget->view()->getNodeIds().isEmpty());
 
+    auto *view = graphWidget->view();
+    QSignalSpy scaleChanged(view, &ForceViewRhiWidget::scaleChanged);
     QVERIFY(manager.upsertRuntimeNode(
         {QStringLiteral("a1"), QStringLiteral("演员一"), QStringLiteral("actress")}));
 
@@ -333,6 +335,11 @@ void GraphPageRenderingTest::loadsFirstGraphSnapshotAfterAnInitiallyEmptyView()
     // PhysicsState after setGraph(0, ...), so an add-node diff alone cannot
     // create the initial graph.
     QTRY_COMPARE_WITH_TIMEOUT(graphWidget->view()->getNodeIds().size(), 1, 2000);
+    // Both the widget's first fit and the renderer's delayed fit must use the global zoom.
+    QTRY_VERIFY(scaleChanged.size() >= 2);
+    const float globalZoom = view->getZoom();
+    view->fitViewToContent(ForceViewRhiWidget::FitViewMode::Initial);
+    QVERIFY(globalZoom > view->getZoom());
 }
 
 QTEST_MAIN(GraphPageRenderingTest)

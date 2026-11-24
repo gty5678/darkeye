@@ -39,7 +39,6 @@ namespace {
 constexpr int TabBevel = 8;
 constexpr qreal TabOutlineWidth = 1;
 constexpr qreal TabHighlightWidth = 2;
-constexpr qreal TabHighlightInset = (TabOutlineWidth + TabHighlightWidth) / 2;
 constexpr int PreferredTabWidth = 168;
 constexpr int MinimumTabWidth = 120;
 
@@ -51,8 +50,7 @@ void drawTabStrip(QPainter &painter, int width, const QColor &strip,
     painter.fillRect(0, DockTabBarHeight, width, DockGap, gap);
 }
 
-void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color,
-                   qreal detached = 0, const QColor &border = {}, const QColor &highlight = {})
+void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color, qreal detached)
 {
     const qreal top = bounds.top();
     const qreal bottom = bounds.bottom();
@@ -72,23 +70,32 @@ void drawBeveledTab(QPainter *painter, const QRectF &bounds, const QColor &color
     painter->setPen(Qt::NoPen);
     painter->setBrush(color);
     painter->drawPolygon(outline);
-    if (border.isValid()) {
-        painter->setPen(QPen(border, TabOutlineWidth));
-        painter->drawPolyline(outline);
-    }
-    if (highlight.isValid()) {
-        const qreal inset = TabHighlightInset;
-        const qreal center = bounds.center().x();
-        const QPolygonF inner{
-            {left + footInset + inset, bottom}, {left + inset, bottom - bevel},
-            {left + inset, top + bevel + inset}, {qMin(center, left + bevel + inset), top + inset},
-            {qMax(center, right - bevel - inset), top + inset}, {right - inset, top + bevel + inset},
-            {right - inset, bottom - bevel}, {right - footInset - inset, bottom},
-        };
-        painter->setPen(QPen(highlight, TabHighlightWidth));
-        painter->drawPolyline(inner);
-    }
     painter->restore();
+}
+
+QPolygonF attachedTabContour(const QRectF &bounds, qreal inset, qreal extension = 0)
+{
+    constexpr qreal diagonal = 1.4142135623730951; // sqrt(2) for the 45-degree bevels
+    const qreal bevel = qMin<qreal>(TabBevel, bounds.width() / 4);
+    const qreal left = bounds.left() + bevel;
+    const qreal right = bounds.right() - bevel;
+    const qreal top = bounds.top();
+    const qreal bottom = bounds.bottom();
+    // Intersect the inset diagonal with the inset horizontal and vertical edges.
+    const qreal shoulderOffset = (diagonal - 1) * inset;
+    const qreal leftFoot = bounds.left() + diagonal * inset;
+    const qreal rightFoot = bounds.right() - diagonal * inset;
+    QPolygonF contour{
+        {leftFoot, bottom}, {left + inset, bottom - bevel + shoulderOffset},
+        {left + inset, top + bevel + shoulderOffset}, {left + bevel + shoulderOffset, top + inset},
+        {right - bevel - shoulderOffset, top + inset}, {right - inset, top + bevel + shoulderOffset},
+        {right - inset, bottom - bevel + shoulderOffset}, {rightFoot, bottom},
+    };
+    if (extension > 0) {
+        contour.append({rightFoot, bottom + extension});
+        contour.append({leftFoot, bottom + extension});
+    }
+    return contour;
 }
 
 QIcon closeIcon(const QColor &color)
@@ -192,10 +199,18 @@ public:
         }
 
         if (tab->state.testFlag(State_Selected)) {
-            const QRectF bounds = selectedTabBounds(*tab).adjusted(0, 0.5, 0, 0);
-            const QRectF gap(bounds.left(), bounds.bottom(), bounds.width(), DockGap);
-            painter->fillRect(gap.adjusted(TabHighlightInset, 0, -TabHighlightInset, 0), m_selected);
-            drawBeveledTab(painter, bounds, m_selected, 0, m_border, m_gap);
+            const QRectF bounds = selectedTabBounds(*tab);
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(m_border);
+            painter->drawPolygon(attachedTabContour(bounds, 0));
+            painter->setBrush(m_gap);
+            painter->drawPolygon(attachedTabContour(bounds, TabOutlineWidth));
+            painter->setBrush(m_selected);
+            painter->drawPolygon(attachedTabContour(bounds, TabOutlineWidth + TabHighlightWidth,
+                                                     DockGap));
+            painter->restore();
         } else if (tab->position != QStyleOptionTab::Beginning
                    && tab->position != QStyleOptionTab::OnlyOneTab
                    && tab->selectedPosition != QStyleOptionTab::PreviousIsSelected) {

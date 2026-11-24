@@ -34,8 +34,14 @@ namespace darkeye
 {
 namespace
 {
-constexpr int selectorMargin = 8, columnSpacing = 10;
-constexpr int cardWidth = 27, gap = 5, margin = 5, defaultViewWidth = 108, panelWidth = 255;
+constexpr int selectorMargin = 2, columnSpacing = 1;
+constexpr int cardWidth = 27, gap = 2, margin = 2, panelWidth = 255;
+
+constexpr int selectedContentWidth(int columns)
+{
+    return columns * cardWidth + (columns - 1) * gap + 2 * margin;
+}
+
 bool cjk(QChar c)
 {
     const ushort u = c.unicode();
@@ -84,7 +90,7 @@ class TagCard final : public QGraphicsObject
     }
     QRectF boundingRect() const override
     {
-        return QRectF(QPointF(), QSizeF(m_size));
+        return QRectF(QPointF(), m_size);
     }
     void paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) override
     {
@@ -103,7 +109,7 @@ class TagCard final : public QGraphicsObject
             border = Qt::red;
         }
         QRectF r = boundingRect();
-        qreal cut = r.width() * .2, rad = r.width() * .1;
+        constexpr qreal cut = cardWidth * .2, rad = cardWidth * .1;
         QPainterPath out;
         out.moveTo(cut, 0);
         out.lineTo(r.width() - cut, 0);
@@ -230,15 +236,13 @@ class TagCard final : public QGraphicsObject
 class TagFlowScene final : public QGraphicsScene
 {
   public:
-    enum class Insets { Centered, Equal, ThreeColumns };
-
-    explicit TagFlowScene(int fallbackWidth, QObject *parent, Insets insets = Insets::Centered)
-        : QGraphicsScene(parent), m_fallbackWidth(fallbackWidth), m_insets(insets)
+    explicit TagFlowScene(int fallbackWidth, QObject *parent, int fixedColumns = 0)
+        : QGraphicsScene(parent), m_fallbackWidth(fallbackWidth), m_fixedColumns(fixedColumns)
     {
     }
-    void setInsets(Insets insets)
+    void setFixedColumns(int columns)
     {
-        m_insets = insets;
+        m_fixedColumns = columns;
         relayout();
     }
 
@@ -278,13 +282,10 @@ class TagFlowScene final : public QGraphicsScene
         if (width <= margin * 2)
             width = m_fallbackWidth;
         const int availableWidth = qMax(1, width - 2 * margin);
-        const int extra = m_insets == Insets::Centered ? 0 : gap;
-        const bool threeColumns = m_insets == Insets::ThreeColumns;
-        const int cols = threeColumns ? 3 : qMax(1, (availableWidth + extra) / (cardWidth + gap));
-        const int total = cols * cardWidth + (cols - 1) * gap;
-        const qreal centeredInset = margin + (availableWidth - total) / 2.0;
-        const qreal leftInset = threeColumns ? margin : centeredInset;
-        QVector<qreal> hs(cols, m_insets == Insets::Equal ? centeredInset : margin);
+        const int cols = m_fixedColumns > 0 ? m_fixedColumns
+                                            : qMax(1, (availableWidth + gap) / (cardWidth + gap));
+        constexpr int columnStep = cardWidth + gap;
+        QVector<qreal> hs(cols, margin);
         bool any = false;
         for (TagCard *c : std::as_const(m_cards))
         {
@@ -295,16 +296,17 @@ class TagFlowScene final : public QGraphicsScene
             for (int i = 1; i < cols; ++i)
                 if (hs[i] < hs[col])
                     col = i;
-            c->setPos(leftInset + col * (cardWidth + gap), hs[col]);
+            c->setPos(margin + col * columnStep, hs[col]);
             hs[col] += c->boundingRect().height() + gap;
         }
-        setSceneRect(0, 0, width, (any ? *std::max_element(hs.cbegin(), hs.cend()) : margin) + margin);
+        const qreal bottom = any ? *std::max_element(hs.cbegin(), hs.cend()) - gap : margin;
+        setSceneRect(0, 0, width, bottom + margin);
     }
 
   private:
     QList<TagCard *> m_cards;
     int m_fallbackWidth;
-    Insets m_insets;
+    int m_fixedColumns;
 };
 
 class TagGraphicsView final : public QGraphicsView
@@ -411,13 +413,12 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     auto *root = new QGridLayout(this);
     root->setContentsMargins(selectorMargin, selectorMargin, selectorMargin, selectorMargin);
     root->setHorizontalSpacing(columnSpacing);
-    root->setVerticalSpacing(8);
+    root->setVerticalSpacing(2);
     root->setRowStretch(1, 1);
     m_selectedView = new TagGraphicsView(this);
     m_selectedView->setObjectName(QStringLiteral("WorkTagList"));
-    m_selectedView->setFixedWidth(defaultViewWidth);
     m_selectedView->setToolTip(QStringLiteral("点击已选标签可移除"));
-    m_selectedFlow = new TagFlowScene(defaultViewWidth, m_selectedView, TagFlowScene::Insets::Equal);
+    m_selectedFlow = new TagFlowScene(selectedContentWidth(m_selectedColumns), m_selectedView, m_selectedColumns);
     m_selectedFlow->setObjectName(QStringLiteral("WorkSelectedTagFlow"));
     m_selectedView->setScene(m_selectedFlow);
     applyViewStyle(m_selectedView);
@@ -485,6 +486,7 @@ WorkTagSelector::WorkTagSelector(const QList<TagOption> &tags, ThemeService *the
     pl->addWidget(m_tabs);
     root->addWidget(m_panel, 1, 1);
     setAvailablePanelWidth(panelWidth);
+    updateSelectedWidth();
     connect(m_selectedView->verticalScrollBar(), &QScrollBar::rangeChanged, this,
             [this] { updateSelectedWidth(); }, Qt::QueuedConnection);
 
@@ -591,16 +593,9 @@ void WorkTagSelector::setAvailablePanelWidth(int width)
 
 void WorkTagSelector::setSelectedColumnLayout(SelectedColumnLayout selectedLayout)
 {
-    m_threeSelectedColumns = selectedLayout == SelectedColumnLayout::ThreeColumns;
-    m_selectedFlow->setInsets(m_threeSelectedColumns ? TagFlowScene::Insets::ThreeColumns
-                                                    : TagFlowScene::Insets::Equal);
-    if (m_threeSelectedColumns)
-        updateSelectedWidth();
-    else
-    {
-        m_selectedView->setFixedWidth(76);
-        updateWidth();
-    }
+    m_selectedColumns = selectedLayout == SelectedColumnLayout::ThreeColumns ? 3 : 2;
+    m_selectedFlow->setFixedColumns(m_selectedColumns);
+    updateSelectedWidth();
 }
 
 void WorkTagSelector::useResponsiveLayout(int availableMaximum)
@@ -614,14 +609,10 @@ void WorkTagSelector::useResponsiveLayout(int availableMaximum)
 
 void WorkTagSelector::updateSelectedWidth()
 {
-    if (!m_threeSelectedColumns)
-        return;
-
-    constexpr int contentWidth = 3 * cardWidth + 2 * gap + 2 * margin;
     const int frameWidth = m_selectedView->width() - m_selectedView->maximumViewportSize().width();
     const auto *scrollBar = m_selectedView->verticalScrollBar();
     const int scrollWidth = scrollBar->maximum() > scrollBar->minimum() ? scrollBar->sizeHint().width() : 0;
-    m_selectedView->setFixedWidth(contentWidth + frameWidth + scrollWidth);
+    m_selectedView->setFixedWidth(selectedContentWidth(m_selectedColumns) + frameWidth + scrollWidth);
     updateWidth();
 }
 

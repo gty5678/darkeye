@@ -8,8 +8,11 @@
 #include "ui/components/WorkCard.h"
 #include "ui/components/WorkFilter.h"
 
+#include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QPromise>
+#include <QThreadPool>
 #include <QVBoxLayout>
 
 namespace darkeye
@@ -25,18 +28,23 @@ WorkPage::WorkPage(QSqlDatabase database, ThemeService &themeService,
 {
 }
 
+WorkPage::~WorkPage()
+{
+    if (m_pageQuery) m_pageQuery->cancel();
+}
+
 void WorkPage::lazyLoad()
 {
     m_filter->initialize();
     m_largeCoverView = settings::app().workLargeCoverView;
     buildUi();
-    connect(m_filter, &WorkFilter::changed, this, &WorkPage::refreshData);
-    refreshData();
+    connect(m_filter, &WorkFilter::changed, this, [this] { m_lazyArea->reset(); });
     m_lazyArea->setViewportItemHandler([](QWidget *widget, bool active) {
         static_cast<WorkCard *>(widget)->setCoverActive(active);
     });
-    m_lazyArea->setLoader([this](int pageIndex, int pageSize)
-                          { return loadCardPage(pageIndex, pageSize); });
+    m_lazyArea->setAsyncLoader([this](quint64 request, int pageIndex, int pageSize) {
+        loadCardPage(request, pageIndex, pageSize);
+    });
 }
 
 void WorkPage::buildUi()
@@ -91,51 +99,14 @@ void WorkPage::toggleCoverSize()
 
 void WorkPage::refresh()
 {
+    const bool initialized = isInitialized();
     initialize();
-    if (!m_filter->flush()) refreshData();
+    if (!m_filter->flush() && initialized) refreshData();
 }
 
 void WorkPage::refreshData()
 {
-    QString errorMessage;
-    SqliteConnection connection;
-    if (!connection.open(m_database.databaseName(), true, &errorMessage))
-    {
-        const QString message = errorMessage.isEmpty() ? QStringLiteral("无法打开只读数据库")
-                                                       : errorMessage;
-        if (message != m_lastCountError)
-        {
-            ToastNotification::showMessage(
-                window(), QStringLiteral("统计作品失败：%1").arg(message),
-                ToastNotification::Level::Error, 4000, &m_themeService);
-            m_lastCountError = message;
-        }
-        return;
-    }
-
-    WorkRepository repository(connection.database());
-    const WorkSearch search = m_filter->search();
-    const std::optional<int> total = repository.count(search, &errorMessage);
-    if (!total.has_value())
-    {
-        const QString message = errorMessage.isEmpty() ? QStringLiteral("未知数据库错误")
-                                                       : errorMessage;
-        if (message != m_lastCountError)
-        {
-            ToastNotification::showMessage(
-                window(), QStringLiteral("统计作品失败：%1").arg(message),
-                ToastNotification::Level::Error, 4000, &m_themeService);
-            m_lastCountError = message;
-        }
-        return;
-    }
-    m_lastCountError.clear();
-    m_filter->updateCount(*total);
-    qInfo() << "WorkPage query returned" << *total << "rows";
-    m_appliedSearch = search;
-    m_filteredWorkIds.reset();
-    m_lazyArea->reset();
-    emit filteredWorksChanged();
+    m_lazyArea->reset(LazyScrollArea::ScrollPosition::Preserve);
 }
 
 QSet<qint64> WorkPage::filteredWorkIds()
@@ -186,41 +157,87 @@ void WorkPage::refreshFromWorkspace(bool tagsChanged, bool referencesChanged)
     refreshData();
 }
 
-QList<QWidget *> WorkPage::loadCardPage(int pageIndex, int pageSize)
+void WorkPage::loadCardPage(quint64 request, int pageIndex, int pageSize)
 {
-    QString errorMessage;
-    SqliteConnection connection;
-    if (!connection.open(m_database.databaseName(), true, &errorMessage))
+    struct PageResult
     {
-        ToastNotification::showMessage(window(),
-                                       QStringLiteral("加载作品失败：%1").arg(errorMessage),
-                                       ToastNotification::Level::Error, 4000, &m_themeService);
-        return {};
-    }
-    if (!m_appliedSearch) return {};
-    WorkSearch search = *m_appliedSearch;
-    search.limit = pageSize;
-    search.offset = pageIndex * pageSize;
-    WorkRepository repository(connection.database());
-    const QList<WorkSummary> works = repository.search(search, &errorMessage);
-    if (!errorMessage.isEmpty())
-    {
-        ToastNotification::showMessage(window(),
-                                       QStringLiteral("加载作品失败：%1").arg(errorMessage),
-                                       ToastNotification::Level::Error, 4000, &m_themeService);
-        return {};
-    }
+        QList<WorkSummary> works;
+        WorkSearch search;
+        std::optional<int> total;
+        QString error;
+    };
 
-    QList<QWidget *> cards;
-    cards.reserve(works.size());
-    for (const WorkSummary &work : works)
-    {
-        auto *card = new WorkCard(work, m_coverDirectory, m_largeCoverView, nullptr, true);
-        connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
-        connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
-        cards.append(card);
-    }
-    return cards;
+    const auto filters = pageIndex == 0 ? std::optional{m_filter->searchRequest()} : std::nullopt;
+    const WorkSearch appliedSearch = m_appliedSearch.value_or(WorkSearch{});
+    const QString databasePath = m_database.databaseName();
+    if (m_pageQuery) m_pageQuery->cancel();
+
+    auto *watcher = new QFutureWatcher<PageResult>(this);
+    m_pageQuery = watcher;
+    connect(watcher, &QFutureWatcher<PageResult>::finished, this,
+            [this, watcher, request, pageSize] {
+        if (m_pageQuery == watcher) m_pageQuery = nullptr;
+        watcher->deleteLater();
+        if (!m_lazyArea->isCurrentRequest(request)) return;
+
+        PageResult result = watcher->result();
+        if (!result.error.isEmpty()) {
+            m_lazyArea->failPage(request);
+            ToastNotification::showMessage(
+                window(), QStringLiteral("加载作品失败：%1").arg(result.error),
+                ToastNotification::Level::Error, 4000, &m_themeService);
+            return;
+        }
+
+        if (result.total) {
+            m_filter->updateCount(*result.total);
+            m_appliedSearch = std::move(result.search);
+            m_filteredWorkIds.reset();
+        }
+        const int count = static_cast<int>(result.works.size());
+        m_lazyArea->completePage(request, count, count == pageSize,
+                                 [this, works = std::move(result.works)](int index) {
+            auto *card = new WorkCard(works.at(index), m_coverDirectory, m_largeCoverView,
+                                      nullptr, true);
+            connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
+            connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
+            return card;
+        });
+        if (result.total) emit filteredWorksChanged();
+    });
+
+    QPromise<PageResult> promise;
+    promise.start();
+    watcher->setFuture(promise.future());
+    QThreadPool::globalInstance()->start(
+        [promise = std::move(promise), databasePath, filters, appliedSearch, pageIndex, pageSize]() mutable {
+        if (promise.isCanceled()) return;
+
+        PageResult result;
+        SqliteConnection connection;
+        if (connection.open(databasePath, true, &result.error)) {
+            const WorkRepository repository(connection.database());
+            result.search = filters ? filters->resolve(&result.error) : appliedSearch;
+            if (promise.isCanceled()) return;
+            if (filters && result.error.isEmpty()) {
+                result.total = repository.count(result.search, &result.error);
+                if (!result.total && result.error.isEmpty())
+                    result.error = QStringLiteral("无法统计作品总数");
+            }
+            if (promise.isCanceled()) return;
+
+            if (result.error.isEmpty()) {
+                WorkSearch page = result.search;
+                page.limit = pageSize;
+                page.offset = pageIndex * pageSize;
+                result.works = repository.search(page, &result.error);
+            }
+        } else if (result.error.isEmpty()) {
+            result.error = QStringLiteral("无法打开只读数据库");
+        }
+        promise.addResult(std::move(result));
+        promise.finish();
+    });
 }
 
 void WorkPage::showWorkDetails(qint64 workId)

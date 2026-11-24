@@ -215,7 +215,6 @@ void SummaryQueryWidget::lazyLoad()
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->horizontalHeader()->setSortIndicatorShown(true);
     m_table->horizontalHeader()->setSectionsClickable(true);
-    root->addWidget(m_table, 1);
 
     auto *searchLayout = new QHBoxLayout;
     m_search = new DesignLineEdit(this);
@@ -239,20 +238,20 @@ void SummaryQueryWidget::lazyLoad()
     searchLayout->addWidget(m_searchResult);
     searchLayout->addWidget(m_previousSearch);
     searchLayout->addWidget(m_nextSearch);
-    searchLayout->addStretch();
-    root->addLayout(searchLayout);
 
     auto *toolbar = new QHBoxLayout;
     toolbar->addWidget(new DesignLabel(QStringLiteral("查询类型:"), this));
     m_queryType = new DesignComboBox(this);
     m_queryType->addItems({QStringLiteral("作品汇总"), QStringLiteral("女演员汇总"), QStringLiteral("男演员汇总")});
     toolbar->addWidget(m_queryType);
-    toolbar->addStretch();
     auto *refreshButton = new DesignButton(QStringLiteral("刷新数据"), this);
     auto *exportButton = new DesignButton(QStringLiteral("导出为 CSV"), this);
     toolbar->addWidget(refreshButton);
     toolbar->addWidget(exportButton);
+    toolbar->addStretch();
+    toolbar->addLayout(searchLayout);
     root->addLayout(toolbar);
+    root->addWidget(m_table, 1);
 
     m_completenessDelegate = new WorkCompletenessBitsDelegate(this);
     m_editDelegate = new WorkSummaryEditDelegate([this](qint64 workId) { emit workRequested(workId); }, this);

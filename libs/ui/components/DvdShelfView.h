@@ -20,7 +20,7 @@ namespace darkeye
 
 class FanartStripWidget;
 class ThemeService;
-namespace dvd_scene { class DvdSceneWidget; }
+namespace dvd_scene { class DvdSceneWidget; struct DvdItemViewModel; }
 class DvdShelfView final : public QWidget
 {
     Q_OBJECT
@@ -127,6 +127,14 @@ private:
     void updateActions();
     void updateCoverInfo();
     void layoutOverlays();
+    void layoutWorkNavigation(const QPoint &offset);
+    void recordOpenedWork();
+    void navigateWorkHistory(int step);
+    void clearTemporaryWorks();
+    int ensureHistoryWork(qint64 workId);
+    bool focusWork(int index, bool restoreCameraOnClose);
+    [[nodiscard]] dvd_scene::DvdItemViewModel sceneItem(const WorkSummary &work, int index) const;
+    [[nodiscard]] const WorkSummary *workAt(int index) const;
     [[nodiscard]] int selectedIndex() const;
     [[nodiscard]] qint64 workIdAt(int virtualIndex) const;
     void clearExpandedMeta();
@@ -140,6 +148,10 @@ private:
     QString m_coverDirectory;
     QString m_fanartDirectory;
     QList<WorkSummary> m_works;
+    QList<WorkSummary> m_temporaryWorks;
+    QList<qint64> m_workHistory;
+    qsizetype m_historyIndex = -1;
+    std::optional<qsizetype> m_pendingHistoryIndex;
     qint64 m_focusedWorkId = 0;
     bool m_wasReturningToShelf = false;
     std::optional<qreal> m_returnCameraX;
@@ -160,6 +172,8 @@ private:
     QWidget *m_coverContent = nullptr;
     QWidget *m_coverActions = nullptr;
     QToolButton *m_coverFavorite = nullptr;
+    QToolButton *m_previousWork = nullptr;
+    QToolButton *m_nextWork = nullptr;
     QByteArray m_coverInfoSignature;
     int m_coverTextWidth = 320;
     QString m_title, m_story, m_code, m_releaseDate, m_director, m_studio, m_label, m_series;

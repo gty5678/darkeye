@@ -3,6 +3,7 @@
 #include "darkeye_ui/layouts/WaterfallLayout.h"
 
 #include <QEvent>
+#include <QLabel>
 #include <QScrollBar>
 #include <QResizeEvent>
 #include <QTimer>
@@ -28,7 +29,29 @@ LazyScrollArea::LazyScrollArea(int columnWidth, QWidget *parent, int spacing, in
 
 void LazyScrollArea::setLoader(Loader loader)
 {
+    m_asyncLoader = {};
     m_loader = std::move(loader);
+    reset();
+}
+
+void LazyScrollArea::setAsyncLoader(AsyncLoader loader)
+{
+    m_loader = {};
+    m_asyncLoader = std::move(loader);
+    if (m_asyncLoader && !m_loadStatus) {
+        auto *statusLayout = new QVBoxLayout(viewport());
+        statusLayout->setSizeConstraint(QLayout::SetNoConstraint);
+        statusLayout->setContentsMargins(0, 0, 0, 12);
+        statusLayout->addStretch();
+        m_loadStatus = new QLabel(viewport());
+        m_loadStatus->setObjectName(QStringLiteral("LazyScrollLoadStatus"));
+        m_loadStatus->setTextFormat(Qt::RichText);
+        m_loadStatus->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+        m_loadStatus->setAutoFillBackground(true);
+        m_loadStatus->setMargin(8);
+        statusLayout->addWidget(m_loadStatus, 0, Qt::AlignHCenter);
+        connect(m_loadStatus, &QLabel::linkActivated, this, [this] { loadNextPage(); });
+    }
     reset();
 }
 
@@ -43,8 +66,12 @@ void LazyScrollArea::setViewportItemHandler(std::function<void(QWidget *, bool)>
     scheduleViewportUpdate();
 }
 
-void LazyScrollArea::reset()
+void LazyScrollArea::reset(ScrollPosition position)
 {
+    m_scrollRestoreTarget = position == ScrollPosition::Preserve
+        ? qMax(m_scrollRestoreTarget, verticalScrollBar()->value()) : 0;
+    ++m_generation;
+    m_loading = true;
     const auto previousItems = std::exchange(m_activeItems, {});
     if (m_viewportItemHandler) {
         for (QWidget *widget : previousItems)
@@ -63,40 +90,100 @@ void LazyScrollArea::reset()
     }
     m_currentPage = 0;
     m_reachedEnd = false;
-    m_loading = false;
+    m_loadFailed = false;
     m_scrollCheckRetries = 0;
-    ++m_generation;
     verticalScrollBar()->setValue(0);
     m_layout->invalidate();
-    if (m_loader) {
+    updateContentGeometry();
+    if (m_loadStatus) m_loadStatus->hide();
+    m_loading = false;
+    if (m_loader || m_asyncLoader) {
         loadNextPage();
     }
 }
 
 bool LazyScrollArea::loadNextPage()
 {
-    if (!m_loader || m_loading || m_reachedEnd) {
+    if ((!m_loader && !m_asyncLoader) || m_loading || m_reachedEnd) {
         return false;
     }
 
     m_loading = true;
+    m_loadFailed = false;
+    const quint64 request = ++m_generation;
+    if (m_asyncLoader) {
+        m_loadStatus->setText(tr("正在加载…"));
+        m_loadStatus->show();
+        m_loadStatus->raise();
+        m_asyncLoader(request, m_currentPage, m_pageSize);
+        return true;
+    }
+
     const QList<QWidget *> widgets = m_loader(m_currentPage, m_pageSize);
     for (QWidget *widget : widgets) {
         if (widget != nullptr) {
             m_layout->addWidget(widget);
         }
     }
-    if (widgets.size() < m_pageSize) {
-        m_reachedEnd = true;
-    }
-    if (!widgets.isEmpty()) {
-        ++m_currentPage;
-    }
+    finishPage(static_cast<int>(widgets.size()), widgets.size() >= m_pageSize);
+    return !widgets.isEmpty();
+}
+
+bool LazyScrollArea::isCurrentRequest(quint64 request) const
+{
+    return m_loading && request == m_generation;
+}
+
+void LazyScrollArea::completePage(quint64 request, int itemCount, bool hasMore,
+                                  ItemFactory factory)
+{
+    if (!isCurrentRequest(request)) return;
+    appendBatch(request, 0, itemCount, hasMore, std::move(factory));
+}
+
+void LazyScrollArea::failPage(quint64 request)
+{
+    if (!isCurrentRequest(request)) return;
+    m_loadFailed = true;
     m_loading = false;
+    m_loadStatus->setText(tr("加载失败 · <a href=\"retry\">重试</a>"));
+}
+
+void LazyScrollArea::appendBatch(quint64 request, int first, int itemCount, bool hasMore,
+                                 ItemFactory factory)
+{
+    if (!isCurrentRequest(request)) return;
+
+    constexpr int batchSize = 8;
+    const int end = qMin(first + batchSize, itemCount);
+    for (int i = first; i < end; ++i) {
+        if (QWidget *widget = factory(i)) m_layout->addWidget(widget);
+    }
+    if (end == itemCount) {
+        finishPage(itemCount, hasMore);
+        return;
+    }
+    updateContentGeometry();
+    QTimer::singleShot(1, this, [this, request, end, itemCount, hasMore,
+                                 factory = std::move(factory)]() mutable {
+        appendBatch(request, end, itemCount, hasMore, std::move(factory));
+    });
+}
+
+void LazyScrollArea::finishPage(int itemCount, bool hasMore)
+{
+    m_reachedEnd = !hasMore;
+    if (itemCount > 0) ++m_currentPage;
+    if (m_asyncLoader) {
+        if (m_currentPage == 0 && m_reachedEnd)
+            m_loadStatus->setText(tr("没有匹配结果"));
+        else
+            m_loadStatus->hide();
+    }
     m_layout->invalidate();
     updateContentGeometry();
+    m_loading = false;
     scheduleScrollableCheck();
-    return !widgets.isEmpty();
 }
 
 void LazyScrollArea::setHeaderWidget(QWidget *widget)
@@ -226,14 +313,15 @@ void LazyScrollArea::handleScroll(int value)
 {
     scheduleViewportUpdate();
     const QScrollBar *scrollBar = verticalScrollBar();
-    if (value >= scrollBar->maximum() - m_prefetchDistance) {
+    if (!m_loadFailed && m_scrollRestoreTarget == 0
+        && value >= scrollBar->maximum() - m_prefetchDistance) {
         loadNextPage();
     }
 }
 
 void LazyScrollArea::scheduleScrollableCheck()
 {
-    if (m_reachedEnd || !m_loader) return;
+    if (m_reachedEnd && m_scrollRestoreTarget == 0) return;
     const quint64 generation = m_generation;
     // Allow QScrollArea and the waterfall layout to apply the newly appended
     // cards before inspecting the scrollbar range.  Checking in the same
@@ -246,10 +334,21 @@ void LazyScrollArea::scheduleScrollableCheck()
 
 void LazyScrollArea::checkScrollableAndLoad(quint64 generation)
 {
-    if (generation != m_generation || m_reachedEnd || m_loading || !m_loader
-        || verticalScrollBar()->maximum() > 0 || m_scrollCheckRetries >= 10) {
-        return;
+    if (generation != m_generation || m_loading || m_loadFailed) return;
+
+    const int maximum = verticalScrollBar()->maximum();
+    if (m_scrollRestoreTarget > 0) {
+        if (maximum < m_scrollRestoreTarget && !m_reachedEnd) {
+            loadNextPage();
+            return;
+        }
+        verticalScrollBar()->setValue(m_scrollRestoreTarget);
+        m_scrollRestoreTarget = 0;
+        if (maximum > 0 && !m_reachedEnd)
+            handleScroll(verticalScrollBar()->value());
     }
+    if (m_reachedEnd || maximum > 0 || m_scrollCheckRetries >= 10) return;
+
     ++m_scrollCheckRetries;
     loadNextPage();
 }

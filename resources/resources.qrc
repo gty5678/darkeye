@@ -22,6 +22,8 @@
         <file alias="dvd/love-on.svg">icons/dvd/love-on.svg</file>
         <file alias="dvd/square-pen.svg">icons/dvd/square-pen.svg</file>
         <file alias="dvd/trash-2.svg">icons/dvd/trash-2.svg</file>
+        <file alias="dvd/chevron-left.svg">icons/dvd/chevron-left.svg</file>
+        <file alias="dvd/chevron-right.svg">icons/dvd/chevron-right.svg</file>
     </qresource>
     <qresource prefix="/assets">
         <file alias="shop/darkeye-shop.glb">../libs/dvd/darkeye-shop.glb</file>

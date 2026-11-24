@@ -20,7 +20,6 @@ PersonCard::PersonCard(qint64 personId, const QString &name, const QString &imag
       m_nameLabel(new ClickableLabel(name, false, this))
 {
     setObjectName(QStringLiteral("PersonCard"));
-    setFixedWidth(150);
     setAccessibleName(name);
 
     m_avatar->setObjectName(QStringLiteral("PersonCardAvatar"));
@@ -31,6 +30,8 @@ PersonCard::PersonCard(qint64 personId, const QString &name, const QString &imag
     font.setPointSize(12);
     font.setBold(true);
     m_nameLabel->setFont(font);
+    m_nameLabel->setFixedHeight(m_nameLabel->sizeHint().height());
+    setFixedSize(m_avatar->width(), m_avatar->height() + m_nameLabel->height());
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

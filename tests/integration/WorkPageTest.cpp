@@ -51,6 +51,7 @@
 #include <QScrollBar>
 #include <QScopeGuard>
 #include <QSqlQuery>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QWheelEvent>
@@ -141,10 +142,10 @@ void WorkPageTest::loadsConfiguredRealDatabaseWhenAvailable()
     auto *count = findWorkControl<QLabel>(&page, QStringLiteral("WorkCountLabel"));
     auto *cardsWidget = page.findChild<QWidget *>(QStringLiteral("DesignLazyScrollArea"));
     QVERIFY(count != nullptr);
-    QVERIFY2(count->text() != QStringLiteral("过滤总数:0"), qPrintable(count->text()));
     QVERIFY(cardsWidget != nullptr);
     auto *cards = static_cast<darkeye::LazyScrollArea *>(cardsWidget);
-    QVERIFY2(cards->itemCount() > 0, "The real database returned no WorkPage cards");
+    QTRY_VERIFY(cards->itemCount() > 0);
+    QVERIFY2(count->text() != QStringLiteral("过滤总数:0"), qPrintable(count->text()));
     QVERIFY(cards->itemCount() <= cards->pageSize());
 }
 
@@ -199,9 +200,10 @@ void WorkPageTest::matchesPythonWorkListSqlContract()
     QVERIFY(maker != nullptr);
     QVERIFY(sort != nullptr);
     QVERIFY(count != nullptr);
-    QCOMPARE(count->text(), QStringLiteral("过滤总数:4"));
-    QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 4);
+    QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:4"));
+    QTRY_COMPARE(page.findChildren<darkeye::WorkCard *>().size(), 4);
 
+    page.focusSearch();
     QTRY_VERIFY_WITH_TIMEOUT(maker->findData(makerId) > 0, 2000);
     const int makerIndex = maker->findData(makerId);
     maker->setCurrentIndex(makerIndex);
@@ -253,7 +255,9 @@ void WorkPageTest::searchableSelectorsAndClearFilters()
     QVERIFY(count != nullptr);
     QVERIFY(clear != nullptr);
     clear->click();
+    QTRY_VERIFY(!count->text().isEmpty());
     const QString unfilteredCount = count->text();
+    page.focusSearch();
     for (const QString &control : {QStringLiteral("WorkMakerFilter"),
                                   QStringLiteral("WorkLabelFilter"),
                                   QStringLiteral("WorkSeriesFilter")})
@@ -272,7 +276,7 @@ void WorkPageTest::searchableSelectorsAndClearFilters()
         QCOMPARE(selector->currentIndex(), 0);
         QVERIFY(selector->currentText().isEmpty());
         QVERIFY(!selector->maker().has_value());
-        QCOMPARE(count->text(), unfilteredCount);
+        QTRY_COMPARE(count->text(), unfilteredCount);
         selector->setCurrentIndex(selector->findData(900001));
         QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
         selector->setEditText(QStringLiteral("不存在的筛选项"));
@@ -339,7 +343,7 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     QCOMPARE(refreshButton->objectName(), QStringLiteral("DesignRotateButton"));
     QCOMPARE(sortSelector->count(), 13);
     QCOMPARE(sortSelector->currentText(), QStringLiteral("添加逆序"));
-    QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 1);
+    QTRY_COMPARE(page.findChildren<darkeye::WorkCard *>().size(), 1);
 
     auto *card = page.findChild<darkeye::WorkCard *>();
     auto *cover = card ? card->findChild<darkeye::AsyncImageLabel *>(
@@ -383,6 +387,8 @@ void WorkPageTest::loadsOneDatabasePageAtATime()
     QVERIFY(settingsDirectory.isValid());
     darkeye::WorkPage page(connection.database(), themeService);
     QVERIFY(!page.isInitialized());
+    page.resize(500, 360);
+    page.show();
     page.initialize();
     auto *tags = page.findChild<darkeye::WorkTagSelector *>();
     QVERIFY(tags);
@@ -392,13 +398,35 @@ void WorkPageTest::loadsOneDatabasePageAtATime()
     auto *scrollArea = page.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea"));
     auto *lazyArea = dynamic_cast<darkeye::LazyScrollArea *>(scrollArea);
     QVERIFY(lazyArea != nullptr);
-    QCOMPARE(lazyArea->itemCount(), 70);
+    QVERIFY(lazyArea->loading());
+    QCOMPARE(lazyArea->itemCount(), 0);
+    QTRY_COMPARE(lazyArea->itemCount(), 70);
     QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 70);
+    auto *scrollBar = lazyArea->verticalScrollBar();
+    QTRY_VERIFY(scrollBar->maximum() > 0);
+    const int firstPageMaximum = scrollBar->maximum();
 
     QVERIFY(lazyArea->loadNextPage());
-    QCOMPARE(lazyArea->itemCount(), 75);
+    QTRY_COMPARE(lazyArea->itemCount(), 75);
     QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 75);
     QVERIFY(lazyArea->reachedEnd());
+
+    QTRY_VERIFY(scrollBar->maximum() > firstPageMaximum);
+    const int position = scrollBar->maximum();
+    scrollBar->setValue(position);
+    darkeye::Work newWork;
+    newWork.serialNumber = QStringLiteral("PAGE-076");
+    QVERIFY(repository.insertComplete(newWork, {}, {}, {}, &errorMessage).has_value());
+    page.refreshFromWorkspace(false, false);
+    QTRY_COMPARE(lazyArea->itemCount(), 76);
+    QTRY_COMPARE(scrollBar->value(), position);
+
+    auto *serialFilter = findWorkControl<QLineEdit>(&page, QStringLiteral("WorkSerialFilter"));
+    QVERIFY(serialFilter);
+    serialFilter->setText(QStringLiteral("PAGE-07"));
+    QTRY_COMPARE(lazyArea->itemCount(), 7);
+    QVERIFY(scrollBar->maximum() > 0);
+    QCOMPARE(scrollBar->value(), 0);
 }
 
 void WorkPageTest::filtersByPrivateScope()
@@ -446,7 +474,7 @@ void WorkPageTest::filtersByPrivateScope()
     page.refresh();
     auto *scope = findWorkControl<QComboBox>(&page, QStringLiteral("WorkScopeSelector"));
     QVERIFY(scope != nullptr);
-    QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 2);
+    QTRY_COMPARE(page.findChildren<darkeye::WorkCard *>().size(), 2);
     scope->setCurrentText(QStringLiteral("收藏未观看"));
     QTRY_COMPARE(page.findChildren<darkeye::WorkCard *>().size(), 1);
     auto *serial = page.findChild<darkeye::ClickableLabel *>(
@@ -596,14 +624,14 @@ void WorkPageTest::groupsAndSelectsTags()
     QVERIFY(availablePanel->isVisible());
     QVERIFY(findWorkControl<QPushButton>(&selector, QStringLiteral("WorkTagExpandButton")) == nullptr);
     QCOMPARE(selectedView->geometry().top(), availablePanel->geometry().top());
-    QCOMPARE(selectedView->geometry().left(), 8);
-    QCOMPARE(availablePanel->geometry().left() - selectedView->geometry().right() - 1, 10);
-    QCOMPARE(selector.rect().right() - availablePanel->geometry().right(), 8);
-    QCOMPARE(selector.rect().bottom() - selectedView->geometry().bottom(), 8);
+    QCOMPARE(selectedView->geometry().left(), 2);
+    QCOMPARE(availablePanel->geometry().left() - selectedView->geometry().right() - 1, 1);
+    QCOMPARE(selector.rect().right() - availablePanel->geometry().right(), 2);
+    QCOMPARE(selector.rect().bottom() - selectedView->geometry().bottom(), 2);
     const QWidget *toolbar = clear->parentWidget();
     QCOMPARE(toolbar->geometry().left(), selectedView->geometry().left());
     QCOMPARE(toolbar->geometry().right(), availablePanel->geometry().right());
-    QVERIFY(toolbar->geometry().bottom() < selectedView->geometry().top());
+    QCOMPARE(selectedView->geometry().top() - toolbar->geometry().bottom() - 1, 2);
     const QList<QWidget *> controls{clear, reload, search, searchPrevious, searchNext, searchResult};
     for (qsizetype i = 0; i < controls.size(); ++i)
     {
@@ -729,9 +757,24 @@ void WorkPageTest::tagSelectorMatchesPythonGeometryAndNavigation()
     QVERIFY(hasPaintedColor(QColor("#C5C5C5")));
     QGraphicsSceneHoverEvent hoverLeave(QEvent::GraphicsSceneHoverLeave);
     view->scene()->sendEvent(first, &hoverLeave);
-    const int availableWidth = view->viewport()->width() - 10;
-    const int columns = qMax(1, availableWidth / 32);
-    QCOMPARE(first->pos().x(), 5 + (availableWidth - (columns * 27 + (columns - 1) * 5)) / 2.0);
+    QCOMPARE(first->pos(), QPointF(2, 2));
+    const auto availableBounds = view->scene()->itemsBoundingRect();
+    const int initialViewportWidth = view->viewport()->width();
+    const qreal initialRightInset = initialViewportWidth - availableBounds.right();
+    QVERIFY(initialRightInset >= 2.0);
+    QCOMPARE(view->sceneRect().bottom() - availableBounds.bottom(), 2.0);
+    const auto *second = cardFor(view, 2);
+    QVERIFY(second != nullptr);
+    QCOMPARE(first->boundingRect().width(), 27.0);
+    QCOMPARE(second->boundingRect().width(), 27.0);
+    QCOMPARE(second->pos().x() - first->sceneBoundingRect().right(), 2.0);
+    selector.setAvailablePanelWidth(300);
+    QTRY_VERIFY(view->viewport()->width() > initialViewportWidth);
+    const qreal rightInset = view->viewport()->width() - view->scene()->itemsBoundingRect().right();
+    QVERIFY(rightInset >= 2.0);
+    QVERIFY(rightInset != initialRightInset);
+    QCOMPARE(first->boundingRect().width(), 27.0);
+    QCOMPARE(second->pos().x() - first->sceneBoundingRect().right(), 2.0);
     for (qint64 id : {1, 2})
     {
         auto *card = cardFor(view, id);
@@ -754,20 +797,44 @@ void WorkPageTest::tagSelectorMatchesPythonGeometryAndNavigation()
     scrollWithWheel(120);
     QVERIFY(scrollBar->value() < scrollBar->maximum());
     QVERIFY(scrollBar->value() > 0);
-    tabs->setCurrentIndex(1);
-    tabs->setCurrentIndex(0);
+    auto *tabBar = tabs->tabBar();
+    QTest::mouseClick(tabBar, Qt::LeftButton, Qt::NoModifier, tabBar->tabRect(1).center());
+    QCOMPARE(tabs->currentIndex(), 1);
+    QTest::mouseClick(tabBar, Qt::LeftButton, Qt::NoModifier, tabBar->tabRect(0).center());
+    QCOMPARE(tabs->currentIndex(), 0);
     QCOMPARE(view->verticalScrollBar()->value(), 0);
     auto *search = findWorkControl<QLineEdit>(&selector, QStringLiteral("WorkTagSearch"));
+    search->setText(QStringLiteral("标签30"));
+    auto *middle = cardFor(view, 30);
+    QVERIFY(middle != nullptr);
+    QVERIFY(qAbs(view->mapFromScene(middle->sceneBoundingRect().center()).y()
+                 - view->viewport()->rect().center().y()) <= 2);
     search->setText(QStringLiteral("标签59"));
     auto *last = cardFor(view, 59);
     QVERIFY(last != nullptr);
-    // Python centers the match, even when it was already visible near the bottom edge.
-    QVERIFY(qAbs(view->mapFromScene(last->sceneBoundingRect().center()).y()
-                 - view->viewport()->rect().center().y()) <= 2);
+    QCOMPARE(scrollBar->value(), scrollBar->maximum());
+    QVERIFY(view->viewport()->rect().contains(view->mapFromScene(last->sceneBoundingRect().center())));
     selector.setLoader([tags] { return tags; });
     selector.reloadTags();
     QCOMPARE(search->text(), QStringLiteral("标签59"));
     QCOMPARE(selector.selectedIds(), (QList<qint64>{1, 2}));
+
+    selector.setSelectedColumnLayout(darkeye::WorkTagSelector::SelectedColumnLayout::Compact);
+    auto *selectedView = selector.findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
+    QVERIFY(selectedView != nullptr);
+    for (const bool withScrollbar : {false, true})
+    {
+        QList<qint64> ids{1, 2};
+        if (withScrollbar)
+            for (qint64 id = 4; id < 20; ++id)
+                ids.append(id);
+        selector.setSelectedIds(ids);
+        QTRY_COMPARE(selectedView->verticalScrollBar()->isVisible(), withScrollbar);
+        const QRectF bounds = selectedView->scene()->itemsBoundingRect();
+        QCOMPARE(bounds.topLeft(), QPointF(2, 2));
+        QTRY_COMPARE(selectedView->viewport()->width() - bounds.right(), 2.0);
+        QCOMPARE(selectedView->sceneRect().bottom() - bounds.bottom(), 2.0);
+    }
 }
 
 void WorkPageTest::tagSelectionInsetsMatchAvailableInEditorAndManagement()
@@ -798,8 +865,8 @@ void WorkPageTest::tagSelectionInsetsMatchAvailableInEditorAndManagement()
     QVERIFY(editorAvailable != nullptr);
     QCOMPARE(editorAvailable->minimumWidth(), 200);
     QTRY_COMPARE(editorAvailable->width(),
-                 qBound(200, editorScroll->viewport()->width() - editorSelected->width() - 26, 700));
-    QCOMPARE(editorAvailable->x() - editorSelected->geometry().right() - 1, 10);
+                 qBound(200, editorScroll->viewport()->width() - editorSelected->width() - 5, 700));
+    QCOMPARE(editorAvailable->x() - editorSelected->geometry().right() - 1, 1);
     darkeye::TagManagementWidget management(connection.database(), themes);
     management.initialize();
     auto *managementSelector = management.findChild<darkeye::WorkTagSelector *>();
@@ -836,7 +903,9 @@ void WorkPageTest::tagSelectionInsetsMatchAvailableInEditorAndManagement()
         auto availablePositions = availableColumns.values();
         std::sort(availablePositions.begin(), availablePositions.end());
         QVERIFY(availablePositions.size() > 1);
-        const qreal columnStep = availablePositions[1] - availablePositions[0];
+        QCOMPARE(availablePositions.first(), availableTop);
+        for (qsizetype i = 1; i < availablePositions.size(); ++i)
+            QCOMPARE(availablePositions.at(i) - availablePositions.at(i - 1), 29.0);
         for (const bool withScrollbar : {false, true})
         {
             // Leave some tags available when filling the selected view enough to scroll.
@@ -850,8 +919,9 @@ void WorkPageTest::tagSelectionInsetsMatchAvailableInEditorAndManagement()
             QCOMPARE(bounds.left(), availableTop);
             QCOMPARE(bounds.top(), availableTop);
             QTRY_COMPARE(selectedView->viewport()->width() - bounds.right(), availableTop);
-            QVERIFY(columns.contains(bounds.left() + columnStep));
-            QVERIFY(columns.contains(bounds.left() + 2 * columnStep));
+            QVERIFY(columns.contains(bounds.left() + 29));
+            QVERIFY(columns.contains(bounds.left() + 58));
+            QCOMPARE(selectedView->sceneRect().bottom() - bounds.bottom(), availableTop);
         }
     }
 }
@@ -862,10 +932,13 @@ void WorkPageTest::tagSelectorPageWidthsAndSearchStyle()
     const auto restoreStyle = qScopeGuard([previousStyle] { qApp->setStyleSheet(previousStyle); });
     darkeye::ThemeService themes(*qApp);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
-    const QList<darkeye::TagOption> tags{
+    QList<darkeye::TagOption> tags{
         {1, QStringLiteral("标签甲"), QStringLiteral("类型一"), QStringLiteral("#bcf547")},
         {2, QStringLiteral("标签乙"), QStringLiteral("类型一"), QStringLiteral("#aaaaff")},
-        {3, QStringLiteral("标签丙"), QStringLiteral("类型一"), QStringLiteral("#f7ec81")}};
+        {3, QStringLiteral("标签丙"), QStringLiteral("类型一"), QStringLiteral("#f7ec81")},
+        {4, QStringLiteral("标签丁"), QStringLiteral("类型二"), QStringLiteral("#aaaaff")}};
+    for (int id = 5; id < 19; ++id)
+        tags.append({id, QStringLiteral("标签%1").arg(id), QStringLiteral("类型一"), QStringLiteral("#a7d5c5")});
     darkeye::WorkTagSelector selector(tags, &themes);
     selector.resize(selector.width(), 500);
     selector.setSelectedIds({1, 2, 3});

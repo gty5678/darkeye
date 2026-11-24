@@ -23,6 +23,7 @@ public:
     AvPage(QString wikiDirectory, ThemeService &themes, QWidget *parent = nullptr);
 
 private:
+    void paintEvent(QPaintEvent *event) override;
     void lazyLoad() override;
     void applyTheme();
     [[nodiscard]] QString resolveWikiDirectory() const;
@@ -37,6 +38,7 @@ private:
     QString m_currentPath;
     mdedit::ProjectFileTree *m_tree = nullptr;
     mdedit::ProjectFilesPanel *m_filesPanel = nullptr;
+    QWidget *m_filesFrame = nullptr;
     MarkdownEditorWidget *m_editor = nullptr;
     QWidget *m_documentPanel = nullptr;
     QLabel *m_emptyMessage = nullptr;

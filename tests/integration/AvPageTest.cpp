@@ -2,6 +2,9 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "editor/markdown_editor_widget.h"
 #include "editor/project_file_tree.h"
+#include "ui/layouts/myads/PaneWidget.h"
+#include "ui/layouts/myads/ThemeAdapter.h"
+#include "ui/layouts/myads/WorkspaceWidget.h"
 
 #include <QDir>
 #include <QDragEnterEvent>
@@ -10,7 +13,10 @@
 #include <QFileSystemModel>
 #include <QInputDialog>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QScrollBar>
+#include <QSplitter>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QToolButton>
@@ -214,26 +220,28 @@ void AvPageTest::followsDarkeyeThemeWhileEditing()
     const QString edited = editor->markdown();
 
     const QColor lightBase = live->palette().color(QPalette::Base);
-    QCOMPARE(lightBase, QColor(themes.currentTokens().pageBackground));
+    QCOMPARE(lightBase, QColor(themes.currentTokens().inputBackground));
     const QColor lightLink = live->document()->find(QStringLiteral("Reference")).charFormat().foreground().color();
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
     const auto dark = themes.currentTokens();
-    QCOMPARE(live->palette().color(QPalette::Base), QColor(dark.pageBackground));
-    QCOMPARE(editor->parentWidget()->palette().color(QPalette::Base), QColor(dark.pageBackground));
+    QCOMPARE(page.palette().color(QPalette::Window), QColor(dark.pageBackground));
+    QCOMPARE(live->palette().color(QPalette::Base), QColor(dark.inputBackground));
+    QCOMPARE(editor->parentWidget()->palette().color(QPalette::Base), QColor(dark.inputBackground));
     QCOMPARE(live->palette().color(QPalette::Text), QColor(dark.text));
     QVERIFY(lightBase != live->palette().color(QPalette::Base));
     QCOMPARE(tree->palette().color(QPalette::Text), QColor(dark.text));
-    QVERIFY(tree->styleSheet().contains(dark.pageBackground));
+    QVERIFY(tree->styleSheet().contains(QStringLiteral("background: %1;").arg(dark.inputBackground)));
     const auto link = live->document()->find(QStringLiteral("Reference"));
     QVERIFY(link.charFormat().isAnchor());
     QCOMPARE(link.charFormat().foreground().color(), live->palette().color(QPalette::Link));
     QVERIFY(link.charFormat().foreground().color() != lightLink);
     QCOMPARE(live->document()->find(QStringLiteral("sample")).blockFormat().background().color(),
-             QColor(dark.inputBackground));
+             QColor(dark.pageBackground));
     QCOMPARE(editor->markdown(), edited);
     QVERIFY(editor->document()->isModified());
     QVERIFY(themes.setTheme(darkeye::ThemeId::Purple));
-    QCOMPARE(live->palette().color(QPalette::Base), QColor(themes.currentTokens().pageBackground));
+    QCOMPARE(page.palette().color(QPalette::Window), QColor(themes.currentTokens().pageBackground));
+    QCOMPARE(live->palette().color(QPalette::Base), QColor(themes.currentTokens().inputBackground));
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
 }
 
@@ -248,10 +256,15 @@ void AvPageTest::scrollsInsideChamferedDocumentPanel()
     QVERIFY(file.write(QByteArray("Text that scrolls past the top of the editor.\n\n").repeated(100)) > 0);
     file.close();
 
-    darkeye::AvPage page(directory.path(), themes);
-    page.resize(800, 480);
+    darkeye::myads::WorkspaceWidget workspace;
+    darkeye::myads::bindDarkeyeTheme(&workspace, &themes);
+    auto *pane = workspace.rootPane();
+    QVERIFY(pane->addContent("plain", "Other", new QWidget));
+    auto &page = *new darkeye::AvPage(directory.path(), themes);
+    QVERIFY(pane->addContent("wiki", "Wiki", &page));
+    workspace.resize(800, 480);
     page.initialize();
-    page.show();
+    workspace.show();
     auto *tree = page.findChild<mdedit::ProjectFileTree *>();
     auto *editor = page.findChild<MarkdownEditorWidget *>();
     QVERIFY(tree);
@@ -269,12 +282,64 @@ void AvPageTest::scrollsInsideChamferedDocumentPanel()
     QVERIFY(!editor->graphicsEffect());
     QVERIFY(!live->graphicsEffect());
 
-    auto *panel = editor->parentWidget();
-    QImage frame(panel->size(), QImage::Format_ARGB32_Premultiplied);
-    frame.fill(Qt::transparent);
-    panel->render(&frame, {}, {}, QWidget::DrawChildren);
-    QCOMPARE(frame.pixelColor(0, 0).alpha(), 0);
-    QCOMPARE(frame.pixelColor(frame.width() / 2, 0), QColor(themes.currentTokens().border));
+    auto *splitter = page.findChild<QSplitter *>(QStringLiteral("AvWikiSplitter"));
+    QVERIFY(splitter);
+    QCOMPARE(splitter->geometry(), page.rect());
+    auto *handle = splitter->handle(1);
+    QVERIFY(handle);
+    QCOMPARE(handle->width(), 5);
+    const auto tokens = themes.currentTokens();
+    for (const auto index : {0, 1}) {
+        auto *panel = splitter->widget(index);
+        QImage frame(panel->size(), QImage::Format_ARGB32_Premultiplied);
+        frame.fill(Qt::transparent);
+        panel->render(&frame, {}, {}, QWidget::DrawChildren);
+        for (const auto &corner : {frame.rect().topLeft(), frame.rect().topRight(),
+                                   frame.rect().bottomLeft(), frame.rect().bottomRight()})
+            QCOMPARE(frame.pixelColor(corner).alpha(), 0);
+        QCOMPARE(frame.pixelColor(frame.width() / 2, 0), QColor(tokens.border));
+        QCOMPARE(frame.pixelColor(frame.width() / 2, 3), QColor(tokens.inputBackground));
+    }
+
+    QImage renderedPage(page.size(), QImage::Format_ARGB32_Premultiplied);
+    page.render(&renderedPage);
+    const QRect bounds = page.rect();
+    for (const auto &corner : {bounds.topLeft(), bounds.topRight(),
+                               bounds.bottomLeft(), bounds.bottomRight()})
+        QCOMPARE(renderedPage.pixelColor(corner), QColor(tokens.pageBackground));
+
+    auto *bar = pane->findChild<QTabBar *>();
+    QVERIFY(bar);
+    const auto verifyTabConnection = [bar](const QColor &expected) {
+        const auto image = bar->grab().toImage();
+        const QRect tab = bar->tabRect(bar->currentIndex());
+        for (int y = tab.bottom() - 2; y < bar->height(); ++y)
+            QCOMPARE(image.pixelColor(QPoint(tab.center().x(), y) * image.devicePixelRatio()), expected);
+    };
+    verifyTabConnection(QColor(tokens.pageBackground));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
+    const auto dark = themes.currentTokens();
+    verifyTabConnection(QColor(dark.pageBackground));
+    page.render(&renderedPage);
+    QCOMPARE(renderedPage.pixelColor(bounds.topLeft()), QColor(dark.pageBackground));
+    const QRect viewport = tree->viewport()->rect();
+    const QPoint treeBackground(viewport.center().x(), viewport.bottom() - 2);
+    QCOMPARE(renderedPage.pixelColor(tree->viewport()->mapTo(&page, treeBackground)),
+             QColor(dark.inputBackground));
+    QVERIFY(pane->setCurrentContentId("plain"));
+    verifyTabConnection(QColor(dark.pageBackground));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
+
+    QVERIFY(pane->setCurrentContentId("wiki"));
+    const int originalWidth = splitter->widget(0)->width();
+    const QPoint press = handle->rect().center();
+    const QPoint offset(24, 0);
+    QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, press);
+    QMouseEvent move(QEvent::MouseMove, press + offset, handle->mapToGlobal(press) + offset,
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(handle, &move);
+    QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, press);
+    QCOMPARE(splitter->widget(0)->width(), originalWidth + offset.x());
 }
 
 QTEST_MAIN(AvPageTest)

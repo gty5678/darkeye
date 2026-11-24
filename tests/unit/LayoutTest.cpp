@@ -20,6 +20,7 @@ private slots:
     void waterfallUsesShortestColumn();
     void waterfallSupportsSeparateVerticalSpacing();
     void lazyAreaLoadsOnePageAtATime();
+    void lazyAreaDiscardsOldBatchesAndRetriesFailedPages();
     void lazyAreaReleasesItemsOutsideViewport();
     void lazyAreaCanReplaceAndClearViewportHandler();
     void lazyAreaSupportsHeaderAndPreloadsUntilScrollable();
@@ -179,6 +180,62 @@ void LayoutTest::lazyAreaLoadsOnePageAtATime()
     QCOMPARE(calls, 2);
 }
 
+void LayoutTest::lazyAreaDiscardsOldBatchesAndRetriesFailedPages()
+{
+    darkeye::LazyScrollArea area(100);
+    area.setPageSize(20);
+    quint64 request = 0;
+    int requestedPage = -1;
+    area.setAsyncLoader([&](quint64 id, int page, int) {
+        request = id;
+        requestedPage = page;
+    });
+    area.show();
+    auto *status = area.findChild<QLabel *>(QStringLiteral("LazyScrollLoadStatus"));
+    QVERIFY(status);
+    QVERIFY(status->isVisible());
+    QVERIFY(area.loading());
+    QVERIFY(!area.loadNextPage());
+
+    int oldCardsCreated = 0;
+    const quint64 oldRequest = request;
+    area.completePage(oldRequest, 20, true, [&](int) {
+        ++oldCardsCreated;
+        return new QLabel(QStringLiteral("old"));
+    });
+    QVERIFY(oldCardsCreated > 0 && oldCardsCreated < 20);
+    const int initialBatch = oldCardsCreated;
+
+    area.reset();
+    QVERIFY(request != oldRequest);
+    QCOMPARE(area.itemCount(), 0);
+    area.failPage(oldRequest);
+    QVERIFY(area.loading());
+
+    area.completePage(request, 20, true, [](int index) {
+        return new QLabel(QString::number(index));
+    });
+    QTRY_COMPARE(area.itemCount(), 20);
+    QCOMPARE(oldCardsCreated, initialBatch);
+    QVERIFY(!status->isVisible());
+    QVERIFY(area.loadNextPage());
+    QCOMPARE(requestedPage, 1);
+    const quint64 failedRequest = request;
+    area.failPage(failedRequest);
+    QVERIFY(status->isVisible());
+    QVERIFY(status->text().contains(QStringLiteral("href")));
+    QVERIFY(!area.loading());
+    QCOMPARE(area.itemCount(), 20);
+
+    emit status->linkActivated(QStringLiteral("retry"));
+    QVERIFY(request != failedRequest);
+    QCOMPARE(requestedPage, 1);
+    QVERIFY(area.loading());
+    area.completePage(request, 0, false, {});
+    QVERIFY(area.reachedEnd());
+    QVERIFY(!status->isVisible());
+}
+
 void LayoutTest::lazyAreaReleasesItemsOutsideViewport()
 {
     QSet<QWidget *> active;
@@ -320,7 +377,7 @@ void LayoutTest::lazyAreaScrollRangeCoversWholeWaterfall()
     });
 
     area.show();
-    const int expectedHeight = 18 * 100 + 17 * 10 + 5;
+    const int expectedHeight = 18 * 100 + 17 * 10;
     QTRY_VERIFY_WITH_TIMEOUT(area.verticalScrollBar()->maximum()
                              >= expectedHeight - area.viewport()->height(), 1000);
 }

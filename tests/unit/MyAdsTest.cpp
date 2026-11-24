@@ -475,6 +475,20 @@ void MyAdsTest::draggingTabFollowsPointer()
              theme.tabSelected);
     QCOMPARE(resting.pixelColor(QPoint(middle.center().x(), middle.bottom()) * restingScale),
              theme.tabSelected);
+    // Both straight shoulders should meet the bevels with a full-width outline.
+    for (const int y : {middle.top() + 10, middle.bottom() - 10}) {
+        for (const int edge : {middle.left(), middle.right()}) {
+            const int inward = edge == middle.left() ? 1 : -1;
+            const auto colorAt = [&](int offset) {
+                return resting.pixelColor(QPoint(edge + inward * offset, y) * restingScale);
+            };
+            QCOMPARE(colorAt(-1), theme.tabBarBackground);
+            QCOMPARE(colorAt(0), theme.border);
+            QCOMPARE(colorAt(1), theme.background);
+            QCOMPARE(colorAt(2), theme.background);
+            QCOMPARE(colorAt(3), theme.tabSelected);
+        }
+    }
     const auto move = [bar](const QPoint &position) {
         QMouseEvent event(QEvent::MouseMove, position, bar->mapToGlobal(position),
                           Qt::NoButton, Qt::LeftButton, Qt::NoModifier);

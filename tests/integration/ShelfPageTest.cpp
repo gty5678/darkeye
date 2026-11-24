@@ -57,6 +57,7 @@ private slots:
     void filtersAndLoadsVirtualizedShelf();
     void themeChangesPreserveEnvironmentBackground();
     void nativeRenderingAndActions();
+    void tagFiltersCurrentShelfAndNavigationFollowsHistory();
     void rightDragRotatesWithoutContextMenu();
     void wheelReturnDefersGraphRefresh();
     void existingShelfVisualProbe();
@@ -406,13 +407,10 @@ void ShelfPageTest::nativeRenderingAndActions()
     };
     QSignalSpy actressLink(&page,&darkeye::ShelfPage::actressRequested);
     QSignalSpy actorLink(&page,&darkeye::ShelfPage::actorRequested);
-    QSignalSpy tagLink(&page,&darkeye::ShelfPage::tagRequested);
     QVERIFY(clickLink(QStringLiteral("测试女优")));
     QCOMPARE(actressLink.count(),1); QCOMPARE(actressLink.first().first().toLongLong(),*actress);
     QVERIFY(clickLink(QStringLiteral("测试男优")));
     QCOMPARE(actorLink.count(),1); QCOMPARE(actorLink.first().first().toLongLong(),*actor);
-    QVERIFY(clickLink(QStringLiteral("展示标签")));
-    QCOMPARE(tagLink.count(),1); QCOMPARE(tagLink.first().first().toLongLong(),tagId);
     auto *title=info->findChild<QLabel *>("ShelfCoverTitle");
     QVERIFY(title && title->isVisible());
     QCOMPARE(title->cursor().shape(),Qt::ArrowCursor);
@@ -545,10 +543,9 @@ void ShelfPageTest::nativeRenderingAndActions()
     QVERIFY(infoText().contains(QStringLiteral("完整标签7")));
     if(!artifacts.isEmpty())
         QVERIFY(page.grab().save(QDir(artifacts).filePath("shelf-native-full-info.png")));
-    QVERIFY(clickLink(QStringLiteral("展示标签")));
-    QCOMPARE(tagLink.count(),2);
-    page.resize(1000,800);
-    QTest::qWait(100);
+    // Keep enough room for the case to stay open during the overlay resize.
+    page.resize(1000,600);
+    QTRY_VERIFY(info->isVisible());
     const auto resizedFront=scene->selectedFrontRect();
     QVERIFY(resizedFront);
     // The transparent layout margins can extend past the paper, just as in
@@ -929,6 +926,119 @@ void ShelfPageTest::deletingExpandedWorkResetsScene()
         QVERIFY(view->openWork(remainingId));
         QTRY_COMPARE(view->currentWorkId(), remainingId);
     }
+}
+
+void ShelfPageTest::tagFiltersCurrentShelfAndNavigationFollowsHistory()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath("public.db"), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    QSqlQuery tag(connection.database());
+    QVERIFY(tag.exec(QStringLiteral("INSERT INTO tag(tag_name) VALUES('测试标签')")));
+    const auto tagId = tag.lastInsertId().toLongLong();
+    darkeye::WorkRepository repository(connection.database());
+    const auto insert = [&](const QString &code, const QList<qint64> &tags) {
+        darkeye::Work work;
+        work.serialNumber = code;
+        return repository.insertComplete(work, {}, {}, tags, &error);
+    };
+    const auto first = insert("BROWSE-001", {tagId});
+    const auto second = insert("BROWSE-002", {tagId});
+    const auto excluded = insert("BROWSE-003", {});
+    const auto third = insert("BROWSE-004", {tagId});
+    QVERIFY(first && second && excluded && third);
+
+    darkeye::ThemeService themes(*qApp);
+    darkeye::ShelfPage page(connection.database(), {}, themes);
+    page.resize(1280, 800);
+    page.initialize();
+    page.show();
+    page.resetWorkFilters();
+    auto *view = page.findChild<darkeye::DvdShelfView *>();
+    QVERIFY(view);
+    auto *scene = view->findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    auto *info = view->findChild<QScrollArea *>("ShelfCoverInfo");
+    QVERIFY(scene && info);
+    scene->renderWidget()->setAttribute(Qt::WA_TransparentForMouseEvents);
+    QTRY_COMPARE(page.filteredWorks().size(), 4);
+    QVERIFY(scene->focusItem(QString::number(*excluded)));
+    QTRY_VERIFY(scene->state() == darkeye::dvd_scene::DvdInteractionController::State::Focused);
+    scene->toggleOpen();
+    QTRY_VERIFY(info->isVisible());
+    scene->returnToShelf();
+    QTRY_COMPARE(page.currentWorkId(), 0);
+    QVERIFY(page.showWork(*first));
+    QTRY_VERIFY(info->isVisible());
+    const auto button = [&](const QString &name) { return info->findChild<QToolButton *>(name); };
+    auto *tagButton = button(QStringLiteral("tag%1").arg(tagId));
+    QVERIFY(tagButton);
+    QTest::mouseClick(tagButton, Qt::LeftButton);
+    const QSet<qint64> matching{*first, *second, *third};
+    QTRY_COMPARE(page.filteredWorkIds(), matching);
+    QCOMPARE(page.currentWorkId(), 0);
+    QVERIFY(info->isHidden());
+
+    QVERIFY(page.showWork(*second));
+    QTRY_VERIFY(info->isVisible());
+    auto *previous = view->findChild<QToolButton *>(QStringLiteral("ShelfPreviousWork"));
+    auto *next = view->findChild<QToolButton *>(QStringLiteral("ShelfNextWork"));
+    QVERIFY(previous && next);
+    QVERIFY(previous->isVisible() && next->isVisible());
+    QVERIFY(previous->text().isEmpty() && next->text().isEmpty());
+    QVERIFY(!previous->icon().pixmap(20, 20).isNull() && !next->icon().pixmap(20, 20).isNull());
+    const auto caseBounds = scene->selectedCaseRect();
+    QVERIFY(caseBounds);
+    const auto offset = scene->renderWidget()->mapTo(view, QPoint());
+    const auto box = caseBounds->translated(offset);
+    QVERIFY(previous->geometry().center().x() < box.left());
+    QVERIFY(next->geometry().center().x() > box.right());
+    const auto toast = [](const QString &message) -> QWidget * {
+        for (auto *widget : QApplication::topLevelWidgets()) {
+            auto *label = widget->findChild<QLabel *>(QStringLiteral("DesignToastLabel"));
+            if (widget->isVisible() && label && label->text() == message) return widget;
+        }
+        return nullptr;
+    };
+    const auto noNext = QStringLiteral("没有下一部");
+    QTest::mouseClick(next, Qt::LeftButton);
+    QTRY_VERIFY(toast(noNext));
+    toast(noNext)->close();
+    QCOMPARE(page.expandedWorkId(), *second);
+    QTest::mouseClick(previous, Qt::LeftButton);
+    QTRY_COMPARE(page.expandedWorkId(), *first);
+    QTRY_VERIFY(info->isVisible());
+    QTest::mouseClick(previous, Qt::LeftButton);
+    QTRY_COMPARE(page.expandedWorkId(), *excluded);
+    QTRY_VERIFY(info->isVisible());
+    const auto noPrevious = QStringLiteral("没有上一部");
+    QTest::mouseClick(previous, Qt::LeftButton);
+    QTRY_VERIFY(toast(noPrevious));
+    toast(noPrevious)->close();
+    QCOMPARE(page.expandedWorkId(), *excluded);
+    QCOMPARE(page.filteredWorkIds(), matching);
+    QTest::mouseClick(next, Qt::LeftButton);
+    QTRY_COMPARE(page.expandedWorkId(), *first);
+    QTRY_VERIFY(info->isVisible());
+    QTest::mouseClick(next, Qt::LeftButton);
+    QTRY_COMPARE(page.expandedWorkId(), *second);
+    QTRY_VERIFY(info->isVisible());
+    QTest::mouseClick(previous, Qt::LeftButton);
+    QTRY_COMPARE(page.expandedWorkId(), *first);
+    QTRY_VERIFY(info->isVisible());
+    QVERIFY(page.showWork(*third));
+    QTRY_VERIFY(info->isVisible());
+    QCOMPARE(page.expandedWorkId(), *third);
+    QTest::mouseClick(next, Qt::LeftButton);
+    QTRY_VERIFY(toast(noNext));
+    toast(noNext)->close();
+    QCOMPARE(page.expandedWorkId(), *third);
+    scene->returnToShelf();
+    QTRY_COMPARE(page.currentWorkId(), 0);
+    QCOMPARE(scene->itemCount(), matching.size());
+    QVERIFY(previous->isHidden() && next->isHidden());
 }
 
 void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()

@@ -62,8 +62,6 @@ void PersonalRecordManagementWidget::lazyLoad()
     for (QPushButton *button : {addButton, deleteButton, saveButton, revertButton, refreshButton,
                                 exportButton})
         toolbar->addWidget(button);
-    toolbar->addStretch();
-    root->addLayout(toolbar);
 
     m_model = new QSqlTableModel(this, m_privateDatabase);
     m_model->setEditStrategy(QSqlTableModel::OnManualSubmit);
@@ -74,12 +72,15 @@ void PersonalRecordManagementWidget::lazyLoad()
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->horizontalHeader()->setStretchLastSection(true);
-    root->addWidget(m_table, 1);
 
     auto *searchBar = new ModelSearchBar(m_table, m_themes, this);
+    searchBar->layout()->setContentsMargins(0, 0, 0, 0);
     m_search = searchBar->input();
     m_search->setProperty("managementControlId", QStringLiteral("personalRecordSearch"));
-    root->addWidget(searchBar);
+    toolbar->addStretch();
+    toolbar->addWidget(searchBar, 0, Qt::AlignRight);
+    root->addLayout(toolbar);
+    root->addWidget(m_table, 1);
 
     connect(m_tableChoice, &QComboBox::currentTextChanged, this,
             &PersonalRecordManagementWidget::loadTable);

@@ -131,8 +131,6 @@ void LabelManagementWidget::lazyLoad()
     }
     else
         m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    root->addWidget(m_table, 1);
-
     auto *searchLayout = new QHBoxLayout;
     m_search = new DesignLineEdit(this);
     m_search->setAccessibleName(QStringLiteral("搜索表格"));
@@ -153,9 +151,6 @@ void LabelManagementWidget::lazyLoad()
     searchLayout->addWidget(m_searchResult);
     searchLayout->addWidget(m_previousSearch);
     searchLayout->addWidget(m_nextSearch);
-    searchLayout->addStretch();
-    root->addLayout(searchLayout);
-
     auto *buttons = new QHBoxLayout;
     auto *newButton = new IconButton(QStringLiteral("list_plus"), QStringLiteral("新增行"),
                                      &m_themes, this);
@@ -178,9 +173,11 @@ void LabelManagementWidget::lazyLoad()
     for (QPushButton *button : {newButton, deleteButton, saveButton, revertButton, refreshButton,
                                 exportButton, importButton})
         buttons->addWidget(button);
-    buttons->addStretch();
     buttons->addWidget(redirectButton);
+    buttons->addStretch();
+    buttons->addLayout(searchLayout);
     root->addLayout(buttons);
+    root->addWidget(m_table, 1);
 
     auto *form = new QFormLayout;
     m_chineseName = new DesignLineEdit(this);

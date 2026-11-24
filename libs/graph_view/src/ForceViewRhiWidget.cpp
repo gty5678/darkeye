@@ -997,7 +997,7 @@ void ForceViewRhiWidget::setGraph(int nNodes,
     emit simulationStarted();
 
     QTimer::singleShot(kFitViewDelayMs, this, [this]() {
-        fitViewToContent();
+        fitInitialViewToContent();
     });
 }
 
@@ -1671,7 +1671,7 @@ QRectF ForceViewRhiWidget::getContentRect() const
     return QRectF(minX - mx, minY - my, w + 2 * mx, h + 2 * my);
 }
 
-void ForceViewRhiWidget::fitViewToContent()
+void ForceViewRhiWidget::fitViewToContent(FitViewMode mode)
 {
     if (!m_physicsState || m_physicsState->nNodes <= 0) {
         return;
@@ -1689,9 +1689,9 @@ void ForceViewRhiWidget::fitViewToContent()
     } else if (n <= 50) {
         margin = 0.85f;
     }
-    float z = std::min(
+    const float viewportFit = std::min(
         static_cast<float>(m_viewportW) / static_cast<float>(r.width()),
-        static_cast<float>(m_viewportH) / static_cast<float>(r.height())) * margin;
+        static_cast<float>(m_viewportH) / static_cast<float>(r.height()));
 
     float fitZoomUpper = kFitViewZoomMax;
     if (n <= 2) {
@@ -1712,7 +1712,20 @@ void ForceViewRhiWidget::fitViewToContent()
             fitZoomUpper = std::min(fitZoomUpper, kFitViewMaxNodeRadiusPx / maxNodeRadius);
         }
     }
-    m_zoom = std::max(kFitViewZoomMin, std::min(fitZoomUpper, z));
+    float zoomFactor = 1.0f;
+    float viewportLimit = viewportFit;
+    if (mode == FitViewMode::GlobalInitial) {
+        zoomFactor = 1.30f;
+        // Use some of the 10% content padding on each side while keeping nodes in view.
+        viewportLimit *= 1.10f;
+    } else if (mode == FitViewMode::Initial) {
+        zoomFactor = 1.15f;
+    }
+    const float fitZoom = std::min({viewportFit * margin * zoomFactor,
+                                  viewportLimit,
+                                  fitZoomUpper * zoomFactor,
+                                  kFitViewZoomMax});
+    m_zoom = std::max(kFitViewZoomMin, fitZoom);
     m_panX = static_cast<float>(r.center().x());
     m_panY = static_cast<float>(r.center().y());
     emit scaleChanged(m_zoom);

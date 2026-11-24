@@ -95,7 +95,7 @@ class WorkTagSelector final : public QWidget
     QLabel *m_searchResult = nullptr;
     IconButton *m_searchPrevious = nullptr;
     IconButton *m_searchNext = nullptr;
-    bool m_threeSelectedColumns = false;
+    int m_selectedColumns = 3;
     bool m_updating = false;
     bool m_mutexCheckEnabled = true;
     QList<qint64> m_searchMatches;

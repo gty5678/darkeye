@@ -155,15 +155,14 @@ void WorkBatchStateWidget::lazyLoad()
     m_table->setModel(m_model);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    root->addWidget(m_table, 1);
-
     auto *searchBar = new ModelSearchBar(m_table, m_themes, this);
+    searchBar->layout()->setContentsMargins(0, 0, 0, 0);
     m_search = searchBar->input();
-    root->addWidget(searchBar);
 
     auto *buttons = new QHBoxLayout;
     auto *refreshButton = new IconButton(QStringLiteral("refresh"), QStringLiteral("刷新数据"),
                                          &m_themes, this);
+    buttons->addWidget(refreshButton);
     if (m_mode == WorkStateMode::Active)
     {
         auto *checkAllButton = new IconButton(QStringLiteral("square_check"),
@@ -172,9 +171,7 @@ void WorkBatchStateWidget::lazyLoad()
                                                 QStringLiteral("取消全选"), &m_themes, this);
         auto *removeButton = new IconButton(QStringLiteral("trash_2"),
                                             QStringLiteral("将勾选项移入回收站"), &m_themes, this);
-        buttons->addWidget(refreshButton);
         buttons->addWidget(removeButton);
-        buttons->addStretch();
         buttons->addWidget(checkAllButton);
         buttons->addWidget(uncheckAllButton);
         connect(removeButton, &QPushButton::clicked, this,
@@ -184,7 +181,6 @@ void WorkBatchStateWidget::lazyLoad()
     }
     else
     {
-        buttons->addWidget(refreshButton);
         auto *removeButton = new IconButton(QStringLiteral("trash_2"),
                                             QStringLiteral("彻底删除选中项"), &m_themes, this);
         auto *restoreButton = new IconButton(QStringLiteral("undo"), QStringLiteral("恢复选中项"),
@@ -194,7 +190,6 @@ void WorkBatchStateWidget::lazyLoad()
         auto *restoreAllButton = new DesignButton(QStringLiteral("恢复全部"), this);
         buttons->addWidget(removeButton);
         buttons->addWidget(restoreButton);
-        buttons->addStretch();
         buttons->addWidget(removeAllButton);
         buttons->addWidget(restoreAllButton);
         connect(restoreButton, &QPushButton::clicked, this, [this] { restore(false); });
@@ -202,7 +197,10 @@ void WorkBatchStateWidget::lazyLoad()
         connect(removeButton, &QPushButton::clicked, this, [this] { removePermanently(false); });
         connect(removeAllButton, &QPushButton::clicked, this, [this] { removePermanently(true); });
     }
+    buttons->addStretch();
+    buttons->addWidget(searchBar, 0, Qt::AlignRight);
     root->addLayout(buttons);
+    root->addWidget(m_table, 1);
     connect(refreshButton, &QPushButton::clicked, this, &WorkBatchStateWidget::refresh);
     connect(m_table, &QTableView::doubleClicked, this,
             [this](const QModelIndex &index)

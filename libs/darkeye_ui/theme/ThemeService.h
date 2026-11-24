@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QColorSpace>
+#include <QPalette>
 #include <QObject>
 #include <QMap>
 #include <QPointer>
@@ -51,6 +52,10 @@ struct ThemeTokens
     static constexpr int defaultBorderWidth = 2;
     QString borderWidth = QString::number(defaultBorderWidth) + QStringLiteral("px");
 
+    QString textOnPrimaryHover{};
+    QString textOnStatus{};
+    QString textOnImage{};
+    QString progressFill{};
     QString modified = QStringLiteral("#ffa500");
     QString imageDropOutline = QStringLiteral("#8a8a8a");
     static constexpr auto defaultColorSpace = QColorSpace::DisplayP3;
@@ -95,6 +100,7 @@ signals:
 
 private:
     QApplication &m_application;
+    QPalette m_paletteBeforeDark;
     QPointer<SelectionIndicatorStyle> m_indicatorStyle;
     ThemeId m_current = ThemeId::Light;
     QString m_customPrimary;

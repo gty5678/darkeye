@@ -63,10 +63,12 @@ ThemeTokens lightTokens()
 
 ThemeTokens darkTokens()
 {
-    return {"#00aaff", "#33bbff", "#1e1e1e", "#2d2d2d", "#252526",
-            "#444444", "#00aaff", "#e0e0e0", "#1e1e1e", "#888888",
-            "#666666", "#66bb6a", "#ffb74d", "#ef5350", "#29b6f6",
-            "#e0e0e0", "#666666"};
+    ThemeTokens tokens{"#65baff", "#94cfff", "#1c2128", "#262d37", "#13171d",
+                       "#69798b", "#65baff", "#eef2f7", "#10151c", "#a9b5c4",
+                       "#818d9d", "#78d49b", "#ffc478", "#ff8d93", "#7fc4ff",
+                       "#d2dbe7", "#818d9d"};
+    tokens.progressFill = QStringLiteral("#276890");
+    return tokens;
 }
 
 ThemeTokens baseTokens(ThemeId theme)
@@ -219,7 +221,11 @@ QMap<QString, QString> ThemeTokens::toMap() const
         {QStringLiteral("color_border"), border},
         {QStringLiteral("color_border_focus"), borderFocus},
         {QStringLiteral("color_text"), text},
+        {QStringLiteral("color_progress_fill"), progressFill.isEmpty() ? primary : progressFill},
         {QStringLiteral("color_text_inverse"), textInverse},
+        {QStringLiteral("color_text_on_primary_hover"), textOnPrimaryHover.isEmpty() ? textInverse : textOnPrimaryHover},
+        {QStringLiteral("color_text_on_status"), textOnStatus.isEmpty() ? textInverse : textOnStatus},
+        {QStringLiteral("color_text_on_image"), textOnImage.isEmpty() ? textInverse : textOnImage},
         {QStringLiteral("color_text_placeholder"), textPlaceholder},
         {QStringLiteral("color_text_disabled"), textDisabled},
         {QStringLiteral("color_success"), success},
@@ -293,7 +299,8 @@ ThemeTokens ThemeTokens::convertedTo(const QColorSpace &target) const
         &ThemeTokens::primary, &ThemeTokens::primaryHover, &ThemeTokens::background,
         &ThemeTokens::inputBackground, &ThemeTokens::pageBackground, &ThemeTokens::border,
         &ThemeTokens::borderFocus, &ThemeTokens::text, &ThemeTokens::textInverse,
-        &ThemeTokens::textPlaceholder, &ThemeTokens::textDisabled, &ThemeTokens::success,
+        &ThemeTokens::textOnPrimaryHover, &ThemeTokens::textOnStatus,
+        &ThemeTokens::textOnImage, &ThemeTokens::progressFill, &ThemeTokens::textPlaceholder, &ThemeTokens::textDisabled, &ThemeTokens::success,
         &ThemeTokens::warning, &ThemeTokens::error, &ThemeTokens::info, &ThemeTokens::icon,
         &ThemeTokens::iconDisabled, &ThemeTokens::modified, &ThemeTokens::imageDropOutline,
     };
@@ -409,11 +416,27 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
     styleSheet = prepareStyleSheet(std::move(styleSheet));
     if (m_indicatorStyle) m_indicatorStyle->setColors(values);
     QPalette palette = m_application.palette();
-    const QColor pageBackground(values.pageBackground);
-    if (palette.color(QPalette::Window) != pageBackground) {
-        palette.setColor(QPalette::Window, pageBackground);
-        m_application.setPalette(palette);
+    if (theme == ThemeId::Dark) {
+        if (m_current != ThemeId::Dark) m_paletteBeforeDark = palette;
+        palette.setColor(QPalette::WindowText, QColor(values.text));
+        palette.setColor(QPalette::Base, QColor(values.inputBackground));
+        palette.setColor(QPalette::AlternateBase, QColor(values.background));
+        palette.setColor(QPalette::Text, QColor(values.text));
+        palette.setColor(QPalette::Button, QColor(values.background));
+        palette.setColor(QPalette::ButtonText, QColor(values.text));
+        palette.setColor(QPalette::ToolTipBase, QColor(values.inputBackground));
+        palette.setColor(QPalette::ToolTipText, QColor(values.text));
+        palette.setColor(QPalette::PlaceholderText, QColor(values.textPlaceholder));
+        palette.setColor(QPalette::Highlight, QColor(values.primary));
+        palette.setColor(QPalette::HighlightedText, QColor(values.textInverse));
+        palette.setColor(QPalette::Link, QColor(values.borderFocus));
+        for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText})
+            palette.setColor(QPalette::Disabled, role, QColor(values.textDisabled));
+    } else if (m_current == ThemeId::Dark) {
+        palette = m_paletteBeforeDark;
     }
+    palette.setColor(QPalette::Window, QColor(values.pageBackground));
+    if (m_application.palette() != palette) m_application.setPalette(palette);
     if (m_application.styleSheet() != styleSheet) m_application.setStyleSheet(styleSheet);
     const bool changed = m_current != theme || m_customPrimary != nextPrimary;
     m_current = theme;
@@ -506,6 +529,18 @@ ThemeTokens ThemeService::tokens(ThemeId theme, const QString &customPrimary)
 {
     auto result = sourceTokens(theme, customPrimary).convertedTo(outputColorSpace());
     result.borderFocus = focusBorder(result);
+    if (theme == ThemeId::Dark) {
+        const auto foreground = [&](const QString &background) {
+            // At this luminance black and white provide equal contrast.
+            constexpr double crossover = 0.1791288;
+            return luminance(QColor(background), result.colorSpace) >= crossover
+                ? QStringLiteral("#000000") : QStringLiteral("#ffffff");
+        };
+        result.textOnStatus = result.textInverse;
+        result.textOnImage = QStringLiteral("#ffffff");
+        result.textInverse = foreground(result.primary);
+        result.textOnPrimaryHover = foreground(result.primaryHover);
+    }
     return result;
 }
 

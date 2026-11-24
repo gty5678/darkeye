@@ -136,12 +136,14 @@ QMessageBox QPushButton {
     background-color: %5; color: %6; border: none; border-radius: 4px;
     padding: 6px 16px; min-width: 70px;
 }
-QMessageBox QPushButton:hover { background-color: %7; }
+QMessageBox QPushButton:hover { background-color: %7; color: %9; }
 QMessageBox QPushButton:disabled { background-color: %8; color: %2; }
 )")
                           .arg(tokens.background, tokens.text, tokens.fontFamilyBase,
                                tokens.fontSizeBase, tokens.primary, tokens.textInverse,
-                               tokens.primaryHover, tokens.textDisabled));
+                               tokens.primaryHover, tokens.textDisabled,
+                               tokens.textOnPrimaryHover.isEmpty() ? tokens.textInverse
+                                                                   : tokens.textOnPrimaryHover));
     box.exec();
 }
 

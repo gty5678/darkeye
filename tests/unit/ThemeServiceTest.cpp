@@ -159,6 +159,12 @@ void ThemeServiceTest::derivesCustomLightAndDarkTokens()
     const auto dark = darkeye::ThemeService::tokens(darkeye::ThemeId::Dark,
                                                     QStringLiteral("#000000"));
     QVERIFY(dark.borderFocus != dark.primary);
+    QCOMPARE(dark.textInverse, QStringLiteral("#ffffff"));
+    const auto brightDark = darkeye::ThemeService::tokens(
+        darkeye::ThemeId::Dark, QStringLiteral("#ffffff"));
+    QCOMPARE(brightDark.textInverse, QStringLiteral("#000000"));
+    QCOMPARE(brightDark.textOnImage, QStringLiteral("#ffffff"));
+    QCOMPARE(brightDark.textOnStatus, dark.textOnStatus);
 
     const auto purple =
         darkeye::ThemeService::tokens(darkeye::ThemeId::Purple,
@@ -176,6 +182,10 @@ void ThemeServiceTest::appliesThemeWithoutUnresolvedTokens()
     QCOMPARE(service.current(), darkeye::ThemeId::Dark);
     QCOMPARE(service.customPrimary(), QStringLiteral("#336699"));
     QVERIFY(application->styleSheet().contains(QStringLiteral("#336699")));
+    const auto dark = service.currentTokens();
+    QCOMPARE(application->palette().color(QPalette::Base), QColor(dark.inputBackground));
+    QCOMPARE(application->palette().color(QPalette::Text), QColor(dark.text));
+    QCOMPARE(application->palette().color(QPalette::HighlightedText), QColor(dark.textInverse));
     QVERIFY(!application->styleSheet().contains(QStringLiteral("{{")));
 
     QWidget filter;

@@ -299,7 +299,7 @@ QPushButton#WorkSaveButton[variant="primary"] {
 /* AddWorkTabPage3 mirrors the Python editor's three explicit submit states. */
 QPushButton#WorkSaveButton[variant="add"] {
     background-color: {{color_success}};
-    color: {{color_text_inverse}};
+    color: {{color_text_on_status}};
     border: none;
     border-radius: {{radius_md}};
     padding: {{space_4}} {{space_12}};
@@ -308,7 +308,7 @@ QPushButton#WorkSaveButton[variant="add"] {
 QPushButton#WorkSaveButton[variant="modify"],
 QPushButton#WorkLoadButton[variant="warning"] {
     background-color: {{color_warning}};
-    color: {{color_text_inverse}};
+    color: {{color_text_on_status}};
     border: none;
     border-radius: {{radius_md}};
     padding: {{space_4}} {{space_12}};
@@ -415,10 +415,12 @@ QLabel#DesignEmptyStateDescription {
     color: {{color_text_placeholder}};
 }
 
-QLabel#DesignLabel[tone="inverse"],
+QLabel#DesignLabel[tone="inverse"] {
+    color: {{color_text_inverse}};
+}
 QLabel#DesignLabel[tone="onDark"],
 QLabel#DesignLabel[tone="onImage"] {
-    color: {{color_text_inverse}};
+    color: {{color_text_on_image}};
 }
 
 QCheckBox#DesignCheckBox,
@@ -539,7 +541,7 @@ QProgressBar#DesignProgressBar {
     text-align: center;
 }
 QProgressBar#DesignProgressBar::chunk {
-    background-color: {{color_primary}};
+    background-color: {{color_progress_fill}};
     border-radius: {{radius_progress_chunk}};
 }
 
@@ -846,6 +848,7 @@ QPushButton#DesignModalConfirm {
     border-color: {{color_primary}};
 }
 QPushButton#DesignModalConfirm[variant="danger"] {
+    color: {{color_text_on_status}};
     background-color: {{color_error}};
     border-color: {{color_error}};
 }
@@ -956,6 +959,7 @@ QTabBar#VerticalTabBar::tab:selected {
 
 QPushButton#DesignButton[variant="primary"]:hover,
 QPushButton#DesignButton[variant="primary"]:pressed {
+    color: {{color_text_on_primary_hover}};
     background-color: {{color_primary_hover}};
     border-color: {{color_primary_hover}};
 }
@@ -1056,7 +1060,7 @@ QPushButton#WorkCoverViewToggle:focus {
 
 QPushButton#DesignButton[variant="personSave"] {
     background-color: {{color_modified}};
-    color: {{color_text_inverse}};
+    color: {{color_text_on_status}};
     border-radius: {{radius_sm}};
     padding: {{space_6}};
 }

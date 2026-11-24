@@ -712,8 +712,10 @@ void AddWorkTabPage3::updateLocalVideoButtonStyle()
         m_playButton->setStyleSheet(
             QStringLiteral("QToolButton { background: %1; color: %2; border: none; "
                            "border-radius: %3; padding: 4px; }"
-                           "QToolButton:hover { background: %4; }")
-                .arg(tokens.primary, tokens.textInverse, borderRadius, tokens.primaryHover));
+                           "QToolButton:hover { background: %4; color: %5; }")
+                .arg(tokens.primary, tokens.textInverse, borderRadius, tokens.primaryHover,
+                     tokens.textOnPrimaryHover.isEmpty() ? tokens.textInverse
+                                                         : tokens.textOnPrimaryHover));
         return;
     }
     m_playButton->setStyleSheet(

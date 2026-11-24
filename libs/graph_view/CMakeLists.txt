@@ -40,5 +40,9 @@ target_link_libraries(darkeye_graph_view
 )
 if(OpenMP_CXX_FOUND)
     target_link_libraries(darkeye_graph_view PRIVATE OpenMP::OpenMP_CXX)
+    if(MSVC)
+        # MSVC analyzes the OpenMP loop as serial code and reports C6993.
+        set_property(SOURCE src/Forces.cpp APPEND PROPERTY COMPILE_OPTIONS /wd6993)
+    endif()
 endif()
 darkeye_apply_compiler_options(darkeye_graph_view)

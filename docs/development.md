@@ -170,17 +170,14 @@ ctest --preset debug-tests
 
 ## VS Code 调试
 
-安装 Microsoft 的 C/C++ 与 CMake Tools 扩展后，打开仓库根目录：
-
-1. 在 CMake Tools 的配置预设中选择 `windows-msvc-debug`。
-2. 执行 **CMake: Configure**，再执行 **CMake: Build**。
-3. 选择 `Darkeye` 作为启动目标；在源文件添加断点后按 `F5`。
-
-VS Code 必须从已设置 `VCPKG_ROOT` 的 Developer PowerShell 启动，或在系统环境变量中配置它；Qt 使用预设中的 6.12.0 kit 路径。
+在 Windows 上，用 VS Code 打开仓库根目录，安装 Microsoft 的 C/C++ 扩展，并确保 `uv` 在 PATH 中。
+在 **运行和调试** 下拉框选择 **Darkeye MSVC Debug** 或 **Darkeye MSVC Release**，在源文件设置断点后按 `F5`。
+启动任务会初始化 x64 MSVC 环境、配置对应预设并增量构建 Darkeye。构建脚本默认使用 Visual Studio 自带的 vcpkg，也支持通过 `VCPKG_ROOT` 指定安装位置。
+Release 保留编译优化并生成 PDB，部分变量可能被优化掉，单步顺序也可能与源码不同。
 
 ## 安装目录与发布构建
 
-Release 构建不等同于安装包。构建完成后执行 `cmake --install`，才能得到可分发目录：
+在 Visual Studio 的 x64 Developer PowerShell 中执行以下命令。Qt 部署工具使用该环境查找 Windows SDK 中的 Direct3D 组件和 MSVC 运行库。
 
 ```powershell
 cmake --preset windows-msvc-release

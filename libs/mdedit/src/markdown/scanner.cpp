@@ -84,7 +84,8 @@ QList<Span> scanSpans(const QString &s){
             }
             i+=count;continue;
         }
-        if(!MDEDIT_LITE&&ch=='$'){
+#if !MDEDIT_LITE
+        if(ch=='$'){
             int count=1;while(i+count<s.size()&&s[i+count]=='$')++count;
             if(count>2){i+=count;continue;}
             int j=i+count,end=-1;
@@ -99,6 +100,7 @@ QList<Span> scanSpans(const QString &s){
             }
             i+=count;continue;
         }
+#endif
         ++i;
     }
     return spans;

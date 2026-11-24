@@ -1199,7 +1199,7 @@ private slots:
         clock.start();
         for (int batch = 0; batch < 150; ++batch) {
             QVERIFY(clock.prepareGpuTick());
-            const int count = batch % 2 ? 17 : 32;
+            const int count = (batch % 2 != 0) ? 17 : 32;
             const auto alphas = clock.gpuTickAlphas(count);
             QCOMPARE(alphas.size(), size_t(count));
             for (float alpha : alphas) {

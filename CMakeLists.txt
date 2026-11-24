@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.25)
 
 project(Darkeye VERSION 1.2.5 LANGUAGES CXX)
 
+if(DEFINED CMAKE_TOOLCHAIN_FILE)
+    message(VERBOSE "CMake toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
+endif()
+
 if(NOT WIN32 AND NOT APPLE)
     message(FATAL_ERROR "Darkeye supports Windows x64 and macOS ARM64 only.")
 endif()

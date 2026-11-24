@@ -41,3 +41,10 @@ qt_add_shaders(darkeye_render3d render3d_shaders
         shaders/shadow.vert shaders/shadow.frag shaders/depthnormal.vert shaders/depthnormal.frag
         shaders/lightingfullscreen.vert shaders/environment.frag shaders/ssao.frag)
 darkeye_apply_compiler_options(darkeye_render3d)
+
+if(MSVC)
+    # MSVC's optimizer reports unreachable fallback code in QtCore/qnumeric.h
+    # even when Qt headers are compiled with /external:W0.
+    set_property(SOURCE src/renderer/LightingResources.cpp src/renderer/Renderer.cpp
+        APPEND PROPERTY COMPILE_OPTIONS /wd4702)
+endif()

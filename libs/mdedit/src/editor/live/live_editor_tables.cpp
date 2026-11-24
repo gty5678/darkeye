@@ -77,22 +77,22 @@ bool LiveEditor::formatNativeSelection(const QString &left,const QString &right)
 bool LiveEditor::editSelectedCells(bool copy,bool clear){
     if(!cellRangeTable||!cellRangeDragging)return false;
     const auto node=tableNodeAt(source,cellRangeSource);if(!node||node->resource)return false;
-    auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
+    auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
     const int top=qMin(cellAnchorRow,cellEndRow),bottom=qMax(cellAnchorRow,cellEndRow);
     const int left=qMin(cellAnchorColumn,cellEndColumn),right=qMax(cellAnchorColumn,cellEndColumn);
-    if(!data.error.isEmpty()||bottom>=data.rows.size())return false;
+    if(!tableData.error.isEmpty()||bottom>=tableData.rows.size())return false;
     QStringList lines;
     for(int r=top;r<=bottom;++r){
-        if(right>=data.rows[r].size())return false;
-        lines.append(data.rows[r].mid(left,right-left+1).join('\t'));
-        if(clear)for(int c=left;c<=right;++c)data.rows[r][c].clear();
+        if(right>=tableData.rows[r].size())return false;
+        lines.append(tableData.rows[r].mid(left,right-left+1).join('\t'));
+        if(clear)for(int c=left;c<=right;++c)tableData.rows[r][c].clear();
     }
     if(copy)QApplication::clipboard()->setText(lines.join('\n'));
     if(clear){
         const int scroll=verticalScrollBar()->value();
-        const bool wholeTable=top==0&&left==0&&bottom==data.rows.size()-1&&right==data.rows.first().size()-1;
+        const bool wholeTable=top==0&&left==0&&bottom==tableData.rows.size()-1&&right==tableData.rows.first().size()-1;
         source.replace(node->source.begin,node->source.end-node->source.begin,
-                       wholeTable?QString():mdedit::writeMarkdownTable(data));
+                       wholeTable?QString():mdedit::writeMarkdownTable(tableData));
         cellRangeTable.clear();cellRangeDragging=cellRangePressed=false;
         rebuild(-1,0);verticalScrollBar()->setValue(scroll);if(sourceChanged)sourceChanged(source);
     }
@@ -102,14 +102,14 @@ bool LiveEditor::clipboardNativeCell(bool cut){
     if(cellRangeTable&&cellRangeDragging)return editSelectedCells(true,cut);
     if(axisSource>=0&&axisIndex>=0){
         const auto node=tableNodeAt(source,axisSource);if(!node||node->resource)return false;
-        const auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
-        if(!data.error.isEmpty())return false;QStringList lines;
+        const auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
+        if(!tableData.error.isEmpty())return false;QStringList lines;
         const int first=qMin(axisIndex,axisLast),last=qMax(axisIndex,axisLast);
         if(first<0)return false;
         if(axisRow){
-            if(last>=data.rows.size())return false;
-            for(int i=first;i<=last;++i)lines.append(data.rows[i].join('\t'));
-        }else for(const auto &row:data.rows)lines.append(row.mid(first,last-first+1).join('\t'));
+            if(last>=tableData.rows.size())return false;
+            for(int i=first;i<=last;++i)lines.append(tableData.rows[i].join('\t'));
+        }else for(const auto &row:tableData.rows)lines.append(row.mid(first,last-first+1).join('\t'));
         QApplication::clipboard()->setText(lines.join('\n'));
         if(cut)removeSelectedAxes();
         return true;
@@ -130,8 +130,8 @@ bool LiveEditor::bindNativeTable(const QTextCursor &cursor){
     if(nativeTable==table){revealNativeCell(cursor);return true;}
     const int index=regionAt(table->firstPosition());if(index<0)return false;
     const auto node=tableNodeAt(source,regions[index].sourceStart);if(!node||node->resource)return false;
-    auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));if(!data.error.isEmpty())return false;
-    nativeTable=table;nativeStart=node->source.begin;nativeEnd=node->source.end;nativeData=data;nativeExports=tableExports(table);active=-1;
+    auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));if(!tableData.error.isEmpty())return false;
+    nativeTable=table;nativeStart=node->source.begin;nativeEnd=node->source.end;nativeData=tableData;nativeExports=tableExports(table);active=-1;
     revealNativeCell(cursor);
     return true;
 }
@@ -265,31 +265,31 @@ bool LiveEditor::syncNativeTable(){
 }
 bool LiveEditor::changeMarkdownTableAt(int offset,int row,int column,const QString &operation){
     const auto node=tableNodeAt(source,offset);if(!node||node->resource)return false;
-    auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
-    if(!data.error.isEmpty()||row<0||row>=data.rows.size())return false;
-    int columns=1;for(const auto &cells:data.rows)columns=qMax(columns,int(cells.size()));
+    auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
+    if(!tableData.error.isEmpty()||row<0||row>=tableData.rows.size())return false;
+    int columns=1;for(const auto &cells:tableData.rows)columns=qMax(columns,int(cells.size()));
     if(column<0||column>=columns)return false;
-    for(auto &cells:data.rows)while(cells.size()<columns)cells.append(QString());
-    while(data.separators.size()<columns)data.separators.append("---");
+    for(auto &cells:tableData.rows)while(cells.size()<columns)cells.append(QString());
+    while(tableData.separators.size()<columns)tableData.separators.append("---");
     if(operation=="insertRowBefore"||operation=="insertRowAfter"){
-        if(data.rows.size()>=10000)return false;
+        if(tableData.rows.size()>=10000)return false;
         QStringList cells;for(int c=0;c<columns;++c)cells.append(QString());
-        data.rows.insert(row+(operation=="insertRowAfter"?1:0),cells);
+        tableData.rows.insert(row+(operation=="insertRowAfter"?1:0),cells);
     }else if(operation=="removeRow"){
-        if(data.rows.size()<=1)return false;data.rows.removeAt(row);
+        if(tableData.rows.size()<=1)return false;tableData.rows.removeAt(row);
     }else if(operation=="insertColumnBefore"||operation=="insertColumnAfter"){
         if(columns>=256)return false;const int at=column+(operation=="insertColumnAfter"?1:0);
-        for(auto &cells:data.rows)cells.insert(at,QString());data.separators.insert(at,"---");
+        for(auto &cells:tableData.rows)cells.insert(at,QString());tableData.separators.insert(at,"---");
     }else if(operation=="removeColumn"){
-        if(columns<=1)return false;for(auto &cells:data.rows)cells.removeAt(column);data.separators.removeAt(column);
+        if(columns<=1)return false;for(auto &cells:tableData.rows)cells.removeAt(column);tableData.separators.removeAt(column);
     }else if(operation=="moveRowUp"||operation=="moveRowDown"){
-        const int to=row+(operation=="moveRowUp"?-1:1);if(to<0||to>=data.rows.size())return false;data.rows.swapItemsAt(row,to);
+        const int to=row+(operation=="moveRowUp"?-1:1);if(to<0||to>=tableData.rows.size())return false;tableData.rows.swapItemsAt(row,to);
     }else if(operation=="moveColumnLeft"||operation=="moveColumnRight"){
         const int to=column+(operation=="moveColumnLeft"?-1:1);if(to<0||to>=columns)return false;
-        for(auto &cells:data.rows)cells.swapItemsAt(column,to);data.separators.swapItemsAt(column,to);
+        for(auto &cells:tableData.rows)cells.swapItemsAt(column,to);tableData.separators.swapItemsAt(column,to);
     }else return false;
     const int scroll=verticalScrollBar()->value();
-    source.replace(node->source.begin,node->source.end-node->source.begin,mdedit::writeMarkdownTable(data));
+    source.replace(node->source.begin,node->source.end-node->source.begin,mdedit::writeMarkdownTable(tableData));
     rebuild(-1,0);verticalScrollBar()->setValue(scroll);if(sourceChanged)sourceChanged(source);return true;
 }
 void LiveEditor::mouseDoubleClickEvent(QMouseEvent *event){
@@ -315,11 +315,11 @@ void LiveEditor::contextMenuEvent(QContextMenuEvent *event){
         auto *menu=new QMenu(this);menu->setObjectName("tableContextMenu");menu->setAttribute(Qt::WA_DeleteOnClose);
         if(!node->resource){
             int row=0,column=0,rows=1,columns=1;
-            if(const auto *table=cursor.currentTable()){
+            if(table){
                 const auto cell=table->cellAt(cursor);row=cell.row();column=cell.column();rows=table->rows();columns=table->columns();
             }else{
-                const auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
-                rows=data.rows.size();for(const auto &cells:data.rows)columns=qMax(columns,int(cells.size()));
+                const auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
+                rows=tableData.rows.size();for(const auto &cells:tableData.rows)columns=qMax(columns,int(cells.size()));
                 const int line=source.mid(node->source.begin,qMax(0,offset-node->source.begin)).count('\n');
                 row=qBound(0,line>0?line-1:0,qMax(0,rows-1));
                 const auto rawLine=source.mid(node->source.begin,node->source.end-node->source.begin).section('\n',line,line);
@@ -437,17 +437,17 @@ void LiveEditor::updateAxisDrop(){
 }
 bool LiveEditor::removeSelectedAxes(){
     const auto node=tableNodeAt(source,axisSource);if(!node||node->resource)return false;
-    auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
-    if(!data.error.isEmpty())return false;
+    auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));
+    if(!tableData.error.isEmpty())return false;
     const int first=qMin(axisIndex,axisLast),last=qMax(axisIndex,axisLast);
-    const int total=axisRow?data.rows.size():data.rows.first().size();
+    const int total=axisRow?tableData.rows.size():tableData.rows.first().size();
     if(first<0||last>=total)return false;
-    if(axisRow)for(int i=last;i>=first;--i)data.rows.removeAt(i);
+    if(axisRow)for(int i=last;i>=first;--i)tableData.rows.removeAt(i);
     else{
-        for(auto &cells:data.rows)for(int i=last;i>=first;--i)cells.removeAt(i);
-        for(int i=last;i>=first;--i)if(i<data.separators.size())data.separators.removeAt(i);
+        for(auto &cells:tableData.rows)for(int i=last;i>=first;--i)cells.removeAt(i);
+        for(int i=last;i>=first;--i)if(i<tableData.separators.size())tableData.separators.removeAt(i);
     }
-    const QString replacement=last-first+1==total?QString():mdedit::writeMarkdownTable(data);
+    const QString replacement=last-first+1==total?QString():mdedit::writeMarkdownTable(tableData);
     const int scroll=verticalScrollBar()->value();
     source.replace(node->source.begin,node->source.end-node->source.begin,replacement);
     axisSource=axisIndex=axisLast=-1;
@@ -456,8 +456,8 @@ bool LiveEditor::removeSelectedAxes(){
 void LiveEditor::cancelAxisDrag(){axisPressed=axisStarted=false;axisBoundary=-1;axisDragScroll.stop();viewport()->unsetCursor();viewport()->update();}
 bool LiveEditor::reorderMarkdownAxisAt(int offset,bool row,int from,int boundary,int selectedCount){
     const auto node=tableNodeAt(source,offset);if(!node||node->resource)return false;
-    auto data=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));if(!data.error.isEmpty())return false;
-    int columns=1;for(const auto &cells:data.rows)columns=qMax(columns,int(cells.size()));const int count=row?data.rows.size():columns;
+    auto tableData=mdedit::readMarkdownTable(source.mid(node->source.begin,node->source.end-node->source.begin));if(!tableData.error.isEmpty())return false;
+    int columns=1;for(const auto &cells:tableData.rows)columns=qMax(columns,int(cells.size()));const int count=row?tableData.rows.size():columns;
     if(from<0||selectedCount<1||from+selectedCount>count||boundary<0||boundary>count||
         (boundary>=from&&boundary<=from+selectedCount))return false;
     const int to=boundary>from?boundary-selectedCount:boundary;
@@ -466,10 +466,10 @@ bool LiveEditor::reorderMarkdownAxisAt(int offset,bool row,int from,int boundary
         items.remove(from,selectedCount);
         for(int i=0;i<selectedCount;++i)items.insert(to+i,selected[i]);
     };
-    if(row)moveRange(data.rows);
-    else{for(auto &cells:data.rows){while(cells.size()<columns)cells.append(QString());moveRange(cells);}
-        while(data.separators.size()<columns)data.separators.append("---");moveRange(data.separators);}
-    const int scroll=verticalScrollBar()->value();source.replace(node->source.begin,node->source.end-node->source.begin,mdedit::writeMarkdownTable(data));
+    if(row)moveRange(tableData.rows);
+    else{for(auto &cells:tableData.rows){while(cells.size()<columns)cells.append(QString());moveRange(cells);}
+        while(tableData.separators.size()<columns)tableData.separators.append("---");moveRange(tableData.separators);}
+    const int scroll=verticalScrollBar()->value();source.replace(node->source.begin,node->source.end-node->source.begin,mdedit::writeMarkdownTable(tableData));
     rebuild(-1,0);verticalScrollBar()->setValue(scroll);if(sourceChanged)sourceChanged(source);return true;
 }
 bool LiveEditor::moveMarkdownTableTo(int offset,int boundary){

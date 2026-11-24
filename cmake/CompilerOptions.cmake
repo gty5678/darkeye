@@ -6,6 +6,12 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+if(MSVC)
+    # Allow source debugging of optimized Release binaries.
+    add_compile_options("$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CXX>>:/Zi>")
+    add_link_options("$<$<CONFIG:Release>:/DEBUG:FULL;/OPT:REF;/OPT:ICF;/INCREMENTAL:NO>")
+endif()
+
 # With the Chinese-only MSVC language pack, cl can emit UTF-8 while CMake's
 # compiler probe decodes it as CP936. Repair that specific mojibake prefix;
 # otherwise Ninja records zero header dependencies and mixes stale ABI layouts.

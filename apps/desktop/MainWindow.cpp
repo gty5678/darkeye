@@ -85,6 +85,7 @@
 #ifdef Q_OS_WIN
 #define NOMINMAX
 #include <Windows.h>
+#include <dwmapi.h>
 #include <psapi.h>
 #elif defined(Q_OS_MACOS)
 #include "MacWindowAppearance.h"
@@ -317,6 +318,9 @@ MainWindow::MainWindow(ThemeService &themeService,
       m_privateDatabase(std::move(privateDatabase))
 {
     updateWindowTitle();
+#ifdef Q_OS_WIN
+    connect(&m_themeService, &ThemeService::themeChanged, this, &MainWindow::updateNativeTitleBarColors);
+#endif
     m_graphManager = std::make_unique<graph::GraphManager>(m_publicDatabase, m_privateDatabase,
                                                              this);
     CrawlerSettings crawlerSettings = settings::crawler();
@@ -383,6 +387,31 @@ void MainWindow::updateWindowTitle()
                        .arg(QStringLiteral(DARKEYE_VERSION), processCpuUsage(),
                             processMemoryUsage()));
 }
+
+#ifdef Q_OS_WIN
+bool MainWindow::event(QEvent *event)
+{
+    if (event->type() == QEvent::WinIdChange)
+        updateNativeTitleBarColors();
+    return QMainWindow::event(event);
+}
+
+void MainWindow::updateNativeTitleBarColors()
+{
+    const auto window = reinterpret_cast<HWND>(internalWinId());
+    if (!window) return;
+
+    const ThemeTokens tokens = m_themeService.currentTokens();
+    const QColor background(tokens.pageBackground);
+    const COLORREF captionColor = RGB(background.red(), background.green(), background.blue());
+    if (FAILED(DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor))))
+        return;
+
+    const QColor text(tokens.text);
+    const COLORREF textColor = RGB(text.red(), text.green(), text.blue());
+    DwmSetWindowAttribute(window, DWMWA_TEXT_COLOR, &textColor, sizeof(textColor));
+}
+#endif
 
 void MainWindow::showInitial()
 {
@@ -1062,17 +1091,17 @@ void MainWindow::refreshWorkspace()
         if (auto *workState = qobject_cast<WorkBatchStateWidget *>(lazyPage)) {
             if (works)
                 workState->refresh();
-        } else if (auto *list = qobject_cast<WorkPage *>(lazyPage)) {
+        } else if (auto *workPage = qobject_cast<WorkPage *>(lazyPage)) {
             if (workDataChanged || workFavorites)
-                list->refreshFromWorkspace(tags, references);
+                workPage->refreshFromWorkspace(tags, references);
         } else if (auto *shelf = qobject_cast<ShelfPage *>(lazyPage)) {
             if (workDataChanged)
                 shelf->refreshFromWorkspace(tags, references);
             else if (workFavorites)
                 shelf->refreshCurrentFavorite();
-        } else if (auto *list = qobject_cast<PersonPage *>(lazyPage)) {
-            if (list->kind() == PersonKind::Actress ? actresses || actressFavorites : actors)
-                list->refresh();
+        } else if (auto *personPage = qobject_cast<PersonPage *>(lazyPage)) {
+            if (personPage->kind() == PersonKind::Actress ? actresses || actressFavorites : actors)
+                personPage->refresh();
         } else if (auto *detail = qobject_cast<PersonDetailPage *>(lazyPage)) {
             if ((actresses || actressFavorites || works || tags || references) && detail->currentPersonId() > 0)
                 detail->showPerson(detail->currentPersonId());

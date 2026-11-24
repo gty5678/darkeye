@@ -61,6 +61,9 @@ public:
     void setLocalApiServer(LocalApiServer &api);
 
 protected:
+#ifdef Q_OS_WIN
+    bool event(QEvent *event) override;
+#endif
     void changeEvent(QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
@@ -74,6 +77,9 @@ private:
     QString workspaceFile() const;
     std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
     void updateWindowTitle();
+#ifdef Q_OS_WIN
+    void updateNativeTitleBarColors();
+#endif
     void registerPage(const QString &menuTitle, const QString &routeName, const QString &icon = {});
     QWidget *createPage(const QString &menuTitle, const QString &routeName,
                         QWidget *parent);

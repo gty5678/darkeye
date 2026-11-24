@@ -117,7 +117,8 @@ def macos_environment(env):
     return env
 
 
-def build_project(configuration="Release", run_tests=False, dry_run=False, clean=False, skip_build=False, build_directory=None):
+def build_project(configuration="Release", run_tests=False, dry_run=False, clean=False,
+                  skip_build=False, build_directory=None, target=None):
     env = os.environ.copy()
     system = platform.system().lower()
     config = configuration.lower()
@@ -165,6 +166,8 @@ def build_project(configuration="Release", run_tests=False, dry_run=False, clean
         build_dir = Path(build_directory).absolute()
         configure.extend(["-B", str(build_dir)])
         build = [cmake, "--build", str(build_dir), "--config", configuration, "--parallel"]
+    if target:
+        build.extend(["--target", target])
 
     if not cmake:
         raise RuntimeError("找不到 CMake，请安装 CMake 并加入 PATH。")
@@ -199,9 +202,13 @@ def main():
                         help="启用测试构建，编译成功后运行测试")
     parser.add_argument("--clean", action="store_true", help="Rebuild from scratch")
     parser.add_argument("--build-dir", type=Path, help="Override the preset build directory")
+    parser.add_argument("--target", help="Build only the named CMake target")
     parser.add_argument("--dry-run", action="store_true", help="只显示命令，不执行构建")
     args = parser.parse_args()
-    build_project(args.config, args.test, args.dry_run, args.clean, build_directory=args.build_dir)
+    if args.test and args.target:
+        parser.error("--test and --target cannot be combined")
+    build_project(args.config, args.test, args.dry_run, args.clean,
+                  build_directory=args.build_dir, target=args.target)
     return 0
 
 

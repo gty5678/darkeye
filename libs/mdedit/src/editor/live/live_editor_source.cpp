@@ -339,7 +339,8 @@ void LiveEditor::styleActiveSource(){
         }
         // Preview lives outside the editable document so copying, source offsets
         // and undo history contain only Markdown. Reserve space below the source.
-        if(!MDEDIT_LITE&&!sourceExposed&&!region.codeBlock&&!fenced){
+#if !MDEDIT_LITE
+        if(!sourceExposed&&!region.codeBlock&&!fenced){
             QStringList formulas;
             for(const auto &span:scanSpans(raw))
                 if(span.kind==SpanKind::DisplayMath)formulas.append(raw.mid(span.start,span.length));
@@ -371,6 +372,7 @@ void LiveEditor::styleActiveSource(){
                 mathPreviewVisible=true;
             }
         }
+#endif
         if(!mathPreviewVisible&&mathPreviewPanel)mathPreviewPanel->hide();
         preserveMathSlot();
         viewport()->update();

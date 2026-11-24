@@ -185,15 +185,15 @@ void LiveEditor::rebuild(int chosen,int offset,int forcedTarget){
                     // Keep contextual syntax consistent with the shared renderer.
                     if(renderedRules==ruleCount){
                         QList<QPair<int,int>> parts;
-                        int begin=0;
+                        int precedingStart=0;
                         for(const auto &node:nodes){
                             if(node.kind!=mdedit::BlockKind::Rule)continue;
-                            if(begin<node.source.begin)parts.append({unit.first+begin,unit.first+node.source.begin});
+                            if(precedingStart<node.source.begin)parts.append({unit.first+precedingStart,unit.first+node.source.begin});
                             const int end=qMin(int(text.size()),node.source.end+1);
                             parts.append({unit.first+node.source.begin,unit.first+end});
-                            begin=end;
+                            precedingStart=end;
                         }
-                        if(begin<text.size())parts.append({unit.first+begin,unit.second});
+                        if(precedingStart<text.size())parts.append({unit.first+precedingStart,unit.second});
                         else if(!parts.isEmpty())parts.last().second=unit.second;
                         if(parts.size()>1){
                             for(int part=parts.size()-1;part>0;--part)splitUnits.insert(index+1,parts[part]);
@@ -377,13 +377,13 @@ void LiveEditor::rebuild(int chosen,int offset,int forcedTarget){
                     regions.append({unit.first,unit.first+bodyOffset,start,out.position(),unit.first+bodyOffset,true});
                     regions.last().listItem=true;
                 }
-                int begin=bodyOffset;
+                int pieceStart=bodyOffset;
                 for(const auto &piece:pieces){
                     const int end=bodyOffset+piece.first;
                     const int start=out.position();
-                    const bool selected=editing&&!editingPrefix&&target>=unit.first+begin&&
+                    const bool selected=editing&&!editingPrefix&&target>=unit.first+pieceStart&&
                         (target<unit.first+end||end==text.size());
-                    const QString raw=text.mid(begin,end-begin);
+                    const QString raw=text.mid(pieceStart,end-pieceStart);
                     if(selected||!piece.second){
                         if(selected)active=regions.size();
                         QString displayed=raw;
@@ -393,19 +393,19 @@ void LiveEditor::rebuild(int chosen,int offset,int forcedTarget){
                         const auto *rendered=renderedDocument(raw,false,true);
                         for(auto it=rendered->begin().begin();!it.atEnd();++it){
                             const auto fragment=it.fragment();
-                            auto format=fragment.charFormat();
-                            if(format.isImageFormat()){
-                                const QUrl url(format.toImageFormat().name());
+                            auto characters=fragment.charFormat();
+                            if(characters.isImageFormat()){
+                                const QUrl url(characters.toImageFormat().name());
                                 document()->addResource(QTextDocument::ImageResource,url,
                                     rendered->resource(QTextDocument::ImageResource,url));
                             }
-                            out.insertText(fragment.text(),format);
+                            out.insertText(fragment.text(),characters);
                         }
                     }
-                    regions.append({unit.first+begin,end==text.size()?unit.second:unit.first+end,
+                    regions.append({unit.first+pieceStart,end==text.size()?unit.second:unit.first+end,
                         start,out.position(),unit.first+end,true});
                     regions.last().listItem=item!=listItems.cend();
-                    begin=end;
+                    pieceStart=end;
                 }
                 continue;
             }

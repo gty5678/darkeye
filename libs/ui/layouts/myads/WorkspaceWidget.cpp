@@ -101,7 +101,7 @@ public:
         m_background = theme.background;
         m_tabStripBorder = theme.border;
         m_line = theme.text;
-        m_line.setAlphaF(0.17);
+        m_line.setAlphaF(0.17f);
         m_hover = theme.primary;
         m_pressed = theme.primaryHover;
         for (int i = 1; i < count(); ++i) handle(i)->update();
@@ -749,15 +749,15 @@ void WorkspaceWidget::connectPane(PaneWidget *result)
         }
         for (const auto *sidebar : {&m_leftSidebar, &m_rightSidebar}) {
             if (!sidebar->host || sidebar->host->isHidden()) continue;
-            const auto ids = sidebar->tree.paneIds();
-            for (int i = 0; i < ids.size(); ++i) {
-                if (ids[i] == sourceId) continue;
+            const auto sidebarPaneIds = sidebar->tree.paneIds();
+            for (int i = 0; i < sidebarPaneIds.size(); ++i) {
+                if (sidebarPaneIds[i] == sourceId) continue;
                 const auto name = sidebar->host->accessibleName();
-                const auto label = ids.size() == 1 ? name : tr("%1 · 组 %2").arg(name).arg(i + 1);
+                const auto label = sidebarPaneIds.size() == 1 ? name : tr("%1 · 组 %2").arg(name).arg(i + 1);
                 QAction *action = moveMenu->addAction(label);
-                action->setData(ids[i]);
+                action->setData(sidebarPaneIds[i]);
                 connect(action, &QAction::triggered, this,
-                        [this, sourceId, contentId, targetId = ids[i]] {
+                        [this, sourceId, contentId, targetId = sidebarPaneIds[i]] {
                     moveContent(sourceId, contentId, targetId, DropZone::Center);
                 });
             }

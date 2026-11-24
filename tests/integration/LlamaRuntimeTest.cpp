@@ -1,3 +1,4 @@
+#include "darkeye_ui/theme/ThemeService.h"
 #include "services/LlamaRuntime.h"
 #include "ui/pages/SettingsPage.h"
 
@@ -23,6 +24,7 @@ private slots:
 
 void LlamaRuntimeTest::sharedProcessSurvivesPageAndCanBeStopped()
 {
+    ThemeService themes(*qApp);
     auto &runtime = get_llama_runtime();
     QCOMPARE(&runtime, &get_llama_runtime());
     LlamaCppSettings config;
@@ -37,7 +39,7 @@ void LlamaRuntimeTest::sharedProcessSurvivesPageAndCanBeStopped()
     QCOMPARE(runtime.processId(), pid);
 
     {
-        TranslationSettingsPage page;
+        TranslationSettingsPage page(themes);
         page.initialize();
         bool foundStatus = false;
         for (auto *label : page.findChildren<QLabel *>())
@@ -51,7 +53,7 @@ void LlamaRuntimeTest::sharedProcessSurvivesPageAndCanBeStopped()
     QVERIFY(runtime.isRunning());
     QCOMPARE(runtime.processId(), pid);
 
-    TranslationSettingsPage page;
+    TranslationSettingsPage page(themes);
     page.initialize();
     QPushButton *start = nullptr;
     QPushButton *stop = nullptr;

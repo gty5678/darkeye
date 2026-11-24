@@ -267,7 +267,9 @@ void ManyBodyForce::applyBarnesHut(float alpha)
 
     const std::vector<QuadNode>& nodes = m_quadTree.nodes();
 
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif
     for (int i = 0; i < N; ++i) {
         float fx_sum = 0.0f;
         float fy_sum = 0.0f;
@@ -329,7 +331,9 @@ void CollisionForce::applyGrid(float alpha)
         grid[{cx, cy}].push_back(i);
     }
 
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif
     for (int i = 0; i < N; ++i) {
         float xi = pos[2 * i];
         float yi = pos[2 * i + 1];

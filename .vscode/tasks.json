@@ -1,0 +1,176 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Darkeye: configure macOS Debug",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--preset",
+        "macos-arm64-debug",
+        "-DQt6_DIR=${env:HOME}/Qt/6.12.0/macos/lib/cmake/Qt6",
+        "-DVCPKG_MANIFEST_MODE=ON"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin:/opt/homebrew/bin:${env:PATH}",
+          "VCPKG_ROOT": "${env:HOME}/.local/share/vcpkg"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Darkeye: build macOS Debug",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "macos-arm64-debug",
+        "--target",
+        "Darkeye",
+        "--parallel",
+        "8"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Darkeye: configure macOS Debug",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "Darkeye: configure macOS Release",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--preset",
+        "macos-arm64-release",
+        "-DQt6_DIR=${env:HOME}/Qt/6.12.0/macos/lib/cmake/Qt6",
+        "-DVCPKG_MANIFEST_MODE=ON"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin:/opt/homebrew/bin:${env:PATH}",
+          "VCPKG_ROOT": "${env:HOME}/.local/share/vcpkg"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Darkeye: build macOS Release",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "macos-arm64-release",
+        "--target",
+        "Darkeye",
+        "--parallel",
+        "8"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Darkeye: configure macOS Release",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "MdEdit: configure macOS Release",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "-S", "${workspaceFolder}/apps/mdedit",
+        "-B", "${workspaceFolder}/build/mdedit-full",
+        "-G", "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DMDEDIT_LITE=OFF",
+        "-DCMAKE_PREFIX_PATH=${env:HOME}/Qt/6.12.0/macos;${workspaceFolder}/../MdEdit/build-local/qt612-deps;${workspaceFolder}/../MdEdit/build-vcpkg/vcpkg_installed/arm64-osx",
+        "-DVCPKG_INSTALLED_DIR=${workspaceFolder}/../MdEdit/build-vcpkg/vcpkg_installed",
+        "-DVCPKG_TARGET_TRIPLET=arm64-osx"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "/opt/homebrew/bin:${env:PATH}"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MdEdit: build macOS Release",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--build", "${workspaceFolder}/build/mdedit-full",
+        "--target", "MdEdit",
+        "--parallel", "8"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "MdEdit: configure macOS Release",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Darkeye: build Component Gallery macOS Debug",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "macos-arm64-debug",
+        "--target",
+        "darkeye_component_gallery",
+        "--parallel",
+        "8"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Darkeye: configure macOS Debug",
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "Darkeye: build Cover Maker Demo macOS Debug",
+      "type": "process",
+      "command": "${env:HOME}/Qt/Tools/CMake/CMake.app/Contents/bin/cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "macos-arm64-debug",
+        "--target",
+        "darkeye_cover_maker_demo",
+        "--parallel",
+        "8"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Darkeye: configure macOS Debug",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    }
+  ]
+}

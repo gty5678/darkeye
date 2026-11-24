@@ -1,0 +1,69 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "gallery_demo_debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-arm64-debug/darkeye_component_gallery",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Darkeye: build Component Gallery macOS Debug"
+    },
+    {
+      "name": "Darkeye macOS Debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-arm64-debug/apps/desktop/Darkeye.app/Contents/MacOS/Darkeye",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--config-dir",
+        "${workspaceFolder}/config",
+        "--avwiki-dir",
+        "${workspaceFolder}/avwiki",
+        "--data-dir",
+        "${workspaceFolder}/data"
+      ],
+      "preLaunchTask": "Darkeye: build macOS Debug",
+      "stopOnEntry": false
+    },
+    {
+      "name": "Darkeye macOS Release",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-arm64-release/apps/desktop/Darkeye.app/Contents/MacOS/Darkeye",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--config-dir",
+        "${workspaceFolder}/config",
+        "--avwiki-dir",
+        "${workspaceFolder}/avwiki",
+        "--data-dir",
+        "${workspaceFolder}/data"
+      ],
+      "preLaunchTask": "Darkeye: build macOS Release",
+      "stopOnEntry": false
+    },
+    {
+      "name": "MdEdit 完整版 macOS Release",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/mdedit-full/MdEdit.app/Contents/MacOS/MdEdit",
+      "cwd": "${workspaceFolder}/apps/mdedit",
+      "preLaunchTask": "MdEdit: build macOS Release",
+      "stopOnEntry": false
+    },
+    {
+      "name": "Cover Maker Demo macOS Debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/macos-arm64-debug/darkeye_cover_maker_demo",
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "preLaunchTask": "Darkeye: build Cover Maker Demo macOS Debug",
+      "stopOnEntry": false,
+      "env": {
+        "DARKEYE_SR_URL": "http://127.0.0.1:8443/v1/upscale"
+      }
+    }
+  ]
+}

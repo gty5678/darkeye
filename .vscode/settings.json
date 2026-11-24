@@ -1,0 +1,5 @@
+{
+  "lldb.adapterEnv": {
+    "LLDB_DEBUGSERVER_PATH": "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Resources/debugserver"
+  }
+}

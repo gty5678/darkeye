@@ -214,10 +214,12 @@ void AvPageTest::followsDarkeyeThemeWhileEditing()
     const QString edited = editor->markdown();
 
     const QColor lightBase = live->palette().color(QPalette::Base);
+    QCOMPARE(lightBase, QColor(themes.currentTokens().pageBackground));
     const QColor lightLink = live->document()->find(QStringLiteral("Reference")).charFormat().foreground().color();
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
     const auto dark = themes.currentTokens();
-    QCOMPARE(live->palette().color(QPalette::Base), QColor(dark.background));
+    QCOMPARE(live->palette().color(QPalette::Base), QColor(dark.pageBackground));
+    QCOMPARE(editor->parentWidget()->palette().color(QPalette::Base), QColor(dark.pageBackground));
     QCOMPARE(live->palette().color(QPalette::Text), QColor(dark.text));
     QVERIFY(lightBase != live->palette().color(QPalette::Base));
     QCOMPARE(tree->palette().color(QPalette::Text), QColor(dark.text));
@@ -231,7 +233,7 @@ void AvPageTest::followsDarkeyeThemeWhileEditing()
     QCOMPARE(editor->markdown(), edited);
     QVERIFY(editor->document()->isModified());
     QVERIFY(themes.setTheme(darkeye::ThemeId::Purple));
-    QCOMPARE(live->palette().color(QPalette::Base), QColor(themes.currentTokens().background));
+    QCOMPARE(live->palette().color(QPalette::Base), QColor(themes.currentTokens().pageBackground));
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
 }
 

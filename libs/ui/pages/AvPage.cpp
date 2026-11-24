@@ -159,7 +159,7 @@ void AvPage::lazyLoad()
 void AvPage::applyTheme()
 {
     const auto tokens = m_themes->currentTokens();
-    const QColor background(tokens.background);
+    const QColor background(tokens.pageBackground);
     const QColor text(tokens.text);
     const QColor primary(tokens.primary);
     const auto mix = [](const QColor &from, const QColor &to, double weight) {
@@ -168,10 +168,10 @@ void AvPage::applyTheme()
                                 from.blueF() * (1 - weight) + to.blueF() * weight);
     };
     QPalette themed = palette();
-    themed.setColor(QPalette::Window, QColor(tokens.pageBackground));
+    themed.setColor(QPalette::Window, background);
     themed.setColor(QPalette::WindowText, text);
     themed.setColor(QPalette::Base, background);
-    themed.setColor(QPalette::AlternateBase, QColor(tokens.pageBackground));
+    themed.setColor(QPalette::AlternateBase, background);
     themed.setColor(QPalette::Button, QColor(tokens.inputBackground));
     themed.setColor(QPalette::ButtonText, text);
     themed.setColor(QPalette::Text, text);

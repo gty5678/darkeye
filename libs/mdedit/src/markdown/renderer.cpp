@@ -310,7 +310,7 @@ static QString normalizeFileLinkSeparators(QString source){
     return source;
 }
 
-int renderMarkdown(QTextDocument *document,const QString &source,QStringList &errors,bool live, const std::optional<QPalette> &theme){
+int renderMarkdown(QTextDocument *document,const QString &source,[[maybe_unused]] QStringList &errors,bool live, const std::optional<QPalette> &theme){
     document->setIndentWidth(24);
     auto *layout=document->documentLayout();
     if(!live&&!dynamic_cast<FormulaImageHandler *>(layout->handlerForObject(QTextFormat::ImageObject)))

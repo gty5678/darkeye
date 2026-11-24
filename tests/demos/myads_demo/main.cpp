@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
         ++added;
         workspace->fillPane(workspace->activePane(), demoContent(
             QStringLiteral("extra_%1").arg(added), QStringLiteral("新标签 %1").arg(added),
-            added % 2 ? QStringLiteral("#a43d63") : QStringLiteral("#397847")));
+            (added % 2 != 0) ? QStringLiteral("#a43d63") : QStringLiteral("#397847")));
     });
     QObject::connect(splitRightButton, &QAction::triggered, workspace, [workspace] {
         workspace->split(workspace->activePane(), Placement::Right);

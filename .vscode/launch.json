@@ -2,6 +2,34 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Darkeye MSVC Debug",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/windows-msvc-debug/Darkeye.exe",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--config-dir", "${workspaceFolder}/config",
+        "--avwiki-dir", "${workspaceFolder}/avwiki",
+        "--data-dir", "${workspaceFolder}/data"
+      ],
+      "preLaunchTask": "Darkeye: build MSVC Debug",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Darkeye MSVC Release",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/windows-msvc-release/Darkeye.exe",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--config-dir", "${workspaceFolder}/config",
+        "--avwiki-dir", "${workspaceFolder}/avwiki",
+        "--data-dir", "${workspaceFolder}/data"
+      ],
+      "preLaunchTask": "Darkeye: build MSVC Release",
+      "stopAtEntry": false
+    },
+    {
       "name": "gallery_demo_debug",
       "type": "lldb",
       "request": "launch",

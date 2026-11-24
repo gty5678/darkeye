@@ -22,14 +22,14 @@ bool testSmoothDampedMotion()
     state.init(1, {});
     state.pos = {100.0f, 0.0f};
     Simulation sim(&state);
-    sim.addForce("center", std::make_unique<CenterForce>(0, 0, 0.1f));
+    sim.addForce("center", std::make_unique<CenterForce>(0.0f, 0.0f, 0.1f));
     sim.start();
     sim.tick();
     // Analytic solution of v' = drive - friction*v for a constant force.
     const double friction = -std::log(0.75) / 0.1;
     const double expectedTravel = -30.0 * (0.1 - 0.25 / friction);
     const double scale = 1.0 / std::sqrt(1.0 + 0.75 * 0.75 / 225.0);
-    if (!nearlyEqual(state.pos[0], 100.0f + expectedTravel * scale)
+    if (!nearlyEqual(state.pos[0], static_cast<float>(100.0 + expectedTravel * scale))
         || !(state.pos[0] > 99.25f)) {
         std::cerr << "damped integration did not soften the first impulse\n";
         return false;
@@ -53,7 +53,7 @@ bool testPinnedNodesHaveNoResidualVelocity()
     state.setDragPos(0, 100.0f, -20.0f);
     state.vel = {1000.0f, -1000.0f};
     Simulation sim(&state);
-    sim.addForce("center", std::make_unique<CenterForce>(0, 0, 10000.0f));
+    sim.addForce("center", std::make_unique<CenterForce>(0.0f, 0.0f, 10000.0f));
     sim.start();
     for (int i = 0; i < 10; ++i) sim.tick();
     if (state.pos != state.dragPos || state.vel != std::vector<float>({0, 0})) {

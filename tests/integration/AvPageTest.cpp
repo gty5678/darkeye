@@ -165,7 +165,7 @@ void AvPageTest::importsDroppedImagesInBothEditorModes()
         auto *view = editor.findChild<QAbstractScrollArea *>(
             live ? QStringLiteral("markdownPreview") : QStringLiteral("markdownEditor"));
         QVERIFY(view != nullptr);
-        const QPoint point(20, 20);
+        const QPointF point(20, 20);
         QDragEnterEvent enter(point, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
         QApplication::sendEvent(view->viewport(), &enter);
         QVERIFY(enter.isAccepted());

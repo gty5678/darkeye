@@ -200,7 +200,7 @@ protected:
             painter.drawLine(exposed.left(), y, exposed.right(), y);
 
         auto guideColor = colors.color(QPalette::Text);
-        guideColor.setAlphaF(0.24);
+        guideColor.setAlphaF(0.24f);
         painter.setPen(guideColor);
         for (const QLine &stem : m_stems) {
             if (stem.x1() >= exposed.left() && stem.x1() <= exposed.right())
@@ -351,7 +351,7 @@ private:
         const auto minor = colors.color(QPalette::PlaceholderText);
         const auto major = colors.color(QPalette::Text);
         auto grid = major;
-        grid.setAlphaF(0.09);
+        grid.setAlphaF(0.09f);
         const int rulerBottom = rulerTop + axisY;
         const auto drawTick = [&](const QDate &date, const QString &label, bool emphasized) {
             const int x = qRound(trackPad + m_dateMin.daysTo(date) * m_ppd);

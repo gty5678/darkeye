@@ -241,7 +241,7 @@ private slots:
         texture->mipmap=TextureData::Mipmap::Linear;
         texture->image=QImage(2048,512,QImage::Format_RGBA8888);
         for(int y=0;y<512;++y) {
-            const auto color=(y/32)%2?QColor(Qt::white):QColor(Qt::black);
+            const auto color = ((y / 32) % 2 != 0) ? QColor(Qt::white) : QColor(Qt::black);
             for(int x=0;x<2048;++x) texture->image.setPixelColor(x,y,color);
         }
         auto material=std::make_shared<Material>();

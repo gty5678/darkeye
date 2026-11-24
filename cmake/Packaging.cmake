@@ -1,5 +1,9 @@
 include(GNUInstallDirs)
 
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
+
 function(darkeye_configure_packaging target)
     get_target_property(is_bundle ${target} MACOSX_BUNDLE)
     if(APPLE AND is_bundle)

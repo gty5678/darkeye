@@ -14,7 +14,7 @@ target_link_libraries(darkeye_desktop_ui PUBLIC
     darkeye::graph
 )
 if(WIN32)
-    target_link_libraries(darkeye_desktop_ui PRIVATE Psapi)
+    target_link_libraries(darkeye_desktop_ui PRIVATE dwmapi Psapi)
 elseif(APPLE)
     find_library(DARKEYE_APPKIT AppKit REQUIRED)
     target_sources(darkeye_desktop_ui PRIVATE

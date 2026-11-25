@@ -1106,9 +1106,12 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     QTRY_VERIFY(!recovered.isEmpty());
     QVERIFY(renderer->lastError().isEmpty());
     QVERIFY(view->findChild<QLabel *>(QStringLiteral("ShelfSceneError"))->isHidden());
+    const qreal jumpedCameraX = view->cameraTargetX();
+    QVERIFY(jumpedCameraX > 0);
     scene->returnToShelf();
     QTRY_COMPARE(view->currentWorkId(), 0);
-    QCOMPARE(view->cameraTargetX(), qreal(0));
+    QCOMPARE(view->cameraTargetX(), jumpedCameraX);
+    QCOMPARE(view->cameraX(), jumpedCameraX);
     QVERIFY(page.showWork(secondId));
     QTRY_COMPARE(view->expandedWorkCode(), secondSerial);
 

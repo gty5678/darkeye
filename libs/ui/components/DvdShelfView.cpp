@@ -885,12 +885,13 @@ QSet<qint64> DvdShelfView::displayedWorkIds() const
     return ids;
 }
 
-bool DvdShelfView::openWork(qint64 workId, bool restoreCameraOnClose)
+bool DvdShelfView::openWork(qint64 workId)
 {
     for (int i = 0; i < m_works.size(); ++i) {
         if (m_works[i].id != workId) continue;
         m_pendingHistoryIndex.reset();
-        return focusWork(i, restoreCameraOnClose);
+        m_returnCameraX.reset();
+        return focusWork(i, false);
     }
     return false;
 }

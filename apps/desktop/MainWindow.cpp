@@ -1026,7 +1026,7 @@ void MainWindow::openWorkspaceSearch(bool commands)
 
 void MainWindow::openWorkspaceSearchResult(const QString &route)
 {
-    navigateTo(route, true, ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ResetToRandom);
+    navigateTo(route, true, ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ResetToRandomIfExcluded);
 }
 
 QWidget *MainWindow::partialCaptureTarget()
@@ -1369,6 +1369,13 @@ void MainWindow::showWorkInShelf(qint64 workId)
     if (workId > 0) navigateTo(QStringLiteral("work_detail/") + QString::number(workId));
 }
 
+void MainWindow::showWorkInShelfWithFilterFallback(qint64 workId)
+{
+    if (workId > 0)
+        navigateTo(QStringLiteral("work_detail/") + QString::number(workId), true,
+                   ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ResetToRandomIfExcluded);
+}
+
 void MainWindow::openPerson(PersonKind kind, qint64 id)
 {
     if (id > 0) navigateTo((kind == PersonKind::Actress ? QStringLiteral("actress_detail/")
@@ -1543,10 +1550,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     if (routeName == QStringLiteral("home"))
     {
         m_homePage = new HomePage(m_publicDatabase, m_paths.workCoverDirectory(), m_themeService, parent);
-        connect(m_homePage, &HomePage::detailRequested, this, [this](qint64 workId) {
-            navigateTo(QStringLiteral("work_detail/") + QString::number(workId), true,
-                       ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ResetToRandom);
-        });
+        connect(m_homePage, &HomePage::detailRequested, this, &MainWindow::showWorkInShelfWithFilterFallback);
         return m_homePage;
     }
     if (routeName == QStringLiteral("mutiwork"))
@@ -1767,7 +1771,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     {
         auto *timeline = new ActressWorkTimeline(parent, m_paths.workCoverDirectory(),
                                                  m_paths.actressImageDirectory(), &m_themeService);
-        connect(timeline, &ActressWorkTimeline::workRequested, this, &MainWindow::showWorkInShelf);
+        connect(timeline, &ActressWorkTimeline::workRequested, this, &MainWindow::showWorkInShelfWithFilterFallback);
         m_timelinePage = timeline;
         connect(timeline, &ActressWorkTimeline::initialized, this, &MainWindow::updateTimeline);
         return timeline;
@@ -1914,11 +1918,12 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
     if (!widget) return;
     if (work) {
         auto *shelf = static_cast<ShelfPage *>(widget);
-        if (shelfFilter == ShelfFilterPolicy::ResetToRandom)
-            shelf->resetWorkFilters(WorkSortOrder::Random);
         if (!shelf->containsWork(work->id)) {
-            if (shelfFilter != ShelfFilterPolicy::ClearIfExcluded) return;
-            shelf->resetWorkFilters();
+            if (shelfFilter == ShelfFilterPolicy::Keep) return;
+            if (shelfFilter == ShelfFilterPolicy::ResetToRandomIfExcluded)
+                shelf->resetWorkFilters(WorkSortOrder::Random);
+            else
+                shelf->resetWorkFilters();
             if (!shelf->containsWork(work->id)) return;
         }
     }

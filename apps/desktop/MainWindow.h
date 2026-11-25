@@ -100,7 +100,7 @@ private:
     void changeTheme(int index);
     void saveWindowState() const;
     enum class ActressOpenMode { Automatic, Switching, Independent };
-    enum class ShelfFilterPolicy { Keep, ClearIfExcluded, ResetToRandom };
+    enum class ShelfFilterPolicy { Keep, ClearIfExcluded, ResetToRandomIfExcluded };
     void navigateTo(const QString &routeName, bool recordRecent = true,
                     ActressOpenMode actressMode = ActressOpenMode::Automatic,
                     myads::PaneWidget *preferredPane = nullptr,
@@ -125,6 +125,7 @@ private:
     void updateTimeline();
     void refreshPersonalRecordPanels();
     void showWorkInShelf(qint64 workId);
+    void showWorkInShelfWithFilterFallback(qint64 workId);
     void registerApplicationActions();
     void openWorkspaceSearch(bool commands);
     void openWorkspaceSearchResult(const QString &route);

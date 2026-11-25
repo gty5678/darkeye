@@ -151,7 +151,7 @@ private slots:
     void makerManagementSearchMatchesPythonBehavior();
     void histogramShowsPercentileLines();
     void homeAdaptsRandomRowsToHeight();
-    void homeOpensWorkWithPublicRandomFilters();
+    void homePreservesFiltersWhenWorkIsIncluded();
     void exposesAllPrimaryNavigationPages();
     void navigationBarOpensPages();
     void navigationBarSettingsRememberVisibility();
@@ -1675,7 +1675,7 @@ void MainWindowSmokeTest::actressPartialCaptureSavesCard()
     QCOMPARE(QImage(path).size(), cardImageSize);
 }
 
-void MainWindowSmokeTest::homeOpensWorkWithPublicRandomFilters()
+void MainWindowSmokeTest::homePreservesFiltersWhenWorkIsIncluded()
 {
     QTemporaryDir directory;
     darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
@@ -1723,6 +1723,15 @@ void MainWindowSmokeTest::homeOpensWorkWithPublicRandomFilters()
     QVERIFY(shelf);
     QCOMPARE(shelf->filteredWorkIds(), QSet<qint64>{*workId});
     QCOMPARE(shelf->currentWorkId(), *workId);
+    QTRY_COMPARE(shelf->expandedWorkId(), *workId);
+
+    serial->setText(work.serialNumber);
+    sort->setCurrentIndex(sort->findData(static_cast<int>(darkeye::WorkSortOrder::SerialAscending)));
+    QVERIFY(pane->setCurrentContentId(QStringLiteral("home")));
+    emit home->detailRequested(*workId);
+    QCOMPARE(pane->currentContentId(), QStringLiteral("shelf"));
+    QCOMPARE(serial->text(), work.serialNumber);
+    QCOMPARE(sort->currentData().toInt(), static_cast<int>(darkeye::WorkSortOrder::SerialAscending));
     QTRY_COMPARE(shelf->expandedWorkId(), *workId);
 }
 
@@ -1947,6 +1956,16 @@ void MainWindowSmokeTest::timelineFollowsActressAndFilteredWorks()
     QCOMPARE(switchDetail->currentPersonId(), *coStar);
     QCOMPARE(timelineIds(), QSet<qint64>{*sharedId});
     QCOMPARE(thumbnails().size(), 1);
+
+    serial->setText(shared.serialNumber);
+    QTRY_COMPARE(shelf->filteredWorkIds(), QSet<qint64>{*sharedId});
+    search->openRequested(QStringLiteral("work_detail/%1").arg(*sharedId));
+    QTRY_VERIFY(scene->isFullyExpanded());
+    QTRY_COMPARE(timelineIds(), actressWorks);
+    emit timeline->workRequested(*linkedId);
+    QVERIFY(serial->text().isEmpty());
+    QCOMPARE(shelf->filteredWorkIds(), allWorks);
+    QTRY_COMPARE(shelf->expandedWorkId(), *linkedId);
 }
 
 void MainWindowSmokeTest::localRelationshipGraphFollowsActiveContent()
@@ -3372,9 +3391,17 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         workspace->setActivePane(pane);
         QVERIFY(pane->setCurrentContentId(firstRoute));
         QCOMPARE(workspace->activePane(), pane);
-        search->openRequested(QStringLiteral("work_detail/") + QString::number(*otherWorkId));
+        serial->setText(otherWork.serialNumber);
+        sort->setCurrentIndex(sort->findData(static_cast<int>(darkeye::WorkSortOrder::SerialDescending)));
+        openSearch();
+        QTRY_VERIFY(search->isVisible());
+        input->setText(otherWork.serialNumber);
+        QTest::keyClick(input, Qt::Key_Return);
         QCOMPARE(workspace->activePane(), workPane);
         QCOMPARE(workPane->contentWidget(shelfRoute), shelfPage);
+        QCOMPARE(serial->text(), otherWork.serialNumber);
+        QCOMPARE(sort->currentData().toInt(), static_cast<int>(darkeye::WorkSortOrder::SerialDescending));
+        QCOMPARE(shelfPage->filteredWorkIds(), QSet<qint64>{*otherWorkId});
         QTRY_COMPARE(shelfView->expandedWorkCode(), otherWork.serialNumber);
 
         const QList<QPair<QString, qint64>> shelfSearches{

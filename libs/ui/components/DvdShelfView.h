@@ -31,7 +31,7 @@ public:
                           const QString &fanartDirectory, QWidget *parent = nullptr);
     void bindTheme(ThemeService &themes);
     void setWorks(const QList<WorkSummary> &works);
-    bool openWork(qint64 workId, bool restoreCameraOnClose = false);
+    bool openWork(qint64 workId);
     void refreshCurrentFavorite();
     [[nodiscard]] qint64 currentWorkId() const;
     [[nodiscard]] qint64 focusedWorkId() const { return m_focusedWorkId; }

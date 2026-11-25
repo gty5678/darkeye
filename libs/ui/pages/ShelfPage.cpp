@@ -146,7 +146,7 @@ bool ShelfPage::showWork(qint64 workId)
 {
     initialize();
     m_filter->flush();
-    return workId > 0 && m_shelfView->openWork(workId, true);
+    return workId > 0 && m_shelfView->openWork(workId);
 }
 
 qint64 ShelfPage::currentWorkId() const

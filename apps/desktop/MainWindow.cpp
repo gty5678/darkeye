@@ -1168,8 +1168,10 @@ void MainWindow::refreshWorkspace()
             if (personPage->kind() == PersonKind::Actress ? actresses || actressFavorites : actors)
                 personPage->refresh();
         } else if (auto *detail = qobject_cast<PersonDetailPage *>(lazyPage)) {
-            if ((actresses || actressFavorites || works || tags || references) && detail->currentPersonId() > 0)
+            if ((actresses || works || tags || references) && detail->currentPersonId() > 0)
                 detail->showPerson(detail->currentPersonId());
+            else if (actressFavorites)
+                detail->refreshFavorite();
         } else if (auto *editor = qobject_cast<AddWorkTabPage3 *>(lazyPage)) {
             if (people || tags)
                 editor->refreshAssociations();

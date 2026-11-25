@@ -223,13 +223,18 @@ void PersonInfoPanel::setDetails(const PersonDetails &details, bool favorite)
     m_actressAliases->setVisible(details.kind == PersonKind::Actress);
     m_aliasesGroup->setVisible(details.kind == PersonKind::Actor);
     m_worksGroup->setVisible(details.kind == PersonKind::Actor);
-    m_heart->setState(favorite);
+    setFavorite(favorite);
     m_notes->setText(details.notes.trimmed().isEmpty() ? QStringLiteral("暂无备注")
                                                        : details.notes.trimmed());
     rebuildNames(details);
     rebuildFacts(details);
     rebuildRadar(details);
     rebuildWorks(details);
+}
+
+void PersonInfoPanel::setFavorite(bool favorite)
+{
+    m_heart->setState(favorite);
 }
 
 bool PersonInfoPanel::eventFilter(QObject *watched, QEvent *event)

@@ -95,6 +95,17 @@ bool PersonDetailPage::showPerson(qint64 personId, bool reportError)
     return true;
 }
 
+void PersonDetailPage::refreshFavorite()
+{
+    if (!m_details)
+        return;
+
+    QString errorMessage;
+    const bool favorite = m_privateRepository.isFavoriteActress(m_details->id, &errorMessage);
+    if (errorMessage.isEmpty())
+        m_panel->setFavorite(favorite);
+}
+
 QWidget *PersonDetailPage::captureContent()
 {
     initialize();
@@ -147,7 +158,7 @@ void PersonDetailPage::toggleFavorite(bool favorite)
     }
     if (!success)
     {
-        m_panel->setDetails(*m_details, !favorite);
+        m_panel->setFavorite(!favorite);
         Toast::showError(window(), errorMessage, &m_themes);
         return;
     }

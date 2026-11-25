@@ -27,6 +27,7 @@ public:
                              QWidget *parent = nullptr);
 
     void setDetails(const PersonDetails &details, bool favorite = false);
+    void setFavorite(bool favorite);
     [[nodiscard]] qint64 personId() const noexcept;
     [[nodiscard]] PersonKind kind() const noexcept;
 

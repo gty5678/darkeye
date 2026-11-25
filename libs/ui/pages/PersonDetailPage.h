@@ -24,6 +24,7 @@ public:
                               QString imageDirectory = {}, QWidget *parent = nullptr);
 
     bool showPerson(qint64 personId, bool reportError = true);
+    void refreshFavorite();
     void clearPerson();
     [[nodiscard]] QWidget *captureContent();
     [[nodiscard]] qint64 currentPersonId() const noexcept;

@@ -255,22 +255,23 @@ void ComponentLibraryTest::pathManagementBrowsesWithOneClick()
     // A single click must work before the row has been selected or edited.
     const bool nativeDialogsDisabled = QApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, true);
+    const auto restoreDialogs = qScopeGuard([nativeDialogsDisabled] {
+        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, nativeDialogsDisabled);
+    });
     bool opened = false;
-    QTimer::singleShot(0, &multiple, [&] {
-        for (QWidget *widget : QApplication::topLevelWidgets())
-        {
-            if (auto *dialog = qobject_cast<QFileDialog *>(widget))
-            {
-                opened = true;
-                dialog->selectFile(second.path());
-                QMetaObject::invokeMethod(dialog, "accept", Qt::DirectConnection);
-            }
+    QTimer selectFolder;
+    connect(&selectFolder, &QTimer::timeout, &multiple, [&] {
+        if (auto *dialog = multiple.findChild<QFileDialog *>(); dialog && dialog->isVisible()) {
+            selectFolder.stop();
+            opened = true;
+            dialog->selectFile(second.path());
+            QMetaObject::invokeMethod(dialog, "accept", Qt::QueuedConnection);
+            QTimer::singleShot(3000, dialog, &QDialog::reject);
         }
     });
+    selectFolder.start(20);
     QTest::mouseClick(table->viewport(), Qt::LeftButton, Qt::NoModifier,
                       table->visualItemRect(table->item(1, 1)).center());
-    QCoreApplication::processEvents();
-    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, nativeDialogsDisabled);
     QVERIFY(opened);
     QCOMPARE(multiple.paths(), QStringList({first.path(), second.path()}));
     QVERIFY(!(table->item(1, 1)->flags() & Qt::ItemIsEditable));

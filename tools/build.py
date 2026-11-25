@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -118,7 +119,7 @@ def macos_environment(env):
 
 
 def build_project(configuration="Release", run_tests=False, dry_run=False, clean=False,
-                  skip_build=False, build_directory=None, target=None):
+                  skip_build=False, build_directory=None, target=None, on_build_time=None):
     env = os.environ.copy()
     system = platform.system().lower()
     config = configuration.lower()
@@ -186,7 +187,10 @@ def build_project(configuration="Release", run_tests=False, dry_run=False, clean
     if clean:
         clean_build_directory(build_dir, dry_run)
     run(configure, env, dry_run)
+    started = time.perf_counter() if on_build_time is not None and not dry_run else None
     run(build, env, dry_run)
+    if started is not None:
+        on_build_time(time.perf_counter() - started)
     if run_tests:
         ctest = str(Path(cmake).with_name("ctest.exe" if system == "windows" else "ctest"))
         run([ctest, "--test-dir", str(build_dir), "-C", configuration,

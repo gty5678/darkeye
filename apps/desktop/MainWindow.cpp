@@ -328,11 +328,6 @@ MainWindow::MainWindow(ThemeService &themeService,
       m_paths(std::move(paths)), m_publicDatabase(std::move(publicDatabase)),
       m_privateDatabase(std::move(privateDatabase))
 {
-#ifdef Q_OS_WIN
-    // Paint the window background behind the native title bar. QMainWindow's
-    // layout respects the safe area, keeping navigation and tabs below it.
-    setWindowFlags(windowFlags() | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
-#endif
 #ifdef Q_OS_MACOS
     setWindowFlag(Qt::NoTitleBarBackgroundHint);
     connect(&m_themeService, &ThemeService::themeChanged, this, &MainWindow::updateMacTitleBarBackground);

@@ -14,8 +14,8 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 import tempfile
+import time
 
 from build import PROJECT_ROOT, build_project, run
 
@@ -148,12 +148,10 @@ def archive_install(destination, archive, seven_zip):
     total_bytes = sum(path.stat().st_size for path in files)
     print(f"开始 7z 压缩：{len(files)} 个文件，"
           f"原始大小 {total_bytes / 1024 / 1024:.1f} MiB", flush=True)
-    started = time.perf_counter()
     subprocess.run(
         [seven_zip, "a", "-t7z", "-mx=7", "-bsp1", str(temporary), destination.name],
         cwd=destination.parent, check=True,
     )
-    print(f"压缩用时：{time.perf_counter() - started:.1f} 秒", flush=True)
     print("正在校验压缩包完整性……", flush=True)
     subprocess.run([seven_zip, "t", "-bsp1", str(temporary)], check=True)
     temporary.rename(archive)
@@ -172,15 +170,7 @@ def main():
     parser.add_argument("--skip-build", action="store_true", help="Use the existing Release build")
     parser.add_argument("--clean", action="store_true", help="Rebuild Release from scratch")
     args = parser.parse_args()
-    started = time.perf_counter()
-    try:
-        return package_project(args)
-    finally:
-        if not args.dry_run:
-            elapsed = time.perf_counter() - started
-            minutes, seconds = divmod(elapsed, 60)
-            print(f"总用时：{int(minutes)} 分 {seconds:.1f} 秒"
-                  f"（{elapsed:.1f} 秒）", flush=True)
+    return package_project(args)
 
 
 def find_iscc(explicit=None):
@@ -194,7 +184,7 @@ def find_iscc(explicit=None):
     raise RuntimeError("找不到 Inno Setup 编译器，请安装 Inno Setup 或使用 --iscc 指定 ISCC.exe。")
 
 
-def package_windows(args):
+def package_windows(args, on_build_time=None):
     if platform.system() != "Windows":
         raise RuntimeError("此脚本生成 Windows 发布包，请在 Windows 上运行。")
     seven_zip = find_seven_zip() if args.format != "installer" else None
@@ -213,7 +203,7 @@ def package_windows(args):
         remove_existing_outputs(portable, archive, args.dry_run)
     cmake, env, build_dir = build_project(
         "Release", run_tests=args.test, dry_run=args.dry_run, clean=args.clean,
-        skip_build=args.skip_build, build_directory=args.build_dir)
+        skip_build=args.skip_build, build_directory=args.build_dir, on_build_time=on_build_time)
     if not args.dry_run:
         destination.mkdir(parents=True)
     run([cmake, "--install", str(build_dir), "--config", "Release",
@@ -521,13 +511,19 @@ def file_sha256(path):
 
 
 def package_project(args):
+    build_elapsed = None
+
+    def record_build_time(elapsed):
+        nonlocal build_elapsed
+        build_elapsed = elapsed
+
     system, arch = release_platform()
     if args.clean and args.skip_build:
         raise RuntimeError("--clean and --skip-build cannot be combined")
     if args.test and args.skip_build:
         raise RuntimeError("--test and --skip-build cannot be combined")
     if system == "windows":
-        outputs = package_windows(args)
+        outputs = package_windows(args, on_build_time=record_build_time)
     else:
         version = project_version()
         base = safe_output((args.destination or PROJECT_ROOT / "out" / f"Darkeye-{version}-{system}-{arch}").absolute())
@@ -535,7 +531,7 @@ def package_project(args):
         portable = base.with_name(base.name + "-portable")
         cmake, env, build_dir = build_project("Release", run_tests=args.test, dry_run=args.dry_run,
                                             clean=args.clean, skip_build=args.skip_build,
-                                            build_directory=args.build_dir)
+                                            build_directory=args.build_dir, on_build_time=record_build_time)
         reset_output(destination, args.dry_run)
         if not args.dry_run:
             destination.mkdir(parents=True)
@@ -566,6 +562,10 @@ def package_project(args):
         obsolete.append(base.with_name(base.name + "-setup.pkg"))
     for path in obsolete:
         reset_output(path, args.dry_run)
+    if build_elapsed is not None:
+        minutes, seconds = divmod(build_elapsed, 60)
+        print(f"编译用时：{int(minutes)} 分 {seconds:.1f} 秒"
+              f"（{build_elapsed:.1f} 秒）", flush=True)
     return 0
 
 

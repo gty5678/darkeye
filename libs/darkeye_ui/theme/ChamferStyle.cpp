@@ -180,10 +180,14 @@ EdgeCoverage edgeCoverage(const QColor &pixel, const QColor &edge, const QColor 
 class ChamferEffect final : public QGraphicsEffect
 {
 public:
-    explicit ChamferEffect(QWidget *parent) : QGraphicsEffect(parent), m_squareTop(
-        qobject_cast<QGroupBox *>(parent) || qobject_cast<QTabWidget *>(parent)) {}
+    explicit ChamferEffect(QWidget *parent)
+        : QGraphicsEffect(parent),
+          m_squareTop(qobject_cast<QGroupBox *>(parent) || qobject_cast<QTabWidget *>(parent)),
+          m_restoreBorder(!parent->inherits("darkeye::RotateButton"))
+    {}
 private:
     bool m_squareTop;
+    bool m_restoreBorder;
 protected:
     void draw(QPainter *painter) override
     {
@@ -208,7 +212,9 @@ protected:
         // only the silhouette; a contrasting edge needs a complete inset ring.
         const int x = result.width() / 2;
         for (bool bottom : {false, true}) {
-            if (!bottom && m_squareTop) continue;
+            // A rotating icon can cross the sample column near the edge.
+            // RotateButton is borderless, so those pixels only need clipping.
+            if (!m_restoreBorder || (!bottom && m_squareTop)) continue;
             const auto edgePixel = [&](int row) {
                 return result.pixelColor(x, bottom ? result.height() - 1 - row : row);
             };

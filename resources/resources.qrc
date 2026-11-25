@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/workspace">
         <file alias="browsing.json">workspace/browsing.json</file>
+        <file alias="pure-browsing.json">workspace/pure-browsing.json</file>
     </qresource>
     <qresource prefix="/sql">
         <file alias="initPublicTable.sql">sql/initPublicTable.sql</file>

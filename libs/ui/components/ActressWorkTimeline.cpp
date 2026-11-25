@@ -576,6 +576,7 @@ ActressWorkTimeline::ActressWorkTimeline(QWidget *parent, QString coverDirectory
       m_actressImageDirectory(std::move(actressImageDirectory)), m_themes(themes)
 {
     setObjectName(QStringLiteral("ActressWorkTimeline"));
+    setProperty("myadsUsePageBackground", true);
     setAttribute(Qt::WA_StyledBackground);
     setMinimumHeight(130);
 }

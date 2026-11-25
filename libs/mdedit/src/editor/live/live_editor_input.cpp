@@ -260,11 +260,6 @@ void LiveEditor::mouseReleaseEvent(QMouseEvent *event){
         QTextBrowser::mouseReleaseEvent(event);
     }
 
-void LiveEditor::focusInEvent(QFocusEvent *event){
-        QTextBrowser::focusInEvent(event);
-        if(event->reason()!=Qt::ActiveWindowFocusReason&&active<0)activateCaretRegion();
-    }
-
 void LiveEditor::focusOutEvent(QFocusEvent *event){
         if(mathPreviewPanel)mathPreviewPanel->hide();
         if(axisPressed)cancelAxisDrag();

@@ -79,7 +79,7 @@ private:
     void openPerson(PersonKind kind, qint64 personId);
     void openWorkEditor(qint64 workId);
     void closeCurrentTab();
-    void restoreWorkspacePreset();
+    void restoreWorkspacePreset(const QString &resource);
     QString workspaceFile() const;
     std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
     void updateWindowTitle();

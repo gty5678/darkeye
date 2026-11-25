@@ -328,7 +328,7 @@ void AddWorkTabPage3::lazyLoad()
     playButton->setObjectName(QStringLiteral("WorkLocalVideoButton"));
     playButton->setAutoRaise(false);
     playButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
-    playButton->setToolTip(QStringLiteral("播放本地视频（与 DVD 书架相同，按 video_url）"));
+    playButton->setToolTip(QStringLiteral("播放本地视频（与 DVD 浏览相同，按 video_url）"));
     playButton->setFixedSize(36, 28);
     localVideoLayout->addWidget(playButton);
     localVideoLayout->addStretch();

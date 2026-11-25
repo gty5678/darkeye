@@ -9,7 +9,7 @@ LiveEditor::LiveEditor(){
             const int position=sourcePosition(caret.position());
             const int anchor=sourcePosition(caret.anchor());
             QScopedValueRollback<bool> refreshing(backgroundRefresh,true);
-            rebuild(-1,0,position);
+            rebuild(-1,0,position,active>=0);
             // A user may already have selected or edited the first screen.
             if(anchor!=position)restoreSourceSelection(anchor,position);
         });
@@ -130,7 +130,8 @@ void LiveEditor::setSource(const QString &text,bool resetCursor){
     // Render complete opening blocks first; keep source authoritative throughout.
     initialRenderLimit=resetCursor&&text.size()>6000?2500:0;
     const bool staged=initialRenderLimit>0;
-    rebuild(-1,0,resetCursor?0:-1);
+    // Start at the top without exposing the first block's Markdown syntax.
+    rebuild(-1,0,resetCursor?0:-1,false);
     if(staged)initialRenderTimer.start();
     if(resetCursor){
         verticalScrollBar()->setValue(0);

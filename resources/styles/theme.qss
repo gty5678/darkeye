@@ -1047,17 +1047,6 @@ QLabel#WorkCardTitle {
 }
 
 
-QPushButton#WorkCoverViewToggle {
-    background-color: {{color_bg_page}};
-    border: {{border_width_thin}} solid {{color_border}};
-}
-QPushButton#WorkCoverViewToggle:hover {
-    border-color: {{color_primary}};
-}
-QPushButton#WorkCoverViewToggle:focus {
-    border-color: {{color_border_focus}};
-}
-
 QPushButton#DesignButton[variant="personSave"] {
     background-color: {{color_modified}};
     color: {{color_text_on_status}};

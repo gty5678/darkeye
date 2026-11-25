@@ -12,6 +12,7 @@
 #include <QDropEvent>
 #include <QGraphicsScene>
 #include <QGraphicsView>
+#include <QHoverEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
@@ -371,26 +372,29 @@ void MyAdsTest::closingTabsKeepsWidthsUntilPointerLeaves()
     QVERIFY(bar);
     const int secondWidth = bar->tabRect(1).width();
     const int thirdWidth = bar->tabRect(2).width();
-    const auto moveOverBar = [&](const QPoint &point) {
-        QTest::mouseMove(pane.windowHandle(), bar->mapTo(&pane, point));
+    const auto moveOverBar = [bar](const QPoint &point) {
+        QHoverEvent hover(QEvent::HoverMove, point, bar->mapToGlobal(point), QPoint(-1, -1));
+        QCoreApplication::sendEvent(bar, &hover);
     };
 
-    moveOverBar(QPoint(10, bar->height() + 10));
     for (int remaining : {2, 1}) {
-        auto *button = bar->tabButton(0, QTabBar::RightSide);
+        auto *button = qobject_cast<QToolButton *>(bar->tabButton(0, QTabBar::RightSide));
+        QVERIFY(button);
         moveOverBar(bar->tabRect(0).center());
-        QTRY_VERIFY(button->isVisible());
+        QVERIFY(button->isVisible());
         moveOverBar(button->geometry().center());
-        QTest::mouseClick(button, Qt::LeftButton);
+        button->click();
         QCOMPARE(bar->count(), remaining);
-        QCoreApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
         QCOMPARE(bar->tabRect(remaining - 1).width(), thirdWidth);
         if (remaining == 2) QCOMPARE(bar->tabRect(0).width(), secondWidth);
     }
 
     moveOverBar(QPoint(bar->width() - 1, bar->height() / 2));
     QCOMPARE(bar->tabRect(0).width(), thirdWidth);
-    moveOverBar(QPoint(10, bar->height() + 10));
+    QHoverEvent leave(QEvent::HoverLeave, QPoint(-1, -1), QPoint(-1, -1),
+                      QPoint(bar->width() - 1, bar->height() / 2));
+    QCoreApplication::sendEvent(bar, &leave);
     QTRY_VERIFY(bar->tabRect(0).width() > thirdWidth);
 }
 
@@ -538,8 +542,13 @@ void MyAdsTest::draggingTabFollowsPointer()
         }
         return bounds;
     };
-    QVERIFY(inkBounds(resting).isValid());
-    QCOMPARE(inkBounds(transitionStart).size(), inkBounds(resting).size());
+    const QRect restingInk = inkBounds(resting);
+    const QRect transitionInk = inkBounds(transitionStart);
+    QVERIFY(restingInk.isValid());
+    QVERIFY(transitionInk.isValid());
+    // Drawing the animation pixmap can round the glyph bounds differently at fractional DPI.
+    QVERIFY(std::abs(transitionInk.width() - restingInk.width()) <= 1);
+    QVERIFY(std::abs(transitionInk.height() - restingInk.height()) <= 1);
     const QPoint drop = bar->tabRect(2).center() + QPoint(20, 0);
     move(drop);
     QVERIFY(bar->grab().toImage() != transitionStart);

@@ -22,6 +22,7 @@
 #include "ui/components/WorkCard.h"
 #include "ui/components/WikiTextEdit.h"
 #include "ui/layouts/myads/PaneWidget.h"
+#include "ui/layouts/myads/ThemeAdapter.h"
 #include "ui/layouts/myads/WorkspaceWidget.h"
 
 #include <QApplication>
@@ -179,12 +180,14 @@ void PersonPageTest::actressTimelineFollowsTheme()
 {
     darkeye::ThemeService themes(*qApp);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
-    darkeye::ActressWorkTimeline timeline(nullptr, {}, {}, &themes);
-    timeline.resize(640, 180);
+    darkeye::myads::WorkspaceWidget workspace;
+    darkeye::myads::bindDarkeyeTheme(&workspace, &themes);
+    auto &timeline = *new darkeye::ActressWorkTimeline(&workspace, {}, {}, &themes);
+    QVERIFY(!workspace.addPanel(QStringLiteral("Timeline"), &timeline).isEmpty());
+    workspace.resize(640, 220);
     darkeye::PersonDetails actress;
     actress.works.append({1, QStringLiteral("TEST"), {}, QStringLiteral("2020-05-01")});
-    timeline.setActress(actress);
-    timeline.show();
+    workspace.show();
     QCoreApplication::processEvents();
 
     auto *canvas = timeline.findChild<QWidget *>(QStringLiteral("ActressWorkTimelineCanvas"));
@@ -195,6 +198,12 @@ void PersonPageTest::actressTimelineFollowsTheme()
     for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Red, darkeye::ThemeId::Dark}) {
         QVERIFY(themes.setTheme(theme));
         const auto tokens = themes.currentTokens();
+        timeline.setWorks({});
+        QVERIFY(!canvas->isVisible());
+        QCOMPARE(timeline.grab(QRect(2, 2, 1, 1)).toImage().pixelColor(0, 0),
+                 QColor(tokens.pageBackground));
+
+        timeline.setActress(actress);
         QCOMPARE(sample(QPoint(2, 2)), QColor(tokens.pageBackground));
         QCOMPARE(timeline.grab(QRect(2, 2, 1, 1)).toImage().pixelColor(0, 0),
                  QColor(tokens.pageBackground));

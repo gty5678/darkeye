@@ -1,6 +1,7 @@
 #include "database/repositories/PrivateRepository.h"
 #include "ui/pages/WorkPage.h"
 #include "settings/Paths.h"
+#include "settings/Settings.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/CompleterLineEdit.h"
 #include "darkeye_ui/components/IconButton.h"
@@ -320,8 +321,6 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     auto *sortSelector = findWorkControl<QComboBox>(&page, QStringLiteral("WorkSortSelector"));
     auto *tagList = page.findChild<QGraphicsView *>(QStringLiteral("WorkTagList"));
     auto *notesFilter = findWorkControl<QLineEdit>(&page, QStringLiteral("WorkNotesFilter"));
-    auto *coverButton = findWorkControl<darkeye::IconButton>(
-        &page, QStringLiteral("WorkCoverViewButton"));
     auto *refreshButton = findWorkControl<QPushButton>(
         &page, QStringLiteral("WorkRefreshButton"));
     auto *scopeSelector = findWorkControl<QComboBox>(
@@ -332,7 +331,6 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     QCOMPARE(tagList->minimumWidth(), tagList->maximumWidth());
     QVERIFY(tagList->viewport()->width() >= 60); // Two columns and the card margins.
     QVERIFY(notesFilter != nullptr);
-    QVERIFY(coverButton != nullptr);
     QVERIFY(refreshButton != nullptr);
     QVERIFY(scopeSelector != nullptr);
     QVERIFY(countLabel != nullptr);
@@ -340,7 +338,6 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     QCOMPARE(sortSelector->objectName(), QStringLiteral("DesignComboBox"));
     QCOMPARE(scopeSelector->objectName(), QStringLiteral("DesignComboBox"));
     QCOMPARE(countLabel->objectName(), QStringLiteral("DesignLabel"));
-    QCOMPARE(coverButton->objectName(), QStringLiteral("WorkCoverViewToggle"));
     QCOMPARE(refreshButton->objectName(), QStringLiteral("DesignRotateButton"));
     QCOMPARE(sortSelector->count(), 13);
     QCOMPARE(sortSelector->currentText(), QStringLiteral("添加逆序"));
@@ -378,6 +375,8 @@ void WorkPageTest::loadsOneDatabasePageAtATime()
     {
         darkeye::Work work;
         work.serialNumber = QStringLiteral("PAGE-%1").arg(index, 3, 10, QLatin1Char('0'));
+        if (index % 2 == 0)
+            work.chineseTitle = QStringLiteral("测试标题");
         QVERIFY(repository.insertComplete(work, {}, {}, {}, &errorMessage).has_value());
     }
 
@@ -388,7 +387,7 @@ void WorkPageTest::loadsOneDatabasePageAtATime()
     QVERIFY(settingsDirectory.isValid());
     darkeye::WorkPage page(connection.database(), themeService);
     QVERIFY(!page.isInitialized());
-    page.resize(500, 360);
+    page.resize(580, 360);
     page.show();
     page.initialize();
     auto *tags = page.findChild<darkeye::WorkTagSelector *>();
@@ -402,7 +401,13 @@ void WorkPageTest::loadsOneDatabasePageAtATime()
     QVERIFY(lazyArea->loading());
     QCOMPARE(lazyArea->itemCount(), 0);
     QTRY_COMPARE(lazyArea->itemCount(), 70);
-    QCOMPARE(page.findChildren<darkeye::WorkCard *>().size(), 70);
+    const auto firstPageCards = page.findChildren<darkeye::WorkCard *>();
+    QCOMPARE(firstPageCards.size(), 70);
+    QTRY_VERIFY(firstPageCards[0]->x() < firstPageCards[1]->x());
+    QCOMPARE(firstPageCards[0]->y(), firstPageCards[1]->y());
+    QCOMPARE(firstPageCards[0]->size(), firstPageCards[1]->size());
+    QCOMPARE(firstPageCards[0]->x(), firstPageCards[2]->x());
+    QVERIFY(firstPageCards[0]->y() < firstPageCards[2]->y());
     auto *scrollBar = lazyArea->verticalScrollBar();
     QTRY_VERIFY(scrollBar->maximum() > 0);
     const int firstPageMaximum = scrollBar->maximum();
@@ -552,7 +557,6 @@ void WorkPageTest::persistsViewPreferences()
     const darkeye::AppSettings originalSettings = darkeye::settings::app();
     darkeye::AppSettings testSettings = originalSettings;
     testSettings.workTagSelectorVisible = false;
-    testSettings.workLargeCoverView = false;
     darkeye::settings::saveApp(testSettings);
 
     {
@@ -561,27 +565,15 @@ void WorkPageTest::persistsViewPreferences()
         auto *tagPanel = page.findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
         QVERIFY(!findWorkControl<darkeye::IconButton>(
             &page, QStringLiteral("WorkTagPanelButton")));
-        auto *viewButton = findWorkControl<darkeye::IconButton>(
-            &page, QStringLiteral("WorkCoverViewButton"));
-        auto *lazyArea = dynamic_cast<darkeye::LazyScrollArea *>(
-            page.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea")));
         QVERIFY(tagPanel != nullptr);
-        QVERIFY(viewButton != nullptr);
-        QVERIFY(lazyArea != nullptr);
         QVERIFY(!tagPanel->isHidden());
-        QTest::mouseClick(viewButton, Qt::LeftButton);
-        QCOMPARE(lazyArea->columnWidth(), 250);
     }
 
     darkeye::WorkPage restored(connection.database(), themeService);
     restored.initialize();
     auto *restoredPanel = restored.findChild<QWidget *>(QStringLiteral("WorkTagPanel"));
-    auto *restoredArea = dynamic_cast<darkeye::LazyScrollArea *>(
-        restored.findChild<QScrollArea *>(QStringLiteral("DesignLazyScrollArea")));
     QVERIFY(restoredPanel != nullptr);
-    QVERIFY(restoredArea != nullptr);
     QVERIFY(!restoredPanel->isHidden());
-    QCOMPARE(restoredArea->columnWidth(), 250);
     darkeye::settings::saveApp(originalSettings);
 }
 

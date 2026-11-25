@@ -1,4 +1,5 @@
 #include "darkeye_ui/theme/ThemeService.h"
+#include "darkeye_ui/theme/ChamferStyle.h"
 #include "darkeye_ui/components/AnimatedIndicators.h"
 #include "darkeye_ui/components/Avatar.h"
 #include "darkeye_ui/components/Breadcrumb.h"
@@ -47,6 +48,7 @@
 #include <QGraphicsScene>
 #include <QHeaderView>
 #include <QImage>
+#include <QPainter>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStandardItemModel>
@@ -54,6 +56,7 @@
 #include <QTabBar>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QtMath>
 #include <QtTest>
 
 #include <algorithm>
@@ -91,6 +94,7 @@ private slots:
     void searchAndBreadcrumbKeepInteractionContract();
     void animatedIndicatorsKeepStateContract();
     void loadingAndInteractionEffectsKeepContract();
+    void rotatingIconDoesNotPaintButtonBorder();
     void tokenViewsAndCollapsibleSectionKeepContract();
     void editableTableShortcutsKeepContract();
     void completerModalAndColorPickerKeepContract();
@@ -456,6 +460,39 @@ void ComponentLibraryTest::loadingAndInteractionEffectsKeepContract()
     slider.resize(200, 22);
     QTest::mouseClick(&slider, Qt::LeftButton, {}, QPoint(150, 11));
     QVERIFY(slider.value() >= 70);
+}
+
+void ComponentLibraryTest::rotatingIconDoesNotPaintButtonBorder()
+{
+    darkeye::ChamferStyle chamfer(nullptr);
+    QWidget host;
+    host.setAutoFillBackground(true);
+    auto palette = host.palette();
+    palette.setColor(QPalette::Window, Qt::white);
+    host.setPalette(palette);
+    host.resize(40, 40);
+
+    darkeye::RotateButton button(QStringLiteral("refresh_cw"), {}, 24, 24, true, nullptr, &host);
+    button.move(8, 8);
+    button.setStyleSheet(QStringLiteral("QPushButton { background: transparent; border: none; }"));
+    QPixmap icon(24, 24);
+    icon.fill(Qt::transparent);
+    {
+        QPainter painter(&icon);
+        painter.fillRect(0, 11, 2, 2, Qt::darkGray);
+    }
+    button.setIcon(QIcon(icon));
+    button.setAngle(90);
+    host.ensurePolished();
+    QVERIFY(button.graphicsEffect());
+
+    const QImage frame = host.grab().toImage();
+    const qreal dpr = frame.devicePixelRatio();
+    const auto pixel = [&](qreal x, qreal y) {
+        return frame.pixelColor(qFloor(x * dpr), qFloor(y * dpr));
+    };
+    QVERIFY(pixel(20, 9) != QColor(Qt::white));
+    QCOMPARE(pixel(16, 8), QColor(Qt::white));
 }
 
 void ComponentLibraryTest::tokenViewsAndCollapsibleSectionKeepContract()

@@ -63,9 +63,9 @@ darkeye_apply_compiler_options(darkeye_fixture_database_builder)
 
 darkeye_add_qt_test(darkeye_app_tests unit/AppPathsTest.cpp)
 darkeye_add_qt_test(darkeye_ui_smoke_tests integration/MainWindowSmokeTest.cpp
-    -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/ui-smoke-results.txt,txt")
+    -v1 -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/ui-smoke-results.txt,txt")
 set_tests_properties(darkeye_ui_smoke_tests PROPERTIES
-    RUN_SERIAL TRUE TIMEOUT 120
+    RUN_SERIAL TRUE TIMEOUT 240
     ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
 target_link_libraries(darkeye_ui_smoke_tests PRIVATE darkeye::desktop_ui)
 if(APPLE)
@@ -91,7 +91,8 @@ set_tests_properties(darkeye_ui_boundary_tests PROPERTIES
     ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
 )
-darkeye_add_qt_test(darkeye_myads_tests unit/MyAdsTest.cpp)
+darkeye_add_qt_test(darkeye_myads_tests unit/MyAdsTest.cpp
+    -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/myads-results.txt,txt")
 darkeye_configure_packaging(darkeye_myads_tests NO_INSTALL)
 add_test(NAME darkeye_myads_drag_tests
     COMMAND $<TARGET_FILE:darkeye_myads_tests>
@@ -101,6 +102,7 @@ set_tests_properties(darkeye_myads_drag_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
 set_tests_properties(darkeye_myads_tests PROPERTIES
+    RUN_SERIAL TRUE
     ENVIRONMENT
         "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
 )

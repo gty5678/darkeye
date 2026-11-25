@@ -4,7 +4,7 @@
 #include <limits>
 #include <utility>
 
-void LiveEditor::rebuild(int chosen,int offset,int forcedTarget){
+void LiveEditor::rebuild(int chosen,int offset,int forcedTarget,bool editTarget){
         initialRenderTimer.stop();
         const int openingLimit=std::exchange(initialRenderLimit,0);
         nativeTable.clear();nativeStart=nativeEnd=-1;sourceCellRow=sourceCellColumn=-1;
@@ -284,7 +284,7 @@ void LiveEditor::rebuild(int chosen,int offset,int forcedTarget){
         active=-1;regions.clear();document()->clear();QTextCursor out(document());
         for(qsizetype unitIndex=0;unitIndex<units.size();++unitIndex){
             const auto &unit=units[unitIndex];
-            int i=regions.size();bool editing=target>=unit.first&&(target<unit.second||unitIndex==units.size()-1)&&active<0;
+            int i=regions.size();bool editing=editTarget&&target>=unit.first&&(target<unit.second||unitIndex==units.size()-1)&&active<0;
             if(i)out.insertBlock(QTextBlockFormat(),QTextCharFormat());int from=out.position();
             QString text=source.mid(unit.first,unit.second-unit.first);
             // The boundary between units already inserts one newline.

@@ -28,6 +28,7 @@ QString DockTheme::styleSheet() const
         "font-family:\"%4\"; font-size:%5px; }"
         "QStackedWidget#MyAdsPageStack { background:%7; }"
         "QStackedWidget#MyAdsPageStack > QWidget { background:%1; }"
+        "QStackedWidget#MyAdsPageStack > QWidget[myadsUsePageBackground=\"true\"] { background:%7; }"
         "QToolButton#MyAdsCloseButton { padding:0; margin:0; border:none; background:transparent; }"
         "QToolButton#MyAdsCloseButton:hover { background:%3; border-radius:2px; }"
         "QToolButton#MyAdsCloseButton:pressed { background:%6; }")

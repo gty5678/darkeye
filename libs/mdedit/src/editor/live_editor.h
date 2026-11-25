@@ -122,7 +122,7 @@ public:
     bool moveMarkdownTableTo(int sourceOffset,int boundary);
     bool reorderMarkdownAxisAt(int sourceOffset,bool row,int from,int boundary,int count=1);
     bool changeMarkdownTableAt(int sourceOffset,int row,int column,const QString &operation);
-    void rebuild(int chosen,int offset,int forcedTarget=-1);
+    void rebuild(int chosen,int offset,int forcedTarget=-1,bool editTarget=true);
 protected:
     bool viewportEvent(QEvent *event)override;
     void paintEvent(QPaintEvent *event)override;
@@ -132,7 +132,6 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event)override;
     void mouseDoubleClickEvent(QMouseEvent *event)override;
     void contextMenuEvent(QContextMenuEvent *event)override;
-    void focusInEvent(QFocusEvent *event)override;
     void focusOutEvent(QFocusEvent *event)override;
     void keyPressEvent(QKeyEvent *event)override;
     void insertFromMimeData(const QMimeData *mime)override;

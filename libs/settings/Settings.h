@@ -36,7 +36,6 @@ struct AppSettings final
     bool workFilterAddGreenCover = false;
     int workFilterInitialScope = -1;
     int workFilterInitialSortOrder = -1;
-    bool workLargeCoverView = false;
     bool workTagSelectorVisible = true;
     bool shelfTagSelectorVisible = true;
 

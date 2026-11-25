@@ -1376,13 +1376,6 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     auto *workFilter = window.findChild<darkeye::WorkFilter *>();
     QVERIFY(workFilter);
     QVERIFY(!workPage->findChild<darkeye::WorkFilter *>());
-    auto *viewButton = findWorkControl<QPushButton>(workPage, QStringLiteral("WorkCoverViewButton"));
-    QVERIFY(viewButton && viewButton->isVisible());
-    QVERIFY(viewButton->mapTo(workPage, QPoint()).x() > workPage->width() / 2);
-    const QString originalViewTip = viewButton->toolTip();
-    viewButton->click();
-    QVERIFY(viewButton->toolTip() != originalViewTip);
-    viewButton->click();
     workFilter->findChild<darkeye::WorkTagSelector *>()->clearSelection();
     emit workPage->detailRequested(*workId);
     shelfPage = window.findChild<darkeye::ShelfPage *>(QStringLiteral("ShelfPage"));
@@ -2150,13 +2143,15 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
     QVERIFY(temp.isValid());
     const darkeye::settings::Paths paths(QCoreApplication::applicationDirPath(), temp.path());
     QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::MainWindow window(themes, {}, {}, paths);
     window.resize(1200, 800);
     window.show();
     window.raise();
     window.activateWindow();
-    QTRY_VERIFY(window.isActiveWindow());
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(QTest::qWaitForWindowFocused(&window));
 
 #ifdef Q_OS_MACOS
     auto *menu = window.findChild<QMenu *>(QStringLiteral("workspaceMenu"));
@@ -2194,9 +2189,9 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
         const QRect rect = results->visualItemRect(results->item(row));
         return QPoint(rect.right() - 16, rect.center().y());
     };
-    const auto rowColor = [&window, viewport, &rowPoint](int row) {
-        const auto snapshot = window.grab();
-        const QPoint pixel = viewport->mapTo(&window, rowPoint(row)) * snapshot.devicePixelRatio();
+    const auto rowColor = [viewport, &rowPoint](int row) {
+        const auto snapshot = viewport->grab();
+        const QPoint pixel = rowPoint(row) * snapshot.devicePixelRatio();
         return snapshot.toImage().pixelColor(pixel);
     };
     const int selectedRow = results->currentRow();
@@ -2387,7 +2382,26 @@ void MainWindowSmokeTest::restoresBrowsingWorkspacePreset()
     runCommand(QStringLiteral("作品展厅"));
     QVERIFY(workspace->findPaneByContentId(QStringLiteral("home")));
 
-    runCommand(QStringLiteral("恢复预设工作区布局"));
+    runCommand(QStringLiteral("恢复预设工作区布局 · 纯浏览"));
+    const auto browsingPanes = workspace->panes();
+    QCOMPARE(browsingPanes.size(), 1);
+    QCOMPARE(browsingPanes.first()->contentIds(), QStringList{QStringLiteral("shelf")});
+    QCOMPARE(browsingPanes.first()->contentWidget(QStringLiteral("shelf")), shelf);
+    QCOMPARE(workspace->activePane(), browsingPanes.first());
+    QVERIFY(!workspace->findPaneByContentId(QStringLiteral("home")));
+    QVERIFY(workspace->isSidebarOpen(SidebarSide::Left));
+    QVERIFY(workspace->isSidebarOpen(SidebarSide::Right));
+    QCOMPARE(workspace->sidebarPane(SidebarSide::Left)->contentIds(), QStringList{QStringLiteral("work_filters")});
+    auto *browsingGraph = workspace->sidebarPane(SidebarSide::Right);
+    QCOMPARE(browsingGraph->contentIds(), QStringList{QStringLiteral("local_graph")});
+    auto *browsingDetail = workspace->findPaneByContentId(QStringLiteral("actress_detail/switch"));
+    QVERIFY(browsingDetail);
+    QVERIFY(workspace->isSidebar(browsingDetail));
+    QCOMPARE(browsingDetail->contentIds(), QStringList{QStringLiteral("actress_detail/switch")});
+    QCOMPARE(browsingGraph->parentWidget(), browsingDetail->parentWidget());
+    QVERIFY(browsingGraph->y() < browsingDetail->y());
+
+    runCommand(QStringLiteral("恢复预设工作区布局 · 默认"));
     const auto panes = workspace->panes();
     QCOMPARE(panes.size(), 2);
     QCOMPARE(panes.first()->contentIds(), (QStringList{
@@ -3367,12 +3381,16 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         QTest::keyClick(input, Qt::Key_Return);
         auto *worksPane = workspace->findPaneByContentId(QStringLiteral("mutiwork"));
         QVERIFY(worksPane);
-        QCOMPARE(worksPane->contentTitle(QStringLiteral("mutiwork")), QStringLiteral("作品库"));
+        QCOMPARE(worksPane->contentTitle(QStringLiteral("mutiwork")), QStringLiteral("平铺浏览"));
         window.findChild<darkeye::WorkFilter *>()->findChild<darkeye::WorkTagSelector *>()->clearSelection();
         QVERIFY(!emptyHint->isVisible());
         QVERIFY(!search->isVisible());
         openSearch(Qt::Key_P);
         QTRY_VERIFY(search->isVisible());
+        input->setText(QStringLiteral("作品库"));
+        QCOMPARE(results->item(0)->text(), QStringLiteral("页面 · 平铺浏览"));
+        input->setText(QStringLiteral("DVD 书架"));
+        QCOMPARE(results->item(0)->text(), QStringLiteral("页面 · DVD 浏览"));
         input->setText(QStringLiteral("商店"));
         QCOMPARE(results->item(0)->text(), QStringLiteral("页面 · 作品展厅"));
         QCOMPARE(results->item(0)->data(Qt::UserRole).toString(), QStringLiteral("home"));

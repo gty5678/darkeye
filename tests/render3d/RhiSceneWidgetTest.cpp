@@ -8,6 +8,7 @@
 #include <QTest>
 #include <QVBoxLayout>
 #include <QWindow>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -386,7 +387,12 @@ private slots:
         QVERIFY(draw(reflection).red()>noReflection.red()+8); // reflection survives transmission=1
         auto gradient=std::make_shared<TextureData>(); gradient->srgb=false;
         gradient->image=QImage(64,64,QImage::Format_RGBA8888);
-        for(int y=0;y<64;++y) for(int x=0;x<64;++x) gradient->image.setPixelColor(x,y,QColor(x*4,0,252-x*4));
+        // Make a small refraction shift distinguishable from framebuffer rounding.
+        for (int x = 0; x < gradient->image.width(); ++x) {
+            const int red = std::clamp(128 + (x - 32) * 8, 0, 255);
+            for (int y = 0; y < gradient->image.height(); ++y)
+                gradient->image.setPixelColor(x, y, QColor(red, 0, 255 - red));
+        }
         auto pattern=std::make_shared<Material>(); pattern->baseColorTexture=gradient;
         scene->setMesh(behind,mesh,pattern);
         const auto flat=draw(reflection);
@@ -395,7 +401,11 @@ private slots:
         const auto bent=draw(refracting);
         QVERIFY2(bent.red()<flat.red()-8,qPrintable(QString("flat=%1 bent=%2").arg(flat.red()).arg(bent.red())));
         auto thin=std::make_shared<Material>(*refracting); thin->thickness=0;
-        QVERIFY(draw(thin).red()>bent.red()+8); // thin sheet has no macroscopic refraction
+        const auto thinColor = draw(thin);
+        // A thin sheet has no macroscopic refraction.
+        QVERIFY2(thinColor.red() > bent.red() + 8,
+                 qPrintable(QStringLiteral("flat=%1 bent=%2 thin=%3")
+                                .arg(flat.red()).arg(bent.red()).arg(thinColor.red())));
         view->resize(400,260); QVERIFY(!view->grabFramebuffer().isNull());
         view->setSampleCount(4); QVERIFY(!view->grabFramebuffer().isNull());
         QWidget secondHost; secondHost.resize(400,260); view->setParent(&secondHost); view->show(); secondHost.show();

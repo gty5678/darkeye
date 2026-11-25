@@ -105,7 +105,23 @@ namespace
 
 constexpr qsizetype recentWorkspaceLimit = 9;
 const auto actressSwitchRoute = QStringLiteral("actress_detail/switch");
-const auto restoreWorkspacePresetCommand = QStringLiteral("restore_workspace_preset");
+struct WorkspacePreset {
+    QString command;
+    QString title;
+    QString resource;
+};
+
+const WorkspacePreset defaultWorkspacePreset{
+    QStringLiteral("restore_workspace_preset"),
+    QStringLiteral("恢复预设工作区布局 · 默认"),
+    QStringLiteral(":/workspace/browsing.json"),
+};
+const WorkspacePreset workspacePresets[]{
+    defaultWorkspacePreset,
+    {QStringLiteral("restore_pure_browsing_workspace_preset"),
+     QStringLiteral("恢复预设工作区布局 · 纯浏览"),
+     QStringLiteral(":/workspace/pure-browsing.json")},
+};
 
 const QList<QPair<QString, QString>> dialogNavigationActions{
     {QStringLiteral("add_quick_work"), QStringLiteral("plus")},
@@ -589,8 +605,8 @@ void MainWindow::buildUi()
     setCentralWidget(centralWidget);
 
     registerPage(QStringLiteral("作品展厅"), QStringLiteral("home"), QStringLiteral("house"));
-    registerPage(QStringLiteral("作品库"), QStringLiteral("mutiwork"), QStringLiteral("film"));
-    registerPage(QStringLiteral("DVD 书架"), QStringLiteral("shelf"), QStringLiteral("library_big"));
+    registerPage(QStringLiteral("平铺浏览"), QStringLiteral("mutiwork"), QStringLiteral("film"));
+    registerPage(QStringLiteral("DVD 浏览"), QStringLiteral("shelf"), QStringLiteral("library_big"));
     registerPage(QStringLiteral("女演员"), QStringLiteral("actress"), QStringLiteral("venus"));
     registerPage(QStringLiteral("男演员"), QStringLiteral("actor"), QStringLiteral("mars"));
     registerPage(QStringLiteral("统计"), QStringLiteral("chart"), QStringLiteral("chart_line"));
@@ -620,7 +636,8 @@ void MainWindow::buildUi()
     commands.insert(QStringLiteral("open_help"), QStringLiteral("帮助"));
     commands.insert(QStringLiteral("open_github"), QStringLiteral("GitHub 项目仓库"));
     commands.insert(QStringLiteral("open_changelog"), QStringLiteral("版本记录"));
-    commands.insert(restoreWorkspacePresetCommand, QStringLiteral("恢复预设工作区布局"));
+    for (const auto &preset : workspacePresets)
+        commands.insert(preset.command, preset.title);
     m_globalSearch->addCommands(commands);
     m_globalSearch->hide();
     m_globalSearch->setAutoFillBackground(true);
@@ -686,7 +703,7 @@ void MainWindow::buildUi()
     updateEmptyHint();
     const auto savedLayout = workspaceFile();
     if (!QFile::exists(savedLayout)) {
-        restoreWorkspacePreset();
+        restoreWorkspacePreset(defaultWorkspacePreset.resource);
         return;
     }
     QString error;
@@ -1397,11 +1414,11 @@ std::optional<myads::ContentConfig> MainWindow::workspaceContent(const QJsonObje
     return config;
 }
 
-void MainWindow::restoreWorkspacePreset()
+void MainWindow::restoreWorkspacePreset(const QString &resource)
 {
     Resources::ensureInitialized();
     QString error;
-    const auto preset = myads::loadLayoutFile(QStringLiteral(":/workspace/browsing.json"), &error);
+    const auto preset = myads::loadLayoutFile(resource, &error);
     if (!preset.isEmpty()) {
         QSet<QString> presetRoutes;
         const auto contents = preset.value(QStringLiteral("pane_contents")).toObject();
@@ -1812,10 +1829,12 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
 void MainWindow::navigateTo(const QString &routeName, bool recordRecent, ActressOpenMode actressMode,
                             myads::PaneWidget *preferredPane, ShelfFilterPolicy shelfFilter)
 {
-    if (routeName == restoreWorkspacePresetCommand) {
-        m_globalSearch->hide();
-        restoreWorkspacePreset();
-        return;
+    for (const auto &preset : workspacePresets) {
+        if (routeName == preset.command) {
+            m_globalSearch->hide();
+            restoreWorkspacePreset(preset.resource);
+            return;
+        }
     }
     if (routeName == QStringLiteral("setting")) {
         openSettings();

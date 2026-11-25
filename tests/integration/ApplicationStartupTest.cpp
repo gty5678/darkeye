@@ -131,12 +131,10 @@ int main(int argc, char **argv)
                     constexpr auto titleBarHints =
                         Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint;
                     const auto *nativeWindow = window->windowHandle();
-                    const QMargins safeArea = nativeWindow->safeAreaMargins();
-                    if (!nativeWindow->flags().testFlags(titleBarHints) || safeArea.top() <= 0
-                        || !window->rect().marginsRemoved(safeArea)
-                                .contains(window->centralWidget()->geometry())) {
-                        qWarning() << "Unexpected main window title bar layout:"
-                                   << nativeWindow->flags() << safeArea
+                    if ((nativeWindow->flags() & titleBarHints) || nativeWindow->frameMargins().top() <= 0
+                        || !window->rect().contains(window->centralWidget()->geometry())) {
+                        qWarning() << "Expected a native title bar outside the client area:"
+                                   << nativeWindow->flags() << nativeWindow->frameMargins()
                                    << window->centralWidget()->geometry();
                         failed = true;
                     }

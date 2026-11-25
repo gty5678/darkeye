@@ -1,0 +1,29 @@
+{
+    "schema_version": 1,
+    "layout": {
+        "type": "split",
+        "orientation": "horizontal",
+        "size_ratios": [1.0],
+        "children": [{ "type": "pane", "pane_id": "library" }]
+    },
+    "sidebars": {
+        "left": "MyAdsLeftSidebar",
+        "right": {
+            "type": "split",
+            "orientation": "vertical",
+            "size_ratios": [0.3333333333333333, 0.6666666666666667],
+            "children": [
+                { "type": "pane", "pane_id": "MyAdsRightSidebar" },
+                { "type": "pane", "pane_id": "actress_detail" }
+            ]
+        },
+        "left_width_ratio": 0.16,
+        "right_width_ratio": 0.20
+    },
+    "pane_contents": {
+        "MyAdsLeftSidebar": [{ "content_id": "work_filters" }],
+        "MyAdsRightSidebar": [{ "content_id": "local_graph" }],
+        "actress_detail": [{ "content_id": "actress_detail/switch" }],
+        "library": [{ "content_id": "shelf" }]
+    }
+}

@@ -1376,6 +1376,13 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     auto *workFilter = window.findChild<darkeye::WorkFilter *>();
     QVERIFY(workFilter);
     QVERIFY(!workPage->findChild<darkeye::WorkFilter *>());
+    auto *viewButton = findWorkControl<QPushButton>(workPage, QStringLiteral("WorkCoverViewButton"));
+    QVERIFY(viewButton && viewButton->isVisible());
+    QVERIFY(viewButton->mapTo(workPage, QPoint()).x() > workPage->width() / 2);
+    const QString originalViewTip = viewButton->toolTip();
+    viewButton->click();
+    QVERIFY(viewButton->toolTip() != originalViewTip);
+    viewButton->click();
     workFilter->findChild<darkeye::WorkTagSelector *>()->clearSelection();
     emit workPage->detailRequested(*workId);
     shelfPage = window.findChild<darkeye::ShelfPage *>(QStringLiteral("ShelfPage"));

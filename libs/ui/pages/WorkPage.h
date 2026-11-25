@@ -3,6 +3,7 @@
 #include "darkeye_ui/base/LazyWidget.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/repositories/WorkRepository.h"
+#include "settings/Settings.h"
 
 #include <QSet>
 #include <QSqlDatabase>
@@ -14,6 +15,7 @@ class QFutureWatcherBase;
 namespace darkeye
 {
 
+class IconButton;
 class LazyScrollArea;
 class WorkFilter;
 
@@ -51,6 +53,7 @@ private:
     void lazyLoad() override;
     void buildUi();
     void refreshData();
+    void toggleCoverSize();
     void loadCardPage(quint64 request, int pageIndex, int pageSize);
     void showWorkDetails(qint64 workId);
     void loadWork(qint64 workId);
@@ -65,7 +68,9 @@ private:
     std::optional<WorkSearch> m_appliedSearch;
     std::optional<QSet<qint64>> m_filteredWorkIds;
     QFutureWatcherBase *m_pageQuery = nullptr;
+    IconButton *m_viewButton = nullptr;
     LazyScrollArea *m_lazyArea = nullptr;
+    bool m_largeCoverView = false;
 };
 
 } // namespace darkeye

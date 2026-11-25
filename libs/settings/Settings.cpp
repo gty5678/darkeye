@@ -156,6 +156,10 @@ AppSettings app(QString settingsFile)
         m_store.value(QStringLiteral("window/size"), settings.windowSize).toSize();
     settings.windowPosition =
         m_store.value(QStringLiteral("window/pos"), settings.windowPosition).toPoint();
+    settings.workLargeCoverView = m_store
+                                      .value(QStringLiteral("WorkPage/LargeCoverView"),
+                                             settings.workLargeCoverView)
+                                      .toBool();
     settings.navigationBarVisible = m_store.value(QStringLiteral("Workspace/NavigationBarVisible"),
                                                   settings.navigationBarVisible).toBool();
     settings.hiddenNavigationItems = m_store.value(QStringLiteral("Workspace/HiddenNavigationItems")).toStringList();
@@ -322,6 +326,7 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("window/maximized"), settings.maximized},
         {QStringLiteral("window/size"), settings.windowSize},
         {QStringLiteral("window/pos"), settings.windowPosition},
+        {QStringLiteral("WorkPage/LargeCoverView"), settings.workLargeCoverView},
         {QStringLiteral("Workspace/NavigationBarVisible"), settings.navigationBarVisible},
         {QStringLiteral("Workspace/HiddenNavigationItems"), settings.hiddenNavigationItems},
         {QStringLiteral("Workspace/LeftSidebarAutoCollapse"), settings.leftSidebarAutoCollapse},

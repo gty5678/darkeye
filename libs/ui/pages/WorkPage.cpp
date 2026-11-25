@@ -1,5 +1,6 @@
 #include "ui/pages/WorkPage.h"
 
+#include "darkeye_ui/components/IconButton.h"
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "database/SqliteConnection.h"
@@ -8,6 +9,8 @@
 #include "ui/components/WorkFilter.h"
 
 #include <QFutureWatcher>
+#include <QGridLayout>
+#include <QHBoxLayout>
 #include <QPromise>
 #include <QThreadPool>
 #include <QVBoxLayout>
@@ -33,6 +36,7 @@ WorkPage::~WorkPage()
 void WorkPage::lazyLoad()
 {
     m_filter->initialize();
+    m_largeCoverView = settings::app().workLargeCoverView;
     buildUi();
     connect(m_filter, &WorkFilter::changed, this, [this] { m_lazyArea->reset(); });
     m_lazyArea->setViewportItemHandler([](QWidget *widget, bool active) {
@@ -50,10 +54,47 @@ void WorkPage::buildUi()
     root->setContentsMargins(0, 0, 0, 0);
     if (m_filter->parentWidget() == this) m_filter->hide();
 
-    m_lazyArea = new LazyScrollArea(250, this);
+    auto *body = new QWidget(this);
+    auto *overlay = new QGridLayout(body);
+    overlay->setContentsMargins(0, 0, 0, 0);
+    m_lazyArea = new LazyScrollArea(m_largeCoverView ? 250 : 220, body);
     m_lazyArea->setPageSize(70);
-    m_lazyArea->setUniformRows(true);
-    root->addWidget(m_lazyArea, 1);
+    m_lazyArea->setUniformRows(m_largeCoverView);
+    overlay->addWidget(m_lazyArea, 0, 0);
+
+    m_viewButton = new IconButton(m_largeCoverView ? QStringLiteral("layout_waterfall")
+                                                  : QStringLiteral("layout_grid"),
+                                  &m_themeService, body);
+    m_viewButton->setProperty("workControlId", QStringLiteral("WorkCoverViewButton"));
+    m_viewButton->setObjectName(QStringLiteral("WorkCoverViewToggle"));
+    m_viewButton->setIconPixelSize(22);
+    m_viewButton->setButtonPixelSize(34);
+    m_viewButton->setToolTip(m_largeCoverView ? QStringLiteral("切换为瀑布流")
+                                              : QStringLiteral("切换为普通布局"));
+    m_viewButton->setAccessibleName(m_viewButton->toolTip());
+    auto *buttonLayout = new QHBoxLayout;
+    buttonLayout->setContentsMargins(0, 8, 20, 0);
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(m_viewButton, 0, Qt::AlignTop);
+    overlay->addLayout(buttonLayout, 0, 0, Qt::AlignTop);
+    root->addWidget(body, 1);
+    connect(m_viewButton, &QPushButton::clicked, this, &WorkPage::toggleCoverSize);
+}
+
+void WorkPage::toggleCoverSize()
+{
+    m_largeCoverView = !m_largeCoverView;
+    m_lazyArea->setColumnWidth(m_largeCoverView ? 250 : 220);
+    m_lazyArea->setUniformRows(m_largeCoverView);
+    m_viewButton->setIconName(m_largeCoverView ? QStringLiteral("layout_waterfall")
+                                               : QStringLiteral("layout_grid"));
+    m_viewButton->setToolTip(m_largeCoverView ? QStringLiteral("切换为瀑布流")
+                                              : QStringLiteral("切换为普通布局"));
+    m_viewButton->setAccessibleName(m_viewButton->toolTip());
+    AppSettings appSettings = settings::app();
+    appSettings.workLargeCoverView = m_largeCoverView;
+    settings::saveApp(appSettings);
+    refresh();
 }
 
 void WorkPage::refresh()
@@ -156,8 +197,8 @@ void WorkPage::loadCardPage(quint64 request, int pageIndex, int pageSize)
         const int count = static_cast<int>(result.works.size());
         m_lazyArea->completePage(request, count, count == pageSize,
                                  [this, works = std::move(result.works)](int index) {
-            auto *card = new WorkCard(works.at(index), m_coverDirectory,
-                                      /*largeCoverView=*/true, nullptr, /*deferCoverLoad=*/true);
+            auto *card = new WorkCard(works.at(index), m_coverDirectory, m_largeCoverView,
+                                      nullptr, true);
             connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
             connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
             return card;

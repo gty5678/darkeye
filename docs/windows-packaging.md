@@ -197,7 +197,7 @@ cmake --install build/windows-msvc-release --config Release
 
 默认输出到 `out/install/release`，程序同级包含 `config/` 和 `avwiki/`。`tools/package.py` 在此标准程序布局上封装安装包；生成便携包时再增加 exe 同级的 `portable.ini` 和上级空 data，均不复制开发数据。
 
-普通开发构建不生成 `portable.ini`，也不在 exe 同级创建 `data`。Visual Studio 的普通调试目标通过三个启动参数使用项目根目录的 config、avwiki、data；Install 目标不传参数。直接双击无标记的 build 目录 exe 时使用系统用户数据目录。`tools/run.ps1` 也默认通过三个参数使用项目目录，支持 `-ConfigDirectory`、`-AvwikiDirectory`、`-DataDirectory` 单独覆盖。
+普通开发构建不生成 `portable.ini`，也不在 exe 同级创建 `data`。VS Code 的调试配置通过启动参数使用项目根目录的 `config/`、`avwiki/` 和 `data/`。直接双击无标记的 build 目录 exe 时使用系统用户数据目录。`tools/run.ps1` 也默认通过三个参数使用项目目录，支持 `-ConfigDirectory`、`-AvwikiDirectory`、`-DataDirectory` 单独覆盖。
 
 ## 从旧便携目录迁移
 

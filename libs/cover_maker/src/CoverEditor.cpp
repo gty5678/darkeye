@@ -473,37 +473,45 @@ CoverEditor::CoverEditor(QWidget *parent, bool panelMode) : QWidget(parent)
     auto *layerDelete=new QPushButton(QStringLiteral("删除"));layerDelete->setObjectName(QStringLiteral("deleteLayer"));
     for(auto *button:{layerUp,layerDown,layerCopy,layerDelete})layerRow->addWidget(button);advancedForm->addRow(layerActions);
     const auto syncLayers=[this,canvas,layers,layerUp,layerDown,layerCopy,layerDelete] {
-        if(layers->property("selecting").toBool())return;
-        const QSignalBlocker blocker(layers);const int scroll=layers->verticalScrollBar()->value();layers->clear();
-        auto order=orderedLayers(m_document);
-        for(auto it=order.crbegin();it!=order.crend();++it) {
-            const auto ref=*it;const bool visible=ref.text?m_document.textLayers[ref.index].visible:m_document.imageLayers[ref.index].visible;
-            const bool locked=ref.text?m_document.textLayers[ref.index].locked:m_document.imageLayers[ref.index].locked;
-            const QString name=ref.text?QStringLiteral("文 · ")+m_document.textLayers[ref.index].text.left(20).replace(u'\n',u' '):QStringLiteral("图 · ")+m_document.imageLayers[ref.index].name;
-            auto *item=new QTreeWidgetItem(layers,{name});item->setData(0,Qt::UserRole,ref.text);item->setData(0,Qt::UserRole+1,ref.index);
-            item->setCheckState(1,visible?Qt::Checked:Qt::Unchecked);item->setCheckState(2,locked?Qt::Checked:Qt::Unchecked);
-            if((ref.text && ref.index==canvas->selectedText)||(!ref.text && ref.index==canvas->selected))layers->setCurrentItem(item);
+        if (!layers->property("handlingTreeChange").toBool()) {
+            const QSignalBlocker blocker(layers);
+            const int scroll = layers->verticalScrollBar()->value();
+            layers->clear();
+            const auto order = orderedLayers(m_document);
+            for(auto it=order.crbegin();it!=order.crend();++it) {
+                const auto ref=*it;const bool visible=ref.text?m_document.textLayers[ref.index].visible:m_document.imageLayers[ref.index].visible;
+                const bool locked=ref.text?m_document.textLayers[ref.index].locked:m_document.imageLayers[ref.index].locked;
+                const QString name=ref.text?QStringLiteral("文 · ")+m_document.textLayers[ref.index].text.left(20).replace(u'\n',u' '):QStringLiteral("图 · ")+m_document.imageLayers[ref.index].name;
+                auto *item=new QTreeWidgetItem(layers,{name});item->setData(0,Qt::UserRole,ref.text);item->setData(0,Qt::UserRole+1,ref.index);
+                item->setCheckState(1,visible?Qt::Checked:Qt::Unchecked);item->setCheckState(2,locked?Qt::Checked:Qt::Unchecked);
+                if((ref.text && ref.index==canvas->selectedText)||(!ref.text && ref.index==canvas->selected))layers->setCurrentItem(item);
+            }
+            layers->verticalScrollBar()->setValue(scroll);
         }
-        layers->verticalScrollBar()->setValue(scroll);
         const bool valid=canvas->selected>=0 || canvas->selectedText>=0;
         const bool editable=valid && canvas->editableSelection() && !canvas->cropping;
         layerUp->setEnabled(editable);layerDown->setEnabled(editable);layerDelete->setEnabled(editable);layerCopy->setEnabled(valid && !canvas->cropping);
         layers->setEnabled(!canvas->cropping);
     };
     connect(layers,&QTreeWidget::currentItemChanged,this,[canvas,layers](QTreeWidgetItem *item,QTreeWidgetItem *) {
-        if(!item)return;layers->setProperty("selecting",true);
+        if(!item)return;layers->setProperty("handlingTreeChange",true);
         const bool text=item->data(0,Qt::UserRole).toBool();const int index=item->data(0,Qt::UserRole+1).toInt();
         canvas->selectedText=text?index:-1;canvas->selected=text?-1:index;
         if(canvas->textSelected)canvas->textSelected(canvas->selectedText);
         if(canvas->selectionChanged)canvas->selectionChanged(canvas->selected);
-        layers->setProperty("selecting",false);if(canvas->selectionUiChanged)canvas->selectionUiChanged();canvas->update();
+        if(canvas->selectionUiChanged)canvas->selectionUiChanged();canvas->update();
+        layers->setProperty("handlingTreeChange",false);
     });
-    connect(layers,&QTreeWidget::itemChanged,this,[this](QTreeWidgetItem *item,int column){
+    connect(layers,&QTreeWidget::itemChanged,this,[this,layers](QTreeWidgetItem *item,int column){
         if(column!=1 && column!=2)return;const bool text=item->data(0,Qt::UserRole).toBool();const int i=item->data(0,Qt::UserRole+1).toInt();
         const bool value=item->checkState(column)==Qt::Checked;
         if(text){if(column==1)m_document.textLayers[i].visible=value;else m_document.textLayers[i].locked=value;}
         else {if(column==1)m_document.imageLayers[i].visible=value;else m_document.imageLayers[i].locked=value;}
-        refresh();emit documentChanged();
+        // Qt still uses the item after emitting itemChanged. The checkbox is already up to date.
+        layers->setProperty("handlingTreeChange", true);
+        refresh();
+        emit documentChanged();
+        layers->setProperty("handlingTreeChange", false);
     });
     const auto moveLayer=[this,canvas](int delta){
         if(!canvas->editableSelection() || canvas->cropping)return;

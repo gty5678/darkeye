@@ -83,8 +83,9 @@ void PersonalRecordManagementWidgetTest::editsSearchesAndSavesPrivateRecords()
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light, primary));
     table->selectRow(0);
     table->ensurePolished();
-    QCOMPARE(table->palette().color(QPalette::Active, QPalette::Highlight), QColor(primary));
-    QCOMPARE(table->palette().color(QPalette::Inactive, QPalette::Highlight), QColor(primary));
+    const QColor highlight(themes.currentTokens().primary);
+    QCOMPARE(table->palette().color(QPalette::Active, QPalette::Highlight), highlight);
+    QCOMPARE(table->palette().color(QPalette::Inactive, QPalette::Highlight), highlight);
 
     search->setText(QStringLiteral("不存在"));
     QCOMPARE(table->model()->rowCount(), 1);

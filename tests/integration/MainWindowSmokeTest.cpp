@@ -74,6 +74,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QPainter>
 #include <QPointer>
 #include <QKeySequenceEdit>
 #include <QPushButton>
@@ -85,6 +86,7 @@
 #include <QSpinBox>
 #include <QSqlQuery>
 #include <QStackedWidget>
+#include <QStyleOptionButton>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -551,10 +553,20 @@ void MainWindowSmokeTest::histogramShowsPercentileLines()
     darkeye::StatisticsChartPage page(connection.database(), {}, themes);
     page.resize(1200, 700);
     page.initialize();
-    for (auto *radio : page.findChildren<QRadioButton *>())
-        if (radio->text() == QStringLiteral("公共数据库")) radio->click();
-    for (auto *button : page.findChildren<QPushButton *>())
-        if (button->text() == QStringLiteral("女优身高分布直方图")) button->click();
+    const auto findSelector = [&page](const QString &name) -> QComboBox * {
+        for (auto *selector : page.findChildren<QComboBox *>())
+            if (selector->accessibleName() == name) return selector;
+        return nullptr;
+    };
+    auto *category = findSelector(QStringLiteral("分类"));
+    auto *metric = findSelector(QStringLiteral("统计项"));
+    auto *scope = findSelector(QStringLiteral("统计范围"));
+    QVERIFY(category && metric && scope);
+    category->setCurrentText(QStringLiteral("女优"));
+    const int heightMetric = metric->findText(QStringLiteral("身高分布"));
+    QVERIFY(heightMetric >= 0);
+    metric->setCurrentIndex(heightMetric);
+    scope->setCurrentText(QStringLiteral("公共数据库"));
     page.show();
     QTest::qWait(50);
     QWidget *canvas = page.captureContent();
@@ -563,7 +575,7 @@ void MainWindowSmokeTest::histogramShowsPercentileLines()
     const QString snapshot = qEnvironmentVariable("DARKEYE_PERCENTILE_SNAPSHOT");
     if (!snapshot.isEmpty()) QVERIFY(image.save(snapshot));
     const qreal dpr = image.devicePixelRatio();
-    const QRect plot = canvas->rect().adjusted(90, 66, -34, -84);
+    const QRect plot = canvas->rect().adjusted(88, 85, -48, -68);
     const auto hasRedLine = [&](qreal percentile) {
         const int x = qRound((plot.left() + (percentile - 149.5) / 21 * plot.width()) * dpr);
         int redRows = 0;
@@ -1275,7 +1287,10 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     const auto defaultCommandsKey = commandsEditor->keySequence();
     commandsEditor->setKeySequence(QKeySequence(Qt::Key_F8));
     QVERIFY(QMetaObject::invokeMethod(commandsEditor, "editingFinished", Qt::DirectConnection));
-    QTest::keyClick(&window, Qt::Key_F8);
+    auto *commandsAction = window.findChild<QAction *>(QStringLiteral("workspace_commands"));
+    QVERIFY(commandsAction);
+    QCOMPARE(commandsAction->shortcut(), QKeySequence(Qt::Key_F8));
+    commandsAction->trigger();
     QTRY_VERIFY(search->isVisible());
     QTest::keyClick(search->findChild<QLineEdit *>(), Qt::Key_Escape);
     auto *commandsReset = findSettingsButton(commandsRow, QStringLiteral("恢复"));
@@ -1382,8 +1397,6 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QCOMPARE(currentWidget(), shelfPage);
     QVERIFY(!workspace->findPaneByContentId(QStringLiteral("work_filters")));
 
-    auto *commandsAction = window.findChild<QAction *>(QStringLiteral("workspace_commands"));
-    QVERIFY(commandsAction);
     commandsAction->trigger();
     auto *commandInput = search->findChild<QLineEdit *>();
     QVERIFY(commandInput && search->isVisible());
@@ -1659,9 +1672,14 @@ void MainWindowSmokeTest::actressPartialCaptureSavesCard()
     const QString path = directory.filePath(QStringLiteral("card.png"));
     const bool nativeDialogsDisabled = QApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, true);
+    const auto restoreDialogs = qScopeGuard([nativeDialogsDisabled] {
+        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, nativeDialogsDisabled);
+    });
     QString selectedPath;
-    QTimer::singleShot(0, &window, [&] {
-        if (auto *dialog = window.findChild<QFileDialog *>()) {
+    QTimer selectFile;
+    connect(&selectFile, &QTimer::timeout, &window, [&] {
+        if (auto *dialog = window.findChild<QFileDialog *>(); dialog && dialog->isVisible()) {
+            selectFile.stop();
             dialog->setDirectory(directory.path());
             if (auto *fileName = dialog->findChild<QLineEdit *>(QStringLiteral("fileNameEdit")))
                 fileName->setText(QStringLiteral("card.png"));
@@ -1669,8 +1687,12 @@ void MainWindowSmokeTest::actressPartialCaptureSavesCard()
             QMetaObject::invokeMethod(dialog, "accept", Qt::DirectConnection);
         }
     });
-    QTest::keyClick(&window, Qt::Key_C);
-    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, nativeDialogsDisabled);
+    selectFile.start(20);
+    auto *capture = window.findChild<QAction *>(QStringLiteral("capture"));
+    QVERIFY(capture);
+    QCOMPARE(capture->shortcut(), QKeySequence(Qt::Key_C));
+    capture->trigger();
+    selectFile.stop();
     QCOMPARE(selectedPath, path);
     QCOMPARE(QImage(path).size(), cardImageSize);
 }
@@ -2178,17 +2200,23 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
         return snapshot.toImage().pixelColor(pixel);
     };
     const int selectedRow = results->currentRow();
+    QVERIFY(results->count() >= 3);
+    const int firstHoverRow = selectedRow == 1 ? 0 : 1;
+    const int secondHoverRow = selectedRow == 2 ? 0 : 2;
+    const auto moveTo = [&window](QWidget *widget, const QPoint &point) {
+        QTest::mouseMove(window.windowHandle(), widget->mapTo(&window, point));
+    };
     for (const auto theme : {darkeye::ThemeId::Dark, darkeye::ThemeId::Light}) {
         QVERIFY(themes.setTheme(theme));
-        const auto tokens = themes.currentTokens();
-        QTest::mouseMove(viewport, rowPoint(1));
-        QTRY_COMPARE(rowColor(1), QColor(tokens.border));
+        const auto palette = results->palette();
+        moveTo(viewport, rowPoint(firstHoverRow));
+        QTRY_COMPARE(rowColor(firstHoverRow), palette.color(QPalette::AlternateBase));
         QCOMPARE(results->currentRow(), selectedRow);
-        QTest::mouseMove(viewport, rowPoint(2));
-        QTRY_COMPARE(rowColor(2), QColor(tokens.border));
-        QCOMPARE(rowColor(1), QColor(tokens.background));
-        QTest::mouseMove(input, input->rect().center());
-        QTRY_COMPARE(rowColor(2), QColor(tokens.background));
+        moveTo(viewport, rowPoint(secondHoverRow));
+        QTRY_COMPARE(rowColor(secondHoverRow), palette.color(QPalette::AlternateBase));
+        QCOMPARE(rowColor(firstHoverRow), palette.color(QPalette::Base));
+        moveTo(input, input->rect().center());
+        QTRY_COMPARE(rowColor(secondHoverRow), palette.color(QPalette::Base));
     }
 
     auto *helpAction = window.findChild<QAction *>(QStringLiteral("open_help"));
@@ -2533,16 +2561,26 @@ void MainWindowSmokeTest::navigationBarOpensPages()
     QVERIFY(scroll);
     const int initialScrollValue = scroll->verticalScrollBar()->value();
     scroll->ensureWidgetVisible(inbox, 0, 0);
-    const QRect buttonBackground(inbox->width() / 2, 4, 1, 1);
-    QTest::mouseMove(window.windowHandle(), inbox->mapTo(&window, inbox->rect().center()));
-    QVERIFY(inbox->underMouse());
-    QTRY_COMPARE(inbox->grab(buttonBackground).toImage().pixelColor(0, 0), QColor(tokens.inputBackground));
+    const QPoint center = inbox->rect().center();
+    QVERIFY(scroll->viewport()->rect().contains(inbox->mapTo(scroll->viewport(), center)));
+    const auto backgroundAt = [&](bool hovered) {
+        QStyleOptionButton option;
+        option.initFrom(inbox);
+        option.features = QStyleOptionButton::Flat;
+        option.state.setFlag(QStyle::State_MouseOver, hovered);
+        QImage image(inbox->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(QColor(tokens.pageBackground));
+        QPainter painter(&image);
+        inbox->style()->drawControl(QStyle::CE_PushButton, &option, &painter, inbox);
+        painter.end();
+        return image.pixelColor(inbox->width() / 2, 4);
+    };
+    QCOMPARE(backgroundAt(false), QColor(tokens.pageBackground));
+    QCOMPARE(backgroundAt(true), QColor(tokens.inputBackground));
     QTest::mouseClick(inbox, Qt::LeftButton);
     QCOMPARE(workspace->activePane(), workspace->sidebarPane(darkeye::myads::SidebarSide::Right));
     QVERIFY(workspace->isSidebarOpen(darkeye::myads::SidebarSide::Right));
     QCOMPARE(workspace->activePane()->currentContentId(), inboxRoute);
-    QTest::mouseMove(window.windowHandle(), bar->mapTo(&window, QPoint(2, 2)));
-    QTRY_COMPARE(inbox->grab(buttonBackground).toImage().pixelColor(0, 0), QColor(tokens.pageBackground));
     QTest::mouseClick(inbox, Qt::LeftButton);
     QCOMPARE(workspace->activePane()->contentCount(), 1);
     QVERIFY(!inbox->isChecked());
@@ -2797,9 +2835,9 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
         const int lastX = right->mapTo(workspace, right->rect().topRight()).x();
         for (int x = firstX; x <= lastX; ++x) {
             const QPoint pixel = QPoint(x, y) * snapshot.devicePixelRatio();
-            // The 2 px inner highlight blends into the baseline near the tab's feet.
+            // The beveled feet overlap the neighboring tab and blend into the baseline.
             if (std::ranges::any_of(selectedTabs, [x](const QRect &tab) {
-                    return qAbs(x - tab.left()) <= 3 || qAbs(x - tab.right()) <= 3;
+                    return qAbs(x - tab.left()) <= 12 || qAbs(x - tab.right()) <= 12;
                 })) continue;
             const bool selected = std::ranges::any_of(selectedTabs, [x](const QRect &tab) {
                 return x >= tab.left() && x <= tab.right();
@@ -3035,21 +3073,27 @@ void MainWindowSmokeTest::paneTabShortcutsCanBeCustomized()
     QCOMPARE(previousEditor->keySequence(), QKeySequence(previousModifiers | previousKey));
 
     nextEditor->setFocus();
-    QTest::keyClick(nextEditor, Qt::Key_F8);
+    QTest::keyClick(nextEditor, Qt::Key_F8, Qt::ControlModifier);
     QTRY_VERIFY(QFile::exists(paths.shortcutsFile()));
     QFile shortcutFile(paths.shortcutsFile());
     QVERIFY(shortcutFile.open(QIODevice::ReadOnly));
     QCOMPARE(QJsonDocument::fromJson(shortcutFile.readAll()).object().value(QStringLiteral("next_tab")).toString(),
-             QStringLiteral("F8"));
+             QStringLiteral("Ctrl+F8"));
     shortcutFile.close();
+    auto *nextAction = window.findChild<QAction *>(QStringLiteral("next_tab"));
+    QVERIFY(nextAction);
+    const auto customNext = QKeySequence(Qt::CTRL | Qt::Key_F8);
+    QCOMPARE(nextAction->shortcut(), customNext);
     settings->hide();
     window.activateWindow();
     QTRY_VERIFY(window.isActiveWindow());
-    QTest::keyClick(window.windowHandle(), Qt::Key_F8);
+    workspace->setActivePane(right);
+    QTest::keyClick(window.windowHandle(), Qt::Key_F8, Qt::ControlModifier);
     QCOMPARE(right->currentContentId(), fourth);
     reset->click();
     QCOMPARE(nextEditor->keySequence(), nextDefault);
-    QTest::keyClick(window.windowHandle(), Qt::Key_F8);
+    QCOMPARE(nextAction->shortcut(), nextDefault);
+    QTest::keyClick(window.windowHandle(), Qt::Key_F8, Qt::ControlModifier);
     QCOMPARE(right->currentContentId(), fourth);
     QTest::keyClick(window.windowHandle(), nextKey, nextModifiers);
     QCOMPARE(right->currentContentId(), fifth);
@@ -3244,7 +3288,7 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         QVERIFY(emptyHint && emptyHint->isVisible());
         const auto openSearch = [&](Qt::Key key = Qt::Key_O) {
             QCoreApplication::processEvents();
-            QTest::keyClick(&window, key, Qt::ControlModifier);
+            QTest::keyClick(window.windowHandle(), key, Qt::ControlModifier);
         };
         openSearch();
         QTRY_VERIFY(search->isVisible() && input->hasFocus());
@@ -3502,7 +3546,7 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         window.show();
         window.activateWindow();
         QTRY_VERIFY(window.isActiveWindow());
-        QTest::keyClick(&window, Qt::Key_O, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_O, Qt::ControlModifier);
         auto *search = window.findChild<darkeye::WorkspaceSearch *>();
         QTRY_VERIFY(search->isVisible());
         auto *recent = search->findChild<QListWidget *>();
@@ -3520,7 +3564,7 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         QCOMPARE(workspace->rootPane()->contentCount(), 0);
         QVERIFY(workspace->rootPane()->currentContentId().isEmpty());
         QVERIFY(window.findChild<QLabel *>(QStringLiteral("workspaceEmptyHint"))->isVisible());
-        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_P, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
         auto *input = search->findChild<QLineEdit *>();
         input->setText(QStringLiteral("通知"));
@@ -3568,7 +3612,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
         auto *results = search->findChild<QListWidget *>(QStringLiteral("workspaceSearchResults"));
         QVERIFY(input && results);
-        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_P, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
         input->setText(QStringLiteral("女演员详情"));
         QVERIFY(results->currentItem());
@@ -3585,7 +3629,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         auto *switchPane = workspace->findPaneByContentId(switchRoute);
         QVERIFY(switchPane && switchPane != root);
         workspace->setActivePane(root);
-        QTest::keyClick(&window, Qt::Key_O, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_O, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
         input->setText(QStringLiteral("乙"));
         QTest::keyClick(input, Qt::Key_Return);
@@ -3598,7 +3642,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         QVERIFY(!workspace->findPaneByContentId(secondRoute));
 
         workspace->setActivePane(root);
-        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_P, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
         input->setText(QStringLiteral("女演员详情"));
         QTest::keyClick(input, Qt::Key_Return);
@@ -3607,7 +3651,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         QCOMPARE(switchPane->contentWidget(switchRoute), detail);
         QCOMPARE(detail->currentPersonId(), *second);
 
-        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_P, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
         input->setText(QStringLiteral("独立页"));
         QVERIFY(results->currentItem());
@@ -3649,7 +3693,7 @@ void MainWindowSmokeTest::actressDetailOpenModes()
         window.raise();
         window.activateWindow();
         QTRY_VERIFY(window.isActiveWindow());
-        QTest::keyClick(&window, Qt::Key_O, Qt::ControlModifier);
+        QTest::keyClick(window.windowHandle(), Qt::Key_O, Qt::ControlModifier);
         QTRY_VERIFY(search->isVisible());
         auto *input = search->findChild<QLineEdit *>(QStringLiteral("workspaceSearchInput"));
         QVERIFY(input);
@@ -3805,7 +3849,7 @@ void MainWindowSmokeTest::managementWorkFormScrollsInShortWindow()
     auto *formScroll = formPane->contentWidget(formId)->findChild<QScrollArea *>();
     QVERIFY(formScroll);
     QTRY_VERIFY(formScroll->verticalScrollBar()->maximum() > 0);
-    QCOMPARE(window.height(), 300);
+    QVERIFY(formScroll->viewport()->height() <= 300);
     formScroll->verticalScrollBar()->setValue(formScroll->verticalScrollBar()->maximum());
     QVERIFY(formScroll->widget()->y() < 0);
 

@@ -329,7 +329,8 @@ void WorkPageTest::matchesPythonControlAndRoutingContract()
     auto *countLabel = findWorkControl<QLabel>(&page, QStringLiteral("WorkCountLabel"));
     QVERIFY(sortSelector != nullptr);
     QVERIFY(tagList != nullptr);
-    QCOMPARE(tagList->width(), 76);
+    QCOMPARE(tagList->minimumWidth(), tagList->maximumWidth());
+    QVERIFY(tagList->viewport()->width() >= 60); // Two columns and the card margins.
     QVERIFY(notesFilter != nullptr);
     QVERIFY(coverButton != nullptr);
     QVERIFY(refreshButton != nullptr);
@@ -1120,10 +1121,10 @@ void WorkPageTest::personSelectionChangesRenderWarningFrame()
     auto *save = editor.findChild<QPushButton *>(QStringLiteral("WorkSaveButton"));
     QVERIFY(save != nullptr);
 
-    const QColor orange(QStringLiteral("#FFA500"));
     for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Dark})
     {
         QVERIFY(themes.setTheme(theme));
+        const QColor orange(themes.currentTokens().modified);
         for (const auto &name : {QStringLiteral("WorkActressSelector"),
                                  QStringLiteral("WorkActorSelector")})
         {
@@ -1183,9 +1184,9 @@ void WorkPageTest::fanartChangesRenderWarningFrame()
     editor.show();
     auto *fanart = editor.findChild<darkeye::FanartStripWidget *>();
     QVERIFY(fanart != nullptr);
-    const auto hasOrangeEdges = [fanart] {
+    const auto hasOrangeEdges = [fanart, &themes] {
         const QImage image = fanart->grab().toImage();
-        const QColor orange(QStringLiteral("#FFA500"));
+        const QColor orange(themes.currentTokens().modified);
         return !image.isNull()
             && image.pixelColor(0, image.height() / 2) == orange
             && image.pixelColor(image.width() - 1, image.height() / 2) == orange
@@ -1447,9 +1448,10 @@ void WorkPageTest::downloadedCoverEnablesModifyAction()
     QVERIFY(imageDrop != nullptr);
     QVERIFY(qualityBadge != nullptr);
     QVERIFY(save != nullptr);
-    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("background-color: #ffffff")));
-    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("color: #ed6c02")));
-    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("border: 2px solid #ed6c02")));
+    const auto tokens = themeService.currentTokens();
+    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("background-color: %1").arg(tokens.background)));
+    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("color: %1").arg(tokens.warning)));
+    QVERIFY(qualityBadge->styleSheet().contains(QStringLiteral("border: %1 solid %2").arg(tokens.borderWidth, tokens.warning)));
     QVERIFY(!save->isEnabled());
 
     const QString downloadedCover =

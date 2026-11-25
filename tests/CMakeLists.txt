@@ -39,7 +39,7 @@ function(darkeye_add_qt_test target source)
     qt_add_executable(${target} "${source}")
     target_link_libraries(${target} PRIVATE darkeye::app Qt6::Test)
     darkeye_apply_compiler_options(${target})
-    add_test(NAME ${target} COMMAND ${target})
+    add_test(NAME ${target} COMMAND ${target} ${ARGN})
     set_tests_properties(${target} PROPERTIES
         ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;DARKEYE_DATA_DIR=${CMAKE_CURRENT_BINARY_DIR}/runtime/${target};TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime"
@@ -62,7 +62,8 @@ target_link_libraries(darkeye_fixture_database_builder PRIVATE darkeye::app)
 darkeye_apply_compiler_options(darkeye_fixture_database_builder)
 
 darkeye_add_qt_test(darkeye_app_tests unit/AppPathsTest.cpp)
-darkeye_add_qt_test(darkeye_ui_smoke_tests integration/MainWindowSmokeTest.cpp)
+darkeye_add_qt_test(darkeye_ui_smoke_tests integration/MainWindowSmokeTest.cpp
+    -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/ui-smoke-results.txt,txt")
 set_tests_properties(darkeye_ui_smoke_tests PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
@@ -194,22 +195,15 @@ darkeye_add_qt_test(darkeye_crawler_refresh_tests integration/CrawlerRefreshTest
 set_target_properties(darkeye_crawler_refresh_tests PROPERTIES WIN32_EXECUTABLE FALSE)
 set_tests_properties(darkeye_crawler_refresh_tests PROPERTIES TIMEOUT 30)
 darkeye_add_qt_test(darkeye_work_page_tests integration/WorkPageTest.cpp)
-darkeye_add_qt_test(darkeye_shelf_page_tests integration/ShelfPageTest.cpp)
+darkeye_add_qt_test(darkeye_shelf_page_tests integration/ShelfPageTest.cpp
+    -o -,txt -o "${CMAKE_CURRENT_BINARY_DIR}/shelf-page-results.txt,txt")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
 set_tests_properties(darkeye_shelf_page_tests PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms;TEMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime;TMP=${CMAKE_CURRENT_BINARY_DIR}/shelf-runtime")
-# Quarantine the page suites that fail on macOS release validation. Keep their
-# build coverage and continue running them on other platforms until the macOS
-# failures can be diagnosed from detailed Qt Test output.
+# Keep building the work-page suite while its macOS failures are investigated.
 if(APPLE)
-    set_tests_properties(darkeye_work_page_tests darkeye_shelf_page_tests
-        PROPERTIES DISABLED TRUE)
-endif()
-# Temporarily quarantine this image-dependent suite on Windows runners.
-# Keep compiling it so build coverage is preserved.
-if(WIN32)
-    set_tests_properties(darkeye_shelf_page_tests PROPERTIES DISABLED TRUE)
+    set_tests_properties(darkeye_work_page_tests PROPERTIES DISABLED TRUE)
 endif()
 darkeye_add_qt_test(darkeye_av_page_tests integration/AvPageTest.cpp)
 target_link_libraries(darkeye_av_page_tests PRIVATE MdEdit::Editor)
@@ -303,5 +297,11 @@ target_link_libraries(darkeye_nfo_import_tests PRIVATE darkeye::ui)
 qt_add_executable(darkeye_cover_maker_tests unit/CoverMakerTest.cpp)
 target_link_libraries(darkeye_cover_maker_tests PRIVATE darkeye::cover_maker Qt6::Test)
 darkeye_apply_compiler_options(darkeye_cover_maker_tests)
-add_test(NAME darkeye_cover_maker_tests COMMAND darkeye_cover_maker_tests)
-set_tests_properties(darkeye_cover_maker_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+add_test(NAME darkeye_cover_maker_tests COMMAND darkeye_cover_maker_tests -o -,txt)
+set_tests_properties(darkeye_cover_maker_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
+if(WIN32)
+    set_property(TEST darkeye_cover_maker_tests APPEND PROPERTY
+        ENVIRONMENT "QT_QPA_FONTDIR=$ENV{WINDIR}/Fonts")
+endif()

@@ -46,16 +46,3 @@ target_link_libraries(Darkeye PRIVATE darkeye::desktop_ui)
 darkeye_apply_compiler_options(Darkeye)
 darkeye_configure_packaging(Darkeye)
 
-# Visual Studio project generators: arguments apply to the build executable only.
-set_property(TARGET Darkeye PROPERTY VS_DEBUGGER_COMMAND_ARGUMENTS
-    "--config-dir \"${PROJECT_SOURCE_DIR}/config\" --avwiki-dir \"${PROJECT_SOURCE_DIR}/avwiki\" --data-dir \"${PROJECT_SOURCE_DIR}/data\"")
-set_property(TARGET Darkeye PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
-
-# Visual Studio's Open Folder workflow uses launch.vs.json with Ninja presets.
-# Bootstrap a fresh checkout from the shared template; preserve local overrides.
-if(WIN32 AND MSVC AND NOT EXISTS "${PROJECT_SOURCE_DIR}/.vs/launch.vs.json")
-    file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/.vs")
-    configure_file("${PROJECT_SOURCE_DIR}/tools/launch.vs.json"
-        "${PROJECT_SOURCE_DIR}/.vs/launch.vs.json" COPYONLY)
-endif()
-

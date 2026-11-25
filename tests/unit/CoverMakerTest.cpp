@@ -278,7 +278,12 @@ private slots:
         editor.findChild<QPushButton *>(QStringLiteral("duplicateLayer"))->click();QCOMPARE(editor.document().textLayers.size(),2);QCOMPARE(tree->topLevelItemCount(),3);
         stack->undo();QCOMPARE(editor.document().textLayers.size(),1);QCOMPARE(renderCover(editor.document()),rendered);
         stack->redo();QCOMPARE(editor.document().textLayers.size(),2);
-        tree->topLevelItem(0)->setCheckState(2,Qt::Checked);QVERIFY(editor.document().textLayers[1].locked);QVERIFY(!content->isEnabled());
+        auto *topLayer = tree->topLevelItem(0);
+        const QPersistentModelIndex layerIndex(tree->indexFromItem(topLayer));
+        topLayer->setCheckState(2, Qt::Checked);
+        QVERIFY(layerIndex.isValid());
+        QVERIFY(editor.document().textLayers[1].locked);
+        QVERIFY(!content->isEnabled());
         stack->undo();QVERIFY(!editor.document().textLayers[1].locked);QVERIFY(content->isEnabled());
         tree->topLevelItem(0)->setCheckState(1,Qt::Unchecked);QVERIFY(!editor.document().textLayers[1].visible);
         stack->undo();QVERIFY(editor.document().textLayers[1].visible);

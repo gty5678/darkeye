@@ -1294,11 +1294,11 @@ private slots:
             view.setManyBodyStrength(10000 + (++changes % 100) * 100);
         });
         edits.start(1);
-        QTest::qWait(250);
-        edits.stop();
-        QVERIFY(changes > 10);
-        QVERIFY2(ticks.count() >= 3, "Continuous parameter edits postponed simulation timer ticks");
-        QVERIFY(engine->submittedSteps() > steps);
+        // Windows timer delivery can be coarser than the requested 1 ms interval.
+        QTRY_VERIFY_WITH_TIMEOUT(changes > 10, 2000);
+        QTRY_VERIFY2_WITH_TIMEOUT(ticks.count() >= 3,
+                                  "Continuous parameter edits postponed simulation timer ticks", 2000);
+        QTRY_VERIFY_WITH_TIMEOUT(engine->submittedSteps() > steps, 2000);
     }
 
     void initialLayoutSwitchesToNormalCadence()

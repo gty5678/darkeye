@@ -55,7 +55,7 @@ private slots:
     void initialCameraFramesShelf_data();
     void initialCameraFramesShelf();
     void filtersAndLoadsVirtualizedShelf();
-    void themeChangesPreserveEnvironmentBackground();
+    void themeChangesUseThemedEnvironmentBackground();
     void nativeRenderingAndActions();
     void tagFiltersCurrentShelfAndNavigationFollowsHistory();
     void rightDragRotatesWithoutContextMenu();
@@ -72,7 +72,7 @@ private slots:
     void routeJumpKeepsExcludedWorksOutOfResults();
 };
 
-void ShelfPageTest::themeChangesPreserveEnvironmentBackground()
+void ShelfPageTest::themeChangesUseThemedEnvironmentBackground()
 {
     darkeye::ThemeService themes(*qApp);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
@@ -89,13 +89,17 @@ void ShelfPageTest::themeChangesPreserveEnvironmentBackground()
     QVERIFY2(!initialFrame.isNull(), qPrintable(renderer->lastError()));
     const auto backgroundPixel = initialFrame.pixelColor(8, 8);
     QVERIFY(initialFrame.pixelColor(initialFrame.width() / 2, initialFrame.height() / 2) != backgroundPixel);
-    for (const auto theme : {darkeye::ThemeId::Light, darkeye::ThemeId::Green, darkeye::ThemeId::Dark}) {
+    for (const auto theme : {darkeye::ThemeId::Green, darkeye::ThemeId::Dark, darkeye::ThemeId::Light}) {
         QVERIFY(themes.setTheme(theme));
+        QVERIFY(renderer->lighting().environmentBackground);
         const auto frame = renderer->grabFramebuffer();
         QVERIFY2(!frame.isNull(), qPrintable(renderer->lastError()));
-        QCOMPARE(frame.pixelColor(8, 8), backgroundPixel);
+        // Dark uses the fireplace HDR. Light and Green share the Lebombo HDR.
+        if (theme == darkeye::ThemeId::Dark)
+            QVERIFY(frame.pixelColor(8, 8) != backgroundPixel);
+        else
+            QCOMPARE(frame.pixelColor(8, 8), backgroundPixel);
     }
-    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
 }
 
 void ShelfPageTest::wheelReturnDefersGraphRefresh()

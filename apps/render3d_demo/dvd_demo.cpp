@@ -1,5 +1,5 @@
 #include "dvd_scene/DvdSceneWidget.h"
-#include "DvdSceneAdapter.h"
+#include "DvdJsonLoader.h"
 #include "render3d/GltfLoader.h"
 #include "dvd_scene/DvdModelAsset.h"
 #include <QApplication>
@@ -362,7 +362,7 @@ public:
 
     bool loadItems(const QString &path)
     {
-        const auto result=DvdSceneAdapter::loadJson(path);
+        const auto result=darkeye::render3d_demo::loadDvdItemsFromJson(path);
         if(!result) { m_error->setText(result.error); return false; }
         if(!m_view->setItems(result.items)) return false;
         m_index->setRange(1,std::max(1,m_view->itemCount()));

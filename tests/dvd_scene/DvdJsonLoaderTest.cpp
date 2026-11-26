@@ -1,10 +1,10 @@
-#include "DvdSceneAdapter.h"
+#include "DvdJsonLoader.h"
 
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
 
-class DvdSceneAdapterTest : public QObject
+class DvdJsonLoaderTest : public QObject
 {
     Q_OBJECT
 
@@ -19,12 +19,12 @@ private slots:
         QCOMPARE(file.write(json), json.size());
         file.close();
 
-        const auto result = darkeye::dvd_scene::DvdSceneAdapter::loadJson(file.fileName());
+        const auto result = darkeye::render3d_demo::loadDvdItemsFromJson(file.fileName());
         QVERIFY2(bool(result), qPrintable(result.error));
         QCOMPARE(result.items.size(), 1);
         QCOMPARE(result.items.first().coverPath, temporary.filePath(QStringLiteral("封面.png")));
     }
 };
 
-QTEST_APPLESS_MAIN(DvdSceneAdapterTest)
-#include "DvdSceneAdapterTest.moc"
+QTEST_APPLESS_MAIN(DvdJsonLoaderTest)
+#include "DvdJsonLoaderTest.moc"

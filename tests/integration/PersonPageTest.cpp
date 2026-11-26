@@ -466,6 +466,23 @@ void PersonPageTest::actressTimelineSupportsPreviewAndMiddleButtonPan()
     }
     QVERIFY(titleVisible);
 
+    // The old rectangular hit area included this point outside the diamond.
+    const QPoint outsideDiamond = marker + QPoint(5, 5);
+    QMouseEvent moveOutside(QEvent::MouseMove, outsideDiamond, canvas->mapToGlobal(outsideDiamond),
+                            Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &moveOutside);
+    QVERIFY(!timeline.hoverPreviewVisible());
+    QApplication::sendEvent(canvas, &help);
+    QVERIFY(!timeline.hoverPreviewVisible());
+
+    QApplication::sendEvent(canvas, &hover);
+    QVERIFY(timeline.hoverPreviewVisible());
+    QEvent leave(QEvent::Leave);
+    QApplication::sendEvent(canvas, &leave);
+    QVERIFY(!timeline.hoverPreviewVisible());
+
+    QApplication::sendEvent(canvas, &hover);
+    QVERIFY(timeline.hoverPreviewVisible());
     const int before = scroll->horizontalScrollBar()->value();
     const QPoint dragStart(qBound(20, marker.x(), canvas->width() - 20), marker.y());
     QTest::mousePress(canvas, Qt::MiddleButton, Qt::NoModifier, dragStart);

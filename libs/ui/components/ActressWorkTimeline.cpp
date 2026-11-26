@@ -7,9 +7,9 @@
 
 #include <QApplication>
 #include <QDate>
-#include <QHelpEvent>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
@@ -35,6 +35,7 @@ constexpr int axisY = 38;
 constexpr int rulerHeight = axisY + 1;
 constexpr int thumbnailSize = 32;
 constexpr int markerSize = 16;
+constexpr qreal markerHalfSize = 6.5;
 constexpr int laneStride = 20;
 constexpr int trackPad = 14;
 constexpr int unknownWidth = 120;
@@ -63,39 +64,6 @@ QColor tagColor(int tagId, const QPalette &palette)
     default: return palette.color(QPalette::Highlight);
     }
 }
-
-class TimelineHoverPopup final : public QWidget
-{
-public:
-    TimelineHoverPopup()
-        : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint
-                               | Qt::NoDropShadowWindowHint)
-    {
-        setAttribute(Qt::WA_ShowWithoutActivating);
-        setAttribute(Qt::WA_TranslucentBackground);
-        setStyleSheet(QStringLiteral("QWidget { background: transparent; }"));
-        setMouseTracking(true);
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(0);
-    }
-
-    std::function<void()> entered;
-    std::function<void()> left;
-
-protected:
-    void enterEvent(QEnterEvent *event) override
-    {
-        if (entered) entered();
-        QWidget::enterEvent(event);
-    }
-
-    void leaveEvent(QEvent *event) override
-    {
-        if (left) left();
-        QWidget::leaveEvent(event);
-    }
-};
 }
 
 class TimelineCanvas final : public QWidget
@@ -108,13 +76,14 @@ public:
         setObjectName(QStringLiteral("ActressWorkTimelineCanvas"));
         setMouseTracking(true);
         setCursor(Qt::ArrowCursor);
-        m_popup = new TimelineHoverPopup;
-        m_popup->entered = [this] { m_hideTimer->stop(); };
-        m_popup->left = [this] { schedulePopupHide(); };
-        m_hideTimer = new QTimer(this);
-        m_hideTimer->setSingleShot(true);
-        m_hideTimer->setInterval(280);
-        connect(m_hideTimer, &QTimer::timeout, this, [this] { hidePopup(); });
+        m_popup = new QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint
+                                       | Qt::NoDropShadowWindowHint | Qt::WindowTransparentForInput);
+        m_popup->setAttribute(Qt::WA_ShowWithoutActivating);
+        m_popup->setAttribute(Qt::WA_TranslucentBackground);
+        m_popup->setStyleSheet(QStringLiteral("QWidget { background: transparent; }"));
+        auto *popupLayout = new QVBoxLayout(m_popup);
+        popupLayout->setContentsMargins(0, 0, 0, 0);
+        popupLayout->setSpacing(0);
         connect(m_scroll->horizontalScrollBar(), &QScrollBar::valueChanged,
                 this, [this] { hidePopup(); });
         connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
@@ -212,7 +181,7 @@ protected:
             const QPointF center = marker.rect.center();
             painter.setPen(Qt::NoPen);
             painter.setBrush(colors.color(QPalette::Base));
-            painter.drawConvexPolygon(markerDiamond(center, 6.5));
+            painter.drawConvexPolygon(markerDiamond(center, markerHalfSize));
             painter.setBrush(tagColor(marker.work.highlightTagId, colors));
             painter.drawConvexPolygon(markerDiamond(center, 4.5));
         }
@@ -277,14 +246,10 @@ protected:
             event->accept();
             return;
         }
-        const Marker *marker = markerAt(event->position().toPoint());
+        const Marker *marker = markerAt(event->position());
         setCursor(marker ? Qt::PointingHandCursor : Qt::ArrowCursor);
-        if (marker != nullptr) {
-            m_hideTimer->stop();
-            showPopup(*marker);
-        } else {
-            schedulePopupHide();
-        }
+        if (marker) showPopup(*marker);
+        else hidePopup();
         QWidget::mouseMoveEvent(event);
     }
 
@@ -298,7 +263,7 @@ protected:
             return;
         }
         if (event->button() == Qt::LeftButton) {
-            if (const Marker *marker = markerAt(event->position().toPoint())) {
+            if (const Marker *marker = markerAt(event->position())) {
                 if (activate) activate(marker->work.id);
                 event->accept();
                 return;
@@ -309,20 +274,20 @@ protected:
 
     void leaveEvent(QEvent *event) override
     {
-        if (!m_middlePanning) schedulePopupHide();
+        hidePopup();
         QWidget::leaveEvent(event);
+    }
+
+    void hideEvent(QHideEvent *event) override
+    {
+        hidePopup();
+        QWidget::hideEvent(event);
     }
 
     bool event(QEvent *event) override
     {
         if (event->type() == QEvent::ToolTip) {
-            const auto *help = static_cast<QHelpEvent *>(event);
-            if (const Marker *marker = markerAt(help->pos())) {
-                m_hideTimer->stop();
-                showPopup(*marker);
-            } else {
-                schedulePopupHide();
-            }
+            // A delayed tooltip event may refer to a marker the pointer has left.
             event->accept();
             return true;
         }
@@ -404,19 +369,22 @@ private:
         }
     }
 
-    const Marker *markerAt(const QPoint &position) const
+    const Marker *markerAt(const QPointF &position) const
     {
         const int rulerTop = m_scroll->verticalScrollBar()->value();
-        if ((rulerTop > 0 || m_firstTrackY > axisY) && position.y() <= rulerTop + axisY)
+        if ((rulerTop > 0 || m_firstTrackY > axisY) && position.y() < rulerTop + rulerHeight)
             return nullptr;
         const auto marker = std::find_if(m_markers.cbegin(), m_markers.cend(),
-            [&position](const Marker &item) { return item.rect.contains(position); });
+            [&position](const Marker &item) {
+                const QPointF offset = position - item.rect.center();
+                return qAbs(offset.x()) + qAbs(offset.y()) <= markerHalfSize;
+            });
         return marker == m_markers.cend() ? nullptr : &*marker;
     }
 
     void showPopup(const Marker &marker)
     {
-        if (m_popupWorkId == marker.work.id && m_popup->isVisible()) return;
+        if (m_previewMarker == &marker && m_popup->isVisible()) return;
         hidePopup();
         WorkSummary summary;
         summary.id = marker.work.id;
@@ -427,16 +395,8 @@ private:
         summary.highlightTagId = marker.work.highlightTagId;
         summary.standard = marker.work.standard;
         auto *card = new WorkCard(summary, m_coverDirectory, false, m_popup);
-        connect(card, &WorkCard::activated, this, [this](qint64 workId) {
-            hidePopup();
-            if (activate) activate(workId);
-        });
-        connect(card, &WorkCard::editRequested, this, [this](qint64 workId) {
-            hidePopup();
-            if (activate) activate(workId);
-        });
         m_popup->layout()->addWidget(card);
-        m_popupWorkId = marker.work.id;
+        m_previewMarker = &marker;
         m_popup->adjustSize();
         QPoint position = mapToGlobal(QPoint(marker.rect.center().x() - m_popup->width() / 2,
                                              marker.rect.bottom() + 8));
@@ -453,16 +413,11 @@ private:
         m_popup->raise();
     }
 
-    void schedulePopupHide()
-    {
-        if (m_popup->isVisible()) m_hideTimer->start();
-    }
-
     void hidePopup()
     {
-        m_hideTimer->stop();
+        if (!m_popup->isVisible()) return;
         m_popup->hide();
-        m_popupWorkId = 0;
+        m_previewMarker = nullptr;
         if (QLayoutItem *item = m_popup->layout()->takeAt(0)) {
             delete item->widget();
             delete item;
@@ -553,8 +508,7 @@ private:
     QScrollArea *m_scroll = nullptr;
     QString m_coverDirectory;
     QPalette m_colors;
-    TimelineHoverPopup *m_popup = nullptr;
-    QTimer *m_hideTimer = nullptr;
+    QWidget *m_popup = nullptr;
     QList<QList<PersonWorkSummary>> m_tracks;
     int m_firstTrackY = axisY;
     QList<int> m_axes;
@@ -565,7 +519,7 @@ private:
     int m_unknownX = -1;
     bool m_hasUnknownDates = false;
     double m_ppd = defaultPpd;
-    qint64 m_popupWorkId = 0;
+    const Marker *m_previewMarker = nullptr;
     bool m_middlePanning = false;
     QPointF m_lastGlobalPosition;
 };

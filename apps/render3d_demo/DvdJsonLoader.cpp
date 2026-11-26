@@ -1,4 +1,4 @@
-#include "DvdSceneAdapter.h"
+#include "DvdJsonLoader.h"
 #include "dvd_scene/DvdShelfController.h"
 #include <QDir>
 #include <QFile>
@@ -9,8 +9,8 @@
 #include <cmath>
 #include <limits>
 
-namespace darkeye::dvd_scene {
-DvdItemLoadResult DvdSceneAdapter::loadJson(const QString &path)
+namespace darkeye::render3d_demo {
+DvdItemLoadResult loadDvdItemsFromJson(const QString &path)
 {
     QFile file(path);
     if(!file.open(QIODevice::ReadOnly)) return {{},file.errorString()};
@@ -23,7 +23,7 @@ DvdItemLoadResult DvdSceneAdapter::loadJson(const QString &path)
     const auto entries=document.object()["items"].toArray();
     if(entries.size()>100000) return {{},QStringLiteral("DVD JSON exceeds 100000 items")};
     const auto directory=QFileInfo(path).absoluteDir();
-    QList<DvdItemViewModel> items;
+    QList<dvd_scene::DvdItemViewModel> items;
     for(int i=0;i<entries.size();++i) {
         if(!entries[i].isObject()) return {{},QStringLiteral("DVD item %1 is not an object").arg(i)};
         const auto entry=entries[i].toObject();
@@ -38,7 +38,7 @@ DvdItemLoadResult DvdSceneAdapter::loadJson(const QString &path)
         if(!std::isfinite(order) || order!=std::floor(order)
             || order<std::numeric_limits<int>::min() || order>std::numeric_limits<int>::max())
             return {{},QStringLiteral("DVD item %1 has invalid displayOrder").arg(i)};
-        DvdItemViewModel item;
+        dvd_scene::DvdItemViewModel item;
         item.stableId=entry["stableId"].toString();
         item.title=entry["title"].toString();
         item.coverPath=entry["coverPath"].toString();
@@ -48,9 +48,9 @@ DvdItemLoadResult DvdSceneAdapter::loadJson(const QString &path)
         item.selected=entry["selected"].toBool(false);
         items.push_back(std::move(item));
     }
-    DvdShelfController validation;
+    dvd_scene::DvdShelfController validation;
     QString message;
     if(!validation.setItems(items,&message)) return {{},message};
     return {validation.items(),{}};
 }
-} // namespace darkeye::dvd_scene
+} // namespace darkeye::render3d_demo

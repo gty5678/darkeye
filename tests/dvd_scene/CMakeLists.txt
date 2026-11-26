@@ -17,14 +17,14 @@ foreach(scale IN ITEMS 1 1.5)
 endforeach()
 if(TARGET darkeye_dvd_scene_demo)
     set(_dvd_demo_dir "${_dvd_source_root}/apps/render3d_demo")
-    qt_add_executable(darkeye_dvd_scene_adapter_tests
-        DvdSceneAdapterTest.cpp "${_dvd_demo_dir}/DvdSceneAdapter.cpp")
-    set_target_properties(darkeye_dvd_scene_adapter_tests PROPERTIES WIN32_EXECUTABLE FALSE)
-    target_include_directories(darkeye_dvd_scene_adapter_tests PRIVATE "${_dvd_demo_dir}")
-    target_link_libraries(darkeye_dvd_scene_adapter_tests PRIVATE darkeye::dvd_scene Qt6::Test)
-    darkeye_apply_compiler_options(darkeye_dvd_scene_adapter_tests)
-    add_test(NAME darkeye_dvd_scene_adapter_tests COMMAND darkeye_dvd_scene_adapter_tests)
-    set_tests_properties(darkeye_dvd_scene_adapter_tests PROPERTIES
+    qt_add_executable(darkeye_dvd_json_loader_tests
+        DvdJsonLoaderTest.cpp "${_dvd_demo_dir}/DvdJsonLoader.cpp")
+    set_target_properties(darkeye_dvd_json_loader_tests PROPERTIES WIN32_EXECUTABLE FALSE)
+    target_include_directories(darkeye_dvd_json_loader_tests PRIVATE "${_dvd_demo_dir}")
+    target_link_libraries(darkeye_dvd_json_loader_tests PRIVATE darkeye::dvd_scene Qt6::Test)
+    darkeye_apply_compiler_options(darkeye_dvd_json_loader_tests)
+    add_test(NAME darkeye_dvd_json_loader_tests COMMAND darkeye_dvd_json_loader_tests)
+    set_tests_properties(darkeye_dvd_json_loader_tests PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_dvd_qt_bin}")
 
     add_test(NAME darkeye_dvd_scene_demo_smoke COMMAND darkeye_dvd_scene_demo --count 1000 --smoke-test)

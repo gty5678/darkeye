@@ -5,14 +5,12 @@ qt_add_library(darkeye_dvd_scene STATIC
     include/dvd_scene/CoverTextureCache.h
     include/dvd_scene/DvdInteractionController.h
     include/dvd_scene/DvdSceneWidget.h
-    include/dvd_scene/DvdSceneAdapter.h
     include/dvd_scene/DvdModelAsset.h
     src/DvdShelfController.cpp
     src/DvdCaseFactory.cpp
     src/CoverTextureCache.cpp
     src/DvdInteractionController.cpp
     src/DvdSceneWidget.cpp
-    src/DvdSceneAdapter.cpp
 )
 add_library(darkeye::dvd_scene ALIAS darkeye_dvd_scene)
 qt_add_resources(darkeye_dvd_scene dvd_scene_defaults

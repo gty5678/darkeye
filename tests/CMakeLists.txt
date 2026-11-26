@@ -7,7 +7,9 @@ else()
     set(DARKEYE_TEST_NATIVE_PLATFORM xcb)
 endif()
 
-add_subdirectory(demos)
+if(DARKEYE_BUILD_DEMOS)
+    add_subdirectory(demos)
+endif()
 add_subdirectory(render3d)
 add_subdirectory(dvd_scene)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/native-ui-runtime")
@@ -105,48 +107,6 @@ set_tests_properties(darkeye_myads_tests PROPERTIES
     RUN_SERIAL TRUE
     ENVIRONMENT
         "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
-)
-add_test(NAME darkeye_myads_demo_smoke
-    COMMAND $<TARGET_FILE:darkeye_myads_demo> --smoke-test)
-set_tests_properties(darkeye_myads_demo_smoke PROPERTIES
-    ENVIRONMENT
-        "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
-    ENVIRONMENT_MODIFICATION
-        "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
-)
-add_test(NAME darkeye_graph_view_demo_smoke
-    COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 127 --seed 42 --smoke-test)
-add_test(NAME darkeye_graph_view_demo_motion_smoke
-    COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 400 --text-motion-smoke)
-# The default demo smoke already exercises the baseline preset.
-foreach(scenario IN ITEMS communities hubs lattice star islands overlap)
-    add_test(NAME darkeye_graph_view_demo_scenario_${scenario}
-        COMMAND $<TARGET_FILE:darkeye_graph_view_demo> --backend gpu --nodes 127 --preset ${scenario} --seed 42 --smoke-test)
-    set_tests_properties(darkeye_graph_view_demo_scenario_${scenario} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
-        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}" TIMEOUT 15)
-endforeach()
-qt_add_executable(darkeye_graph_demo_data_tests unit/GraphDemoDataTest.cpp ../apps/graph_view_demo/GraphScenarios.cpp)
-target_include_directories(darkeye_graph_demo_data_tests PRIVATE ../apps/graph_view_demo)
-target_link_libraries(darkeye_graph_demo_data_tests PRIVATE Qt6::Gui Qt6::Test)
-darkeye_apply_compiler_options(darkeye_graph_demo_data_tests)
-add_test(NAME darkeye_graph_demo_data_tests COMMAND darkeye_graph_demo_data_tests)
-set_tests_properties(darkeye_graph_demo_data_tests PROPERTIES
-    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}" TIMEOUT 30)
-set_tests_properties(darkeye_graph_view_demo_smoke darkeye_graph_view_demo_motion_smoke PROPERTIES
-    ENVIRONMENT
-        "QT_QPA_PLATFORM=${DARKEYE_TEST_NATIVE_PLATFORM};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
-    ENVIRONMENT_MODIFICATION
-        "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
-    TIMEOUT 10
-)
-add_test(NAME darkeye_component_gallery_smoke
-    COMMAND $<TARGET_FILE:darkeye_component_gallery> --smoke-test)
-set_tests_properties(darkeye_component_gallery_smoke PROPERTIES
-    ENVIRONMENT
-        "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}/platforms"
-    ENVIRONMENT_MODIFICATION
-        "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}"
 )
 darkeye_add_qt_test(darkeye_database_tests unit/SqliteConnectionTest.cpp)
 darkeye_add_qt_test(darkeye_schema_tests integration/SchemaManagerTest.cpp)

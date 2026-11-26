@@ -1,8 +1,9 @@
 # 力导向图 Demo
 
-目标名为 `darkeye_graph_view_demo`，普通 Debug/Release 构建默认包含，不依赖测试开关。完整构建入口见 [apps 说明](../README.md)。
+普通 Debug/Release 构建通过 `DARKEYE_BUILD_DEMOS=ON` 启用目标。完整构建入口见 [apps 说明](../README.md)。
 
 ```powershell
+cmake --preset windows-msvc-release -DDARKEYE_BUILD_DEMOS=ON
 cmake --build --preset release --target darkeye_graph_view_demo
 ./build/windows-msvc-release/darkeye_graph_view_demo.exe --backend gpu --nodes 10000
 ```

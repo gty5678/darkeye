@@ -1,6 +1,6 @@
 #include "markdown_preview_widget.h"
 #include "../../markdown/renderer.h"
-#include "../render/renderer_registry.h"
+#include "../render/resource_painting.h"
 namespace mdedit {
 namespace {
 class PreviewTextDocument final:public QTextDocument {
@@ -121,7 +121,7 @@ void MarkdownPreviewWidget::paintEvent(QPaintEvent *) {
                 content=QRectF(0,0,width,entry.height);
             }
             if(!data)painter.drawText(content,Qt::AlignCenter,"正在加载…");
-            else RendererRegistry::paint(painter,*data,content);
+            else paintResource(painter,*data,content);
         }
         painter.restore();
     }

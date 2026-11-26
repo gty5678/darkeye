@@ -57,15 +57,11 @@ if(APPLE)
         PROPERTIES DISABLED TRUE
     )
 endif()
-add_test(NAME darkeye_render3d_demo_smoke
-    COMMAND $<TARGET_FILE:darkeye_render3d_demo> --smoke-test)
-add_test(NAME darkeye_render3d_dvd_smoke
-    COMMAND $<TARGET_FILE:darkeye_render3d_demo> --scene dvd --smoke-test)
-set_tests_properties(darkeye_render3d_demo_smoke PROPERTIES
-    TIMEOUT 20 RUN_SERIAL TRUE
-    ENVIRONMENT "QT_QPA_PLATFORM_PLUGIN_PATH=${_render3d_test_qt_prefix}/plugins"
-    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_render3d_test_qt_bin}")
-set_tests_properties(darkeye_render3d_dvd_smoke PROPERTIES
-    TIMEOUT 20 RUN_SERIAL TRUE
-    ENVIRONMENT "QT_QPA_PLATFORM_PLUGIN_PATH=${_render3d_test_qt_prefix}/plugins"
-    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_render3d_test_qt_bin}")
+if(TARGET darkeye_render3d_demo)
+    add_test(NAME darkeye_render3d_demo_smoke COMMAND darkeye_render3d_demo --smoke-test)
+    add_test(NAME darkeye_render3d_dvd_smoke COMMAND darkeye_render3d_demo --scene dvd --smoke-test)
+    set_tests_properties(darkeye_render3d_demo_smoke darkeye_render3d_dvd_smoke PROPERTIES
+        TIMEOUT 20 RUN_SERIAL TRUE
+        ENVIRONMENT "QT_QPA_PLATFORM_PLUGIN_PATH=${_render3d_test_qt_prefix}/plugins"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_render3d_test_qt_bin}")
+endif()

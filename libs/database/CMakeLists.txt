@@ -10,7 +10,7 @@ target_include_directories(darkeye_database PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 target_link_libraries(darkeye_database
-    PUBLIC darkeye::domain darkeye::settings Qt6::Sql
+    PUBLIC darkeye::core darkeye::domain Qt6::Sql
     PRIVATE darkeye::resources Qt6::CorePrivate Qt6::Gui Qt6::Network
 )
 if(WIN32)

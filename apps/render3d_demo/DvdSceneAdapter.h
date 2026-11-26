@@ -1,10 +1,8 @@
 #pragma once
-#include "DvdItemViewModel.h"
+#include "dvd_scene/DvdItemViewModel.h"
 #include <QList>
 
 namespace darkeye::dvd_scene {
-// Standalone adapter. The future business-page adapter can produce the same
-// value objects without exposing SQLite or domain Work objects to the renderer.
 struct DvdItemLoadResult {
     QList<DvdItemViewModel> items;
     QString error;

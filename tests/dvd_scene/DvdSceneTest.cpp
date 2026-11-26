@@ -1,6 +1,5 @@
 #include <QThread>
 #include "dvd_scene/DvdSceneWidget.h"
-#include "dvd_scene/DvdSceneAdapter.h"
 #include "dvd_scene/DvdShelfController.h"
 #include "dvd_scene/CoverTextureCache.h"
 #include "dvd_scene/DvdModelAsset.h"
@@ -8,9 +7,6 @@
 #include "render3d/Raycaster.h"
 #include <QDir>
 #include <QFile>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -549,17 +545,6 @@ private slots:
         items[0].stableId=items[1].stableId;
         QVERIFY(!shelf.setItems(items));
         QCOMPARE(shelf.items().size(),1000);
-        QTemporaryDir temporary;
-        QVERIFY(temporary.isValid());
-        QFile file(temporary.filePath("items.json"));
-        QVERIFY(file.open(QIODevice::WriteOnly));
-        file.write(QJsonDocument(QJsonObject{{"items",QJsonArray{QJsonObject{
-            {"stableId","test"},{"title",QStringLiteral("测试")},{"coverPath",QStringLiteral("封面.png")}}}}}).toJson());
-        file.close();
-        const auto adapted=DvdSceneAdapter::loadJson(file.fileName());
-        QVERIFY2(bool(adapted),qPrintable(adapted.error));
-        QCOMPARE(adapted.items.size(),1);
-        QCOMPARE(adapted.items[0].coverPath,temporary.filePath(QStringLiteral("封面.png")));
     }
 
     void asynchronousCoverBudgetAndInvalidPaths()

@@ -15,7 +15,7 @@
 
 ## 在 Visual Studio 中调试
 
-用 VS 2022 打开仓库文件夹，选择 `windows-msvc-release`（构建 preset 为 `release`）。普通 Debug/Release 配置默认包含 graph demo、QRhi 3D demos 和 component gallery，无需开启测试。重新生成 CMake 缓存并构建后，在启动项下拉框选择 **`darkeye_dvd_scene_demo.exe`** 或 **`darkeye_render3d_demo.exe`**，按 F5。
+用 VS 2022 打开仓库文件夹，选择 `windows-msvc-release`（构建 preset 为 `release`），在 CMake 配置中设置 `DARKEYE_BUILD_DEMOS=ON`。重新生成 CMake 缓存并构建后，在启动项下拉框选择 **`darkeye_dvd_scene_demo.exe`** 或 **`darkeye_render3d_demo.exe`**，按 F5。
 
 程序位于 `build/windows-msvc-release/darkeye_dvd_scene_demo.exe`，源码入口为本目录 `dvd_demo.cpp`。若启动项仍旧，使用 VS 的“项目 → 配置缓存”重新配置；确认打开的是本仓库根目录。也可在 CMake 目标视图右键该 target，选择“设为启动项”。不要切到主程序 target。
 
@@ -36,7 +36,7 @@ ctest --test-dir build/render3d-debug --output-on-failure
 
 Release 把目录改为 `build/render3d-release`、构建类型改为 `Release`。`Embedded` 使用 `/Z7` 保留调试信息，避免共享编译 PDB 服务的环境错误。此独立入口只需 Qt 6.12.0 Core/Gui/Widgets/GuiPrivate/ShaderTools，测试另需 Test；不需 vcpkg、数据库、Quick 或 QML。`-DBUILD_TESTING=OFF` 可关闭测试。Windows 自动运行 `windeployqt`，模型及 qsb 已嵌入程序，无需复制原始 shader。
 
-完整仓库默认启用 `DARKEYE_BUILD_RENDER3D_DEMO` 与 `DARKEYE_BUILD_GRAPH_VIEW_DEMO`；需要缩减开发目标时可以设置为 OFF。`DARKEYE_BUILD_TESTS=ON` 也会包含这些 demo 以便运行冒烟测试。渲染库由主程序书架复用。
+完整仓库同时开启 `DARKEYE_BUILD_TESTS` 和 `DARKEYE_BUILD_DEMOS` 后，CTest 会注册这两个 Demo 的冒烟测试。渲染库由主程序书架复用。
 
 ## 操作与输入数据
 

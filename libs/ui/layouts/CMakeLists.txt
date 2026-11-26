@@ -14,8 +14,7 @@ target_include_directories(darkeye_docking PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../..>"
 )
 target_link_libraries(darkeye_docking PUBLIC
-    darkeye::layouts
-    darkeye::widgets
+    darkeye::darkeye_ui
     Qt6::Widgets
 )
 darkeye_apply_compiler_options(darkeye_docking)

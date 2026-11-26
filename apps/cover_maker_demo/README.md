@@ -1,11 +1,12 @@
 # 封套制作器 Demo
 
 ```sh
+cmake --preset macos-arm64-debug -DDARKEYE_BUILD_DEMOS=ON
 cmake --build build/macos-arm64-debug --target darkeye_cover_maker_demo
 ./build/macos-arm64-debug/darkeye_cover_maker_demo
 ```
 
-Windows 构建同名目标并运行对应 `.exe`。`DARKEYE_BUILD_COVER_MAKER_DEMO` 默认 ON，不加入主程序安装包。
+Windows 可用对应的预设启用 `DARKEYE_BUILD_DEMOS`，再构建同名目标并运行对应 `.exe`。
 
 ## 快速制作
 

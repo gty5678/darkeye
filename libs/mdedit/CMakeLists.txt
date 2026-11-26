@@ -20,7 +20,7 @@ add_library(MdEditEditor STATIC
   src/editor/project_file_tree.h src/editor/project_file_tree.cpp
   src/editor/wiki_navigation.h src/editor/wiki_navigation.cpp
   src/editor/markdown/block_parser.h src/editor/markdown/block_parser.cpp
-  src/editor/render/renderer_registry.h src/editor/render/renderer_registry.cpp
+  src/editor/render/resource_painting.h src/editor/render/resource_painting.cpp
   src/editor/resources/resource_manager.h src/editor/resources/resource_manager.cpp)
 add_library(MdEdit::Editor ALIAS MdEditEditor)
 target_include_directories(MdEditEditor PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")

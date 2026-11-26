@@ -3,7 +3,7 @@
 #include "../../markdown/renderer.h"
 #include <limits>
 
-#include "../render/renderer_registry.h"
+#include "../render/resource_painting.h"
 
 namespace {
 // All external image I/O goes through the same asynchronous cache as PDF/CSV.
@@ -72,7 +72,7 @@ const QTextDocument *LiveEditor::renderedDocument(const QString &text,bool joine
                 QFontMetricsF(titleFont).elidedText(title,Qt::ElideRight,width-24));
             painter.restore();
             const QRectF content=picture?QRectF(0,0,width,height):QRectF(12,42,width-24,height-54);
-            if(snapshot)mdedit::RendererRegistry::paint(painter,*snapshot,content,theme);
+            if(snapshot)mdedit::paintResource(painter,*snapshot,content,theme);
             else painter.drawText(content,Qt::AlignCenter,pdf?"PDF 正在加载…":csv?"CSV 正在加载…":textResource?"文本正在加载…":"图片正在加载…");
             painter.end();
             const QUrl imageUrl((pdf?"pdf-":csv?"csv-":textResource?"text-":"image-")+state+":/"+QString::number(qHash(resourceKey+text+(resident?"resident":"placeholder"))));

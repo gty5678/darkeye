@@ -1,4 +1,4 @@
-#include "dvd_scene/DvdSceneAdapter.h"
+#include "DvdSceneAdapter.h"
 #include "dvd_scene/DvdShelfController.h"
 #include <QDir>
 #include <QFile>

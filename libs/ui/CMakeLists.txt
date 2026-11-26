@@ -21,8 +21,8 @@ target_include_directories(darkeye_business_ui PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>"
 )
 target_link_libraries(darkeye_business_ui PUBLIC
+    darkeye::core
     darkeye::domain
-    darkeye::settings
     darkeye::database
     darkeye::services
     darkeye::graph_view
@@ -31,7 +31,6 @@ target_link_libraries(darkeye_business_ui PUBLIC
     darkeye::dvd_scene
     Qt6::Widgets
     PRIVATE
-    darkeye::core
     darkeye::gui_utils
     darkeye::resources
     MdEdit::Editor

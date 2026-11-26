@@ -1,5 +1,5 @@
 #include "dvd_scene/DvdSceneWidget.h"
-#include "dvd_scene/DvdSceneAdapter.h"
+#include "DvdSceneAdapter.h"
 #include "render3d/GltfLoader.h"
 #include "dvd_scene/DvdModelAsset.h"
 #include <QApplication>

@@ -4,7 +4,6 @@ add_subdirectory(resources)
 add_subdirectory(gui_utils)
 add_subdirectory(bridge)
 add_subdirectory(cover_maker)
-add_subdirectory(settings)
 add_subdirectory(database)
 add_subdirectory(services)
 add_subdirectory(graph)
@@ -24,7 +23,6 @@ target_link_libraries(darkeye_app INTERFACE
     darkeye::domain
     darkeye::resources
     darkeye::gui_utils
-    darkeye::settings
     darkeye::database
     darkeye::services
     darkeye::graph

@@ -17,6 +17,13 @@ DockTheme DockTheme::dark()
     return theme;
 }
 
+QColor DockTheme::splitterLine() const
+{
+    QColor line = text;
+    line.setAlphaF(0.17f);
+    return line;
+}
+
 QString DockTheme::styleSheet() const
 {
     return QStringLiteral(

@@ -216,6 +216,8 @@ int main(int argc, char **argv)
         failed = true;
         QCoreApplication::exit(5);
     });
+    if (!accept)
+        splash->hide(); // Splash visibility must not decide whether startup may proceed.
     const int result = application.run();
     if (result != 0 || failed || !consentSeen) return 6;
     if (accept) {

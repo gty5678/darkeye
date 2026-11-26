@@ -3,6 +3,7 @@
 #include "ui/components/WorkMaintenanceActions.h"
 #include "ui/layouts/myads/WorkspaceWidget.h"
 #include "ui/components/DvdShelfView.h"
+#include "app/Resources.h"
 #include <QListWidget>
 #include <QMessageBox>
 #include <QTabBar>
@@ -82,6 +83,7 @@
 #include <QImage>
 #include <QVector3D>
 #include <QRegularExpression>
+#include <QResource>
 #include <QSettings>
 #include <QSpinBox>
 #include <QSqlQuery>
@@ -163,6 +165,8 @@ private slots:
     void workspaceSearchShortcutsOpenBothModes();
     void settingsCommandsOpenExistingOperations();
     void restoresBrowsingWorkspacePreset();
+    void fallsBackWhenWorkspaceRestoreFails_data();
+    void fallsBackWhenWorkspaceRestoreFails();
     void sidebarButtonsAndVisibilitySettings();
     void sidebarShortcutsAndAutoCollapseSetting();
 #ifdef Q_OS_MACOS
@@ -171,6 +175,7 @@ private slots:
     void paneTabShortcutsCanBeCustomized();
     void paneShortcutsFollowLayoutOrder();
     void restoredTabsDeferInitialization();
+    void workspaceRecoversWithoutWindowClose();
     void workspaceSearchAndSessionLifecycle();
     void actressDetailOpenModes();
     void actressPartialCaptureSavesCard();
@@ -2435,6 +2440,73 @@ void MainWindowSmokeTest::restoresBrowsingWorkspacePreset()
     };
     QTRY_VERIFY(std::abs(lowerFraction(panes.first(), panes.last()) - 0.2) < 0.03);
     QTRY_VERIFY(std::abs(lowerFraction(graph, detail) - 2.0 / 3) < 0.03);
+
+    const auto filterRoute = QStringLiteral("work_filters");
+    QPointer<QWidget> filter = workspace->sidebarPane(SidebarSide::Left)->contentWidget(filterRoute);
+    QVERIFY(filter);
+    QVERIFY(workspace->resetToSingleEmptyPane());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(filter);
+    QCOMPARE(filter->parentWidget(), window.centralWidget());
+    QVERIFY(!workspace->findPaneByContentId(filterRoute));
+    search->openRequested(filterRoute);
+    auto *filterPane = workspace->findPaneByContentId(filterRoute);
+    QVERIFY(filterPane);
+    QCOMPARE(filterPane->contentWidget(filterRoute), filter.data());
+}
+
+void MainWindowSmokeTest::fallsBackWhenWorkspaceRestoreFails_data()
+{
+    QTest::addColumn<QByteArray>("savedLayout");
+    QTest::addColumn<bool>("presetUnavailable");
+    QTest::newRow("invalid-json") << QByteArray("{") << false;
+    QTest::newRow("unsupported-layout") << QByteArray(R"({"schema_version": -1})") << false;
+    QTest::newRow("preset-unavailable") << QByteArray("{") << true;
+}
+
+void MainWindowSmokeTest::fallsBackWhenWorkspaceRestoreFails()
+{
+    using darkeye::myads::SidebarSide;
+    using darkeye::myads::WorkspaceWidget;
+    QFETCH(QByteArray, savedLayout);
+    QFETCH(bool, presetUnavailable);
+
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const darkeye::settings::Paths paths(QCoreApplication::applicationDirPath(), temp.path());
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QFile file(QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QCOMPARE(file.write(savedLayout), savedLayout.size());
+    file.close();
+
+    darkeye::ThemeService themes(*qApp);
+    darkeye::Resources::ensureInitialized();
+    const auto restoreResources = qScopeGuard([presetUnavailable] {
+        if (presetUnavailable) Q_INIT_RESOURCE(resources);
+    });
+    if (presetUnavailable) {
+        Q_CLEANUP_RESOURCE(resources);
+        QVERIFY(!QFile::exists(QStringLiteral(":/workspace/browsing.json")));
+    }
+
+    darkeye::MainWindow window(themes, {}, {}, paths);
+    window.show();
+    auto *workspace = window.findChild<WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(workspace && workspace->rootPane());
+    if (presetUnavailable) {
+        QCOMPARE(workspace->panes().size(), 1);
+        QCOMPARE(workspace->rootPane()->contentCount(), 0);
+        QVERIFY(!workspace->isSidebarOpen(SidebarSide::Left));
+        QVERIFY(!workspace->isSidebarOpen(SidebarSide::Right));
+        const auto *hint = window.findChild<QLabel *>(QStringLiteral("workspaceEmptyHint"));
+        QVERIFY(hint && hint->isVisible());
+    } else {
+        QCOMPARE(workspace->panes().size(), 2);
+        QCOMPARE(workspace->rootPane()->currentContentId(), QStringLiteral("shelf"));
+        QVERIFY(workspace->isSidebarOpen(SidebarSide::Left));
+        QVERIFY(workspace->isSidebarOpen(SidebarSide::Right));
+    }
 }
 
 #ifdef Q_OS_MACOS
@@ -2605,6 +2677,22 @@ void MainWindowSmokeTest::navigationBarOpensPages()
     QTest::mouseClick(inbox, Qt::LeftButton);
     QCOMPARE(workspace->activePane()->contentCount(), 1);
     QVERIFY(!inbox->isChecked());
+
+    auto *sidebarSplitter = workspace->findChild<QSplitter *>(QStringLiteral("MyAdsSidebarSplitter"));
+    QVERIFY(sidebarSplitter);
+    auto *rightHandle = sidebarSplitter->handle(sidebarSplitter->count() - 1);
+    QVERIFY(rightHandle);
+    QTRY_VERIFY(rightHandle->isVisible());
+    const auto dividerPixel = [](QWidget *widget, int x) {
+        return widget->grab(QRect(x, 2, 1, 1)).toImage().pixelColor(0, 0);
+    };
+    QTest::mouseMove(inbox, inbox->rect().center());
+    QCOMPARE(dividerPixel(bar, bar->rect().right()),
+             dividerPixel(rightHandle, rightHandle->rect().center().x()));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
+    QCOMPARE(dividerPixel(bar, bar->rect().right()),
+             dividerPixel(rightHandle, rightHandle->rect().center().x()));
+    QVERIFY(themes.setTheme(darkeye::ThemeId::Light));
 
     auto *sidebar = workspace->sidebarPane(darkeye::myads::SidebarSide::Right);
     QVERIFY(sidebar->removeContent(inboxRoute));
@@ -2808,7 +2896,7 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
     QVERIFY(left && left->isVisible());
     QVERIFY(right && right->isVisible());
 
-    workspace->resetToSingleEmptyPane();
+    QVERIFY(workspace->resetToSingleEmptyPane());
     auto *center = workspace->rootPane();
     QCOMPARE(left->parentWidget(), center);
     QCOMPARE(right->parentWidget(), center);
@@ -3246,6 +3334,91 @@ void MainWindowSmokeTest::restoredTabsDeferInitialization()
     QCOMPARE(results->item(0)->text(), QStringLiteral("没有匹配结果"));
 }
 
+void MainWindowSmokeTest::workspaceRecoversWithoutWindowClose()
+{
+    using namespace darkeye::myads;
+    QTemporaryDir directory;
+    darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
+    darkeye::SqliteConnection database, privateDatabase;
+    QString error;
+    QVERIFY(database.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(database, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+
+    const auto layoutPath = QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json"));
+    const auto actress = QStringLiteral("actress");
+    const auto actor = QStringLiteral("actor");
+    const auto tags = QStringLiteral("manage_tags");
+    const auto savedTabs = [&layoutPath](const QString &paneId) {
+        const auto contents = loadLayoutFile(layoutPath).value(QStringLiteral("pane_contents")).toObject();
+        QStringList routes;
+        for (const auto &tab : contents.value(paneId).toArray())
+            routes.append(tab.toObject().value(QStringLiteral("content_id")).toString());
+        return routes;
+    };
+    QString leftId;
+    QString rightId;
+    QList<int> splitSizes;
+    darkeye::ThemeService themes(*qApp);
+    {
+        darkeye::MainWindow window(themes, database.database(), privateDatabase.database(), paths);
+        window.show();
+        auto *workspace = window.findChild<WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+        auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+        QVERIFY(workspace && search);
+        auto *left = workspace->rootPane();
+        leftId = left->paneId();
+        search->openRequested(actress);
+        search->openRequested(actor);
+        search->openRequested(tags);
+        QTRY_COMPARE(savedTabs(leftId), (QStringList{actress, actor, tags}));
+
+        auto *tabBar = left->findChild<QTabBar *>();
+        QVERIFY(tabBar);
+        tabBar->moveTab(0, 1);
+        QTRY_COMPARE(savedTabs(leftId), (QStringList{actor, actress, tags}));
+        QVERIFY(left->removeContent(actor));
+        QTRY_COMPARE(savedTabs(leftId), (QStringList{actress, tags}));
+
+        QVERIFY(workspace->moveContent(leftId, tags, leftId, DropZone::Right));
+        auto *right = workspace->findPaneByContentId(tags);
+        QVERIFY(right && right != left);
+        rightId = right->paneId();
+        QTRY_COMPARE(savedTabs(rightId), QStringList{tags});
+
+        auto *splitter = qobject_cast<QSplitter *>(right->parentWidget());
+        QVERIFY(splitter);
+        splitter->setSizes({700, 300});
+        const auto sizes = splitter->sizes();
+        QVERIFY(sizes.first() > sizes.last());
+        splitter->splitterMoved(sizes.first(), 1);
+        QCOMPARE(workspace->layoutTree().root()->sizes, sizes);
+        splitSizes = LayoutTree::fromJson(workspace->layoutTree().toJson()).root()->sizes;
+        QTRY_COMPARE(LayoutTree::fromJson(loadLayoutFile(layoutPath)
+                         .value(QStringLiteral("layout")).toObject()).root()->sizes, splitSizes);
+
+        const auto activePaneKey = QStringLiteral("active_pane_id");
+        workspace->setActivePane(left);
+        QTRY_COMPARE(loadLayoutFile(layoutPath).value(activePaneKey).toString(), leftId);
+        workspace->setActivePane(right);
+        QTRY_COMPARE(loadLayoutFile(layoutPath).value(activePaneKey).toString(), rightId);
+        // Destroy the window without calling closeEvent().
+    }
+
+    QSettings(paths.settingsFile(), QSettings::IniFormat)
+        .setValue(QStringLiteral("workspace/activeRoute"), actress);
+    darkeye::MainWindow recovered(themes, database.database(), privateDatabase.database(), paths);
+    const auto *workspace = recovered.findChild<WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+    QVERIFY(workspace && workspace->pane(leftId) && workspace->pane(rightId));
+    QCOMPARE(workspace->pane(leftId)->contentIds(), QStringList{actress});
+    QCOMPARE(workspace->activePane(), workspace->pane(rightId));
+    QCOMPARE(workspace->activePane()->currentContentId(), tags);
+    QCOMPARE(workspace->layoutTree().root()->sizes, splitSizes);
+}
+
 void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
 {
     QTemporaryDir directory;
@@ -3525,6 +3698,12 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
                 if (dialog) dialog->button(choice)->click();
             });
         };
+        answer(QMessageBox::Cancel);
+        QVERIFY(!window.close());
+        QCOMPARE(workspace->findPaneByContentId(editorRoute), editorPane);
+        answer(QMessageBox::Cancel);
+        search->openRequested(QStringLiteral("restore_workspace_preset"));
+        QCOMPARE(workspace->findPaneByContentId(editorRoute), editorPane);
         answer(QMessageBox::Cancel);
         QVERIFY(!editorPane->removeContent(editorRoute));
         QVERIFY(workspace->findPaneByContentId(editorRoute));

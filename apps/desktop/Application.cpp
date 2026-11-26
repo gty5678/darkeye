@@ -80,14 +80,8 @@ Application::Application(int &argc, char **argv)
     reportStartupStatus(QStringLiteral("正在准备运行环境"));
 
     QString errorMessage;
-    if (!m_paths.ensureRuntimeDirectories(&errorMessage)) {
-        m_splash->close();
-        QMessageBox::critical(nullptr, QStringLiteral("Darkeye 启动失败"), errorMessage);
-        return;
-    }
-    if (!settings::ensureDefaults(&errorMessage)) {
-        m_splash->close();
-        QMessageBox::critical(nullptr, QStringLiteral("Darkeye 启动失败"), errorMessage);
+    if (!m_paths.ensureRuntimeDirectories(&errorMessage) || !settings::ensureDefaults(&errorMessage)) {
+        m_startupExitCode = failStartup(QStringLiteral("Darkeye 启动失败"), errorMessage);
         return;
     }
 
@@ -100,10 +94,18 @@ Application::Application(int &argc, char **argv)
     qInfo() << "Public database:" << m_paths.publicDatabase();
 }
 
+int Application::failStartup(const QString &title, const QString &error)
+{
+    m_splash.reset();
+    qCritical().noquote() << title << error;
+    QMessageBox::critical(nullptr, title, error);
+    return 1;
+}
+
 void Application::reportStartupStatus(const QString &text)
 {
     qInfo().noquote() << "[startup]" << text;
-    if (m_splash && m_splash->isVisible()) {
+    if (m_splash) {
         m_splash->showMessage(text);
         m_application.processEvents(QEventLoop::ExcludeUserInputEvents);
     }
@@ -113,15 +115,17 @@ void Application::reportStartupStatus(const QString &text)
 // matching the Python entry point. Background services start after the splash.
 int Application::run()
 {
-    if (m_startupExitCode != 0) return m_startupExitCode;
-    if (!m_splash || !m_splash->isVisible())
+    if (m_startupExitCode != 0)
+        return m_startupExitCode;
+    if (m_runStarted)
         return 1;
+    m_runStarted = true;
     AppSettings appSettings = settings::app();
     if (appSettings.firstLaunch) {
         m_splash->hide();
         TermsDialog terms;
         if (terms.exec() != QDialog::Accepted) {
-            m_splash->close();
+            m_splash.reset();
             return 0;
         }
         appSettings.firstLaunch = false;
@@ -130,12 +134,8 @@ int Application::run()
     }
     QString errorMessage;
     reportStartupStatus(QStringLiteral("正在初始化数据库"));
-    if (!m_databaseManager.initialize(m_paths, &errorMessage)) {
-        m_splash->close();
-        qCritical() << "Database initialization failed:" << errorMessage;
-        QMessageBox::critical(nullptr, QStringLiteral("Darkeye 数据库错误"), errorMessage);
-        return 1;
-    }
+    if (!m_databaseManager.initialize(m_paths, &errorMessage))
+        return failStartup(QStringLiteral("Darkeye 数据库错误"), errorMessage);
     reportStartupStatus(QStringLiteral("正在加载样式"));
     applyInitialTheme();
     reportStartupStatus(QStringLiteral("主窗口加载"));
@@ -146,9 +146,7 @@ int Application::run()
     m_managedCollector = std::make_unique<ManagedCollector>();
     m_mainWindow->setLocalApiServer(*m_localApiServer);
     reportStartupStatus(QStringLiteral("正在预热图形引擎"));
-    prepareGraphicsPrewarm();
-    m_mainWindow->showInitial();
-    finishGraphicsPrewarm();
+    showMainWindowWithGraphicsPrewarm();
     m_splash->finish(m_mainWindow.get());
     m_splash.reset();
     reportStartupStatus(QStringLiteral("主窗口已显示，后台初始化继续进行"));
@@ -156,7 +154,7 @@ int Application::run()
     return m_application.exec();
 }
 
-void Application::prepareGraphicsPrewarm()
+void Application::showMainWindowWithGraphicsPrewarm()
 {
     // Render small native DVD and ForceView scenes during startup.
     // Keep both QRhi users in the top-level widget tree long enough to submit
@@ -165,15 +163,16 @@ void Application::prepareGraphicsPrewarm()
     auto *pageStack = m_mainWindow->centralWidget();
     // Attach the populated subtree in one step. If the main window already
     // has a native surface, Qt checks for RHI widgets during reparenting.
-    m_graphicsPrewarmWindow = std::make_unique<QWidget>();
-    m_graphicsPrewarmWindow->setAttribute(Qt::WA_TransparentForMouseEvents);
-    m_graphicsPrewarmWindow->setGeometry(0, 0, 240, 248);
+    bool graphFrameSubmitted = false;
+    auto prewarm = std::make_unique<QWidget>();
+    prewarm->setAttribute(Qt::WA_TransparentForMouseEvents);
+    prewarm->setGeometry(0, 0, 240, 248);
 
-    auto *layout = new QVBoxLayout(m_graphicsPrewarmWindow.get());
+    auto *layout = new QVBoxLayout(prewarm.get());
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto *dvdPrewarm = new dvd_scene::DvdSceneWidget(m_graphicsPrewarmWindow.get());
+    auto *dvdPrewarm = new dvd_scene::DvdSceneWidget(prewarm.get());
     dvdPrewarm->setFixedHeight(48);
     render3d::GltfLoader loader;
     const auto model=dvd_scene::loadDvdModel(loader,QStringLiteral(":/assets/dvd/dvd.glb"));
@@ -181,31 +180,24 @@ void Application::prepareGraphicsPrewarm()
         dvdPrewarm->setItems({{QStringLiteral("prewarm"),{},QStringLiteral("DVD"),0,false}});
     layout->addWidget(dvdPrewarm);
 
-    auto *graphPrewarm = new ForceViewRhiWidget(m_graphicsPrewarmWindow.get());
+    auto *graphPrewarm = new ForceViewRhiWidget(prewarm.get());
     layout->addWidget(graphPrewarm);
     graphPrewarm->setGraph(
         1, {}, {0.0f, 0.0f}, {QStringLiteral("prewarm")},
         {QStringLiteral("prewarm")}, {4.0f}, {QColor(QStringLiteral("#808080"))});
     QObject::connect(graphPrewarm, &ForceViewRhiWidget::firstFrameSubmitted,
                      graphPrewarm,
-                     [this] { m_graphPrewarmFrameSubmitted = true; });
-    m_graphicsPrewarmWindow->setParent(pageStack);
-    m_graphicsPrewarmWindow->move(0, 0);
-    m_graphicsPrewarmWindow->show();
-    m_graphicsPrewarmWindow->lower();
-}
-
-void Application::finishGraphicsPrewarm()
-{
-    if (m_graphicsPrewarmWindow == nullptr)
-        return;
+                     [&graphFrameSubmitted] { graphFrameSubmitted = true; });
+    prewarm->setParent(pageStack);
+    prewarm->move(0, 0);
+    prewarm->show();
+    prewarm->lower();
+    m_mainWindow->showInitial();
     for (int frame = 0; frame < 10; ++frame) {
         m_application.processEvents(QEventLoop::AllEvents, 50);
         QThread::msleep(16);
     }
-    // The prewarm scene is only needed while submitting the startup frames.
-    m_graphicsPrewarmWindow.reset();
-    if (!m_graphPrewarmFrameSubmitted) {
+    if (!graphFrameSubmitted) {
         qWarning() << "Graph renderer prewarm did not submit a frame";
     }
 }

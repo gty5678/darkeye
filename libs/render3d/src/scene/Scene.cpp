@@ -85,10 +85,34 @@ bool Scene::setTransform(NodeId id, const Transform &transform)
     return true;
 }
 
-bool Scene::setMesh(NodeId id, MeshHandle mesh, MaterialHandle material)
+QString Scene::validateMesh(const MeshHandle &mesh)
+{
+    if (!mesh)
+        return {};
+    const auto cached = m_validatedMeshes.find(mesh.get());
+    if (cached != m_validatedMeshes.end() && !cached->second.expired()
+        && !cached->second.owner_before(mesh) && !mesh.owner_before(cached->second))
+        return {};
+    const auto error = mesh->validationError();
+    if (!error.isEmpty())
+        return error;
+
+    if (m_validatedMeshes.size() >= m_meshCacheCleanupSize) {
+        std::erase_if(m_validatedMeshes, [](const auto &entry) { return entry.second.expired(); });
+        m_meshCacheCleanupSize = std::max<std::size_t>(64, m_validatedMeshes.size() * 2);
+    }
+    m_validatedMeshes.insert_or_assign(mesh.get(), mesh);
+    return {};
+}
+
+bool Scene::setMesh(NodeId id, MeshHandle mesh, MaterialHandle material, QString *error)
 {
     const auto it = m_nodes.find(id);
-    if (it == m_nodes.end() || (mesh && !mesh->validationError().isEmpty()))
+    const auto failure = it == m_nodes.end()
+        ? QStringLiteral("Unknown scene node %1").arg(id) : validateMesh(mesh);
+    if (error)
+        *error = failure;
+    if (!failure.isEmpty())
         return false;
     it->second.node.mesh = std::move(mesh);
     it->second.node.material = std::move(material);
@@ -111,6 +135,8 @@ bool Scene::setVisible(NodeId id, bool visible)
 void Scene::clear()
 {
     m_nodes.clear();
+    m_validatedMeshes.clear();
+    m_meshCacheCleanupSize = 64;
     ++m_revision;
 }
 
@@ -120,14 +146,20 @@ const Node *Scene::node(NodeId id) const
     return it == m_nodes.end() ? nullptr : &it->second.node;
 }
 
-QMatrix4x4 Scene::worldMatrix(NodeId id) const
+std::optional<QMatrix4x4> Scene::worldMatrix(NodeId id) const
 {
     const auto it = m_nodes.find(id);
     if (it == m_nodes.end())
-        return {};
-    auto &entry = it->second;
+        return std::nullopt;
+    return worldMatrix(it->second);
+}
+
+const QMatrix4x4 &Scene::worldMatrix(const Entry &entry) const
+{
     if (entry.dirty) {
-        entry.world = worldMatrix(entry.node.parent) * entry.node.transform.matrix();
+        entry.world = entry.node.transform.matrix();
+        if (entry.node.parent)
+            entry.world = worldMatrix(m_nodes.at(entry.node.parent)) * entry.world;
         entry.dirty = false;
     }
     return entry.world;
@@ -135,9 +167,12 @@ QMatrix4x4 Scene::worldMatrix(NodeId id) const
 
 bool Scene::effectivelyVisible(NodeId id) const
 {
-    for (auto current = id; current; current = m_nodes.at(current).node.parent)
-        if (!m_nodes.at(current).node.visible)
+    for (auto current = id; current;) {
+        const auto &node = m_nodes.at(current).node;
+        if (!node.visible)
             return false;
+        current = node.parent;
+    }
     return true;
 }
 
@@ -147,7 +182,7 @@ std::vector<RenderItem> Scene::renderItems() const
     result.reserve(m_nodes.size());
     for (const auto &[id, entry] : m_nodes)
         if (entry.node.mesh && !entry.node.mesh->indices.empty() && effectivelyVisible(id))
-            result.push_back({id, worldMatrix(id), entry.node.mesh, entry.node.material});
+            result.push_back({id, worldMatrix(entry), entry.node.mesh, entry.node.material});
     return result;
 }
 

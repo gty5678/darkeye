@@ -171,8 +171,7 @@ RhiSceneWidget::RhiSceneWidget(QWidget *parent)
 RhiSceneWidget::~RhiSceneWidget()
 {
     if(m_statisticsOverlay) m_statisticsOverlay->timer.stop();
-    // Qt cannot call our virtual releaseResources from its base destructor.
-    releaseResources();
+    // Renderer is destroyed before QRhiWidget releases its surface.
 }
 
 void RhiSceneWidget::setStatisticsVisible(bool visible)
@@ -240,19 +239,18 @@ bool RhiSceneWidget::eventFilter(QObject *object,QEvent *event)
 
 bool RhiSceneWidget::setMesh(MeshData mesh)
 {
-    const auto error = mesh.validationError();
-    if (!error.isEmpty()) {
-        reportError(error);
-        return false;
-    }
-    m_scene = std::make_shared<Scene>();
-    if (!mesh.indices.empty()) {
-        const auto node = m_scene->createNode();
+    auto scene = std::make_shared<Scene>();
+    if (!mesh.empty()) {
+        const auto node = scene->createNode();
         auto material = std::make_shared<Material>();
         material->doubleSided = true;
-        m_scene->setMesh(node, std::make_shared<const MeshData>(std::move(mesh)), material);
+        QString error;
+        if (!scene->setMesh(node, std::make_shared<const MeshData>(std::move(mesh)), material, &error)) {
+            reportError(error);
+            return false;
+        }
     }
-    update();
+    setScene(std::move(scene));
     return true;
 }
 
@@ -262,17 +260,16 @@ void RhiSceneWidget::setScene(std::shared_ptr<Scene> scene)
     update();
 }
 
-void RhiSceneWidget::setCamera(const Camera &camera)
+bool RhiSceneWidget::setCamera(const Camera &camera)
 {
-    if (!std::isfinite(camera.distance) || camera.distance <= 0
-        || !std::isfinite(camera.target.lengthSquared()) || !std::isfinite(camera.yaw)
-        || !std::isfinite(camera.pitch) || !std::isfinite(camera.verticalFov)
-        || camera.verticalFov <= 0 || camera.verticalFov >= 180
-        || !std::isfinite(camera.nearPlane) || camera.nearPlane <= 0
-        || !std::isfinite(camera.farPlane) || camera.farPlane <= camera.nearPlane)
-        return;
+    QString error;
+    if (!camera.matrices(1.0f, &error)) {
+        reportError(error);
+        return false;
+    }
     m_camera = camera;
     update();
+    return true;
 }
 
 void RhiSceneWidget::setRotation(const QQuaternion &rotation)
@@ -286,15 +283,15 @@ void RhiSceneWidget::setRotation(const QQuaternion &rotation)
     update();
 }
 
-void RhiSceneWidget::setCameraDistance(float distance)
+bool RhiSceneWidget::setCameraDistance(float distance)
 {
-    if (!std::isfinite(distance))
-        return;
-    distance = std::clamp(distance, 3.5f, 30.0f);
+    if (std::isfinite(distance))
+        distance = std::clamp(distance, 3.5f, 30.0f);
     if (m_camera.distance == distance)
-        return;
-    m_camera.distance = distance;
-    update();
+        return true;
+    auto camera = m_camera;
+    camera.distance = distance;
+    return setCamera(camera);
 }
 
 void RhiSceneWidget::setClearColor(const QColor &color)
@@ -346,42 +343,27 @@ void RhiSceneWidget::reportError(const QString &message)
     emit renderingError(message);
 }
 
-void RhiSceneWidget::initialize(QRhiCommandBuffer *cb)
-{
-    // initialize is also called for target-only changes. prepare checks the
-    // actual QRhi, sample count and pass compatibility without rebuilding on
-    // every resize. No render-target pointer is kept across callbacks.
-    qCInfo(render3dLog) << "initialize" << this << "QRhi" << rhi()
-                       << "pixels" << renderTarget()->pixelSize()
-                       << "DPR" << devicePixelRatioF()
-                       << "samples" << renderTarget()->sampleCount();
-    QString error;
-    if (!m_renderer->prepare(rhi(), renderTarget(), m_scene->renderItems(),
-                              cb, m_statistics, error))
-        reportError(error);
-}
-
 void RhiSceneWidget::render(QRhiCommandBuffer *cb)
 {
-    if (!rhi() || !renderTarget() || renderTarget()->pixelSize().isEmpty())
+    auto *target = renderTarget();
+    if (!target || target->pixelSize().isEmpty())
         return;
-    const auto size = renderTarget()->pixelSize();
+    const auto size = target->pixelSize();
     QElapsedTimer frameTimer;
     frameTimer.start();
     if (m_statistics.pixelSize != size) {
         qCInfo(render3dLog) << "Surface size" << size << "DPR" << devicePixelRatioF();
         m_statistics.pixelSize = size;
     }
-    m_statistics.samples = renderTarget()->sampleCount();
+    m_statistics.samples = target->sampleCount();
     QString error;
-    if (!m_renderer->prepare(rhi(), renderTarget(), m_scene->renderItems(),
-                              cb, m_statistics, error)) {
-        cb->beginPass(renderTarget(), QColor(Qt::darkRed), {1.0f, 0});
+    if (!m_renderer->prepare(rhi(), target, m_scene->renderItems(), cb, m_statistics, error)
+        || !m_renderer->draw(target, cb, m_camera, m_rotation, m_clearColor, m_statistics, error)) {
+        cb->beginPass(target, QColor(Qt::darkRed), {1.0f, 0});
         cb->endPass();
         reportError(error);
         return;
     }
-    m_renderer->draw(renderTarget(), cb, m_camera, m_rotation, m_clearColor, m_statistics);
     m_statistics.cpuFrameMs = double(frameTimer.nsecsElapsed()) / 1e6;
     if (!m_lastError.isEmpty()) {
         m_lastError.clear();

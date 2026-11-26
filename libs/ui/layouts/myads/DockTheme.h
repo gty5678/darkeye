@@ -26,6 +26,7 @@ struct DockTheme
     int previewBorderWidth = 2;
 
     [[nodiscard]] static DockTheme dark();
+    [[nodiscard]] QColor splitterLine() const;
     [[nodiscard]] QString styleSheet() const;
 };
 

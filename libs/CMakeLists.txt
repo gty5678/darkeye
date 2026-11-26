@@ -1,4 +1,8 @@
 add_subdirectory(core)
+add_subdirectory(domain)
+add_subdirectory(resources)
+add_subdirectory(gui_utils)
+add_subdirectory(bridge)
 add_subdirectory(cover_maker)
 add_subdirectory(settings)
 add_subdirectory(database)
@@ -17,6 +21,9 @@ add_library(darkeye_app INTERFACE)
 add_library(darkeye::app ALIAS darkeye_app)
 target_link_libraries(darkeye_app INTERFACE
     darkeye::core
+    darkeye::domain
+    darkeye::resources
+    darkeye::gui_utils
     darkeye::settings
     darkeye::database
     darkeye::services

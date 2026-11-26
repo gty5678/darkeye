@@ -53,10 +53,10 @@ public:
     bool setMesh(MeshData mesh);
     void setScene(std::shared_ptr<Scene> scene);
     [[nodiscard]] std::shared_ptr<Scene> scene() const { return m_scene; }
-    void setCamera(const Camera &camera);
+    bool setCamera(const Camera &camera);
     [[nodiscard]] Camera camera() const { return m_camera; }
     void setRotation(const QQuaternion &rotation);
-    void setCameraDistance(float distance);
+    bool setCameraDistance(float distance);
     void setClearColor(const QColor &color);
     // Source texture budget excludes render targets and driver allocations.
     void setTextureBudget(quint64 bytes);
@@ -78,7 +78,6 @@ signals:
 protected:
     bool event(QEvent *event) override;
     bool eventFilter(QObject *object, QEvent *event) override;
-    void initialize(QRhiCommandBuffer *cb) override;
     void render(QRhiCommandBuffer *cb) override;
     void releaseResources() override;
     void showEvent(QShowEvent *event) override;

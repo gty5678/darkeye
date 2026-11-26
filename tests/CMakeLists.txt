@@ -19,7 +19,7 @@ qt_add_executable(darkeye_startup_tests
     ../apps/desktop/Application.cpp
     ../apps/desktop/Application.h
 )
-target_link_libraries(darkeye_startup_tests PRIVATE darkeye::desktop_ui Qt6::Test)
+target_link_libraries(darkeye_startup_tests PRIVATE darkeye::desktop_ui darkeye::bridge Qt6::Test)
 set_target_properties(darkeye_startup_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/startup")
 darkeye_apply_compiler_options(darkeye_startup_tests)
@@ -180,7 +180,9 @@ set_tests_properties(darkeye_webdav_credential_tests PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")
 qt_add_executable(darkeye_snapshot_upload_tests integration/SnapshotUploadTest.cpp)
 set_target_properties(darkeye_snapshot_upload_tests PROPERTIES WIN32_EXECUTABLE FALSE)
-target_link_libraries(darkeye_snapshot_upload_tests PRIVATE darkeye::database Qt6::CorePrivate Qt6::Test)
+target_link_libraries(darkeye_snapshot_upload_tests PRIVATE
+    darkeye::database Qt6::CorePrivate Qt6::Network Qt6::Test
+)
 darkeye_apply_compiler_options(darkeye_snapshot_upload_tests)
 add_test(NAME darkeye_snapshot_upload_tests COMMAND darkeye_snapshot_upload_tests -o -,txt)
 set_tests_properties(darkeye_snapshot_upload_tests PROPERTIES

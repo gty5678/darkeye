@@ -348,7 +348,8 @@ bool saveLayoutAtomic(const QString &path, const QJsonObject &data, QString *err
         if (error) *error = file.errorString();
         return false;
     }
-    if (file.write(QJsonDocument(data).toJson(QJsonDocument::Indented)) < 0 || !file.commit()) {
+    const auto bytes = QJsonDocument(data).toJson(QJsonDocument::Indented);
+    if (file.write(bytes) != bytes.size() || !file.commit()) {
         if (error) *error = file.errorString();
         return false;
     }

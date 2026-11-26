@@ -5,7 +5,6 @@
 #include <QIcon>
 #include <QHash>
 #include <QPoint>
-#include <QSet>
 #include <QWidget>
 
 class QDragEnterEvent;
@@ -73,6 +72,7 @@ public:
 
 signals:
     void currentContentChanged();
+    void layoutPreferencesChanged();
     void activationRequested();
     void contentClosed(const QString &contentId);
     void paneEmpty(darkeye::myads::PaneWidget *pane);
@@ -90,6 +90,9 @@ protected:
     void dragLeaveEvent(QDragLeaveEvent *event) override;
 
 private:
+    friend class WorkspaceWidget;
+    bool requestContentClose(const QString &contentId);
+    bool disposeContent(const QString &contentId);
     [[nodiscard]] int indexOf(const QString &contentId) const;
     void updateCloseButton(int index);
     void clearWindowFocus();
@@ -104,7 +107,6 @@ private:
     QHash<QString, QString> m_titles;
     QHash<QString, bool> m_closeable;
     QHash<QString, ClosePolicy> m_closePolicies;
-    QSet<QString> m_pendingCloseRequests;
     DockTheme m_theme;
 };
 

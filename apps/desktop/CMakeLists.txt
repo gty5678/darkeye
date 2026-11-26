@@ -12,6 +12,7 @@ target_link_libraries(darkeye_desktop_ui PUBLIC
     # usage requirement visible to CMake generators and Visual Studio's
     # IntelliSense target model instead of relying only on the app facade.
     darkeye::graph
+    PRIVATE darkeye::bridge
 )
 if(WIN32)
     target_link_libraries(darkeye_desktop_ui PRIVATE dwmapi Psapi)
@@ -42,7 +43,7 @@ endif()
 if(WIN32)
     target_sources(Darkeye PRIVATE "${PROJECT_SOURCE_DIR}/resources/logo.rc")
 endif()
-target_link_libraries(Darkeye PRIVATE darkeye::desktop_ui)
+target_link_libraries(Darkeye PRIVATE darkeye::desktop_ui darkeye::bridge)
 darkeye_apply_compiler_options(Darkeye)
 darkeye_configure_packaging(Darkeye)
 

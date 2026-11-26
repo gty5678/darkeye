@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QFrame>
 #include <QLabel>
+#include <QSignalSpy>
 #include <QToolButton>
 #include <QTest>
 #include <QVBoxLayout>
@@ -664,6 +665,32 @@ private slots:
         mesh = coloredTriangle();
         mesh.vertices[0].position[1] = std::numeric_limits<float>::quiet_NaN();
         QVERIFY(!mesh.validationError().isEmpty());
+    }
+
+    void rejectedInputPreservesSceneAndCamera()
+    {
+        RhiSceneWidget view;
+        QVERIFY(view.setMesh(coloredTriangle()));
+        const auto scene = view.scene();
+        QSignalSpy errors(&view, &RhiSceneWidget::renderingError);
+        auto broken = coloredCube();
+        broken.indices.clear();
+        const auto meshError = broken.validationError();
+        QVERIFY(!view.setMesh(std::move(broken)));
+        QCOMPARE(view.scene().get(), scene.get());
+        QCOMPARE(view.lastError(), meshError);
+        QCOMPARE(errors.count(), 1);
+
+        auto camera = view.camera();
+        camera.farPlane = std::numeric_limits<float>::infinity();
+        QVERIFY(!view.setCamera(camera));
+        QVERIFY(std::isfinite(view.camera().farPlane));
+        QCOMPARE(errors.count(), 2);
+        QVERIFY(!view.setCameraDistance(std::numeric_limits<float>::quiet_NaN()));
+        QCOMPARE(view.camera().distance, camera.distance);
+        QCOMPARE(errors.count(), 3);
+        QVERIFY(view.setMesh({}));
+        QCOMPARE(view.scene()->size(), std::size_t(0));
     }
 
     void clearTriangleDepthAndRotation()

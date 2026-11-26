@@ -85,50 +85,81 @@ quint64 textureCost(QSize size,bool mipmapped)
 
 Renderer::~Renderer() { release(); }
 
+void Renderer::clearMaterialBindings()
+{
+    m_bindings.clear();
+    m_opaqueBindings.clear();
+    m_reverseBindings.clear();
+}
+
+void Renderer::invalidateGeometryBindings()
+{
+    m_lighting->invalidateGeometryPipelines();
+    m_pipelines.clear();
+    m_auxBindings.clear();
+    m_auxLayout.reset();
+    m_layoutBindings.reset();
+    clearMaterialBindings();
+}
+
 void Renderer::clearTransmissionTargets()
 {
-    m_bindings.clear(); m_opaqueBindings.clear(); m_reverseBindings.clear();
+    clearMaterialBindings();
     m_copyPipeline.reset(); m_transmissionPresentBindings.reset();
     m_transmissionTarget.reset();
     m_transmissionResolved.reset(); m_transmissionColor.reset();
 }
 
-bool Renderer::ensureTransmissionTargets(bool enabled,QString &error)
+bool Renderer::ensureTransmissionTargets(bool enabled, RenderStatistics &stats, QString &error)
 {
-    if(!enabled) { if(m_transmissionTarget) clearTransmissionTargets(); return true; }
-    if(m_transmissionTarget && m_copyPipeline && m_transmissionPresentBindings) return true;
-    clearTransmissionTargets();
-    m_transmissionColor.reset(m_rhi->newTexture(QRhiTexture::RGBA16F,m_size,m_samples,QRhiTexture::RenderTarget));
-    if(!m_transmissionColor->create()) { error="Cannot allocate transmission color"; return false; }
-    QRhiColorAttachment attachment(m_transmissionColor.get());
+    if (enabled == bool(m_transmissionTarget))
+        return true;
+    if (!enabled) {
+        clearTransmissionTargets();
+        return true;
+    }
+    auto color = std::unique_ptr<QRhiTexture>(m_rhi->newTexture(
+        QRhiTexture::RGBA16F,m_size,m_samples,QRhiTexture::RenderTarget));
+    if(!color->create()) { error="Cannot allocate transmission color"; return false; }
+    QRhiColorAttachment attachment(color.get());
+    std::unique_ptr<QRhiTexture> resolved;
     if(m_samples>1) {
-        m_transmissionResolved.reset(m_rhi->newTexture(QRhiTexture::RGBA16F,m_size,1,QRhiTexture::RenderTarget));
-        if(!m_transmissionResolved->create()) { error="Cannot allocate transmission resolve"; return false; }
-        attachment.setResolveTexture(m_transmissionResolved.get());
+        resolved.reset(m_rhi->newTexture(QRhiTexture::RGBA16F,m_size,1,QRhiTexture::RenderTarget));
+        if(!resolved->create()) { error="Cannot allocate transmission resolve"; return false; }
+        attachment.setResolveTexture(resolved.get());
     }
-    m_transmissionTarget.reset(m_rhi->newTextureRenderTarget(QRhiTextureRenderTargetDescription(attachment,m_depth.get())));
-    m_transmissionTarget->setRenderPassDescriptor(m_scenePass.get());
-    if(!m_transmissionTarget->create()) { error="Cannot create transmission framebuffer"; return false; }
+    auto target = std::unique_ptr<QRhiTextureRenderTarget>(m_rhi->newTextureRenderTarget(
+        QRhiTextureRenderTargetDescription(attachment,m_depth.get())));
+    target->setRenderPassDescriptor(m_scenePass.get());
+    if(!target->create()) { error="Cannot create transmission framebuffer"; return false; }
     if(!m_transmissionSampler) {
-        m_transmissionSampler.reset(m_rhi->newSampler(QRhiSampler::Linear,QRhiSampler::Linear,QRhiSampler::None,
-            QRhiSampler::ClampToEdge,QRhiSampler::ClampToEdge));
-        if(!m_transmissionSampler->create()) { error="Cannot create transmission sampler"; return false; }
+        auto sampler = std::unique_ptr<QRhiSampler>(m_rhi->newSampler(QRhiSampler::Linear,
+            QRhiSampler::Linear,QRhiSampler::None,QRhiSampler::ClampToEdge,QRhiSampler::ClampToEdge));
+        if(!sampler->create()) { error="Cannot create transmission sampler"; return false; }
+        m_transmissionSampler = std::move(sampler);
     }
-    m_transmissionPresentBindings.reset(m_rhi->newShaderResourceBindings());
-    m_transmissionPresentBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(0,
+    auto bindings = std::unique_ptr<QRhiShaderResourceBindings>(m_rhi->newShaderResourceBindings());
+    bindings->setBindings({QRhiShaderResourceBinding::sampledTexture(0,
         QRhiShaderResourceBinding::FragmentStage,
-        m_transmissionResolved?m_transmissionResolved.get():m_transmissionColor.get(),m_presentSampler.get()),
+        resolved?resolved.get():color.get(),m_presentSampler.get()),
         QRhiShaderResourceBinding::uniformBuffer(1,QRhiShaderResourceBinding::VertexStage|QRhiShaderResourceBinding::FragmentStage,
             m_presentUniform.get())});
-    if(!m_transmissionPresentBindings->create()) { error="Cannot create transmission presentation bindings"; return false; }
+    if(!bindings->create()) { error="Cannot create transmission presentation bindings"; return false; }
     const auto vert=shader(QStringLiteral("present.vert"),error),frag=shader(QStringLiteral("copylinear.frag"),error);
     if(!error.isEmpty()) return false;
-    m_copyPipeline.reset(m_rhi->newGraphicsPipeline());
-    m_copyPipeline->setShaderStages({{QRhiShaderStage::Vertex,vert},{QRhiShaderStage::Fragment,frag}});
-    m_copyPipeline->setShaderResourceBindings(m_presentBindings.get());
-    m_copyPipeline->setRenderPassDescriptor(m_scenePass.get());
-    m_copyPipeline->setSampleCount(m_samples);
-    if(!m_copyPipeline->create()) { error="Cannot create linear composition copy pipeline"; return false; }
+    auto pipeline = std::unique_ptr<QRhiGraphicsPipeline>(m_rhi->newGraphicsPipeline());
+    pipeline->setShaderStages({{QRhiShaderStage::Vertex,vert},{QRhiShaderStage::Fragment,frag}});
+    pipeline->setShaderResourceBindings(m_presentBindings.get());
+    pipeline->setRenderPassDescriptor(m_scenePass.get());
+    pipeline->setSampleCount(m_samples);
+    if(!pipeline->create()) { error="Cannot create linear composition copy pipeline"; return false; }
+    clearMaterialBindings();
+    m_transmissionColor = std::move(color);
+    m_transmissionResolved = std::move(resolved);
+    m_transmissionPresentBindings = std::move(bindings);
+    m_copyPipeline = std::move(pipeline);
+    m_transmissionTarget = std::move(target);
+    ++stats.pipelineGenerations;
     return true;
 }
 
@@ -142,9 +173,9 @@ void Renderer::release()
     m_presentSampler.reset();
     m_pipelines.clear();
     m_layoutBindings.reset();
-    m_bindings.clear(); m_opaqueBindings.clear(); m_reverseBindings.clear();
-    m_auxBindings.clear(); m_auxLayout.reset();
+    m_auxBindings.clear();
     m_lighting.reset();
+    m_auxLayout.reset();
     m_uniform.reset();
     m_sceneTarget.reset();
     m_scenePass.reset();
@@ -159,20 +190,16 @@ void Renderer::release()
     m_uniformCapacity = 0;
     m_samples = 0;
     m_size = {};
-    m_targetsReady=false;
     m_textureBudgetDirty=true;
 }
 
 bool Renderer::ensureTargets(QRhiRenderTarget *target, QString &error)
 {
-    if (m_targetsReady && m_sceneTarget && m_size == target->pixelSize() && m_samples == target->sampleCount())
+    if (m_sceneTarget && m_size == target->pixelSize() && m_samples == target->sampleCount())
         return true;
-    m_targetsReady=false;
-    clearTransmissionTargets();
+    if (m_transmissionTarget)
+        clearTransmissionTargets();
     m_sceneTarget.reset();
-    m_depth.reset();
-    m_resolved.reset();
-    m_color.reset();
     const auto size = target->pixelSize();
     const auto samples = target->sampleCount();
     auto color = std::unique_ptr<QRhiTexture>(m_rhi->newTexture(
@@ -206,12 +233,6 @@ bool Renderer::ensureTargets(QRhiRenderTarget *target, QString &error)
         error = QStringLiteral("Failed to create linear scene render target");
         return false;
     }
-    m_color = std::move(color);
-    m_resolved = std::move(resolved);
-    m_depth = std::move(depth);
-    m_sceneTarget = std::move(framebuffer);
-    m_size = size;
-    m_samples = samples;
     // Reuse the SRB object/layout across resize. The presentation pipeline does
     // not need to be rebuilt when only the sampled render-target size changes.
     if (!m_presentSampler) {
@@ -235,14 +256,21 @@ bool Renderer::ensureTargets(QRhiRenderTarget *target, QString &error)
     }
     m_presentBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(
         0, QRhiShaderResourceBinding::FragmentStage,
-        m_resolved ? m_resolved.get() : m_color.get(), m_presentSampler.get()),
+        resolved ? resolved.get() : color.get(), m_presentSampler.get()),
         QRhiShaderResourceBinding::uniformBuffer(1, QRhiShaderResourceBinding::VertexStage|QRhiShaderResourceBinding::FragmentStage,
             m_presentUniform.get())});
     if (!m_presentBindings->create()) {
+        m_presentPipeline.reset();
+        m_presentBindings.reset();
         error = QStringLiteral("Failed to create presentation bindings");
         return false;
     }
-    m_targetsReady=true;
+    m_color = std::move(color);
+    m_resolved = std::move(resolved);
+    m_depth = std::move(depth);
+    m_sceneTarget = std::move(framebuffer);
+    m_size = size;
+    m_samples = samples;
     return true;
 }
 
@@ -285,27 +313,21 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
     }
     initializeShaderResources();
     if(!m_lighting) m_lighting=std::make_unique<LightingResources>();
-    if(m_lighting->resourcesWillChange(target->pixelSize(),m_lightingSettings,m_environment)) {
-        m_pipelines.clear(); m_layoutBindings.reset(); m_bindings.clear(); m_opaqueBindings.clear(); m_reverseBindings.clear();
-        m_lighting->invalidateGeometryPipelines(); m_auxBindings.clear(); m_auxLayout.reset();
-    }
+    if (m_lighting->resourcesWillChange(target->pixelSize(), m_lightingSettings, m_environment))
+        invalidateGeometryBindings();
     if(!m_lighting->prepare(rhi,target->pixelSize(),m_lightingSettings,m_environment,cb,error)) return false;
     if (!ensureTargets(target, error) || !ensurePresentation(target, stats, error))
         return false;
-    const bool hadCopyPipeline=bool(m_copyPipeline);
-    if(!ensureTransmissionTargets(std::any_of(items.begin(),items.end(),[](const RenderItem &item) {
-            return transmissive(materialOf(item)); }),error)) return false;
-    if(m_copyPipeline && !hadCopyPipeline) ++stats.pipelineGenerations;
-    m_items = items;
+    const bool transmission = std::any_of(items.begin(), items.end(), [](const RenderItem &item) {
+        return transmissive(materialOf(item));
+    });
+    if (!ensureTransmissionTargets(transmission, stats, error))
+        return false;
     std::set<const MeshData *> activeGeometry;
-    std::set<const TextureData *> activeTextures;
     std::set<BindingKey> activeBindings;
     std::set<PipelineKey> activePipelines;
-    if(items.empty()) {
-        m_lighting->invalidateGeometryPipelines(); m_auxBindings.clear(); m_auxLayout.reset();
-        m_pipelines.clear();
-        m_layoutBindings.reset();
-        m_bindings.clear(); m_opaqueBindings.clear(); m_reverseBindings.clear();
+    if (items.empty() && m_uniformCapacity > 0) {
+        invalidateGeometryBindings();
         m_uniform.reset();
         m_uniformCapacity=0;
         m_uniformStride=0;
@@ -425,7 +447,6 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
         activeBindings.insert(materialKey(material));
         activePipelines.emplace(material.alphaMode, material.doubleSided, item.world.determinant() < 0,transmissive(material));
         for (const auto &source : materialTextures(material)) {
-            activeTextures.insert(source.get());
             if (m_textures.contains(source.get()))
                 continue;
             QImage image;
@@ -471,16 +492,10 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
     std::erase_if(m_opaqueBindings, [&](const auto &entry) { return !activeBindings.contains(entry.first); });
     std::erase_if(m_reverseBindings, [&](const auto &entry) { return !activeBindings.contains(entry.first); });
     std::erase_if(m_auxBindings, [&](const auto &entry) { return !activeBindings.contains(entry.first); });
-    std::erase_if(m_textures, [&](const auto &entry) { return !activeTextures.contains(entry.first); });
     std::erase_if(m_geometry, [&](const auto &entry) { return !activeGeometry.contains(entry.first); });
     if (!items.empty()) {
         const auto stride = quint32(rhi->ubufAligned(uniformBytes));
-        if (!m_uniform || m_uniformCapacity < items.size()) {
-            m_lighting->invalidateGeometryPipelines(); m_auxBindings.clear(); m_auxLayout.reset();
-            m_pipelines.clear();
-            m_layoutBindings.reset();
-            m_bindings.clear(); m_opaqueBindings.clear(); m_reverseBindings.clear();
-            m_uniform.reset();
+        if (m_uniformCapacity < items.size()) {
             quint32 capacity = 1;
             while (capacity < items.size()) capacity *= 2;
             auto uniform = std::unique_ptr<QRhiBuffer>(rhi->newBuffer(QRhiBuffer::Dynamic,
@@ -489,6 +504,7 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
                 error = QStringLiteral("Failed to allocate dynamic per-object uniforms");
                 return false;
             }
+            invalidateGeometryBindings();
             m_uniform = std::move(uniform);
             m_uniformStride = stride;
             m_uniformCapacity = capacity;
@@ -538,17 +554,16 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
             const auto &white=m_textures.at(nullptr);
             entries.push_back(QRhiShaderResourceBinding::sampledTexture(13,QRhiShaderResourceBinding::FragmentStage,
                 white.texture.get(),white.sampler.get()));
-            if(m_transmissionTarget) {
-                auto opaque=std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+            std::unique_ptr<QRhiShaderResourceBindings> opaque, reverse;
+            if (transmission) {
+                opaque.reset(rhi->newShaderResourceBindings());
                 opaque->setBindings(entries.begin(),entries.end());
                 if(!opaque->create()) { error="Cannot create opaque snapshot bindings"; return false; }
-                m_opaqueBindings.emplace(key,std::move(opaque));
                 entries.back()=QRhiShaderResourceBinding::sampledTexture(13,QRhiShaderResourceBinding::FragmentStage,
                     m_resolved?m_resolved.get():m_color.get(),m_transmissionSampler.get());
-                auto reverse=std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
+                reverse.reset(rhi->newShaderResourceBindings());
                 reverse->setBindings(entries.begin(),entries.end());
                 if(!reverse->create()) { error="Cannot create reverse transmission bindings"; return false; }
-                m_reverseBindings.emplace(key,std::move(reverse));
                 entries.back()=QRhiShaderResourceBinding::sampledTexture(13,QRhiShaderResourceBinding::FragmentStage,
                     m_transmissionResolved?m_transmissionResolved.get():m_transmissionColor.get(),m_transmissionSampler.get());
             }
@@ -557,16 +572,21 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
                 error = QStringLiteral("Failed to create material resource bindings");
                 return false;
             }
+            if (transmission) {
+                m_opaqueBindings.emplace(key, std::move(opaque));
+                m_reverseBindings.emplace(key, std::move(reverse));
+            }
             m_bindings.emplace(key, std::move(bindings));
         }
         if(!m_auxLayout) {
-            m_auxLayout.reset(rhi->newShaderResourceBindings());
+            auto layout = std::unique_ptr<QRhiShaderResourceBindings>(rhi->newShaderResourceBindings());
             const auto &white=m_textures.at(nullptr);
-            m_auxLayout->setBindings({QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(0,
+            layout->setBindings({QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(0,
                 QRhiShaderResourceBinding::VertexStage|QRhiShaderResourceBinding::FragmentStage,m_uniform.get(),uniformBytes),
                 QRhiShaderResourceBinding::sampledTexture(1,QRhiShaderResourceBinding::FragmentStage,white.texture.get(),white.sampler.get()),
                 QRhiShaderResourceBinding::uniformBuffer(7,QRhiShaderResourceBinding::VertexStage|QRhiShaderResourceBinding::FragmentStage,m_lighting->uniform())});
-            if(!m_auxLayout->create()) { error="Cannot create lighting geometry layout"; return false; }
+            if(!layout->create()) { error="Cannot create lighting geometry layout"; return false; }
+            m_auxLayout = std::move(layout);
         }
         for(const auto &key:activeBindings) {
             if(m_auxBindings.contains(key)) continue;
@@ -623,7 +643,7 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
         }
     }
     if(!m_lighting->ensurePipelines(m_auxLayout.get(),m_scenePass.get(),m_samples,error)) return false;
-    stats.bufferBytes = 416 + (m_uniform ? quint64(m_uniformStride) * m_uniformCapacity : 0);
+    stats.bufferBytes = 416 + quint64(m_uniformStride) * m_uniformCapacity;
     for (const auto &[_, geometry] : m_geometry) stats.bufferBytes += geometry.bytes;
     stats.textureBytes = quint64(m_size.width()) * m_size.height()
         * quint64(8 * m_samples + 4 * m_samples + (m_samples > 1 ? 8 : 0));
@@ -636,25 +656,37 @@ bool Renderer::prepare(QRhi *rhi, QRhiRenderTarget *target,
     stats.textureCount = int(m_textures.size());
     stats.visibleItems = int(items.size());
     m_textureBudgetDirty=false;
+    m_items = items;
     return true;
 }
 
-void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
+bool Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
                     const Camera &camera, const QQuaternion &rotation,
-                    const QColor &clearColor, RenderStatistics &stats)
+                    const QColor &clearColor, RenderStatistics &stats, QString &error)
 {
+    const auto matrices = camera.matrices(float(m_size.width()) / m_size.height(), &error);
+    if (!matrices)
+        return false;
+    const auto &view = matrices->view;
+    const auto &cpuProjection = matrices->projection;
+    bool inverseProjectionOk = false;
+    bool inverseViewProjectionOk = false;
+    const auto inverseProjection = cpuProjection.inverted(&inverseProjectionOk);
+    const auto inverseViewProjection = matrices->viewProjection.inverted(&inverseViewProjectionOk);
+    if (!inverseProjectionOk || !inverseViewProjectionOk) {
+        error = QStringLiteral("Camera matrices are not invertible");
+        return false;
+    }
     QMatrix4x4 root;
     root.rotate(rotation);
-    const auto view = camera.viewMatrix();
-    const auto cpuProjection=camera.projectionMatrix(float(m_size.width()) / m_size.height());
-    const auto projection = m_rhi->clipSpaceCorrMatrix()*cpuProjection;
+    const auto viewProjection = m_rhi->clipSpaceCorrMatrix() * matrices->viewProjection;
     // Conservative CPU frustum rejection. Mesh bounds are computed once per
     // shared asset, not once per instance or frame. Offscreen instances retain
     // their shared geometry cache entry to avoid scroll upload churn.
     auto visible=m_items;
     std::erase_if(visible,[&](const RenderItem &item) {
         const auto &geometry=m_geometry.at(item.mesh.get());
-        const auto clipMatrix=cpuProjection*view*root*item.world;
+        const auto clipMatrix=matrices->viewProjection*root*item.world;
         unsigned outside=63;
         for(int corner=0;corner<8;++corner) {
             const QVector3D point(corner&1?geometry.upper.x():geometry.lower.x(),
@@ -689,8 +721,6 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
     });
     auto *updates=m_rhi->nextResourceUpdateBatch();
     std::array<float,100> frame{};
-    const auto inverseProjection=cpuProjection.inverted();
-    const auto inverseViewProjection=(cpuProjection*view).inverted();
     QVector3D lower(1e30f,1e30f,1e30f),upper=-lower;
     for(const auto &item:m_items) {
         const auto &geometry=m_geometry.at(item.mesh.get());
@@ -751,14 +781,14 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
             const auto &material = materialOf(item);
             const auto model = root * item.world;
             const auto normal = model.inverted().transposed();
-            const auto mvp = projection * view * model;
+            const auto mvp = viewProjection * model;
             std::array<float, 84> uniform{};
             std::copy_n(mvp.constData(), 16, uniform.begin());
             std::copy_n(model.constData(), 16, uniform.begin() + 16);
             std::copy_n(normal.constData(), 16, uniform.begin() + 32);
             auto base = material.baseColor;
             std::copy_n(&base[0], 4, uniform.begin() + 48);
-            const auto eye = camera.position();
+            const auto &eye = matrices->eye;
             uniform[52] = eye.x(); uniform[53] = eye.y(); uniform[54] = eye.z();
             uniform[56] = material.metallic; uniform[57] = material.roughness;
             uniform[58] = material.alphaCutoff;
@@ -914,5 +944,6 @@ void Renderer::draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
     cb->setShaderResources(latestInScene?m_presentBindings.get():m_transmissionPresentBindings.get());
     cb->draw(3); cb->endPass();
     stats.drawCalls=sceneDraws+1+auxiliaryDraws+m_lighting->drawCalls;
+    return true;
 }
 } // namespace darkeye::render3d

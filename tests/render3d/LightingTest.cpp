@@ -179,6 +179,34 @@ private slots:
         QVERIFY(!view.grabFramebuffer().isNull());
         QVERIFY(view.lastError().isEmpty());
     }
+    void failedEnvironmentUpdatePreservesUploadedTextures()
+    {
+        const auto valid = environment();
+        QVERIFY(valid);
+        RhiSceneWidget view;
+        view.resize(320, 240);
+        LightingSettings settings;
+        settings.environmentBackground = true;
+        view.setLighting(settings);
+        view.setEnvironment(valid);
+        const auto before = view.grabFramebuffer();
+        QVERIFY(!before.isNull());
+        QVERIFY(view.lastError().isEmpty());
+
+        auto broken = std::make_shared<EnvironmentMap>(*valid);
+        broken->irradiance = {};
+        view.setEnvironment(broken);
+        QVERIFY(!view.grabFramebuffer().isNull());
+        QCOMPARE(view.lastError(), QStringLiteral("Empty environment image"));
+
+        view.setEnvironment(valid);
+        const auto recovered = view.grabFramebuffer();
+        QVERIFY(!recovered.isNull());
+        QVERIFY(view.lastError().isEmpty());
+        const auto center = before.rect().center();
+        QCOMPARE(recovered.pixelColor(center), before.pixelColor(center));
+    }
+
     void environmentRotationMovesBackgroundAndIbl()
     {
         QVERIFY(environment());

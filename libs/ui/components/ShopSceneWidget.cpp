@@ -244,11 +244,14 @@ void ShopSceneWidget::updateHover(const QPointF &position) {
     auto *outline = static_cast<Outline *>(m_outline);
     QList<QPointF> points;
     if (m_hovered>=0) {
-        for (const auto &item : m_scene->renderItems()) {
-            if (m_indices.value(item.node,-1)!=m_hovered) continue;
-            for (const auto &vertex : item.mesh->vertices) {
-                const auto p = m_camera.project(item.world.map(QVector3D(vertex.position[0],vertex.position[1],vertex.position[2])),m_canvas->size());
-                if (p) points << *p;
+        const auto viewport = m_canvas->size();
+        if (const auto matrices = m_camera.matrices(viewport)) {
+            for (const auto &item : m_scene->renderItems()) {
+                if (m_indices.value(item.node,-1)!=m_hovered) continue;
+                for (const auto &vertex : item.mesh->vertices) {
+                    const auto p = matrices->project(item.world.map(QVector3D(vertex.position[0],vertex.position[1],vertex.position[2])),viewport);
+                    if (p) points << *p;
+                }
             }
         }
     }

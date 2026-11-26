@@ -220,11 +220,11 @@ private slots:
         }
         QVERIFY(back);
         QVERIFY(frontPanel);
-        const auto openFront=scene->worldMatrix(frontPanel);
+        const auto openFront=scene->worldMatrix(frontPanel).value();
         float maxFrontMovement=0;
         int movingFrames=0;
         const auto trackFront=connect(&view,&DvdSceneWidget::presentationChanged,&view,[&] {
-            const auto frontPose=scene->worldMatrix(frontPanel);
+            const auto frontPose=scene->worldMatrix(frontPanel).value();
             for(const auto &point:{QVector3D(),QVector3D(0,0.08f,-0.12f),QVector3D(0,-0.08f,-0.12f)})
                 maxFrontMovement=std::max(maxFrontMovement,(frontPose.map(point)-openFront.map(point)).length());
             const float turn=std::abs(scene->node(back)->transform.rotation.y());
@@ -232,7 +232,7 @@ private slots:
         });
         const auto panelPoint=[&] {
             // Stay clear of the disc to click the right panel itself.
-            const auto world=scene->worldMatrix(back).map({0,0.08f,-0.10f});
+            const auto world=scene->worldMatrix(back).value().map({0,0.08f,-0.10f});
             return canvas->camera().project(world,canvas->size());
         };
         const auto right=panelPoint();
@@ -318,7 +318,7 @@ private slots:
             std::optional<QPointF> clickPoint;
             for(int i=0;i<8;++i) {
                 const float angle=float(i)*3.14159265f/4;
-                const auto world=scene->worldMatrix(disc).map({0,0.04f*std::cos(angle),0.04f*std::sin(angle)});
+                const auto world=scene->worldMatrix(disc).value().map({0,0.04f*std::cos(angle),0.04f*std::sin(angle)});
                 const auto point=view.renderWidget()->camera().project(world,view.renderWidget()->size());
                 QVERIFY(point);
                 const auto ray=view.renderWidget()->camera().ray(*point,view.renderWidget()->size());

@@ -26,6 +26,7 @@ class QLabel;
 class QJsonObject;
 class QPushButton;
 class QStackedWidget;
+class QTimer;
 
 namespace darkeye
 {
@@ -79,9 +80,12 @@ private:
     void openPerson(PersonKind kind, qint64 personId);
     void openWorkEditor(qint64 workId);
     void closeCurrentTab();
-    void restoreWorkspacePreset(const QString &resource);
+    void restoreWorkspace();
+    bool restoreWorkspacePreset(const QString &resource, bool showFailureDialog = true);
     QString workspaceFile() const;
     std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
+    void scheduleWorkspaceSave();
+    void saveWorkspace() const;
     void updateWindowTitle();
 #ifdef Q_OS_MACOS
     void updateMacTitleBarBackground();
@@ -98,7 +102,6 @@ private:
     void openSettings();
     void populateThemeSelector();
     void changeTheme(int index);
-    void saveWindowState() const;
     enum class ActressOpenMode { Automatic, Switching, Independent };
     enum class ShelfFilterPolicy { Keep, ClearIfExcluded, ResetToRandomIfExcluded };
     void navigateTo(const QString &routeName, bool recordRecent = true,
@@ -149,6 +152,7 @@ private:
     QLabel *m_navigationHint = nullptr;
     QList<QPushButton *> m_navigationButtons;
     myads::WorkspaceWidget *m_workspace = nullptr;
+    QTimer *m_workspaceSaveTimer = nullptr;
     WorkFilter *m_workFilter = nullptr;
     WorkspaceSearch *m_globalSearch = nullptr;
     QActionGroup *m_shortcutActions = nullptr;

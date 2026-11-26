@@ -355,7 +355,6 @@ QPushButton#DesignIconPushButton:pressed {
 
 QWidget#pageNavigationBar {
     background-color: {{color_bg_page}};
-    border-right: {{border_width_thin}} solid {{color_border}};
 }
 
 QWidget#pageNavigationBar QScrollArea,

@@ -20,6 +20,8 @@
 #include <QProxyStyle>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QScopeGuard>
+#include <QSet>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyleOptionTab>
@@ -193,6 +195,21 @@ public:
                      const QWidget *widget) const override
     {
         const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option);
+        if (element == CE_TabBarTabLabel && tab && tab->state.testFlag(State_Selected)) {
+            painter->save();
+            QFont titleFont = painter->font();
+            titleFont.setBold(true);
+            painter->setFont(titleFont);
+
+            QStyleOptionTab label = *tab;
+            label.fontMetrics = painter->fontMetrics();
+            const int textWidth = subElementRect(SE_TabBarTabText, &label, widget).width();
+            label.text = label.fontMetrics.elidedText(label.text, Qt::ElideRight, textWidth, Qt::TextShowMnemonic);
+            QProxyStyle::drawControl(element, &label, painter, widget);
+            painter->restore();
+            return;
+        }
+
         if (element != CE_TabBarTabShape || !tab) {
             QProxyStyle::drawControl(element, option, painter, widget);
             return;
@@ -777,6 +794,7 @@ PaneWidget::PaneWidget(const QString &paneId, QWidget *parent, bool retainFocusO
         m_stack->removeWidget(page);
         m_stack->insertWidget(to, page);
         switchContent(m_tabBar->currentIndex());
+        emit layoutPreferencesChanged();
     });
 }
 
@@ -867,6 +885,7 @@ void PaneWidget::setIconOnly(bool iconOnly)
         m_tabBar->setTabText(i, iconOnly ? QString() : m_titles.value(id));
     }
     m_tabBar->updateGeometry();
+    emit layoutPreferencesChanged();
 }
 
 int PaneWidget::indexOf(const QString &contentId) const
@@ -970,11 +989,11 @@ bool PaneWidget::restoreContent(const PaneContent &content)
     return true;
 }
 
-bool PaneWidget::removeContent(const QString &contentId)
+bool PaneWidget::requestContentClose(const QString &contentId)
 {
+    static QSet<QWidget *> pendingRequests;
     QWidget *page = contentWidget(contentId);
-    if (!page || !isContentCloseable(contentId) || m_pendingCloseRequests.contains(contentId))
-        return false;
+    if (!page || pendingRequests.contains(page)) return false;
 
     // Dispatch the event without QWidget::close(): the docking layer owns tab
     // removal, visibility and page lifetime (including WA_DeleteOnClose pages).
@@ -982,28 +1001,43 @@ bool PaneWidget::removeContent(const QString &contentId)
     // revalidate ownership before touching the tab again.
     const QPointer<PaneWidget> paneGuard(this);
     const QPointer<QWidget> pageGuard(page);
-    m_pendingCloseRequests.insert(contentId);
+    pendingRequests.insert(page);
+    const auto finish = qScopeGuard([page] { pendingRequests.remove(page); });
     QCloseEvent request;
     QApplication::sendEvent(page, &request);
-    if (!paneGuard) return false;
-    m_pendingCloseRequests.remove(contentId);
-    if (!request.isAccepted() || !pageGuard || contentWidget(contentId) != pageGuard.data() ||
-        !isContentCloseable(contentId)) return false;
+    return request.isAccepted() && paneGuard && pageGuard && contentWidget(contentId) == pageGuard.data();
+}
 
-    static_cast<DraggableTabBar *>(m_tabBar)->holdTabWidthsForClose();
-    PaneContent content = takeContent(contentId);
-    if (!content.widget) return false;
-    content.widget->hide();
+bool PaneWidget::disposeContent(const QString &contentId)
+{
+    const QPointer<QWidget> page(contentWidget(contentId));
+    if (!page) return false;
+    const PaneContent content = takeContent(contentId);
+    if (!page) return true;
+    page->hide();
+    if (!page) return true;
     if (content.closePolicy == ClosePolicy::DeleteLater) {
         // Release heavy pages after the current UI event has completed.
-        content.widget->deleteLater();
+        page->deleteLater();
     } else {
         // Retained pages belong to the caller and survive an empty pane being
         // removed. The caller must reuse or destroy the detached widget.
-        content.widget->setParent(nullptr);
+        page->setParent(nullptr);
     }
+    return true;
+}
+
+bool PaneWidget::removeContent(const QString &contentId)
+{
+    if (!isContentCloseable(contentId) || !requestContentClose(contentId) ||
+        !isContentCloseable(contentId)) return false;
+
+    const QPointer<PaneWidget> paneGuard(this);
+    static_cast<DraggableTabBar *>(m_tabBar)->holdTabWidthsForClose();
+    if (!disposeContent(contentId)) return false;
+    if (!paneGuard) return true;
     emit contentClosed(contentId);
-    if (m_tabBar->count() == 0) emit paneEmpty(this);
+    if (paneGuard && m_tabBar->count() == 0) emit paneEmpty(this);
     return true;
 }
 

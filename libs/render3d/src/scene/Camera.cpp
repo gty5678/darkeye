@@ -3,88 +3,156 @@
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace darkeye::render3d {
+namespace {
+bool finite(const QVector3D &value)
+{
+    return std::isfinite(value.x()) && std::isfinite(value.y()) && std::isfinite(value.z());
+}
+
+bool finite(const QMatrix4x4 &matrix)
+{
+    return std::all_of(matrix.constData(), matrix.constData() + 16,
+                       [](float value) { return std::isfinite(value); });
+}
+
+QVector3D eyePosition(const Camera &camera, const QQuaternion &rotation)
+{
+    const QVector3D offset(0, 0, camera.distance);
+    return camera.target + (camera.rotationMode == Camera::RotationMode::InPlace
+        ? offset : rotation.rotatedVector(offset));
+}
+}
+
 QVector3D Camera::position() const
 {
-    if(rotationMode==RotationMode::InPlace) return target+QVector3D(0,0,distance);
-    return target + QQuaternion::fromEulerAngles(pitch, yaw, 0).rotatedVector({0, 0, distance});
+    return eyePosition(*this, QQuaternion::fromEulerAngles(pitch, yaw, 0));
 }
 
-QMatrix4x4 Camera::viewMatrix() const
+QString Camera::validationError() const
 {
-    QMatrix4x4 result;
-    const auto up = QQuaternion::fromEulerAngles(pitch, yaw, 0).rotatedVector({0, 1, 0});
-    const auto lookAt=rotationMode==RotationMode::InPlace
-        ?position()+QQuaternion::fromEulerAngles(pitch,yaw,0).rotatedVector({0,0,-1})
-        :target;
-    result.lookAt(position(), lookAt, up);
+    if (!finite(target) || !std::isfinite(distance) || distance <= 0
+        || !std::isfinite(yaw) || !std::isfinite(pitch)
+        || (rotationMode != RotationMode::Orbit && rotationMode != RotationMode::InPlace))
+        return QStringLiteral("Invalid camera pose");
+    if (!std::isfinite(verticalFov) || verticalFov <= 0 || verticalFov >= 180)
+        return QStringLiteral("Camera field of view must be between 0 and 180 degrees");
+    if (!std::isfinite(nearPlane) || !std::isfinite(farPlane) || nearPlane <= 0 || farPlane <= nearPlane)
+        return QStringLiteral("Camera clip planes must satisfy 0 < near < far");
+    return {};
+}
+
+std::optional<Camera::Matrices> Camera::matrices(float aspect, QString *error) const
+{
+    const auto fail = [error](const QString &message) -> std::optional<Matrices> {
+        if (error)
+            *error = message;
+        return std::nullopt;
+    };
+    if (!std::isfinite(aspect) || aspect <= 0)
+        return fail(QStringLiteral("Camera aspect ratio must be finite and positive"));
+    const auto problem = validationError();
+    if (!problem.isEmpty())
+        return fail(problem);
+    Matrices result;
+    const auto rotation = QQuaternion::fromEulerAngles(pitch, yaw, 0);
+    result.eye = eyePosition(*this, rotation);
+    result.view.rotate(rotation.conjugated());
+    result.view.translate(-result.eye);
+    result.projection.perspective(verticalFov, aspect, nearPlane, farPlane);
+    result.viewProjection = result.projection * result.view;
+    const auto &projection = result.projection;
+    if (!finite(result.viewProjection) || projection(3, 2) != -1
+        || projection(0, 0) == 0 || projection(1, 1) == 0 || projection(2, 3) == 0)
+        return fail(QStringLiteral("Camera parameters cannot produce usable matrices"));
+    if (error)
+        error->clear();
     return result;
 }
 
-QMatrix4x4 Camera::projectionMatrix(float aspect) const
+std::optional<Camera::Matrices> Camera::matrices(const QSize &viewport) const
 {
-    QMatrix4x4 result;
-    if (aspect > 0 && std::isfinite(aspect) && verticalFov > 0 && verticalFov < 180
-        && nearPlane > 0 && farPlane > nearPlane)
-        result.perspective(verticalFov, aspect, nearPlane, farPlane);
-    return result;
+    if (viewport.isEmpty())
+        return std::nullopt;
+    return matrices(float(viewport.width()) / viewport.height());
 }
 
 std::optional<Ray> Camera::ray(const QPointF &point, const QSize &viewport) const
 {
-    if (viewport.isEmpty() || !std::isfinite(point.x()) || !std::isfinite(point.y()))
+    const auto cameraMatrices = matrices(viewport);
+    if (!cameraMatrices)
         return std::nullopt;
-    const float x = float(2 * point.x() / viewport.width() - 1);
-    const float y = float(1 - 2 * point.y() / viewport.height());
+    const double x = 2 * (point.x() / viewport.width()) - 1;
+    const double y = 1 - 2 * (point.y() / viewport.height());
+    constexpr auto maxCoordinate = std::numeric_limits<float>::max();
+    if (!(std::abs(x) <= maxCoordinate && std::abs(y) <= maxCoordinate))
+        return std::nullopt;
     bool invertible = false;
-    const auto inverse = (projectionMatrix(float(viewport.width()) / viewport.height())
-                          * viewMatrix()).inverted(&invertible);
+    const auto inverse = cameraMatrices->viewProjection.inverted(&invertible);
     if (!invertible)
         return std::nullopt;
-    auto nearPoint = inverse * QVector4D(x, y, -1, 1);
-    auto farPoint = inverse * QVector4D(x, y, 1, 1);
+    const auto nearPoint = inverse * QVector4D(float(x), float(y), -1, 1);
+    const auto farPoint = inverse * QVector4D(float(x), float(y), 1, 1);
     if (qFuzzyIsNull(nearPoint.w()) || qFuzzyIsNull(farPoint.w()))
         return std::nullopt;
     const auto origin = nearPoint.toVector3DAffine();
     const auto direction = (farPoint.toVector3DAffine() - origin).normalized();
-    if (direction.isNull())
+    if (!finite(origin) || !finite(direction) || direction.isNull())
         return std::nullopt;
     return Ray{origin, direction};
 }
 
 std::optional<QPointF> Camera::project(const QVector3D &world, const QSize &viewport) const
 {
+    const auto cameraMatrices = matrices(viewport);
+    return cameraMatrices ? cameraMatrices->project(world, viewport) : std::nullopt;
+}
+
+std::optional<QPointF> Camera::Matrices::project(const QVector3D &world, const QSize &viewport) const
+{
     if (viewport.isEmpty())
         return std::nullopt;
-    const auto clip = projectionMatrix(float(viewport.width()) / viewport.height())
-        * viewMatrix() * QVector4D(world, 1);
-    if (clip.w() <= 0)
+    const auto clip = viewProjection * QVector4D(world, 1);
+    if (!std::isfinite(clip.w()) || clip.w() <= 0)
         return std::nullopt;
     const auto ndc = clip.toVector3DAffine();
-    return QPointF((ndc.x() + 1) * viewport.width() / 2,
-                   (1 - ndc.y()) * viewport.height() / 2);
+    if (!finite(ndc))
+        return std::nullopt;
+    return QPointF((double(ndc.x()) + 1) * viewport.width() / 2,
+                   (1 - double(ndc.y())) * viewport.height() / 2);
 }
 
-void Camera::orbit(float deltaYaw, float deltaPitch)
+bool Camera::orbit(float deltaYaw, float deltaPitch)
 {
-    if (!std::isfinite(deltaYaw) || !std::isfinite(deltaPitch))
-        return;
-    yaw = std::remainder(yaw + deltaYaw, 360.0f);
-    pitch = std::clamp(pitch + deltaPitch, -85.0f, 85.0f);
+    const double nextYaw = double(yaw) + deltaYaw;
+    const double nextPitch = double(pitch) + deltaPitch;
+    if (!std::isfinite(nextYaw) || !std::isfinite(nextPitch))
+        return false;
+    yaw = float(std::remainder(nextYaw, 360.0));
+    pitch = float(std::clamp(nextPitch, -85.0, 85.0));
+    return true;
 }
 
-void Camera::zoom(float steps)
+bool Camera::zoom(float steps)
 {
-    if (std::isfinite(steps))
-        distance = std::clamp(distance * std::exp(-steps * 0.12f), nearPlane * 4, farPlane * 0.5f);
+    const double minimum = nearPlane * 4.0;
+    const double maximum = farPlane * 0.5;
+    if (!std::isfinite(steps) || !std::isfinite(maximum) || !(minimum > 0 && minimum <= maximum)
+        || !std::isfinite(distance) || distance <= 0)
+        return false;
+    distance = float(std::clamp(distance * std::exp(-steps * 0.12), minimum, maximum));
+    return true;
 }
 
-void Camera::pan(float horizontal, float vertical)
+bool Camera::pan(float horizontal, float vertical)
 {
-    if (!std::isfinite(horizontal) || !std::isfinite(vertical))
-        return;
     const auto rotation = QQuaternion::fromEulerAngles(pitch, yaw, 0);
-    target += rotation.rotatedVector({horizontal, vertical, 0});
+    const auto next = target + rotation.rotatedVector({horizontal, vertical, 0});
+    if (!finite(next))
+        return false;
+    target = next;
+    return true;
 }
 } // namespace darkeye::render3d

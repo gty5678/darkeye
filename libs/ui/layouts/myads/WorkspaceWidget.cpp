@@ -17,6 +17,7 @@
 #include <QPainter>
 #include <QSplitter>
 #include <QScopeGuard>
+#include <QSignalBlocker>
 #include <QTimer>
 #include <QToolButton>
 #include <QHBoxLayout>
@@ -100,8 +101,7 @@ public:
     {
         m_background = theme.background;
         m_tabStripBorder = theme.border;
-        m_line = theme.text;
-        m_line.setAlphaF(0.17f);
+        m_line = theme.splitterLine();
         m_hover = theme.primary;
         m_pressed = theme.primaryHover;
         for (int i = 1; i < count(); ++i) handle(i)->update();
@@ -291,12 +291,14 @@ WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme, bool w
     rebuild(false);
     if (withSidebars) createSidebars();
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *old, QWidget *now) {
+        if (m_layoutTransitionInProgress) return;
         for (auto side : {SidebarSide::Left, SidebarSide::Right}) {
             auto *host = sidebar(side).host;
             if (sidebarAutoCollapse(side) && host && !host->isHidden()
                 && containsWidget(host, old) && !containsWidget(host, now)) {
                 QTimer::singleShot(0, host, [this, side, host] {
-                    if (sidebarAutoCollapse(side) && !containsWidget(host, QApplication::focusWidget())
+                    if (!m_layoutTransitionInProgress && sidebarAutoCollapse(side)
+                        && !containsWidget(host, QApplication::focusWidget())
                         && !containsWidget(host, QApplication::activePopupWidget()))
                         hideSidebar(host);
                 });
@@ -635,7 +637,8 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
             return true;
         }
     }
-    if (event->type() == QEvent::MouseButtonPress && receiver && receiver->window() == window()) {
+    if (!m_layoutTransitionInProgress && event->type() == QEvent::MouseButtonPress &&
+        receiver && receiver->window() == window()) {
         for (auto side : {SidebarSide::Left, SidebarSide::Right}) {
             auto *host = sidebar(side).host;
             const bool left = side == SidebarSide::Left;
@@ -643,7 +646,7 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
                 && receiver != (left ? m_leftSidebarToggle : m_rightSidebarToggle)
                 && receiver != m_sidebarSplitter->handle(left ? 1 : 2))
                 QTimer::singleShot(0, host, [this, side, host] {
-                    if (sidebarAutoCollapse(side)) hideSidebar(host);
+                    if (!m_layoutTransitionInProgress && sidebarAutoCollapse(side)) hideSidebar(host);
                 });
         }
     }
@@ -653,7 +656,7 @@ bool WorkspaceWidget::eventFilter(QObject *watched, QEvent *event)
         && receiver->property("skipPaneActivationOnMouseFocus").toBool()
         && (mousePress ? static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton
                        : static_cast<QFocusEvent *>(event)->reason() == Qt::MouseFocusReason);
-    if ((mousePress || focusIn) && !skipMouseActivation) {
+    if (!m_layoutTransitionInProgress && (mousePress || focusIn) && !skipMouseActivation) {
         // A page can contain its own workspace. Keep walking until we reach a pane owned here.
         for (auto *widget = receiver; widget && widget != this; widget = widget->parentWidget()) {
             auto *target = qobject_cast<PaneWidget *>(widget);
@@ -732,6 +735,7 @@ void WorkspaceWidget::connectPane(PaneWidget *result)
         if (result == activePane()) emit activeContentChanged();
         emit layoutPreferencesChanged();
     });
+    connect(result, &PaneWidget::layoutPreferencesChanged, this, &WorkspaceWidget::layoutPreferencesChanged);
     connect(result, &PaneWidget::tabContextMenuCreated, this, &WorkspaceWidget::tabContextMenuCreated);
     connect(result, &PaneWidget::tabContextMenuCreated, this,
             [this, result](QMenu *menu, const QString &contentId) {
@@ -1117,19 +1121,60 @@ bool WorkspaceWidget::moveContent(const QString &sourcePaneId, const QString &co
     }
 }
 
-void WorkspaceWidget::resetToSingleEmptyPane()
+bool WorkspaceWidget::resetToSingleEmptyPane()
 {
-    for (auto *sidebar : {&m_leftSidebar, &m_rightSidebar}) {
-        if (!sidebar->host) continue;
-        hideSidebar(sidebar->host);
-        sidebar->tree = singleSidebarPane(sidebar->tree.paneIds().first());
-        rebuild(sidebar->tree, false);
-    }
-    m_tree = LayoutTree();
+    LayoutTree emptyLayout;
     const auto rootId = QStringLiteral("pane_1");
-    m_tree.addPaneToRoot(isSidebar(pane(rootId)) ? nextPaneId() : rootId);
-    rebuild(false);
-    emit layoutChanged();
+    emptyLayout.addPaneToRoot(isSidebar(pane(rootId)) ? nextPaneId() : rootId);
+    QJsonObject document{{QStringLiteral("layout"), emptyLayout.toJson()}};
+    if (m_leftSidebar.host && m_rightSidebar.host) {
+        document.insert(QStringLiteral("sidebars"), QJsonObject{
+            {QStringLiteral("left"), m_leftSidebar.tree.paneIds().first()},
+            {QStringLiteral("right"), m_rightSidebar.tree.paneIds().first()},
+            {QStringLiteral("left_width_ratio"), m_leftWidthRatio},
+            {QStringLiteral("right_width_ratio"), m_rightWidthRatio}
+        });
+    }
+    return restoreLayout(document, {});
+}
+
+QList<WorkspaceWidget::DockedContent> WorkspaceWidget::dockedContents() const
+{
+    auto panesInOrder = m_tree.paneIds();
+    panesInOrder.append(m_leftSidebar.tree.paneIds());
+    panesInOrder.append(m_rightSidebar.tree.paneIds());
+    QList<DockedContent> contents;
+    for (const auto &paneId : panesInOrder) {
+        auto *item = pane(paneId);
+        for (const auto &id : item->contentIds())
+            contents.append({item, id, item->contentWidget(id)});
+    }
+    return contents;
+}
+
+bool WorkspaceWidget::requestContentClose(const QList<DockedContent> &contents,
+                                          const QSet<QWidget *> &reused)
+{
+    const QPointer<WorkspaceWidget> workspaceGuard(this);
+    for (const auto &content : contents) {
+        if (content.widget && reused.contains(content.widget.data())) continue;
+        if (!content.pane || !content.widget || content.pane->contentWidget(content.id) != content.widget.data() ||
+            !content.pane->requestContentClose(content.id) || !workspaceGuard)
+            return false;
+    }
+    // A close prompt can run an event loop. Abort if its callbacks changed the tabs being replaced.
+    return contents == dockedContents();
+}
+
+bool WorkspaceWidget::requestWindowClose()
+{
+    if (m_layoutTransitionInProgress) return false;
+    m_layoutTransitionInProgress = true;
+    const QPointer<WorkspaceWidget> workspaceGuard(this);
+    const auto finish = qScopeGuard([workspaceGuard] {
+        if (workspaceGuard) workspaceGuard->m_layoutTransitionInProgress = false;
+    });
+    return requestContentClose(dockedContents(), {});
 }
 
 bool WorkspaceWidget::save(const QString &path, QString *error) const
@@ -1142,6 +1187,8 @@ bool WorkspaceWidget::saveLayout(const QString &path, const ContentDescriptor &d
 {
     QJsonObject documentData{{QStringLiteral("schema_version"), LayoutTree::SchemaVersion},
                              {QStringLiteral("layout"), m_tree.toJson()}};
+    if (const auto *active = activePane())
+        documentData.insert(QStringLiteral("active_pane_id"), active->paneId());
     QJsonObject contents;
     QJsonObject paneMetadata;
     auto ids = m_tree.paneIds();
@@ -1199,14 +1246,26 @@ bool WorkspaceWidget::load(const QString &path, QString *error)
 bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &factory,
                                  QString *error)
 {
+    if (error) error->clear();
     const QJsonObject documentData = loadLayoutFile(path, error);
-    if (documentData.isEmpty()) return false;
+    if (documentData.isEmpty()) {
+        if (error && error->isEmpty()) *error = QStringLiteral("工作区布局为空");
+        return false;
+    }
     return restoreLayout(documentData, factory, error);
 }
 
 bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const ContentFactory &factory,
                                     QString *error)
 {
+    if (error) error->clear();
+    if (m_layoutTransitionInProgress) return false;
+    m_layoutTransitionInProgress = true;
+    const QPointer<WorkspaceWidget> workspaceGuard(this);
+    const auto finish = qScopeGuard([workspaceGuard] {
+        if (workspaceGuard) workspaceGuard->m_layoutTransitionInProgress = false;
+    });
+
     const int version = documentData.contains(QStringLiteral("schema_version"))
         ? documentData.value(QStringLiteral("schema_version")).toInt(-1) : LayoutTree::SchemaVersion;
     if (version != LayoutTree::SchemaVersion) {
@@ -1283,6 +1342,8 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
             QString paneId;
             ContentConfig config;
             QPointer<QWidget> widget;
+            QPointer<QWidget> originalParent;
+            bool wasHidden;
         };
         QList<PreparedContent> prepared;
         QSet<QWidget *> widgets;
@@ -1295,32 +1356,44 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
                         if (widgets.contains(config->widget))
                             throw std::runtime_error("content factory returned the same widget twice");
                         widgets.insert(config->widget);
-                        // Own newly created pages during preparation so a later
-                        // factory failure does not leak their resources.
-                        if (!config->widget->parentWidget()) config->widget->setParent(&staged);
+                        // Adopt new pages. Detached KeepAlive pages still belong to the caller.
+                        if (!config->widget->parentWidget() && config->closePolicy == ClosePolicy::DeleteLater)
+                            config->widget->setParent(&staged);
                     }
-                    prepared.append({it.key(), *config, config->widget});
+                    auto *widget = config->widget;
+                    prepared.append({it.key(), *config, widget, widget ? widget->parentWidget() : nullptr,
+                                     widget && widget->isHidden()});
                 }
             }
         }
-        for (const auto &item : prepared)
-            if (item.config.widget && !item.widget)
-                throw std::runtime_error("content factory page was destroyed during preparation");
 
-        QList<std::pair<QPointer<PaneWidget>, PaneContent>> transferred;
+        const auto originalContents = dockedContents();
+        if (!requestContentClose(originalContents, widgets)) return false;
+
+        QList<std::pair<DockedContent, PaneContent>> transferred;
         bool committed = false;
         const auto rollback = qScopeGuard([&] {
             if (committed) return;
-            for (auto it = transferred.rbegin(); it != transferred.rend(); ++it)
-                if (it->first) it->first->restoreContent(it->second);
+            for (auto it = transferred.rbegin(); it != transferred.rend(); ++it) {
+                if (!it->first.pane || !it->first.widget) continue;
+                const QSignalBlocker blocker(it->first.pane);
+                it->first.pane->restoreContent(it->second);
+            }
+            for (const auto &item : prepared) {
+                if (!item.widget || item.widget->parentWidget() == item.originalParent) continue;
+                item.widget->setParent(item.originalParent);
+                if (item.widget) item.widget->setVisible(!item.wasHidden);
+            }
         });
         for (const auto &item : prepared) {
-            for (PaneWidget *source : m_panes) {
-                for (const QString &id : source->contentIds()) {
-                    if (item.widget && source->contentWidget(id) == item.widget) {
-                        transferred.append({source, source->takeContent(id)});
-                        break;
-                    }
+            if (item.config.widget && !item.widget)
+                throw std::runtime_error("content factory page was destroyed during preparation");
+            if (item.widget) {
+                for (const auto &content : originalContents) {
+                    if (content.widget != item.widget) continue;
+                    const QSignalBlocker blocker(content.pane);
+                    transferred.append({content, content.pane->takeContent(content.id)});
+                    break;
                 }
             }
             if (!staged.fillPane(staged.pane(item.paneId), item.config))
@@ -1338,6 +1411,15 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
                 if (pane && pane->contentCount() == 0 && !it.value().toArray().isEmpty())
                     staged.removeEmptyPane(it.key());
             }
+        }
+
+        QStringList closedIds;
+        for (const auto &content : originalContents) {
+            if (!content.pane || !content.widget || widgets.contains(content.widget.data())) continue;
+            QSignalBlocker blocker(content.pane);
+            if (content.pane->disposeContent(content.id)) closedIds.append(content.id);
+            if (!content.pane) blocker.dismiss();
+            if (!workspaceGuard) return false;
         }
 
         // Rebind callbacks to the surviving workspace before adopting the root.
@@ -1376,9 +1458,14 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
         updateSidebarToggles();
         oldRoot->deleteLater();
         committed = true;
-        setActivePane(rootPane());
+        auto *savedActivePane = pane(documentData.value(QStringLiteral("active_pane_id")).toString());
+        setActivePane(savedActivePane ? savedActivePane : rootPane());
         hideDropPreview();
         m_preview->raise();
+        for (const auto &id : closedIds) {
+            emit contentClosed(id);
+            if (!workspaceGuard) return true;
+        }
         emit layoutChanged();
         return true;
     } catch (const std::exception &exception) {

@@ -409,6 +409,7 @@ struct Converter {
         }
         if (!error.isEmpty())
             return {};
+        // Validate decoded data before normal generation indexes the vertex array.
         error = result->validationError();
         if (!error.isEmpty())
             return {};

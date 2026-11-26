@@ -22,13 +22,17 @@ apps/desktop (Darkeye.exe)
         ├── libs/ui ──────────────── 页面、编辑器、对话框和导航
         ├── libs/darkeye_ui ──────── 主题、布局、通用视觉组件
         │
-        ├── libs/services ────────── 采集持久化、同步、翻译、更新、视频库维护
+        ├── libs/bridge ──────────── 桌面本地 HTTP API
+        ├── libs/services ────────── 采集客户端与调度、采集持久化、同步、翻译、更新、视频库维护
         ├── libs/graph_view ──────── 关系图视图、仿真和 QRhi 渲染
         │        └── libs/graph ──── 图数据、仓储和图会话
         │
         ├── libs/database ────────── SQLite、仓储、备份、维护和 WebDAV
         ├── libs/settings ────────── 路径与持久化设置
-        └── libs/core ────────────── 领域模型、日志、采集、HTTP API、通用工具
+        ├── libs/domain ──────────── 领域模型与番号解析
+        ├── libs/resources ───────── 共享 Qt 资源与初始化
+        ├── libs/gui_utils ───────── 图像、颜色与媒体工具
+        └── libs/core ────────────── 日志与基础工具，仅依赖 Qt Core
 ```
 
 `libs/darkeye_ui` 是可复用的设计系统；`libs/ui` 负责 DarkEye 的业务页面。

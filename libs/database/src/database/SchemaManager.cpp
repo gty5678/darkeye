@@ -1,9 +1,8 @@
 #include "database/SchemaManager.h"
 
-#include "app_config.h"
-#include "settings/Paths.h"
 #include "database/SqlScriptRunner.h"
 #include "database/Transaction.h"
+#include "settings/Paths.h"
 
 #include <QDir>
 #include <QFile>
@@ -18,6 +17,9 @@
 namespace darkeye {
 
 namespace {
+
+constexpr int kRequiredPublicDbVersion = 2;
+constexpr char kRequiredPrivateDbVersion[] = "1.1";
 
 QMap<QString, QStringList> requiredColumns(DatabaseKind kind)
 {

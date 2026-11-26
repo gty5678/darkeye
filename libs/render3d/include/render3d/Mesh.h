@@ -24,6 +24,7 @@ struct MeshData {
     bool hasTangents = false;
 
     // An entirely empty mesh is a valid clear-only scene.
+    [[nodiscard]] bool empty() const { return vertices.empty() && indices.empty(); }
     [[nodiscard]] QString validationError() const;
 };
 

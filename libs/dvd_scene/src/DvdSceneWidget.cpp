@@ -227,8 +227,10 @@ struct DvdSceneWidget::Impl {
         if(!factory) return;
         const auto viewport=canvas->size();
         const float dpr=float(canvas->devicePixelRatioF());
-        const auto viewProjection=camera.projectionMatrix(float(std::max(1,viewport.width()))
-            /std::max(1,viewport.height()))*camera.viewMatrix();
+        const auto matrices=camera.matrices(float(std::max(1,viewport.width()))
+            /std::max(1,viewport.height()));
+        if(!matrices) return;
+        const auto &viewProjection=matrices->viewProjection;
         const int focusedPixels=std::clamp(int(std::ceil(viewport.height()*dpr*2/1024))*1024,2048,4096);
         const float height=viewport.height()*dpr*0.19f
             /(2*std::max(0.08f,camera.distance)*std::tan(camera.verticalFov*3.14159265f/360));
@@ -519,14 +521,18 @@ std::optional<QRectF> DvdSceneWidget::selectedFrontRect() const
 {
     const auto it=d->cases.find(selectedId());
     if(it==d->cases.end()) return {};
+    const auto viewport=d->canvas->size();
+    const auto matrices=d->camera.matrices(viewport);
+    if(!matrices) return {};
     QPointF lower(1e20,1e20),upper(-1e20,-1e20);
     bool found=false;
     for(const auto part:it->second.coverPrimitives) {
         const auto *node=d->scene->node(part);
-        if(!node || node->parent!=it->second.front || !node->mesh) continue;
+        if(!node) return {};
+        if(node->parent!=it->second.front || !node->mesh) continue;
         const auto world=d->scene->worldMatrix(part);
         for(const auto &vertex:node->mesh->vertices) {
-            const auto point=d->camera.project(world.map({vertex.position[0],vertex.position[1],vertex.position[2]}),d->canvas->size());
+            const auto point=matrices->project(world->map({vertex.position[0],vertex.position[1],vertex.position[2]}),viewport);
             if(!point) return {};
             lower.setX(std::min(lower.x(),point->x())); lower.setY(std::min(lower.y(),point->y()));
             upper.setX(std::max(upper.x(),point->x())); upper.setY(std::max(upper.y(),point->y()));
@@ -538,21 +544,26 @@ std::optional<QRectF> DvdSceneWidget::selectedFrontRect() const
 std::optional<QPointF> DvdSceneWidget::selectedDiscCenter() const
 {
     const auto it=d->cases.find(selectedId());
-    if(it==d->cases.end() || !it->second.disc) return {};
-    return d->camera.project(d->scene->worldMatrix(it->second.disc).map(QVector3D()),d->canvas->size());
+    if(it==d->cases.end()) return {};
+    const auto world=d->scene->worldMatrix(it->second.disc);
+    return world?d->camera.project(world->map(QVector3D()),d->canvas->size()):std::nullopt;
 }
 std::optional<QRectF> DvdSceneWidget::selectedCaseRect() const
 {
     const auto it=d->cases.find(selectedId());
     if(it==d->cases.end()) return {};
+    const auto viewport=d->canvas->size();
+    const auto matrices=d->camera.matrices(viewport);
+    if(!matrices) return {};
     QPointF lower(1e20,1e20),upper(-1e20,-1e20);
     bool found=false;
     for(const auto part:it->second.primitives) {
         const auto *node=d->scene->node(part);
-        if(!node || node->parent==it->second.disc || !node->mesh) continue;
+        if(!node) return {};
+        if(node->parent==it->second.disc || !node->mesh) continue;
         const auto world=d->scene->worldMatrix(part);
         for(const auto &vertex:node->mesh->vertices) {
-            const auto point=d->camera.project(world.map({vertex.position[0],vertex.position[1],vertex.position[2]}),d->canvas->size());
+            const auto point=matrices->project(world->map({vertex.position[0],vertex.position[1],vertex.position[2]}),viewport);
             if(!point) return {};
             lower.setX(std::min(lower.x(),point->x())); lower.setY(std::min(lower.y(),point->y()));
             upper.setX(std::max(upper.x(),point->x())); upper.setY(std::max(upper.y(),point->y()));
@@ -564,8 +575,9 @@ std::optional<QRectF> DvdSceneWidget::selectedCaseRect() const
 std::optional<QPointF> DvdSceneWidget::selectedSpineCenter() const
 {
     const auto it=d->cases.find(selectedId());
-    if(it==d->cases.end() || !it->second.spine) return {};
-    return d->camera.project(d->scene->worldMatrix(it->second.spine).map(QVector3D(0.006707f,0,0)),d->canvas->size());
+    if(it==d->cases.end()) return {};
+    const auto world=d->scene->worldMatrix(it->second.spine);
+    return world?d->camera.project(world->map(QVector3D(0.006707f,0,0)),d->canvas->size()):std::nullopt;
 }
 float DvdSceneWidget::cameraX() const { return d->camera.target.x(); }
 std::optional<QPointF> DvdSceneWidget::selectedInfoAnchor() const
@@ -577,7 +589,8 @@ std::optional<QPointF> DvdSceneWidget::selectedInfoAnchor() const
     // Legacy frontInfoAnchor was a sibling of front under spine, rather than
     // the center of the front mesh. It follows the spine's rotation only.
     const auto local=front->transform.translation+QVector3D(0.0675f,0,0);
-    return d->camera.project(d->scene->worldMatrix(it->second.spine).map(local),d->canvas->size());
+    const auto world=d->scene->worldMatrix(it->second.spine);
+    return world?d->camera.project(world->map(local),d->canvas->size()):std::nullopt;
 }
 float DvdSceneWidget::cameraTargetX() const { return d->cameraTargetX; }
 void DvdSceneWidget::setCameraX(float x,bool immediate)
@@ -666,7 +679,7 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
             d->cameraChanged();
         } else if(d->dragButton==Qt::MiddleButton) {
             const float scale=d->camera.distance/std::max(1,d->canvas->height());
-            d->camera.pan(float(-delta.x())*scale,float(delta.y())*scale);
+            if(!d->camera.pan(float(-delta.x())*scale,float(delta.y())*scale)) return true;
             d->camera.target.setX(d->shelf.clampCameraX(d->camera.target.x()));
             d->cameraTargetX=d->camera.target.x();
             d->cameraChanged();
@@ -734,7 +747,7 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
         const float steps=angle.isNull()?float(wheel->pixelDelta().y())/60
             :float(angle.y()?angle.y():angle.x())/120;
         if(wheel->modifiers().testFlag(Qt::ControlModifier)) {
-            d->camera.zoom(steps);
+            if(!d->camera.zoom(steps)) return true;
             d->camera.distance=std::clamp(d->camera.distance,0.08f,2.0f);
             d->cameraChanged();
         } else {

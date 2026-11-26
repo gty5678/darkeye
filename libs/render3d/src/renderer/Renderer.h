@@ -25,9 +25,9 @@ public:
     bool prepare(QRhi *rhi, QRhiRenderTarget *target,
                  const std::vector<RenderItem> &items, QRhiCommandBuffer *cb,
                  RenderStatistics &statistics, QString &error);
-    void draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
+    bool draw(QRhiRenderTarget *target, QRhiCommandBuffer *cb,
               const Camera &camera, const QQuaternion &rotation,
-              const QColor &clearColor, RenderStatistics &statistics);
+              const QColor &clearColor, RenderStatistics &statistics, QString &error);
 
 private:
     struct Geometry {
@@ -46,8 +46,10 @@ private:
     };
     using BindingKey = std::array<const TextureData *,7>;
     using PipelineKey = std::tuple<Material::AlphaMode, bool, bool, bool>;
+    void clearMaterialBindings();
+    void invalidateGeometryBindings();
     void clearTransmissionTargets();
-    bool ensureTransmissionTargets(bool enabled, QString &error);
+    bool ensureTransmissionTargets(bool enabled, RenderStatistics &stats, QString &error);
     bool ensureTargets(QRhiRenderTarget *target, QString &error);
     bool ensurePresentation(QRhiRenderTarget *target, RenderStatistics &stats, QString &error);
     QRhi *m_rhi = nullptr;
@@ -81,7 +83,6 @@ private:
     std::unique_ptr<QRhiGraphicsPipeline> m_presentPipeline;
     QSize m_size;
     int m_samples = 0;
-    bool m_targetsReady=false;
     quint64 m_textureBudget=32*1024*1024;
     bool m_textureBudgetDirty=true;
     LightingSettings m_lightingSettings;

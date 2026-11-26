@@ -8,7 +8,7 @@ namespace darkeye::render3d {
 
 QString MeshData::validationError() const
 {
-    if (vertices.empty() && indices.empty())
+    if (empty())
         return {};
     if (vertices.empty() || indices.empty() || indices.size() % 3 != 0)
         return QStringLiteral("Mesh requires vertices and triangle indices (a multiple of three)");

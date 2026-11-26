@@ -24,16 +24,18 @@ private slots:
         Transform local;
         local.translation = {1, 0, 0};
         QVERIFY(scene.setTransform(child, local));
-        QVERIFY((scene.worldMatrix(grandchild).map(QVector3D()) - QVector3D(3, 2, 0)).length() < 1e-5f);
+        QVERIFY((scene.worldMatrix(grandchild).value().map(QVector3D()) - QVector3D(3, 2, 0)).length() < 1e-5f);
         first.translation.setX(5);
         QVERIFY(scene.setTransform(parent, first));
-        QVERIFY((scene.worldMatrix(grandchild).map(QVector3D()) - QVector3D(5, 2, 0)).length() < 1e-5f);
+        QVERIFY((scene.worldMatrix(grandchild).value().map(QVector3D()) - QVector3D(5, 2, 0)).length() < 1e-5f);
         QVERIFY(!scene.setParent(parent, grandchild));
         QVERIFY(!scene.setParent(parent, parent));
         QVERIFY(scene.setParent(child, 0));
-        QCOMPARE(scene.worldMatrix(grandchild).map(QVector3D()), QVector3D(1, 0, 0));
+        QCOMPARE(scene.worldMatrix(grandchild).value().map(QVector3D()), QVector3D(1, 0, 0));
         QVERIFY(scene.removeNode(child));
         QVERIFY(!scene.node(grandchild));
+        QVERIFY(!scene.worldMatrix(grandchild));
+        QVERIFY(!scene.worldMatrix(0));
         QCOMPARE(scene.size(), std::size_t(1));
         scene.clear();
         QVERIFY(scene.createNode() > grandchild);
@@ -65,6 +67,20 @@ private slots:
         const auto before = scene.size();
         QVERIFY(asset.instantiate(scene).empty());
         QCOMPARE(scene.size(), before); // invalid asset is rejected atomically
+
+        asset.nodes[0].parent = -1;
+        auto invalid = coloredTriangle();
+        invalid.indices.back() = 99;
+        asset.nodes[1].primitives[0].mesh = std::make_shared<const MeshData>(std::move(invalid));
+        const auto revision = scene.revision();
+        QVERIFY(asset.instantiate(scene).empty());
+        QCOMPARE(scene.size(), before);
+        QCOMPARE(scene.revision(), revision);
+        QString error;
+        const auto &badMesh = asset.nodes[1].primitives[0].mesh;
+        QVERIFY(!scene.setMesh(items[0].node, badMesh, {}, &error));
+        QCOMPARE(error, badMesh->validationError());
+        QCOMPARE(scene.node(items[0].node)->mesh.get(), mesh.get());
     }
 
     void cameraProjectionAndRay()
@@ -86,11 +102,36 @@ private slots:
         }
         QVERIFY(!camera.ray({}, {}).has_value());
         const auto oldDistance = camera.distance;
-        camera.zoom(1);
+        QVERIFY(camera.zoom(1));
         QVERIFY(camera.distance < oldDistance);
-        camera.orbit(400, 1000);
+        QVERIFY(camera.orbit(400, 1000));
         QCOMPARE(camera.pitch, 85.0f);
         QVERIFY(std::abs(camera.yaw) <= 180);
+    }
+
+    void cameraRejectsInvalidState()
+    {
+        Camera camera;
+        const QSize viewport(800, 600);
+        const auto infinity = std::numeric_limits<float>::infinity();
+        QVERIFY(!camera.matrices(infinity));
+        QVERIFY(!camera.project({infinity, 0, 0}, viewport));
+        QVERIFY(!camera.pan(infinity, 0));
+        QCOMPARE(camera.target, QVector3D());
+        QVERIFY(!camera.orbit(0, infinity));
+        QCOMPARE(camera.pitch, 0.0f);
+
+        camera.nearPlane = 1;
+        camera.farPlane = 2;
+        QVERIFY(camera.matrices(1));
+        QVERIFY(!camera.zoom(1));
+        QCOMPARE(camera.distance, 6.0f);
+        camera.farPlane = infinity;
+        QString error;
+        QVERIFY(!camera.matrices(1, &error));
+        QVERIFY(!error.isEmpty());
+        QVERIFY(!camera.project({}, viewport));
+        QVERIFY(!camera.ray({400, 300}, viewport));
     }
 
     void inPlaceCameraTurnsWithoutMovingEye()

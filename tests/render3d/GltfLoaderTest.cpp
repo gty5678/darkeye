@@ -283,7 +283,7 @@ private slots:
         const auto first = loaded.asset->instantiate(scene);
         const auto second = loaded.asset->instantiate(scene);
         QVERIFY(!first.empty() && !second.empty());
-        QCOMPARE(scene.worldMatrix(first[1]).map(QVector3D()),QVector3D(1,2,3));
+        QCOMPARE(scene.worldMatrix(first[1]).value().map(QVector3D()),QVector3D(1,2,3));
         const auto items = scene.renderItems();
         QCOMPARE(items[0].mesh.get(),items[1].mesh.get());
         const auto cached = loader.load(directory.filePath("./model.gltf"));

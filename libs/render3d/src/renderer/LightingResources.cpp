@@ -37,7 +37,6 @@ bool LightingResources::resourcesWillChange(QSize size,const LightingSettings &s
 }
 bool LightingResources::makeTarget(Target &target,QSize size,QRhiTexture::Format format,bool depth,QString &error)
 {
-    target.target.reset(); target.pass.reset(); target.depth.reset(); target.color.reset();
     target.color.reset(m_rhi->newTexture(format,size,1,QRhiTexture::RenderTarget));
     if(!target.color->create()) { error="Cannot create lighting color target"; return false; }
     if(depth) {
@@ -97,33 +96,53 @@ bool LightingResources::prepare(QRhi *rhi,QSize size,const LightingSettings &set
         changed=true;
     }
     if(environment!=m_environment) {
-        // Pipelines/bindings referencing old textures must be destroyed first.
-        m_backgroundPipeline.reset(); m_backgroundBindings.reset();
-        m_radiance.reset(); m_diffuse.reset(); m_specular.reset(); m_brdf.reset();
-        if(environment) {
-            auto *updates=rhi->nextResourceUpdateBatch();
-            const bool success=makeTexture(m_radiance,{environment->radiance},updates,error)
-                && makeTexture(m_diffuse,{environment->irradiance},updates,error)
-                && makeTexture(m_specular,environment->specular,updates,error)
-                && makeTexture(m_brdf,{environment->brdf},updates,error);
+        std::unique_ptr<QRhiTexture> radiance, diffuse, specular, brdf;
+        if (environment) {
+            auto *updates = rhi->nextResourceUpdateBatch();
+            if (!makeTexture(radiance, {environment->radiance}, updates, error)
+                || !makeTexture(diffuse, {environment->irradiance}, updates, error)
+                || !makeTexture(specular, environment->specular, updates, error)
+                || !makeTexture(brdf, {environment->brdf}, updates, error)) {
+                updates->release();
+                return false;
+            }
             cb->resourceUpdate(updates);
-            if(!success) return false;
         }
-        m_environment=std::move(environment); changed=true;
+        m_backgroundPipeline.reset();
+        m_backgroundBindings.reset();
+        m_radiance = std::move(radiance);
+        m_diffuse = std::move(diffuse);
+        m_specular = std::move(specular);
+        m_brdf = std::move(brdf);
+        m_environment = std::move(environment);
+        changed = true;
     }
-    const bool resize=size!=m_size;
-    if((resize && settings.ambientOcclusion) || settings.shadows!=m_settings.shadows || settings.ambientOcclusion!=m_settings.ambientOcclusion) {
-        m_shadowPipeline.reset(); m_depthPipeline.reset(); m_aoPipeline.reset(); m_aoBindings.reset();
-        if(settings.shadows && !m_shadow.target) {
-            if(!makeTarget(m_shadow,{2048,2048},QRhiTexture::R32F,true,error)) return false;
-        } else if(!settings.shadows) m_shadow.clear();
-        if(settings.ambientOcclusion) {
+    const bool shadowsChanged = settings.shadows != m_settings.shadows;
+    const bool aoChanged = settings.ambientOcclusion != m_settings.ambientOcclusion
+        || (settings.ambientOcclusion && size != m_size);
+    if (shadowsChanged || aoChanged) {
+        Target shadow, normalDepth, ao;
+        if (shadowsChanged && settings.shadows
+            && !makeTarget(shadow, {2048,2048}, QRhiTexture::R32F, true, error))
+            return false;
+        if (aoChanged && settings.ambientOcclusion) {
             QSize half(std::max(1,size.width()/2),std::max(1,size.height()/2));
             if(half.width()>960 || half.height()>960) half=half.scaled(960,960,Qt::KeepAspectRatio);
-            if(!makeTarget(m_normalDepth,half,QRhiTexture::RGBA16F,true,error)
-                || !makeTarget(m_ao,half,QRhiTexture::RGBA8,false,error)) return false;
-        } else { m_normalDepth.clear(); m_ao.clear(); }
-        changed=true;
+            if(!makeTarget(normalDepth,half,QRhiTexture::RGBA16F,true,error)
+                || !makeTarget(ao,half,QRhiTexture::RGBA8,false,error)) return false;
+        }
+        m_shadowPipeline.reset(); m_depthPipeline.reset(); m_aoPipeline.reset(); m_aoBindings.reset();
+        if (shadowsChanged) {
+            m_shadow.clear();
+            m_shadow = std::move(shadow);
+        }
+        if (aoChanged) {
+            m_normalDepth.clear();
+            m_ao.clear();
+            m_normalDepth = std::move(normalDepth);
+            m_ao = std::move(ao);
+        }
+        changed = true;
     }
     m_size=size; m_settings=settings;
     if(changed) { ++revision; m_pipelinesDirty=true; }
@@ -193,12 +212,13 @@ bool LightingResources::ensurePipelines(QRhiShaderResourceBindings *geometryLayo
     if(!m_backgroundPipeline || !m_backgroundPass->isCompatible(scenePass) || m_backgroundPipeline->sampleCount()!=samples) {
         m_backgroundPipeline.reset(); m_backgroundPass.reset(scenePass->newCompatibleRenderPassDescriptor());
         if(!m_backgroundBindings) {
-            m_backgroundBindings.reset(m_rhi->newShaderResourceBindings());
-            m_backgroundBindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(7,
+            auto bindings = std::unique_ptr<QRhiShaderResourceBindings>(m_rhi->newShaderResourceBindings());
+            bindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(7,
                 QRhiShaderResourceBinding::VertexStage|QRhiShaderResourceBinding::FragmentStage,m_uniform.get()),
                 QRhiShaderResourceBinding::sampledTexture(9,QRhiShaderResourceBinding::FragmentStage,
                     m_radiance?m_radiance.get():m_white.get(),m_environmentSampler.get())});
-            if(!m_backgroundBindings->create()) { error="Cannot create background bindings"; return false; }
+            if(!bindings->create()) { error="Cannot create background bindings"; return false; }
+            m_backgroundBindings = std::move(bindings);
         }
         if(!fullscreen(m_backgroundPipeline,m_backgroundBindings.get(),scenePass,samples,"environment.frag")) return false;
     }

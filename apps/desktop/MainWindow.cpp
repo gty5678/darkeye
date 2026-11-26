@@ -70,6 +70,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QPixmap>
 #include <QScreen>
 #include <QScrollArea>
@@ -104,6 +105,37 @@ namespace
 {
 
 constexpr qsizetype recentWorkspaceLimit = 9;
+
+class PageNavigationBar final : public QWidget
+{
+public:
+    PageNavigationBar(ThemeService &themeService, QWidget *parent) : QWidget(parent)
+    {
+        const auto applyTheme = [this, &themeService] {
+            const auto theme = myads::dockThemeFromTokens(
+                ThemeService::tokens(themeService.current(), themeService.customPrimary()));
+            m_dividerBackground = theme.background;
+            m_dividerLine = theme.splitterLine();
+            update();
+        };
+        applyTheme();
+        connect(&themeService, &ThemeService::themeChanged, this, applyTheme);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        const QRect divider(rect().right(), 0, 1, height());
+        painter.fillRect(divider, m_dividerBackground);
+        painter.fillRect(divider, m_dividerLine);
+    }
+
+private:
+    QColor m_dividerBackground;
+    QColor m_dividerLine;
+};
+
 const auto actressSwitchRoute = QStringLiteral("actress_detail/switch");
 struct WorkspacePreset {
     QString command;
@@ -531,13 +563,13 @@ void MainWindow::changeEvent(QEvent *event)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    for (const auto &page : m_routePages) {
-        if (!page) continue;
-        QCloseEvent check;
-        QCoreApplication::sendEvent(page, &check);
-        if (!check.isAccepted()) { event->ignore(); return; }
+    if (!m_workspace->requestWindowClose()) {
+        event->ignore();
+        return;
     }
-    saveWindowState();
+    if (m_workspaceSaveTimer) m_workspaceSaveTimer->stop();
+    saveWorkspace();
+    SettingsStore(m_paths.settingsFile()).setValue(QStringLiteral("window/maximized"), isMaximized());
     QMainWindow::closeEvent(event);
 }
 
@@ -571,7 +603,7 @@ void MainWindow::buildUi()
             m_timelineSource.clear();
             updateTimeline();
         }
-        if (route == QStringLiteral("work_filters"))
+        if (route == QStringLiteral("work_filters") && !m_workFilter->parentWidget())
             m_workFilter->setParent(this->centralWidget());
         m_routePages.remove(route);
     });
@@ -701,25 +733,47 @@ void MainWindow::buildUi()
     connect(m_workspace, &myads::WorkspaceWidget::activeContentChanged, emptyState, updateEmptyHint);
     connect(m_workspace, &myads::WorkspaceWidget::layoutChanged, emptyState, updateEmptyHint);
     updateEmptyHint();
+    restoreWorkspace();
+
+    m_workspaceSaveTimer = new QTimer(this);
+    m_workspaceSaveTimer->setSingleShot(true);
+    m_workspaceSaveTimer->setInterval(250);
+    connect(m_workspaceSaveTimer, &QTimer::timeout, this, &MainWindow::saveWorkspace);
+    connect(m_workspace, &myads::WorkspaceWidget::layoutChanged, this, &MainWindow::scheduleWorkspaceSave);
+    connect(m_workspace, &myads::WorkspaceWidget::layoutPreferencesChanged, this, &MainWindow::scheduleWorkspaceSave);
+    connect(m_workspace, &myads::WorkspaceWidget::contentClosed, this, &MainWindow::scheduleWorkspaceSave);
+    connect(m_workspace, &myads::WorkspaceWidget::activePaneChanged, this, &MainWindow::scheduleWorkspaceSave);
+}
+
+void MainWindow::restoreWorkspace()
+{
     const auto savedLayout = workspaceFile();
-    if (!QFile::exists(savedLayout)) {
-        restoreWorkspacePreset(defaultWorkspacePreset.resource);
-        return;
-    }
+    const bool hasSavedLayout = QFile::exists(savedLayout);
     QString error;
-    const auto layoutData = myads::loadLayoutFile(savedLayout, &error);
+    const auto layoutData = hasSavedLayout ? myads::loadLayoutFile(savedLayout, &error) : QJsonObject{};
     const bool restored = !layoutData.isEmpty() &&
         m_workspace->restoreLayout(migratePersonalDataTabs(layoutData),
             [this](const QJsonObject &descriptor) { return workspaceContent(descriptor); }, &error);
-    if (!restored && !error.isEmpty()) qWarning() << "Workspace restore:" << error;
-    if (restored) {
-        QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
-        auto active = settings.value(QStringLiteral("workspace/activeRoute")).toString();
-        if (active == legacyPersonalDataRoute)
-            active = libraryOverviewRoute;
-        if (m_workspace->findPaneByContentId(active) || active.startsWith(QStringLiteral("work_detail/")))
-            navigateTo(active, false);
+    if (!restored) {
+        if (hasSavedLayout)
+            qWarning() << "Workspace restore:" << (error.isEmpty() ? QStringLiteral("工作区布局为空") : error);
+        if (!restoreWorkspacePreset(defaultWorkspacePreset.resource, /*showFailureDialog=*/false))
+            m_workspace->resetToSingleEmptyPane();
+        return;
     }
+
+    if (layoutData.contains(QStringLiteral("active_pane_id"))) {
+        const auto *pane = m_workspace->activePane();
+        if (pane && !pane->currentContentId().isEmpty())
+            navigateTo(pane->currentContentId(), false);
+        return;
+    }
+    QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
+    auto active = settings.value(QStringLiteral("workspace/activeRoute")).toString();
+    if (active == legacyPersonalDataRoute)
+        active = libraryOverviewRoute;
+    if (m_workspace->findPaneByContentId(active) || active.startsWith(QStringLiteral("work_detail/")))
+        navigateTo(active, false);
 }
 
 QWidget *MainWindow::buildNavigationBar(QWidget *parent)
@@ -728,8 +782,9 @@ QWidget *MainWindow::buildNavigationBar(QWidget *parent)
     constexpr int collapsedWidth = 56;
     constexpr int buttonSize = 36;
     constexpr int horizontalInset = (collapsedWidth - buttonSize) / 2;
-    auto *bar = new QWidget(parent);
+    auto *bar = new PageNavigationBar(m_themeService, parent);
     bar->setObjectName(QStringLiteral("pageNavigationBar"));
+    bar->setAttribute(Qt::WA_StyledBackground);
     bar->setAccessibleName(QStringLiteral("页面导航"));
     auto *layout = new QVBoxLayout(bar);
     layout->setContentsMargins(horizontalInset, 6, horizontalInset, 6);
@@ -1327,6 +1382,7 @@ void MainWindow::connectShelfPage(ShelfPage *shelf)
         if (detail->currentPersonId() == actressId) return;
         if (actressId == 0) detail->clearPerson();
         else if (!detail->showPerson(actressId, false)) return;
+        scheduleWorkspaceSave();
         if (m_localGraphSource == detail) updateLocalGraph();
         if (m_timelineSource == detail) updateTimeline();
     }, Qt::QueuedConnection);
@@ -1409,46 +1465,36 @@ QString MainWindow::workspaceFile() const
 std::optional<myads::ContentConfig> MainWindow::workspaceContent(const QJsonObject &descriptor)
 {
     const auto route = descriptor.value(QStringLiteral("content_id")).toString();
+    const bool existingPage = !m_routePages.value(route).isNull();
     auto *page = ensurePage(route, descriptor.value(QStringLiteral("actress_id")).toString().toLongLong());
     if (!page) return std::nullopt;
+    if (!existingPage && page != m_workFilter) page->setParent(nullptr);
     auto config = myads::ContentConfig(route).setWidget(page).setWindowTitle(page->windowTitle());
     if (page == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
     return config;
 }
 
-void MainWindow::restoreWorkspacePreset(const QString &resource)
+bool MainWindow::restoreWorkspacePreset(const QString &resource, bool showFailureDialog)
 {
     Resources::ensureInitialized();
     QString error;
     const auto preset = myads::loadLayoutFile(resource, &error);
     if (!preset.isEmpty()) {
-        QSet<QString> presetRoutes;
-        const auto contents = preset.value(QStringLiteral("pane_contents")).toObject();
-        for (const auto &tabs : contents) {
-            for (const auto &tab : tabs.toArray())
-                presetRoutes.insert(tab.toObject().value(QStringLiteral("content_id")).toString());
-        }
-
-        QStringList closingRoutes;
-        for (const auto &route : m_routePages.keys()) {
-            auto *page = m_routePages.value(route).data();
-            if (!page || presetRoutes.contains(route)) continue;
-            QCloseEvent check;
-            QCoreApplication::sendEvent(page, &check);
-            if (!check.isAccepted()) return;
-            closingRoutes.append(route);
-        }
-
         if (m_workspace->restoreLayout(preset, [this](const QJsonObject &descriptor) {
                 return workspaceContent(descriptor);
             }, &error)) {
-            for (const auto &route : closingRoutes) m_routePages.remove(route);
             m_workspace->setSidebarOpen(myads::SidebarSide::Left, true);
             m_workspace->setSidebarOpen(myads::SidebarSide::Right, true);
-            return;
+            return true;
         }
+        if (error.isEmpty()) return false;
     }
-    QMessageBox::warning(this, QStringLiteral("恢复预设工作区布局失败"), error);
+    if (error.isEmpty()) error = QStringLiteral("工作区布局为空");
+    if (showFailureDialog)
+        QMessageBox::warning(this, QStringLiteral("恢复预设工作区布局失败"), error);
+    else
+        qWarning() << "Workspace preset restore:" << error;
+    return false;
 }
 
 void MainWindow::closeCurrentTab()
@@ -1948,6 +1994,7 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         auto *detail = static_cast<PersonDetailPage *>(widget);
         if (detail->currentPersonId() != switchActressId) {
             if (!detail->showPerson(switchActressId)) return;
+            scheduleWorkspaceSave();
             if (m_localGraphSource == detail) updateLocalGraph();
             if (m_timelineSource == detail) updateTimeline();
         }
@@ -2061,12 +2108,13 @@ void MainWindow::openPersonEditor(PersonKind kind, qint64 personId)
         : QStringLiteral("modify_actor/")) + QString::number(personId));
 }
 
-void MainWindow::saveWindowState() const
+void MainWindow::scheduleWorkspaceSave()
 {
-    SettingsStore store(m_paths.settingsFile());
-    store.setValue(QStringLiteral("window/maximized"), isMaximized());
-    if (auto *pane = m_workspace->activePane()) store.setValue(QStringLiteral("workspace/activeRoute"), pane->currentContentId());
-    QDir().mkpath(QFileInfo(workspaceFile()).absolutePath());
+    if (m_workspaceSaveTimer) m_workspaceSaveTimer->start();
+}
+
+void MainWindow::saveWorkspace() const
+{
     QString error;
     if (!m_workspace->saveLayout(workspaceFile(), [](const myads::PaneWidget *pane, const QString &route) {
             QJsonObject descriptor{{QStringLiteral("content_id"), route}};

@@ -1,6 +1,5 @@
 #include "services/UpdateService.h"
 
-#include "app_config.h"
 #include "settings/Paths.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -17,6 +16,8 @@ namespace darkeye
 
 namespace
 {
+constexpr char kDefaultLatestJsonUrl[] =
+    "https://darkeye.win/updates/stable/{target}/latest.json";
 constexpr auto kUserAgent = "Darkeye-Updater/2.0";
 }
 

@@ -137,11 +137,10 @@ int main(int argc, char *argv[])
                 return demoContent(id, title, QStringLiteral("#31627d"),
                     value.value(QStringLiteral("closeable")).toBool(true));
             }, &error);
-        if (!loaded) QMessageBox::warning(&window, QStringLiteral("恢复失败"), error);
+        if (!loaded && !error.isEmpty()) QMessageBox::warning(&window, QStringLiteral("恢复失败"), error);
     });
     QObject::connect(resetButton, &QAction::triggered, workspace, [workspace] {
-        workspace->resetToSingleEmptyPane();
-        buildDefault(workspace);
+        if (workspace->resetToSingleEmptyPane()) buildDefault(workspace);
     });
     bool dark = true;
     QObject::connect(themeButton, &QAction::triggered, workspace, [workspace, &dark] {

@@ -1,5 +1,6 @@
 #include "render3d/ModelAsset.h"
 #include <functional>
+#include <limits>
 
 namespace darkeye::render3d {
 std::vector<NodeId> ModelAsset::instantiate(Scene &scene, NodeId parent) const
@@ -7,6 +8,10 @@ std::vector<NodeId> ModelAsset::instantiate(Scene &scene, NodeId parent) const
     if (parent && !scene.node(parent))
         return {};
     // Validate the complete hierarchy before touching the destination scene.
+    auto availableIds = std::numeric_limits<NodeId>::max() - scene.m_nextId;
+    if (nodes.size() > availableIds)
+        return {};
+    availableIds -= nodes.size();
     std::vector<int> state(nodes.size(), 0);
     std::function<bool(std::size_t)> validate = [&](std::size_t i) {
         if (state[i] == 1)
@@ -16,12 +21,14 @@ std::vector<NodeId> ModelAsset::instantiate(Scene &scene, NodeId parent) const
         state[i] = 1;
         const auto &node = nodes[i];
         if (!node.transform.isFinite() || node.parent < -1
-            || node.parent >= static_cast<int>(nodes.size()))
+            || (node.parent >= 0 && static_cast<std::size_t>(node.parent) >= nodes.size())
+            || node.primitives.size() > availableIds)
             return false;
+        availableIds -= node.primitives.size();
         if (node.parent >= 0 && !validate(static_cast<std::size_t>(node.parent)))
             return false;
         for (const auto &primitive : node.primitives)
-            if (!primitive.mesh || !primitive.mesh->validationError().isEmpty())
+            if (!primitive.mesh || !scene.validateMesh(primitive.mesh).isEmpty())
                 return false;
         state[i] = 2;
         return true;

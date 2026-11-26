@@ -7,6 +7,7 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QPointer>
+#include <QSet>
 #include <QWidget>
 #include <functional>
 #include <optional>
@@ -76,7 +77,9 @@ public:
     PaneWidget *split(PaneWidget *pane, Placement placement, int percent = 50);
     bool moveContent(const QString &sourcePaneId, const QString &contentId,
                      const QString &targetPaneId, DropZone zone, int insertionIndex = -1);
-    void resetToSingleEmptyPane();
+    bool resetToSingleEmptyPane();
+    // Ask the docked pages to approve closing the window, keeping the layout available to save.
+    bool requestWindowClose();
 
     // Compatibility API used by the first C++ migration.
     QString addPanel(const QString &title, QWidget *content,
@@ -92,6 +95,7 @@ public:
                     QString *errorMessage = nullptr) const;
     bool loadLayout(const QString &path, const ContentFactory &factory = {},
                     QString *errorMessage = nullptr);
+    // A page can veto replacement. A veto returns false with an empty error message.
     bool restoreLayout(const QJsonObject &document, const ContentFactory &factory,
                        QString *errorMessage = nullptr);
     void applyTheme(const DockTheme &theme);
@@ -147,6 +151,14 @@ private:
     DropZone dropZone(PaneWidget *target, const QPoint &globalPosition) const;
     QRect previewRect(PaneWidget *target, DropZone zone) const;
     void removeEmptyPane(const QString &paneId);
+    struct DockedContent {
+        QPointer<PaneWidget> pane;
+        QString id;
+        QPointer<QWidget> widget;
+        bool operator==(const DockedContent &) const = default;
+    };
+    [[nodiscard]] QList<DockedContent> dockedContents() const;
+    bool requestContentClose(const QList<DockedContent> &contents, const QSet<QWidget *> &reused);
 
     LayoutTree m_tree;
     static constexpr double DefaultSidebarWidthRatio = 0.22;
@@ -171,6 +183,7 @@ private:
     int m_contentCounter = 0;
     int m_layoutUpdateDepth = 0;
     QSet<LayoutTree *> m_pendingLayoutRebuilds;
+    bool m_layoutTransitionInProgress = false;
 };
 
 } // namespace darkeye::myads

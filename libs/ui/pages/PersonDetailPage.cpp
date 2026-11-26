@@ -1,13 +1,13 @@
 #include "ui/pages/PersonDetailPage.h"
 #include "ui/pages/PageScrollArea.h"
 
+#include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "ui/components/PersonInfoPanel.h"
 
 #include <QCoreApplication>
 #include <QEvent>
 #include <QDesktopServices>
-#include <QLabel>
 #include <QUrlQuery>
 #include <QVBoxLayout>
 
@@ -36,10 +36,11 @@ void PersonDetailPage::lazyLoad()
     cardRow->addWidget(m_panel, 1);
     cardRow->addStretch();
     root->addLayout(cardRow);
-    m_emptyHint = new QLabel(QStringLiteral("打开一位女演员后，这里会显示她的详情。"), this);
+    m_emptyHint = new DesignLabel(QStringLiteral("打开一位女演员后，这里会显示她的详情。"),
+                                  QStringLiteral("muted"), this);
     m_emptyHint->setAlignment(Qt::AlignCenter);
     m_emptyHint->setWordWrap(true);
-    root->addWidget(m_emptyHint);
+    root->addWidget(m_emptyHint, 1);
     root->addStretch();
     m_panel->hide();
 

@@ -96,6 +96,8 @@ private slots:
     void factoryFailurePreservesWorkspace_data();
     void factoryFailurePreservesWorkspace();
     void restoredWorkspaceReusesPagesAndKeepsCallbacks();
+    void layoutReplacementChecksOnlyRemovedPages();
+    void resetAndWindowCloseSharePageChecks();
     void hitTestingMatchesPythonZones();
     void previewGeometryMatchesPythonOverlay();
     void activePaneFollowsUserInteraction();
@@ -909,6 +911,7 @@ void MyAdsTest::closeRequestRejectsReentryAndRevalidatesOwnership()
         QVERIFY(!source->removeContent(QStringLiteral("edit")));
         QVERIFY(workspace.moveContent(source->paneId(), QStringLiteral("edit"),
                                       target->paneId(), DropZone::Center));
+        QVERIFY(!target->removeContent(QStringLiteral("edit")));
     };
     QVERIFY(!source->removeContent(QStringLiteral("edit")));
     QCOMPARE(page->requests, 1);
@@ -1346,6 +1349,7 @@ void MyAdsTest::factoryFailurePreservesWorkspace_data()
     QTest::newRow("exception") << 0;
     QTest::newRow("non-standard-exception") << 1;
     QTest::newRow("duplicate-widget") << 2;
+    QTest::newRow("insertion-failure") << 3;
 }
 
 void MyAdsTest::factoryFailurePreservesWorkspace()
@@ -1376,6 +1380,7 @@ void MyAdsTest::factoryFailurePreservesWorkspace()
     const QJsonObject originalTree = restored.layoutTree().toJson();
     const QStringList originalOrder = left->contentIds();
     QSignalSpy changes(&restored, &WorkspaceWidget::layoutChanged);
+    QWidget externalOwner;
     QPointer<QWidget> preparedPage;
     int calls = 0;
     bool originalUntouched = true;
@@ -1385,12 +1390,13 @@ void MyAdsTest::factoryFailurePreservesWorkspace()
             originalUntouched = originalUntouched && restored.rootPane() == left &&
                 left->contentIds() == originalOrder && left->contentWidget("keep") == original;
             if (calls == 1) {
-                preparedPage = new QLabel("temporary");
+                preparedPage = new QLabel("temporary", failureKind == 3 ? &externalOwner : nullptr);
                 return ContentConfig("new").setWidget(preparedPage);
             }
             if (calls == 2) return ContentConfig("reused").setWidget(original);
             if (failureKind == 1) throw 42;
             if (failureKind == 2) return ContentConfig("duplicate").setWidget(original);
+            if (failureKind == 3) return ContentConfig(" ").setWidget(new QLabel);
             throw std::runtime_error("factory failed");
         }, &error));
     QCOMPARE(calls, 3);
@@ -1405,7 +1411,12 @@ void MyAdsTest::factoryFailurePreservesWorkspace()
     QCOMPARE(restored.activePane(), right);
     QVERIFY(right->iconOnly());
     QCOMPARE(changes.count(), 0);
-    QVERIFY(preparedPage.isNull());
+    if (failureKind == 3) {
+        QVERIFY(preparedPage);
+        QCOMPARE(preparedPage->parentWidget(), &externalOwner);
+    } else {
+        QVERIFY(preparedPage.isNull());
+    }
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(original);
     QCOMPARE(left->contentWidget("keep"), original.data());
@@ -1459,6 +1470,113 @@ void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
     QCOMPARE(moved.count(), 1);
     QCOMPARE(workspace.findPaneByContentId("keep"), right);
     QCOMPARE(right->contentWidget("keep"), page.data());
+}
+
+void MyAdsTest::layoutReplacementChecksOnlyRemovedPages()
+{
+    WorkspaceWidget workspace;
+    auto *root = workspace.rootPane();
+    auto *sidebar = workspace.sidebarPane(SidebarSide::Right);
+    QPointer<CloseAwarePage> removed = new CloseAwarePage;
+    removed->allowClose = true;
+    auto *reused = new CloseAwarePage;
+    auto retained = std::make_unique<CloseAwarePage>();
+    auto detached = std::make_unique<QLabel>();
+    QVERIFY(workspace.fillPane(root, ContentConfig("removed").setWidget(removed)));
+    QVERIFY(workspace.fillPane(root, ContentConfig("reused").setWidget(reused).setCloseable(false)));
+    QVERIFY(workspace.fillPane(sidebar, ContentConfig("retained").setWidget(retained.get())
+        .setClosePolicy(ClosePolicy::KeepAlive)));
+    QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
+
+    LayoutTree tree;
+    tree.addPaneToRoot("destination");
+    const QJsonObject layout{
+        {"layout", tree.toJson()},
+        {"pane_contents", QJsonObject{{"destination", QJsonArray{
+            QJsonObject{{"content_id", "fresh"}}, QJsonObject{{"content_id", "reused"}},
+            QJsonObject{{"content_id", "detached"}}
+        }}}}
+    };
+    QPointer<QWidget> freshPage;
+    const auto factory = [&](const QJsonObject &descriptor) {
+        const auto id = descriptor.value("content_id").toString();
+        if (id == "reused") return ContentConfig(id).setWidget(reused).setCloseable(false);
+        if (id == "detached") return ContentConfig(id).setWidget(detached.get()).setClosePolicy(ClosePolicy::KeepAlive);
+        freshPage = new QLabel;
+        return ContentConfig(id).setWidget(freshPage);
+    };
+    retained->onRequest = [&] {
+        QVERIFY(!workspace.resetToSingleEmptyPane());
+        QVERIFY(!workspace.requestWindowClose());
+    };
+
+    QSignalSpy closed(&workspace, &WorkspaceWidget::contentClosed);
+    QSignalSpy changes(&workspace, &WorkspaceWidget::layoutChanged);
+    QString error;
+    QVERIFY(!workspace.restoreLayout(layout, factory, &error));
+    QVERIFY(error.isEmpty());
+    QVERIFY(freshPage.isNull());
+    QVERIFY(!detached->parentWidget());
+    QCOMPARE(workspace.rootPane(), root);
+    QCOMPARE(root->contentIds(), (QStringList{"removed", "reused"}));
+    QCOMPARE(root->currentContentId(), QStringLiteral("reused"));
+    QCOMPARE(workspace.sidebarPane(SidebarSide::Right), sidebar);
+    QCOMPARE(sidebar->contentWidget("retained"), retained.get());
+    QCOMPARE(removed->requests, 1);
+    QCOMPARE(reused->requests, 0);
+    QCOMPARE(retained->requests, 1);
+    QCOMPARE(closed.size(), 0);
+    QCOMPARE(changes.size(), 0);
+
+    retained->allowClose = true;
+    QVERIFY2(workspace.restoreLayout(layout, factory, &error), qPrintable(error));
+    QCOMPARE(workspace.rootPane()->contentWidget("reused"), reused);
+    QCOMPARE(workspace.rootPane()->contentWidget("detached"), detached.get());
+    QCOMPARE(reused->requests, 0);
+    QCOMPARE(retained->requests, 2);
+    QVERIFY(retained->isHidden());
+    QVERIFY(!retained->parentWidget());
+    QVERIFY(removed);
+    QCOMPARE(removed->requests, 2);
+    QCOMPARE(closed.size(), 2);
+    QCOMPARE(closed.at(0).at(0).toString(), QStringLiteral("removed"));
+    QCOMPARE(closed.at(1).at(0).toString(), QStringLiteral("retained"));
+    QCOMPARE(changes.size(), 1);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(removed.isNull());
+    QVERIFY(workspace.fillPane(workspace.rootPane(), ContentConfig("retained").setWidget(retained.get())
+        .setClosePolicy(ClosePolicy::KeepAlive)));
+}
+
+void MyAdsTest::resetAndWindowCloseSharePageChecks()
+{
+    WorkspaceWidget workspace;
+    auto *root = workspace.rootPane();
+    QPointer<CloseAwarePage> page = new CloseAwarePage;
+    QVERIFY(workspace.fillPane(root, ContentConfig("editor").setWidget(page).setCloseable(false)));
+    QVERIFY(!workspace.requestWindowClose());
+    QVERIFY(!workspace.resetToSingleEmptyPane());
+    QCOMPARE(page->requests, 2);
+    QCOMPARE(workspace.rootPane(), root);
+    QCOMPARE(root->contentWidget("editor"), page.data());
+
+    page->allowClose = true;
+    QVERIFY(workspace.requestWindowClose());
+    QCOMPARE(page->requests, 3);
+    QCOMPARE(root->contentWidget("editor"), page.data());
+    page->onRequest = [&] {
+        QVERIFY(workspace.fillPane(root, ContentConfig("opened-during-prompt")));
+    };
+    QVERIFY(!workspace.resetToSingleEmptyPane());
+    QCOMPARE(page->requests, 4);
+    QCOMPARE(root->contentCount(), 2);
+    page->onRequest = {};
+    QVERIFY(workspace.resetToSingleEmptyPane());
+    QCOMPARE(page->requests, 5);
+    QCOMPARE(workspace.panes().size(), 1);
+    QCOMPARE(workspace.rootPane()->contentCount(), 0);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(page.isNull());
 }
 
 void MyAdsTest::tabStripJoinsSplitterAcrossNestedPanes()

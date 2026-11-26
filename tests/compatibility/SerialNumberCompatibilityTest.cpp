@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "domain/SerialNumber.h"
 
 #include <QDir>
@@ -84,5 +86,5 @@ void SerialNumberCompatibilityTest::removesConfiguredEscapeStrings()
             == std::optional<QString>(QStringLiteral("IPX-247")));
 }
 
-QTEST_MAIN(SerialNumberCompatibilityTest)
+DARKEYE_TEST_MAIN(SerialNumberCompatibilityTest, QCoreApplication)
 #include "SerialNumberCompatibilityTest.moc"

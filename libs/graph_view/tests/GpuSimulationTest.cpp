@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "DampedIntegration.h"
 #include "GpuSimulationSchedule.h"
 #include "GpuSimulation.h"
@@ -1539,5 +1541,5 @@ private slots:
     }
 };
 
-QTEST_MAIN(GpuSimulationTest)
+DARKEYE_TEST_MAIN(GpuSimulationTest, QApplication)
 #include "GpuSimulationTest.moc"

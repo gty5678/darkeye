@@ -24,20 +24,12 @@ enum class DropZone {
     RootLeft, RootRight, RootTop, RootBottom
 };
 
-class ContentConfig final
+struct ContentConfig
 {
-public:
-    explicit ContentConfig(QString contentId = {});
-    ContentConfig &setWidget(QWidget *widget);
-    ContentConfig &setWindowTitle(const QString &title);
-    ContentConfig &setIcon(const QIcon &icon);
-    ContentConfig &setCloseable(bool closeable);
-    ContentConfig &setClosePolicy(ClosePolicy policy);
-
-    QString contentId;
+    QString contentId{};
     QWidget *widget = nullptr;
-    QString title;
-    QIcon icon;
+    QString title{};
+    QIcon icon{};
     bool closeable = true;
     ClosePolicy closePolicy = ClosePolicy::DeleteLater;
 };
@@ -80,14 +72,6 @@ public:
     bool resetToSingleEmptyPane();
     // Ask the docked pages to approve closing the window, keeping the layout available to save.
     bool requestWindowClose();
-
-    // Compatibility API used by the first C++ migration.
-    QString addPanel(const QString &title, QWidget *content,
-                     const QString &paneId = {});
-    QString splitPane(const QString &paneId, Qt::Orientation orientation,
-                      bool insertBefore, int percent = 50);
-    bool save(const QString &path, QString *errorMessage = nullptr) const;
-    bool load(const QString &path, QString *errorMessage = nullptr);
 
     bool saveLayout(const QString &path,
                     const ContentDescriptor &descriptor = {},

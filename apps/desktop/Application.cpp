@@ -52,7 +52,7 @@ QString currentIsoWeek()
 Application::Application(int &argc, char **argv)
     : m_application(argc, argv), m_themeService(m_application)
 {
-    Resources::ensureInitialized();
+    initializeResources();
     configureIdentity();
     QString argumentError;
     if (!settings::Paths::configureFromArguments(m_application.arguments(), &argumentError)) {

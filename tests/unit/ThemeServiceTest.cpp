@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/theme/StylesheetLoader.h"
 #include "darkeye_ui/components/DesignButton.h"
@@ -718,5 +720,5 @@ void ThemeServiceTest::comboPopupAndSelectionHaveChamferedCorners()
     }
 }
 
-QTEST_MAIN(ThemeServiceTest)
+DARKEYE_TEST_MAIN(ThemeServiceTest, QApplication)
 #include "ThemeServiceTest.moc"

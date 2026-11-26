@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "render3d/GltfLoader.h"
 #include <QBuffer>
 #include <QDataStream>
@@ -360,5 +362,5 @@ private slots:
         QVERIFY(!loader.load(directory.filePath("truncated.glb")));
     }
 };
-QTEST_GUILESS_MAIN(GltfLoaderTest)
+DARKEYE_TEST_MAIN(GltfLoaderTest, QCoreApplication)
 #include "GltfLoaderTest.moc"

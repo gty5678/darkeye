@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "render3d/RhiSceneWidget.h"
 
 #include <QImage>
@@ -842,5 +844,5 @@ private slots:
     }
 };
 
-QTEST_MAIN(RhiSceneWidgetTest)
+DARKEYE_TEST_MAIN(RhiSceneWidgetTest, QApplication)
 #include "RhiSceneWidgetTest.moc"

@@ -2,11 +2,7 @@
 
 namespace darkeye {
 
-class Resources final
-{
-public:
-    static void ensureInitialized();
-};
+void initializeResources();
 
 } // namespace darkeye
 

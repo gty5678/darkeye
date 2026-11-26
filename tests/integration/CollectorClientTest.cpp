@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "crawler/CollectorClient.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
@@ -157,5 +159,5 @@ void CollectorClientTest::syncsOnlyFirstFiftyPopularActresses()
     QVERIFY(!people.findByName(darkeye::PersonKind::Actress, QStringLiteral("女优47")).has_value());
 }
 
-QTEST_MAIN(CollectorClientTest)
+DARKEYE_TEST_MAIN(CollectorClientTest, QCoreApplication)
 #include "CollectorClientTest.moc"

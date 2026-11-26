@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "settings/Paths.h"
 #include "database/DatabaseManager.h"
 #include "database/SchemaManager.h"
@@ -413,5 +415,5 @@ void SchemaManagerTest::rejectsForeignKeyCorruption()
     QVERIFY(errorMessage.contains(QStringLiteral("外键损坏")));
 }
 
-QTEST_MAIN(SchemaManagerTest)
+DARKEYE_TEST_MAIN(SchemaManagerTest, QCoreApplication)
 #include "SchemaManagerTest.moc"

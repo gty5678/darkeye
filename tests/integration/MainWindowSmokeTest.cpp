@@ -108,10 +108,8 @@ namespace
 {
 bool saveEmptyWorkspace(const darkeye::settings::Paths &paths)
 {
-    darkeye::myads::LayoutTree tree;
-    tree.addPaneToRoot(QStringLiteral("pane_1"));
-    return darkeye::myads::saveLayoutAtomic(
-        QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json")), tree.toJson());
+    darkeye::myads::WorkspaceWidget workspace;
+    return workspace.saveLayout(QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json")));
 }
 
 QPushButton *findSettingsButton(QObject *root, const QString &text)
@@ -2461,6 +2459,8 @@ void MainWindowSmokeTest::fallsBackWhenWorkspaceRestoreFails_data()
     QTest::addColumn<bool>("presetUnavailable");
     QTest::newRow("invalid-json") << QByteArray("{") << false;
     QTest::newRow("unsupported-layout") << QByteArray(R"({"schema_version": -1})") << false;
+    QTest::newRow("legacy-layout") << QByteArray(
+        R"({"type":"split","orientation":"horizontal","children":[{"type":"pane","pane_id":"old"}]})") << false;
     QTest::newRow("preset-unavailable") << QByteArray("{") << true;
 }
 
@@ -2481,7 +2481,7 @@ void MainWindowSmokeTest::fallsBackWhenWorkspaceRestoreFails()
     file.close();
 
     darkeye::ThemeService themes(*qApp);
-    darkeye::Resources::ensureInitialized();
+    darkeye::initializeResources();
     const auto restoreResources = qScopeGuard([presetUnavailable] {
         if (presetUnavailable) Q_INIT_RESOURCE(resources);
     });
@@ -2910,7 +2910,9 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
     QCOMPARE(right->parentWidget(), rightPane);
 
     const auto addTab = [workspace](darkeye::myads::PaneWidget *pane, const QString &title) {
-        QVERIFY(workspace->fillPane(pane, workspace->createContentConfig().setWindowTitle(title)));
+        auto config = workspace->createContentConfig();
+        config.title = title;
+        QVERIFY(workspace->fillPane(pane, config));
     };
     addTab(center, QStringLiteral("Center left"));
     addTab(rightPane, QStringLiteral("Center right"));
@@ -2918,8 +2920,8 @@ void MainWindowSmokeTest::sidebarButtonsAndVisibilitySettings()
     auto *rightSidebar = workspace->sidebarPane(SidebarSide::Right);
     auto *leftEditor = new QLineEdit;
     auto *rightEditor = new QLineEdit;
-    QVERIFY(workspace->fillPane(leftSidebar, workspace->createContentConfig().setWidget(leftEditor)));
-    QVERIFY(workspace->fillPane(rightSidebar, workspace->createContentConfig().setWidget(rightEditor)));
+    QVERIFY(workspace->fillPane(leftSidebar, {.widget = leftEditor}));
+    QVERIFY(workspace->fillPane(rightSidebar, {.widget = rightEditor}));
     auto *leftTabs = leftSidebar->findChild<QTabBar *>();
     auto *rightTabs = rightSidebar->findChild<QTabBar *>();
     auto *centerTabs = center->findChild<QTabBar *>();
@@ -3296,7 +3298,7 @@ void MainWindowSmokeTest::restoredTabsDeferInitialization()
         darkeye::myads::WorkspaceWidget saved;
         auto *pane = saved.rootPane();
         for (const auto &route : lazyRoutes + QStringList{searchRoute, activeRoute})
-            QVERIFY(saved.fillPane(pane, darkeye::myads::ContentConfig(route)));
+            QVERIFY(saved.fillPane(pane, {.contentId = route}));
         QVERIFY(saved.saveLayout(QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json")),
                                  [](const auto *, const QString &id) {
                                      return QJsonObject{{QStringLiteral("content_id"), id}};
@@ -3720,14 +3722,14 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         auto *legacyPane = workspace->split(workspace->activePane(), darkeye::myads::Placement::Right);
         QVERIFY(legacyPane);
         const auto legacyRoute = QStringLiteral("person_graph/%1").arg(*first);
-        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(legacyRoute)
-                                                   .setWidget(new QWidget(&window))));
-        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(legacyActorRoute)
-                                                   .setWidget(new QWidget(&window))));
-        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(QStringLiteral("manage_batch"))
-                                                   .setWidget(new QWidget(&window))));
-        QVERIFY(workspace->fillPane(legacyPane, darkeye::myads::ContentConfig(QStringLiteral("setting"))
-                                                   .setWidget(new QWidget(&window))));
+        QVERIFY(workspace->fillPane(legacyPane, {.contentId = legacyRoute, .widget = new QWidget(&window)}));
+        QVERIFY(workspace->fillPane(legacyPane, {.contentId = legacyActorRoute, .widget = new QWidget(&window)}));
+        QVERIFY(workspace->fillPane(legacyPane, {
+            .contentId = QStringLiteral("manage_batch"), .widget = new QWidget(&window),
+        }));
+        QVERIFY(workspace->fillPane(legacyPane, {
+            .contentId = QStringLiteral("setting"), .widget = new QWidget(&window),
+        }));
         workspace->setActivePane(legacyPane);
         legacyPane->setCurrentContentId(QStringLiteral("setting"));
         QCOMPARE(workspace->panes().size(), 3);
@@ -4072,11 +4074,14 @@ void MainWindowSmokeTest::statisticsPagesOpenIndependentlyAndScroll()
     darkeye::myads::LayoutTree tree;
     tree.addPaneToRoot(paneId);
     const QJsonObject savedLayout{
+        {QStringLiteral("schema_version"), darkeye::myads::LayoutTree::SchemaVersion},
         {QStringLiteral("layout"), tree.toJson()},
         {QStringLiteral("pane_contents"), QJsonObject{
-            {paneId, QJsonArray{QJsonObject{{QStringLiteral("content_id"), legacyRoute}}}}}},
+            {paneId, QJsonArray{QJsonObject{{QStringLiteral("content_id"), overviewRoute}},
+                                QJsonObject{{QStringLiteral("content_id"), heatmapRoute}},
+                                QJsonObject{{QStringLiteral("content_id"), legacyRoute}}}}}},
         {QStringLiteral("pane_metadata"), QJsonObject{
-            {paneId, QJsonObject{{QStringLiteral("current_content_id"), legacyRoute}}}}}
+            {paneId, QJsonObject{{QStringLiteral("current_content_id"), overviewRoute}}}}}
     };
     QVERIFY(darkeye::myads::saveLayoutAtomic(
         QDir(paths.dataDirectory()).filePath(QStringLiteral("workspace-v2.json")), savedLayout));
@@ -4094,7 +4099,7 @@ void MainWindowSmokeTest::statisticsPagesOpenIndependentlyAndScroll()
     auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
     auto *restoredPane = workspace->findPaneByContentId(overviewRoute);
     QVERIFY(restoredPane);
-    QCOMPARE(restoredPane->contentIds(), (QStringList{overviewRoute, favoritesRoute, heatmapRoute}));
+    QCOMPARE(restoredPane->contentIds(), (QStringList{overviewRoute, heatmapRoute}));
     QCOMPARE(restoredPane->currentContentId(), overviewRoute);
     QVERIFY(!workspace->findPaneByContentId(legacyRoute));
     QCOMPARE(restoredPane->contentWidget(overviewRoute)->windowTitle(), QStringLiteral("库藏概览"));

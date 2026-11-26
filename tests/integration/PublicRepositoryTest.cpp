@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "database/repositories/PersonRepository.h"
 #include "database/repositories/ReferenceRepository.h"
@@ -580,5 +582,5 @@ void PublicRepositoryTest::batchesWorkDeletionRestorationAndPermanentRemoval()
     QCOMPARE(relation.value(0).toInt(), 0);
 }
 
-QTEST_MAIN(PublicRepositoryTest)
+DARKEYE_TEST_MAIN(PublicRepositoryTest, QCoreApplication)
 #include "PublicRepositoryTest.moc"

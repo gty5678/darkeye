@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "ui/pages/AvPage.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "editor/markdown_editor_widget.h"
@@ -342,5 +344,5 @@ void AvPageTest::scrollsInsideChamferedDocumentPanel()
     QCOMPARE(splitter->widget(0)->width(), originalWidth + offset.x());
 }
 
-QTEST_MAIN(AvPageTest)
+DARKEYE_TEST_MAIN(AvPageTest, QApplication)
 #include "AvPageTest.moc"

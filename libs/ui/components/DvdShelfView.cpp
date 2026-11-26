@@ -94,7 +94,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
       m_coverDirectory(coverDirectory),
       m_fanartDirectory(fanartDirectory), m_scene(new dvd_scene::DvdSceneWidget(this))
 {
-    Resources::ensureInitialized();
+    initializeResources();
     setObjectName(QStringLiteral("DvdShelfView"));
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

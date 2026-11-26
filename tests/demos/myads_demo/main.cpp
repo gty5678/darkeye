@@ -30,9 +30,7 @@ QWidget *panel(const QString &title, const QString &color)
 ContentConfig demoContent(const QString &id, const QString &title,
                           const QString &color, bool closeable = true)
 {
-    ContentConfig config(id);
-    config.setWindowTitle(title).setWidget(panel(title, color)).setCloseable(closeable);
-    return config;
+    return {.contentId = id, .widget = panel(title, color), .title = title, .closeable = closeable};
 }
 
 QString layoutPath()

@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/repositories/WorkRepository.h"
 #include "database/repositories/ReferenceRepository.h"
 #include "database/SchemaManager.h"
@@ -350,5 +352,5 @@ void WorkRepositoryTest::filtersWorksWithLocalVideo()
     QCOMPARE(results.first().serialNumber, QStringLiteral("VIDEO-001"));
 }
 
-QTEST_MAIN(WorkRepositoryTest)
+DARKEYE_TEST_MAIN(WorkRepositoryTest, QCoreApplication)
 #include "WorkRepositoryTest.moc"

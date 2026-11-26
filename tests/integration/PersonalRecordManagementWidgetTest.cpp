@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
 #include "darkeye_ui/theme/ThemeService.h"
@@ -133,5 +135,5 @@ void PersonalRecordManagementWidgetTest::searchNavigatesWithoutFiltering()
         QVERIFY(!button->isEnabled());
 }
 
-QTEST_MAIN(PersonalRecordManagementWidgetTest)
+DARKEYE_TEST_MAIN(PersonalRecordManagementWidgetTest, QApplication)
 #include "PersonalRecordManagementWidgetTest.moc"

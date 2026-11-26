@@ -1,0 +1,33 @@
+#include <cstdio>
+#include <string_view>
+
+@test_declarations@
+namespace {
+struct TestEntry
+{
+    std::string_view name;
+    int (*run)(int argc, char **argv);
+};
+
+constexpr TestEntry tests[] = {
+@test_entries@};
+}
+
+int main(int argc, char **argv)
+{
+    if (argc > 1) {
+        for (const TestEntry &test : tests) {
+            if (test.name == argv[1]) {
+                // Keep the executable path as argv[0] for Qt and QTest.
+                argv[1] = argv[0];
+                return test.run(argc - 1, argv + 1);
+            }
+        }
+        std::fprintf(stderr, "Unknown test: %s\n", argv[1]);
+    }
+
+    std::fprintf(stderr, "Usage: %s <test> [test arguments]\nAvailable tests:\n", argv[0]);
+    for (const TestEntry &test : tests)
+        std::fprintf(stderr, "  %s\n", test.name.data());
+    return 1;
+}

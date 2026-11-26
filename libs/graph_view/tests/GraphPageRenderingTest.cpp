@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/components/TokenControls.h"
 #include "graph/GraphManager.h"
@@ -342,5 +344,5 @@ void GraphPageRenderingTest::loadsFirstGraphSnapshotAfterAnInitiallyEmptyView()
     QVERIFY(globalZoom > view->getZoom());
 }
 
-QTEST_MAIN(GraphPageRenderingTest)
+DARKEYE_TEST_MAIN(GraphPageRenderingTest, QApplication)
 #include "GraphPageRenderingTest.moc"

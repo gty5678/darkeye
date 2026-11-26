@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "database/SchemaSnapshot.h"
 #include "database/SqliteConnection.h"
@@ -60,5 +62,5 @@ void SchemaSnapshotTest::currentSchemaMatchesFrozenSnapshot()
     QCOMPARE(actual, expected);
 }
 
-QTEST_MAIN(SchemaSnapshotTest)
+DARKEYE_TEST_MAIN(SchemaSnapshotTest, QCoreApplication)
 #include "SchemaSnapshotTest.moc"

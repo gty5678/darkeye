@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/theme/ThemeService.h"
 #include "darkeye_ui/theme/ChamferStyle.h"
 #include "darkeye_ui/components/AnimatedIndicators.h"
@@ -1214,5 +1216,5 @@ void ComponentLibraryTest::idCheckListKeepsStableSelectionWhileFiltering()
     QCOMPARE(changed.count(), 2);
 }
 
-QTEST_MAIN(ComponentLibraryTest)
+DARKEYE_TEST_MAIN(ComponentLibraryTest, QApplication)
 #include "ComponentLibraryTest.moc"

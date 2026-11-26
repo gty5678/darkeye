@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/DatabaseBackupService.h"
 #include "database/DatabaseMaintenanceService.h"
 #include "database/SchemaManager.h"
@@ -328,5 +330,5 @@ void DatabaseBackupServiceTest::restoresCompleteDatabase()
                                : QStringLiteral("INSERT INTO favorite_work(work_id,serial_number) VALUES(43,'RESTORE-002')")));
 }
 
-QTEST_MAIN(DatabaseBackupServiceTest)
+DARKEYE_TEST_MAIN(DatabaseBackupServiceTest, QCoreApplication)
 #include "DatabaseBackupServiceTest.moc"

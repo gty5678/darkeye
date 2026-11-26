@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "render3d/Animator.h"
 #include "render3d/Camera.h"
 #include "render3d/ModelAsset.h"
@@ -240,5 +242,5 @@ private slots:
         QVERIFY(!animator.active());
     }
 };
-QTEST_GUILESS_MAIN(SceneTest)
+DARKEYE_TEST_MAIN(SceneTest, QCoreApplication)
 #include "SceneTest.moc"

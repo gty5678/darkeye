@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "services/LlmTranslationService.h"
 
 #include <QJsonArray>
@@ -92,5 +94,5 @@ void LlmTranslationServiceTest::switchesPromptPerRequest()
     }
 }
 
-QTEST_GUILESS_MAIN(LlmTranslationServiceTest)
+DARKEYE_TEST_MAIN(LlmTranslationServiceTest, QCoreApplication)
 #include "LlmTranslationServiceTest.moc"

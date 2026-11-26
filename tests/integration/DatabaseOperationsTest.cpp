@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/CsvExport.h"
 #include "database/DatabaseMaintenanceService.h"
 #include "database/SchemaManager.h"
@@ -289,5 +291,5 @@ void DatabaseOperationsTest::deletesPeopleWithoutOrphaningRelations()
     QVERIFY(!check.next());
 }
 
-QTEST_GUILESS_MAIN(DatabaseOperationsTest)
+DARKEYE_TEST_MAIN(DatabaseOperationsTest, QCoreApplication)
 #include "DatabaseOperationsTest.moc"

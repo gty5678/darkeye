@@ -607,11 +607,13 @@ AddWorkTabPage3::~AddWorkTabPage3()
 
 myads::ContentConfig AddWorkTabPage3::contentConfig(const QString &slot) const
 {
-    myads::ContentConfig config(QStringLiteral("addwork_") + slot);
     QWidget *widget = m_slotWidgets.value(slot);
-    return config.setWindowTitle(widget ? widget->property("addwork_title").toString() : slot)
-        .setWidget(widget)
-        .setCloseable(false);
+    return {
+        .contentId = QStringLiteral("addwork_") + slot,
+        .widget = widget,
+        .title = widget ? widget->property("addwork_title").toString() : slot,
+        .closeable = false,
+    };
 }
 
 std::optional<myads::ContentConfig>
@@ -620,12 +622,13 @@ AddWorkTabPage3::createWorkspaceContent(const QJsonObject &descriptor) const
     const QString slot = descriptor.value(QStringLiteral("addwork_slot")).toString();
     if (!m_slotWidgets.contains(slot))
         return std::nullopt;
-    myads::ContentConfig config(descriptor.value(QStringLiteral("content_id"))
-                                    .toString(QStringLiteral("addwork_") + slot));
-    return config.setWindowTitle(descriptor.value(QStringLiteral("title"))
-                                     .toString(m_slotWidgets.value(slot)->property("addwork_title").toString()))
-        .setWidget(m_slotWidgets.value(slot))
-        .setCloseable(descriptor.value(QStringLiteral("closeable")).toBool(false));
+    QWidget *widget = m_slotWidgets.value(slot);
+    return myads::ContentConfig{
+        .contentId = descriptor.value(QStringLiteral("content_id")).toString(QStringLiteral("addwork_") + slot),
+        .widget = widget,
+        .title = descriptor.value(QStringLiteral("title")).toString(widget->property("addwork_title").toString()),
+        .closeable = descriptor.value(QStringLiteral("closeable")).toBool(false),
+    };
 }
 
 void AddWorkTabPage3::buildDefaultWorkspace()

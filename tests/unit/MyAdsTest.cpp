@@ -91,7 +91,8 @@ private slots:
     void sidebarWidthsAreRestoredAsRatios();
     void sidebarSplitsVertically_data();
     void sidebarSplitsVertically();
-    void unknownSchemaDoesNotDestroyWorkspace();
+    void unsupportedLayoutDoesNotDestroyWorkspace_data();
+    void unsupportedLayoutDoesNotDestroyWorkspace();
     void invalidLayoutDoesNotDestroyWorkspace();
     void factoryFailurePreservesWorkspace_data();
     void factoryFailurePreservesWorkspace();
@@ -709,14 +710,21 @@ void MyAdsTest::tabMenuMovesLastTabToAnotherGroup()
     WorkspaceWidget workspace;
     PaneWidget *source = workspace.rootPane();
     auto *payload = new QLabel(QStringLiteral("kept"));
-    QVERIFY(workspace.fillPane(source, ContentConfig(QStringLiteral("payload"))
-        .setWidget(payload).setWindowTitle(QStringLiteral("Payload")).setCloseable(false)));
+    QVERIFY(workspace.fillPane(source, {
+        .contentId = QStringLiteral("payload"),
+        .widget = payload,
+        .title = QStringLiteral("Payload"),
+        .closeable = false,
+    }));
     std::unique_ptr<QMenu> menu(source->createTabContextMenu(QStringLiteral("payload")));
     auto *moveMenu = menu->findChild<QMenu *>(QStringLiteral("moveTabToGroup"));
     QVERIFY(moveMenu && !moveMenu->isEnabled());
     PaneWidget *target = workspace.split(source, Placement::Right);
-    QVERIFY(workspace.fillPane(target, ContentConfig(QStringLiteral("other"))
-        .setWidget(new QLabel).setWindowTitle(QStringLiteral("Other"))));
+    QVERIFY(workspace.fillPane(target, {
+        .contentId = QStringLiteral("other"),
+        .widget = new QLabel,
+        .title = QStringLiteral("Other"),
+    }));
     const QString targetId = target->paneId();
     QSignalSpy moved(&workspace, &WorkspaceWidget::contentMoved);
     menu.reset(source->createTabContextMenu(QStringLiteral("payload")));
@@ -806,7 +814,7 @@ void MyAdsTest::paneUsesPageAndContentColors()
         const QColor contentColor(tokens.background);
         QVERIFY(pageColor != contentColor);
 
-        QVERIFY(workspace.fillPane(pane, ContentConfig("page").setWidget(new QWidget)));
+        QVERIFY(workspace.fillPane(pane, {.contentId = "page", .widget = new QWidget}));
         const QRect tab = bar->tabRect(0);
         const QPoint tabFill = bar->mapTo(pane, QPoint(tab.center().x(), tab.bottom() - 2));
         const QImage occupied = pane->grab().toImage();
@@ -845,8 +853,11 @@ void MyAdsTest::retainedPagesSurviveClosingTheirPane()
     QVERIFY(left->addContent("anchor", "Anchor", new QLabel));
     QPointer<PaneWidget> oldRight(right);
     auto retained = std::make_unique<QLabel>(QStringLiteral("reusable"));
-    ContentConfig config("retained");
-    config.setWidget(retained.get()).setClosePolicy(ClosePolicy::KeepAlive);
+    const ContentConfig config{
+        .contentId = "retained",
+        .widget = retained.get(),
+        .closePolicy = ClosePolicy::KeepAlive,
+    };
     QVERIFY(workspace.fillPane(left, config));
     QVERIFY(workspace.moveContent(left->paneId(), "retained", right->paneId(), DropZone::Center));
     QCOMPARE(right->contentClosePolicy("retained"), ClosePolicy::KeepAlive);
@@ -933,9 +944,12 @@ void MyAdsTest::workspacePreservesContentWhileSplitting()
     WorkspaceWidget workspace;
     PaneWidget *root = workspace.rootPane();
     QPointer<PaneWidget> rootGuard(root);
-    ContentConfig first(QStringLiteral("list"));
-    first.setWindowTitle(QStringLiteral("列表"))
-         .setWidget(new QLabel(QStringLiteral("A"))).setCloseable(false);
+    const ContentConfig first{
+        .contentId = QStringLiteral("list"),
+        .widget = new QLabel(QStringLiteral("A")),
+        .title = QStringLiteral("列表"),
+        .closeable = false,
+    };
     QVERIFY(workspace.fillPane(root, first));
     QWidget *originalWidget = root->contentWidget(QStringLiteral("list"));
     PaneWidget *right = workspace.split(root, Placement::Right, 35);
@@ -953,9 +967,11 @@ void MyAdsTest::workspacePreservesContentWhileSplitting()
 
     PaneWidget *bottom = workspace.split(rootGuard, Placement::Bottom);
     QVERIFY(bottom);
-    ContentConfig second(QStringLiteral("search"));
-    second.setWindowTitle(QStringLiteral("搜索结果"))
-          .setWidget(new QLabel(QStringLiteral("B")));
+    const ContentConfig second{
+        .contentId = QStringLiteral("search"),
+        .widget = new QLabel(QStringLiteral("B")),
+        .title = QStringLiteral("搜索结果"),
+    };
     QVERIFY(workspace.fillPane(rootGuard, second));
     QCoreApplication::processEvents();
     QCOMPARE(rootGuard->contentCount(), 2);
@@ -1001,16 +1017,13 @@ void MyAdsTest::workspaceMovesTabsAcrossPanes()
 {
     WorkspaceWidget workspace;
     PaneWidget *left = workspace.rootPane();
-    ContentConfig first(QStringLiteral("one"));
-    first.setWidget(new QLabel(QStringLiteral("one")));
-    ContentConfig second(QStringLiteral("two"));
-    second.setWidget(new QLabel(QStringLiteral("two")));
+    const ContentConfig first{.contentId = QStringLiteral("one"), .widget = new QLabel(QStringLiteral("one"))};
+    const ContentConfig second{.contentId = QStringLiteral("two"), .widget = new QLabel(QStringLiteral("two"))};
     QVERIFY(workspace.fillPane(left, first));
     QVERIFY(workspace.fillPane(left, second));
     PaneWidget *right = workspace.split(left, Placement::Right);
     QCOMPARE(workspace.layoutTree().root()->sizes, QList<int>({500, 500}));
-    ContentConfig third(QStringLiteral("three"));
-    third.setWidget(new QLabel(QStringLiteral("three")));
+    const ContentConfig third{.contentId = QStringLiteral("three"), .widget = new QLabel(QStringLiteral("three"))};
     QVERIFY(workspace.fillPane(right, third));
     QVERIFY(workspace.moveContent(QStringLiteral("pane_1"), QStringLiteral("one"),
                                   right->paneId(), DropZone::Center));
@@ -1028,19 +1041,26 @@ void MyAdsTest::workspaceSavesAndRestoresContent()
     QTemporaryDir directory;
     WorkspaceWidget source;
     PaneWidget *root = source.rootPane();
-    ContentConfig list(QStringLiteral("movie_list"));
-    list.setWindowTitle(QStringLiteral("影片列表"))
-        .setWidget(new QLabel(QStringLiteral("list"))).setCloseable(false);
+    const ContentConfig list{
+        .contentId = QStringLiteral("movie_list"),
+        .widget = new QLabel(QStringLiteral("list")),
+        .title = QStringLiteral("影片列表"),
+        .closeable = false,
+    };
     QVERIFY(source.fillPane(root, list));
     PaneWidget *detailPane = source.split(root, Placement::Right, 30);
     detailPane->setIconOnly(true);
-    ContentConfig detail(QStringLiteral("movie_detail"));
-    detail.setWindowTitle(QStringLiteral("影片详情"))
-          .setWidget(new QLabel(QStringLiteral("detail")));
+    const ContentConfig detail{
+        .contentId = QStringLiteral("movie_detail"),
+        .widget = new QLabel(QStringLiteral("detail")),
+        .title = QStringLiteral("影片详情"),
+    };
     QVERIFY(source.fillPane(detailPane, detail));
-    ContentConfig auxiliary(QStringLiteral("detail_aux"));
-    auxiliary.setWindowTitle(QStringLiteral("附加资料"))
-             .setWidget(new QLabel(QStringLiteral("auxiliary")));
+    const ContentConfig auxiliary{
+        .contentId = QStringLiteral("detail_aux"),
+        .widget = new QLabel(QStringLiteral("auxiliary")),
+        .title = QStringLiteral("附加资料"),
+    };
     QVERIFY(source.fillPane(detailPane, auxiliary));
     QVERIFY(detailPane->setCurrentContentId(QStringLiteral("movie_detail")));
     const QString path = directory.filePath(QStringLiteral("workspace.json"));
@@ -1056,11 +1076,12 @@ void MyAdsTest::workspaceSavesAndRestoresContent()
     QVERIFY2(restored.loadLayout(path,
         [](const QJsonObject &value) -> std::optional<ContentConfig> {
             const QString id = value.value(QStringLiteral("content_id")).toString();
-            ContentConfig config(id);
-            config.setWindowTitle(value.value(QStringLiteral("title")).toString())
-                  .setCloseable(value.value(QStringLiteral("closeable")).toBool(true))
-                  .setWidget(new QLabel(id));
-            return config;
+            return ContentConfig{
+                .contentId = id,
+                .widget = new QLabel(id),
+                .title = value.value(QStringLiteral("title")).toString(),
+                .closeable = value.value(QStringLiteral("closeable")).toBool(true),
+            };
         }, &error), qPrintable(error));
     QCOMPARE(restored.layoutTree().paneIds(), source.layoutTree().paneIds());
     QVERIFY(restored.findPaneByContentId(QStringLiteral("movie_list")));
@@ -1085,7 +1106,7 @@ void MyAdsTest::sidebarsToggleAndCollapseOnFocusLoss()
     QCOMPARE(right->contentCount(), 0);
 
     auto *editor = new QLineEdit;
-    QVERIFY(workspace.fillPane(left, ContentConfig("editor").setWidget(editor)));
+    QVERIFY(workspace.fillPane(left, {.contentId = "editor", .widget = editor}));
     workspace.show();
     workspace.activateWindow();
     QTRY_VERIFY(workspace.isActiveWindow());
@@ -1149,7 +1170,7 @@ void MyAdsTest::sidebarTabsSurviveLayoutRestore()
     auto *right = workspace.sidebarPane(SidebarSide::Right);
     const auto id = QStringLiteral("sidebar-tab");
     auto *widget = new QLabel;
-    QVERIFY(workspace.fillPane(root, ContentConfig(id).setWidget(widget)));
+    QVERIFY(workspace.fillPane(root, {.contentId = id, .widget = widget}));
     QVERIFY(workspace.moveContent(root->paneId(), id, right->paneId(), DropZone::Center));
     QCOMPARE(right->contentWidget(id), widget);
     QCOMPARE(workspace.layoutTree().paneIds(), QList<QString>{root->paneId()});
@@ -1160,7 +1181,10 @@ void MyAdsTest::sidebarTabsSurviveLayoutRestore()
     }));
 
     QVERIFY(workspace.loadLayout(path, [widget](const QJsonObject &descriptor) {
-        return ContentConfig(descriptor.value(QStringLiteral("content_id")).toString()).setWidget(widget);
+        return ContentConfig{
+            .contentId = descriptor.value(QStringLiteral("content_id")).toString(),
+            .widget = widget,
+        };
     }));
     right = workspace.sidebarPane(SidebarSide::Right);
     QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
@@ -1216,9 +1240,9 @@ void MyAdsTest::sidebarWidthsAreRestoredAsRatios()
     QTRY_VERIFY(qAbs(widthRatio(0) - savedRatio) < 0.01);
     QTRY_VERIFY(qAbs(widthRatio(2) - 0.22) < 0.01);
 
-    QVERIFY(workspace.save(path));
+    QVERIFY(workspace.saveLayout(path));
     WorkspaceWidget restored;
-    QVERIFY(restored.load(path));
+    QVERIFY(restored.loadLayout(path));
     restored.resize(900, 500);
     restored.show();
     restored.toggleSidebar(SidebarSide::Left);
@@ -1249,8 +1273,8 @@ void MyAdsTest::sidebarSplitsVertically()
     auto *sidebar = workspace.sidebarPane(side);
     auto *center = workspace.rootPane();
     auto *editor = new QLineEdit;
-    QVERIFY(workspace.fillPane(sidebar, ContentConfig(residentId).setWidget(editor)));
-    QVERIFY(workspace.fillPane(center, ContentConfig(movingId).setWidget(new QLabel)));
+    QVERIFY(workspace.fillPane(sidebar, {.contentId = residentId, .widget = editor}));
+    QVERIFY(workspace.fillPane(center, {.contentId = movingId, .widget = new QLabel}));
     QVERIFY(!workspace.split(sidebar, Placement::Left));
     QVERIFY(!workspace.split(sidebar, Placement::Right));
     for (const auto zone : {DropZone::Left, DropZone::Right, DropZone::RootLeft, DropZone::RootRight})
@@ -1294,8 +1318,10 @@ void MyAdsTest::sidebarSplitsVertically()
         return QJsonObject{{QStringLiteral("content_id"), id}};
     }));
     QVERIFY(workspace.loadLayout(path, [](const QJsonObject &descriptor) {
-        return ContentConfig(descriptor.value(QStringLiteral("content_id")).toString())
-            .setWidget(new QLabel);
+        return ContentConfig{
+            .contentId = descriptor.value(QStringLiteral("content_id")).toString(),
+            .widget = new QLabel,
+        };
     }));
     QVERIFY(!workspace.isSidebarOpen(side));
     workspace.toggleSidebar(side);
@@ -1309,19 +1335,36 @@ void MyAdsTest::sidebarSplitsVertically()
     QVERIFY(workspace.isSidebarOpen(side));
 }
 
-void MyAdsTest::unknownSchemaDoesNotDestroyWorkspace()
+void MyAdsTest::unsupportedLayoutDoesNotDestroyWorkspace_data()
 {
+    QTest::addColumn<QJsonObject>("document");
+    LayoutTree tree;
+    tree.addPaneToRoot(QStringLiteral("one"));
+    auto layout = tree.toJson();
+    const auto versionKey = QStringLiteral("schema_version");
+    const auto layoutKey = QStringLiteral("layout");
+    QTest::newRow("unknown-version") << QJsonObject{{versionKey, 999}, {layoutKey, layout}};
+    QTest::newRow("missing-version") << QJsonObject{{layoutKey, layout}};
+    layout.insert(versionKey, LayoutTree::SchemaVersion);
+    QTest::newRow("bare-tree") << layout;
+    layout.remove(versionKey);
+    layout.remove(QStringLiteral("size_ratios"));
+    layout.insert(QStringLiteral("sizes"), QJsonArray{100});
+    QTest::newRow("legacy-sizes") << QJsonObject{{versionKey, LayoutTree::SchemaVersion}, {layoutKey, layout}};
+}
+
+void MyAdsTest::unsupportedLayoutDoesNotDestroyWorkspace()
+{
+    QFETCH(QJsonObject, document);
     QTemporaryDir directory;
     WorkspaceWidget workspace;
-    ContentConfig content(QStringLiteral("keep"));
-    content.setWidget(new QLabel(QStringLiteral("keep")));
+    const ContentConfig content{.contentId = QStringLiteral("keep"), .widget = new QLabel(QStringLiteral("keep"))};
     QVERIFY(workspace.fillPane(workspace.rootPane(), content));
-    const QString path = directory.filePath(QStringLiteral("future.json"));
+    const QString path = directory.filePath(QStringLiteral("unsupported.json"));
     QString error;
-    QVERIFY(saveLayoutAtomic(path,
-        QJsonObject{{QStringLiteral("schema_version"), 999},
-                    {QStringLiteral("layout"), workspace.layoutTree().toJson()}}, &error));
+    QVERIFY(saveLayoutAtomic(path, document, &error));
     QVERIFY(!workspace.loadLayout(path, {}, &error));
+    QVERIFY(!error.isEmpty());
     QVERIFY(workspace.findPaneByContentId(QStringLiteral("keep")));
 }
 
@@ -1329,8 +1372,7 @@ void MyAdsTest::invalidLayoutDoesNotDestroyWorkspace()
 {
     QTemporaryDir directory;
     WorkspaceWidget workspace;
-    ContentConfig content(QStringLiteral("keep"));
-    content.setWidget(new QLabel(QStringLiteral("keep")));
+    const ContentConfig content{.contentId = QStringLiteral("keep"), .widget = new QLabel(QStringLiteral("keep"))};
     QVERIFY(workspace.fillPane(workspace.rootPane(), content));
     const QString path = directory.filePath(QStringLiteral("invalid.json"));
     QString error;
@@ -1357,11 +1399,10 @@ void MyAdsTest::factoryFailurePreservesWorkspace()
     QFETCH(int, failureKind);
     QTemporaryDir directory;
     WorkspaceWidget source;
-    ContentConfig content(QStringLiteral("saved"));
-    content.setWidget(new QLabel(QStringLiteral("saved")));
+    const ContentConfig content{.contentId = QStringLiteral("saved"), .widget = new QLabel(QStringLiteral("saved"))};
     QVERIFY(source.fillPane(source.rootPane(), content));
-    QVERIFY(source.fillPane(source.rootPane(), ContentConfig("second").setWidget(new QLabel)));
-    QVERIFY(source.fillPane(source.rootPane(), ContentConfig("third").setWidget(new QLabel)));
+    QVERIFY(source.fillPane(source.rootPane(), {.contentId = "second", .widget = new QLabel}));
+    QVERIFY(source.fillPane(source.rootPane(), {.contentId = "third", .widget = new QLabel}));
     const QString path = directory.filePath(QStringLiteral("factory.json"));
     QString error;
     QVERIFY(source.saveLayout(path, [](const PaneWidget *, const QString &id) {
@@ -1372,8 +1413,8 @@ void MyAdsTest::factoryFailurePreservesWorkspace()
     auto *left = restored.rootPane();
     auto *right = restored.split(left, Placement::Right, 30);
     QPointer<QWidget> original = new QLabel("keep");
-    QVERIFY(restored.fillPane(left, ContentConfig("keep").setWidget(original)));
-    QVERIFY(restored.fillPane(left, ContentConfig("other").setWidget(new QLabel)));
+    QVERIFY(restored.fillPane(left, {.contentId = "keep", .widget = original}));
+    QVERIFY(restored.fillPane(left, {.contentId = "other", .widget = new QLabel}));
     QVERIFY(left->setCurrentContentId("keep"));
     right->setIconOnly(true);
     restored.setActivePane(right);
@@ -1391,12 +1432,12 @@ void MyAdsTest::factoryFailurePreservesWorkspace()
                 left->contentIds() == originalOrder && left->contentWidget("keep") == original;
             if (calls == 1) {
                 preparedPage = new QLabel("temporary", failureKind == 3 ? &externalOwner : nullptr);
-                return ContentConfig("new").setWidget(preparedPage);
+                return ContentConfig{.contentId = "new", .widget = preparedPage};
             }
-            if (calls == 2) return ContentConfig("reused").setWidget(original);
+            if (calls == 2) return ContentConfig{.contentId = "reused", .widget = original};
             if (failureKind == 1) throw 42;
-            if (failureKind == 2) return ContentConfig("duplicate").setWidget(original);
-            if (failureKind == 3) return ContentConfig(" ").setWidget(new QLabel);
+            if (failureKind == 2) return ContentConfig{.contentId = "duplicate", .widget = original};
+            if (failureKind == 3) return ContentConfig{.contentId = " ", .widget = new QLabel};
             throw std::runtime_error("factory failed");
         }, &error));
     QCOMPARE(calls, 3);
@@ -1429,9 +1470,10 @@ void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
     auto *left = workspace.rootPane();
     auto *right = workspace.split(left, Placement::Right);
     QPointer<QWidget> page = new QLabel("reused");
-    QVERIFY(workspace.fillPane(left, ContentConfig("keep").setWidget(page)
-        .setClosePolicy(ClosePolicy::KeepAlive)));
-    QVERIFY(workspace.fillPane(right, ContentConfig("other").setWidget(new QLabel)));
+    QVERIFY(workspace.fillPane(left, {
+        .contentId = "keep", .widget = page, .closePolicy = ClosePolicy::KeepAlive,
+    }));
+    QVERIFY(workspace.fillPane(right, {.contentId = "other", .widget = new QLabel}));
     const QString path = directory.filePath("reuse.json");
     QString error;
     QVERIFY(workspace.saveLayout(path, [](const PaneWidget *, const QString &id) {
@@ -1441,8 +1483,11 @@ void MyAdsTest::restoredWorkspaceReusesPagesAndKeepsCallbacks()
     QVERIFY2(workspace.loadLayout(path, [&](const QJsonObject &descriptor)
         -> std::optional<ContentConfig> {
         const QString id = descriptor.value("content_id").toString();
-        return ContentConfig(id).setWidget(id == "keep" ? page.data() : new QLabel)
-            .setClosePolicy(ClosePolicy::KeepAlive);
+        return ContentConfig{
+            .contentId = id,
+            .widget = id == "keep" ? page.data() : new QLabel,
+            .closePolicy = ClosePolicy::KeepAlive,
+        };
     }, &error), qPrintable(error));
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(oldPane.isNull());
@@ -1482,15 +1527,17 @@ void MyAdsTest::layoutReplacementChecksOnlyRemovedPages()
     auto *reused = new CloseAwarePage;
     auto retained = std::make_unique<CloseAwarePage>();
     auto detached = std::make_unique<QLabel>();
-    QVERIFY(workspace.fillPane(root, ContentConfig("removed").setWidget(removed)));
-    QVERIFY(workspace.fillPane(root, ContentConfig("reused").setWidget(reused).setCloseable(false)));
-    QVERIFY(workspace.fillPane(sidebar, ContentConfig("retained").setWidget(retained.get())
-        .setClosePolicy(ClosePolicy::KeepAlive)));
+    QVERIFY(workspace.fillPane(root, {.contentId = "removed", .widget = removed}));
+    QVERIFY(workspace.fillPane(root, {.contentId = "reused", .widget = reused, .closeable = false}));
+    QVERIFY(workspace.fillPane(sidebar, {
+        .contentId = "retained", .widget = retained.get(), .closePolicy = ClosePolicy::KeepAlive,
+    }));
     QVERIFY(!workspace.isSidebarOpen(SidebarSide::Right));
 
     LayoutTree tree;
     tree.addPaneToRoot("destination");
     const QJsonObject layout{
+        {"schema_version", LayoutTree::SchemaVersion},
         {"layout", tree.toJson()},
         {"pane_contents", QJsonObject{{"destination", QJsonArray{
             QJsonObject{{"content_id", "fresh"}}, QJsonObject{{"content_id", "reused"}},
@@ -1500,10 +1547,12 @@ void MyAdsTest::layoutReplacementChecksOnlyRemovedPages()
     QPointer<QWidget> freshPage;
     const auto factory = [&](const QJsonObject &descriptor) {
         const auto id = descriptor.value("content_id").toString();
-        if (id == "reused") return ContentConfig(id).setWidget(reused).setCloseable(false);
-        if (id == "detached") return ContentConfig(id).setWidget(detached.get()).setClosePolicy(ClosePolicy::KeepAlive);
+        if (id == "reused")
+            return ContentConfig{.contentId = id, .widget = reused, .closeable = false};
+        if (id == "detached")
+            return ContentConfig{.contentId = id, .widget = detached.get(), .closePolicy = ClosePolicy::KeepAlive};
         freshPage = new QLabel;
-        return ContentConfig(id).setWidget(freshPage);
+        return ContentConfig{.contentId = id, .widget = freshPage};
     };
     retained->onRequest = [&] {
         QVERIFY(!workspace.resetToSingleEmptyPane());
@@ -1544,8 +1593,9 @@ void MyAdsTest::layoutReplacementChecksOnlyRemovedPages()
     QCOMPARE(changes.size(), 1);
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(removed.isNull());
-    QVERIFY(workspace.fillPane(workspace.rootPane(), ContentConfig("retained").setWidget(retained.get())
-        .setClosePolicy(ClosePolicy::KeepAlive)));
+    QVERIFY(workspace.fillPane(workspace.rootPane(), {
+        .contentId = "retained", .widget = retained.get(), .closePolicy = ClosePolicy::KeepAlive,
+    }));
 }
 
 void MyAdsTest::resetAndWindowCloseSharePageChecks()
@@ -1553,7 +1603,7 @@ void MyAdsTest::resetAndWindowCloseSharePageChecks()
     WorkspaceWidget workspace;
     auto *root = workspace.rootPane();
     QPointer<CloseAwarePage> page = new CloseAwarePage;
-    QVERIFY(workspace.fillPane(root, ContentConfig("editor").setWidget(page).setCloseable(false)));
+    QVERIFY(workspace.fillPane(root, {.contentId = "editor", .widget = page, .closeable = false}));
     QVERIFY(!workspace.requestWindowClose());
     QVERIFY(!workspace.resetToSingleEmptyPane());
     QCOMPARE(page->requests, 2);
@@ -1565,7 +1615,7 @@ void MyAdsTest::resetAndWindowCloseSharePageChecks()
     QCOMPARE(page->requests, 3);
     QCOMPARE(root->contentWidget("editor"), page.data());
     page->onRequest = [&] {
-        QVERIFY(workspace.fillPane(root, ContentConfig("opened-during-prompt")));
+        QVERIFY(workspace.fillPane(root, {.contentId = "opened-during-prompt"}));
     };
     QVERIFY(!workspace.resetToSingleEmptyPane());
     QCOMPARE(page->requests, 4);
@@ -1596,9 +1646,9 @@ void MyAdsTest::tabStripJoinsSplitterAcrossNestedPanes()
     pageLayout->addWidget(nested);
     PaneWidget *basic = nested->split(nested->rootPane(), Placement::Bottom);
     QVERIFY(basic);
-    QVERIFY(workspace.fillPane(editor, ContentConfig(QStringLiteral("editor"))
-                                       .setWindowTitle(QStringLiteral("编辑"))
-                                       .setWidget(page)));
+    QVERIFY(workspace.fillPane(editor, {
+        .contentId = QStringLiteral("editor"), .widget = page, .title = QStringLiteral("编辑"),
+    }));
     QCOMPARE(workspace.layout()->contentsMargins(), QMargins(2, 2, 2, 2));
     QCOMPARE(nested->layout()->contentsMargins(), QMargins());
 
@@ -1703,8 +1753,7 @@ void MyAdsTest::activePaneFollowsUserInteraction()
     WorkspaceWidget workspace;
     PaneWidget *left = workspace.rootPane();
     auto *leftContent = new QLabel(QStringLiteral("left"));
-    ContentConfig content(QStringLiteral("left_content"));
-    content.setWidget(leftContent);
+    const ContentConfig content{.contentId = QStringLiteral("left_content"), .widget = leftContent};
     QVERIFY(workspace.fillPane(left, content));
     PaneWidget *right = workspace.split(left, Placement::Right);
     QCOMPARE(workspace.activePane(), right);
@@ -1742,12 +1791,13 @@ void MyAdsTest::dropsTabsAtInsertionLine()
     PaneWidget *source = workspace.rootPane();
     const QString sourceId = source->paneId();
     auto *page = new CloseAwarePage;
-    QVERIFY(workspace.fillPane(source, ContentConfig("moving").setWidget(page)
-        .setCloseable(false).setClosePolicy(ClosePolicy::KeepAlive)));
+    QVERIFY(workspace.fillPane(source, {
+        .contentId = "moving", .widget = page, .closeable = false, .closePolicy = ClosePolicy::KeepAlive,
+    }));
     PaneWidget *target = workspace.split(source, Placement::Right);
     const QStringList original = QStringList{"a", "b", "c"}.mid(0, targetCount);
     for (const QString &id : original)
-        QVERIFY(workspace.fillPane(target, ContentConfig(id).setWidget(new QLabel(id))));
+        QVERIFY(workspace.fillPane(target, {.contentId = id, .widget = new QLabel(id)}));
     workspace.show();
     QCoreApplication::processEvents();
     auto *bar = target->findChild<QTabBar *>("MyAdsTabBar");
@@ -1822,15 +1872,15 @@ void MyAdsTest::docksThroughGraphicsView()
     workspace.resize(800, 600);
     PaneWidget *source = workspace.rootPane();
     const QString sourceId = source->paneId();
-    QVERIFY(workspace.fillPane(source, ContentConfig("moving").setWidget(new QLabel("moving"))));
-    QVERIFY(workspace.fillPane(source, ContentConfig("stay").setWidget(new QLabel("stay"))));
+    QVERIFY(workspace.fillPane(source, {.contentId = "moving", .widget = new QLabel("moving")}));
+    QVERIFY(workspace.fillPane(source, {.contentId = "stay", .widget = new QLabel("stay")}));
     PaneWidget *target = workspace.split(source, Placement::Right);
     const QString targetId = target->paneId();
     auto *view = new QGraphicsView;
     auto *scene = new QGraphicsScene(view);
     scene->addText("tag selector");
     view->setScene(scene);
-    QVERIFY(workspace.fillPane(target, ContentConfig("tags").setWidget(view)));
+    QVERIFY(workspace.fillPane(target, {.contentId = "tags", .widget = view}));
     workspace.show();
     QCoreApplication::processEvents();
 
@@ -1901,7 +1951,7 @@ void MyAdsTest::preservesChildDropsAndRejectsInvalidDockData()
     WorkspaceWidget workspace;
     WorkspaceWidget otherWorkspace;
     auto *child = new DropReceiver;
-    QVERIFY(workspace.fillPane(workspace.rootPane(), ContentConfig("keep").setWidget(child)));
+    QVERIFY(workspace.fillPane(workspace.rootPane(), {.contentId = "keep", .widget = child}));
     workspace.resize(400, 300);
     workspace.show();
     QCoreApplication::processEvents();

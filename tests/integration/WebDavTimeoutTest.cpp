@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/WebDavBackupService.h"
 #include "database/WebDavCredentialStore.h"
 
@@ -149,5 +151,5 @@ void WebDavTimeoutTest::progressingResponse()
     QCOMPARE(files, QStringList{QStringLiteral("/darkeye/backup.db")});
 }
 
-QTEST_GUILESS_MAIN(WebDavTimeoutTest)
+DARKEYE_TEST_MAIN(WebDavTimeoutTest, QCoreApplication)
 #include "WebDavTimeoutTest.moc"

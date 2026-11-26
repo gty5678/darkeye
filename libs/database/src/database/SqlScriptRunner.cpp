@@ -136,7 +136,7 @@ bool SqlScriptRunner::execute(QSqlDatabase database, const QString &script,
 bool SqlScriptRunner::executeResource(QSqlDatabase database, const QString &resourcePath,
                                       QString *errorMessage)
 {
-    Resources::ensureInitialized();
+    initializeResources();
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         if (errorMessage != nullptr) {

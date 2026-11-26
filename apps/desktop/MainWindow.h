@@ -31,14 +31,12 @@ class QTimer;
 namespace darkeye
 {
 
-namespace myads { class ContentConfig; class PaneWidget; class WorkspaceWidget; }
+namespace myads { struct ContentConfig; class PaneWidget; class WorkspaceWidget; }
 class WorkspaceSearch;
 class SettingsDialog;
 class Sidebar;
 class HomePage;
-class ActorPage;
 class ActressWorkTimeline;
-class ActressPage;
 class PersonDetailPage;
 class ModifyActressPage;
 class ModifyActorPage;
@@ -164,8 +162,8 @@ private:
     QPointer<ActressWorkTimeline> m_timelinePage;
     QPointer<QWidget> m_timelineSource;
     QPointer<FanartBrowserPage> m_fanartBrowserPage;
-    QPointer<ActressPage> m_actressPage;
-    QPointer<ActorPage> m_actorPage;
+    QPointer<PersonPage> m_actressPage;
+    QPointer<PersonPage> m_actorPage;
     QPointer<ModifyActressPage> m_actressEditorPage;
     QPointer<ModifyActorPage> m_actorEditorPage;
     QPointer<SettingsDialog> m_settingsDialog;

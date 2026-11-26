@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SqliteConnection.h"
 #include "services/VideoLibraryService.h"
 
@@ -64,5 +66,5 @@ void VideoLibraryServiceTest::scansMissingSerialsAndSynchronizesPaths()
     QCOMPARE(query.value(0).toInt(), 1);
 }
 
-QTEST_MAIN(VideoLibraryServiceTest)
+DARKEYE_TEST_MAIN(VideoLibraryServiceTest, QCoreApplication)
 #include "VideoLibraryServiceTest.moc"

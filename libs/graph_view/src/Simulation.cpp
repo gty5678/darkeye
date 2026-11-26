@@ -133,12 +133,15 @@ void Simulation::considerGpuConvergence(float totalSpeed, int elapsedSteps, floa
     m_motionSpeed = m_motionSpeed < 0.0f ? average
         : retention * m_motionSpeed + (1.0f - retention) * average;
     const float movement = m_motionSpeed * m_dt;
-    // While motion is already decaying, let the forces finish the relaxation.
-    // Cooling during that phase would make a distant node creep toward its
-    // equilibrium at minimum heat. Cool on plateaus/oscillation and when quiet.
+    // Keep more heat while motion is already decaying so distant nodes can
+    // reach equilibrium. Large graphs still cool gradually during this phase.
     const bool relaxing = previous > 0.01f && average > 0.01f
         && average < previous * std::pow(0.998f, float(elapsedSteps));
-    m_alphaDecay = relaxing ? 0.0f : 0.005f + 0.015f / (1.0f + movement / 0.1f);
+    const bool largeGraph = m_state->nNodes >= ManyBodyForce::kBarnesHutThreshold;
+    const float relaxationDecay = largeGraph ? 0.0025f : 0.0f;
+    const float minimumDecay = largeGraph ? 0.01f : 0.005f;
+    m_alphaDecay = relaxing ? relaxationDecay
+        : minimumDecay + (0.02f - minimumDecay) / (1.0f + movement / 0.1f);
     const float peak = peakSpeed >= 0.0f ? peakSpeed : average;
     // Reaching the alpha floor never freezes a moving graph. Check the peak
     // too, so a few moving nodes cannot disappear into a large graph's mean.

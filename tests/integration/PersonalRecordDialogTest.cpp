@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "darkeye_ui/components/RatingSelector.h"
 #include "ui/dialogs/AddActorDialog.h"
@@ -87,5 +89,5 @@ void PersonalRecordDialogTest::mirrorsPythonDialogFieldsAndDefaults()
     QVERIFY(actress.findChild<QWidget *>(QStringLiteral("ActressJapaneseSearchButton")));
 }
 
-QTEST_MAIN(PersonalRecordDialogTest)
+DARKEYE_TEST_MAIN(PersonalRecordDialogTest, QApplication)
 #include "PersonalRecordDialogTest.moc"

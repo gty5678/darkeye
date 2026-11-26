@@ -29,7 +29,7 @@ HomePage::HomePage(QSqlDatabase database, const QString &coverDirectory, ThemeSe
 
 void HomePage::lazyLoad()
 {
-    Resources::ensureInitialized();
+    initializeResources();
     auto *root = new QGridLayout(addPageScrollArea(this));
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);

@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "crawler/CrawlerScheduler.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
@@ -159,5 +161,5 @@ void CrawlerRefreshTest::persistsWholeTitleMappedTags()
     QVERIFY(!names.contains(QStringLiteral("出")));
 }
 
-QTEST_MAIN(CrawlerRefreshTest)
+DARKEYE_TEST_MAIN(CrawlerRefreshTest, QApplication)
 #include "CrawlerRefreshTest.moc"

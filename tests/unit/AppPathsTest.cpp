@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "settings/Paths.h"
 #include "settings/Settings.h"
 
@@ -570,5 +572,5 @@ void AppPathsTest::readsAndWritesTypedSettings()
     QCOMPARE(loadedTranslation.llama.mode, QStringLiteral("cpu"));
 }
 
-QTEST_MAIN(AppPathsTest)
+DARKEYE_TEST_MAIN(AppPathsTest, QCoreApplication)
 #include "AppPathsTest.moc"

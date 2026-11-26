@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/WebDavCredentialStore.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -114,5 +116,5 @@ void WebDavCredentialStoreTest::cleanup()
 #endif
 }
 
-QTEST_GUILESS_MAIN(WebDavCredentialStoreTest)
+DARKEYE_TEST_MAIN(WebDavCredentialStoreTest, QCoreApplication)
 #include "WebDavCredentialStoreTest.moc"

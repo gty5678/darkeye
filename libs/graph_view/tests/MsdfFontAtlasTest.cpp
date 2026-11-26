@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "graph_view/MsdfFontAtlas.h"
 
 #include <QDir>
@@ -115,5 +117,5 @@ void MsdfFontAtlasTest::reportsBuildErrors()
     QVERIFY(error.contains(QStringLiteral("overflow")));
 }
 
-QTEST_GUILESS_MAIN(MsdfFontAtlasTest)
+DARKEYE_TEST_MAIN(MsdfFontAtlasTest, QCoreApplication)
 #include "MsdfFontAtlasTest.moc"

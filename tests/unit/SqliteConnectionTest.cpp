@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SqliteConnection.h"
 #include "database/Transaction.h"
 
@@ -176,6 +178,6 @@ void SqliteConnectionTest::reopeningDoesNotLeakConnections()
     QCOMPARE(QSqlDatabase::connectionNames(), before);
 }
 
-QTEST_MAIN(SqliteConnectionTest)
+DARKEYE_TEST_MAIN(SqliteConnectionTest, QCoreApplication)
 #include "SqliteConnectionTest.moc"
 

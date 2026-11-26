@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "services/ImageFetchService.h"
 #include "ui/components/FanartStripWidget.h"
 
@@ -375,7 +377,7 @@ void ImageFetchServiceTest::previewNavigatesWhileDownloading()
     QCOMPARE(strip.entries().at(1).url, QStringLiteral("https://images.example.test/local.png"));
 }
 
-QTEST_MAIN(ImageFetchServiceTest)
+DARKEYE_TEST_MAIN(ImageFetchServiceTest, QApplication)
 #include "ImageFetchServiceTest.moc"
 
 

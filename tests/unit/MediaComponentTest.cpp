@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/theme/ThemeService.h"
 #include "ui/components/AsyncImageLabel.h"
 #include "darkeye_ui/components/IconButton.h"
@@ -592,5 +594,5 @@ void MediaComponentTest::crawlerFieldsKeepPythonSelectionContract()
     QVERIFY(selector.selectedFields().isEmpty());
 }
 
-QTEST_MAIN(MediaComponentTest)
+DARKEYE_TEST_MAIN(MediaComponentTest, QApplication)
 #include "MediaComponentTest.moc"

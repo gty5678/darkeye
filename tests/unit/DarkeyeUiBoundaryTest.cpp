@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/DarkeyeUi.h"
 
 #include <QApplication>
@@ -53,5 +55,5 @@ void DarkeyeUiBoundaryTest::lazyWidgetInitializesExactlyOnce()
     QCOMPARE(widget.loadCount, 1);
 }
 
-QTEST_MAIN(DarkeyeUiBoundaryTest)
+DARKEYE_TEST_MAIN(DarkeyeUiBoundaryTest, QApplication)
 #include "DarkeyeUiBoundaryTest.moc"

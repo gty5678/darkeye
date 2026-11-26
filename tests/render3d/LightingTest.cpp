@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "render3d/RhiSceneWidget.h"
 #include <QFile>
 #include <QDir>
@@ -308,5 +310,5 @@ private slots:
         QVERIFY(view.lastError().isEmpty());
     }
 };
-QTEST_MAIN(LightingTest)
+DARKEYE_TEST_MAIN(LightingTest, QApplication)
 #include "LightingTest.moc"

@@ -136,9 +136,12 @@ void PersonEditorPage::restoreWorkspaceLayout()
     QHash<QString, myads::ContentConfig> panels;
     for (const auto *pane : m_workspace->panes()) {
         for (const QString &id : pane->contentIds()) {
-            myads::ContentConfig config(id);
-            config.setWindowTitle(pane->contentTitle(id)).setWidget(pane->contentWidget(id)).setCloseable(false);
-            panels.insert(id, config);
+            panels.insert(id, myads::ContentConfig{
+                .contentId = id,
+                .widget = pane->contentWidget(id),
+                .title = pane->contentTitle(id),
+                .closeable = false,
+            });
         }
     }
 
@@ -298,9 +301,7 @@ void PersonEditorPage::buildUi()
     auto *basePane = m_workspace->split(avatarPane, myads::Placement::Bottom, 60);
     auto *actionsPane = m_workspace->split(rightPane, myads::Placement::Bottom, 22);
     const auto fill = [this](myads::PaneWidget *pane, const QString &id, const QString &title, QWidget *widget) {
-        auto config = m_workspace->createContentConfig(id);
-        config.setWindowTitle(title).setWidget(widget).setCloseable(false);
-        m_workspace->fillPane(pane, config);
+        m_workspace->fillPane(pane, {.contentId = id, .widget = widget, .title = title, .closeable = false});
     };
     fill(avatarPane, QStringLiteral("avatar"), QStringLiteral("头像"), m_imageDrop);
     fill(basePane, QStringLiteral("basic"), QStringLiteral("基础信息"), basePanel);
@@ -336,9 +337,12 @@ void PersonEditorPage::addActressExternalLinksPanel(QWidget *panel)
     if (!panel || !notesPane)
         return;
     auto *linksPane = m_workspace->split(notesPane, myads::Placement::Top, 42);
-    auto config = m_workspace->createContentConfig(QStringLiteral("external_links"));
-    config.setWindowTitle(QStringLiteral("外部链接")).setWidget(panel).setCloseable(false);
-    m_workspace->fillPane(linksPane, config);
+    m_workspace->fillPane(linksPane, {
+        .contentId = QStringLiteral("external_links"),
+        .widget = panel,
+        .title = QStringLiteral("外部链接"),
+        .closeable = false,
+    });
 }
 
 void PersonEditorPage::configureAvatar(const QString &purpose, const QString &placeholder)

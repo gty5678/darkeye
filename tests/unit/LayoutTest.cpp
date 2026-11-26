@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/layouts/FlowLayout.h"
 #include "darkeye_ui/layouts/VerticalFlowLayout.h"
@@ -404,5 +406,5 @@ void LayoutTest::lazyAreaDetachesOldCardsBeforeDeferredDeletion()
     QVERIFY(firstCard->parentWidget() == nullptr);
 }
 
-QTEST_MAIN(LayoutTest)
+DARKEYE_TEST_MAIN(LayoutTest, QApplication)
 #include "LayoutTest.moc"

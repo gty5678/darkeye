@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
 #include "database/repositories/PrivateRepository.h"
@@ -145,5 +147,5 @@ void DatabaseFixtureTest::invalidFixturesAreRejected()
     QVERIFY(errorMessage.contains(QStringLiteral("外键损坏")));
 }
 
-QTEST_MAIN(DatabaseFixtureTest)
+DARKEYE_TEST_MAIN(DatabaseFixtureTest, QCoreApplication)
 #include "DatabaseFixtureTest.moc"

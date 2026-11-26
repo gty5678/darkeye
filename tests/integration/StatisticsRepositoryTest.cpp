@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "database/repositories/PersonRepository.h"
 #include "database/repositories/PrivateRepository.h"
@@ -280,5 +282,5 @@ void StatisticsRepositoryTest::rendersPersonalDataPanels()
     QCOMPARE(overviewScroll->verticalScrollBar()->maximum(), 0);
 }
 
-QTEST_MAIN(StatisticsRepositoryTest)
+DARKEYE_TEST_MAIN(StatisticsRepositoryTest, QApplication)
 #include "StatisticsRepositoryTest.moc"

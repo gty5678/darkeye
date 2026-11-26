@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "ui/components/ClickableLabel.h"
 #include "ui/components/WikiHighlighter.h"
 #include "ui/components/WikiTextEdit.h"
@@ -95,5 +97,5 @@ void TextWidgetTest::wikiEditorLoadsAndInsertsCompletions()
     QTRY_COMPARE(editor.completerList(), QStringList{QStringLiteral("ABP-001")});
 }
 
-QTEST_MAIN(TextWidgetTest)
+DARKEYE_TEST_MAIN(TextWidgetTest, QApplication)
 #include "TextWidgetTest.moc"

@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "services/BatchTranslationService.h"
 #include "services/LlmTranslationService.h"
 #include "settings/Settings.h"
@@ -161,5 +163,5 @@ void TranslationSettingsTimingTest::batchReloadsPerFieldAndPerRun()
     QSqlDatabase::removeDatabase(connection);
 }
 
-QTEST_GUILESS_MAIN(TranslationSettingsTimingTest)
+DARKEYE_TEST_MAIN(TranslationSettingsTimingTest, QCoreApplication)
 #include "TranslationSettingsTimingTest.moc"

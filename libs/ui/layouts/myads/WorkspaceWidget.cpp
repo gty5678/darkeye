@@ -248,13 +248,6 @@ private:
     bool m_insertion = false;
 };
 
-ContentConfig::ContentConfig(QString id) : contentId(std::move(id)) {}
-ContentConfig &ContentConfig::setWidget(QWidget *value) { widget = value; return *this; }
-ContentConfig &ContentConfig::setWindowTitle(const QString &value) { title = value; return *this; }
-ContentConfig &ContentConfig::setIcon(const QIcon &value) { icon = value; return *this; }
-ContentConfig &ContentConfig::setCloseable(bool value) { closeable = value; return *this; }
-ContentConfig &ContentConfig::setClosePolicy(ClosePolicy value) { closePolicy = value; return *this; }
-
 WorkspaceWidget::WorkspaceWidget(QWidget *parent, const DockTheme &theme)
     : WorkspaceWidget(parent, theme, true)
 {
@@ -695,7 +688,7 @@ QString WorkspaceWidget::nextContentId()
 
 ContentConfig WorkspaceWidget::createContentConfig(const QString &id)
 {
-    return ContentConfig(id.isEmpty() ? nextContentId() : id);
+    return {.contentId = id.isEmpty() ? nextContentId() : id};
 }
 
 bool WorkspaceWidget::fillPane(PaneWidget *target, const ContentConfig &content)
@@ -936,27 +929,6 @@ PaneWidget *WorkspaceWidget::split(PaneWidget *target, Placement placement, int 
     return pane(id);
 }
 
-QString WorkspaceWidget::splitPane(const QString &id, Qt::Orientation orientation,
-                                   bool before, int percent)
-{
-    PaneWidget *target = pane(id);
-    PaneWidget *created = split(target, orientation == Qt::Horizontal
-        ? (before ? Placement::Left : Placement::Right)
-        : (before ? Placement::Top : Placement::Bottom), percent);
-    return created ? created->paneId() : QString();
-}
-
-QString WorkspaceWidget::addPanel(const QString &title, QWidget *content,
-                                  const QString &paneId)
-{
-    PaneWidget *target = paneId.isEmpty() ? rootPane() : pane(paneId);
-    if (!target) target = rootPane();
-    const QString id = nextContentId();
-    ContentConfig config(id);
-    config.setWindowTitle(title).setWidget(content);
-    return fillPane(target, config) ? target->paneId() : QString();
-}
-
 void WorkspaceWidget::removeEmptyPane(const QString &id)
 {
     auto &tree = treeFor(id);
@@ -1126,7 +1098,8 @@ bool WorkspaceWidget::resetToSingleEmptyPane()
     LayoutTree emptyLayout;
     const auto rootId = QStringLiteral("pane_1");
     emptyLayout.addPaneToRoot(isSidebar(pane(rootId)) ? nextPaneId() : rootId);
-    QJsonObject document{{QStringLiteral("layout"), emptyLayout.toJson()}};
+    QJsonObject document{{QStringLiteral("schema_version"), LayoutTree::SchemaVersion},
+                         {QStringLiteral("layout"), emptyLayout.toJson()}};
     if (m_leftSidebar.host && m_rightSidebar.host) {
         document.insert(QStringLiteral("sidebars"), QJsonObject{
             {QStringLiteral("left"), m_leftSidebar.tree.paneIds().first()},
@@ -1175,11 +1148,6 @@ bool WorkspaceWidget::requestWindowClose()
         if (workspaceGuard) workspaceGuard->m_layoutTransitionInProgress = false;
     });
     return requestContentClose(dockedContents(), {});
-}
-
-bool WorkspaceWidget::save(const QString &path, QString *error) const
-{
-    return saveLayout(path, {}, {}, error);
 }
 
 bool WorkspaceWidget::saveLayout(const QString &path, const ContentDescriptor &descriptor,
@@ -1238,11 +1206,6 @@ bool WorkspaceWidget::saveLayout(const QString &path, const ContentDescriptor &d
     return saveLayoutAtomic(path, documentData, error);
 }
 
-bool WorkspaceWidget::load(const QString &path, QString *error)
-{
-    return loadLayout(path, {}, error);
-}
-
 bool WorkspaceWidget::loadLayout(const QString &path, const ContentFactory &factory,
                                  QString *error)
 {
@@ -1266,15 +1229,13 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
         if (workspaceGuard) workspaceGuard->m_layoutTransitionInProgress = false;
     });
 
-    const int version = documentData.contains(QStringLiteral("schema_version"))
-        ? documentData.value(QStringLiteral("schema_version")).toInt(-1) : LayoutTree::SchemaVersion;
+    const int version = documentData.value(QStringLiteral("schema_version")).toInt(-1);
     if (version != LayoutTree::SchemaVersion) {
         if (error) *error = QStringLiteral("不支持的工作区布局版本");
         return false;
     }
     try {
-        const QJsonObject layout = documentData.contains(QStringLiteral("layout"))
-            ? documentData.value(QStringLiteral("layout")).toObject() : documentData;
+        const QJsonObject layout = documentData.value(QStringLiteral("layout")).toObject();
         LayoutTree candidate = LayoutTree::fromJson(layout);
         const QList<QString> paneIdList = candidate.paneIds();
         QSet<QString> paneIds(paneIdList.cbegin(), paneIdList.cend());

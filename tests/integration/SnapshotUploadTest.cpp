@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/DatabaseMaintenanceService.h"
 #include "database/SqliteConnection.h"
 #include "database/WebDavBackupService.h"
@@ -193,5 +195,5 @@ void SnapshotUploadTest::snapshotFailureDoesNotUpload()
     QVERIFY(QDir(root.path()).entryList({QStringLiteral("*.zip")}, QDir::Files).isEmpty());
 }
 
-QTEST_GUILESS_MAIN(SnapshotUploadTest)
+DARKEYE_TEST_MAIN(SnapshotUploadTest, QCoreApplication)
 #include "SnapshotUploadTest.moc"

@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "services/WorkMaintenanceService.h"
 
 #include "database/SchemaManager.h"
@@ -165,5 +167,5 @@ void WorkMaintenanceServiceTest::rollsBackAllCoverMovesWhenDatabaseUpdateFails()
     QCOMPARE(works.findById(secondId)->imageUrl, QStringLiteral("second.png"));
 }
 
-QTEST_MAIN(WorkMaintenanceServiceTest)
+DARKEYE_TEST_MAIN(WorkMaintenanceServiceTest, QGuiApplication)
 #include "WorkMaintenanceServiceTest.moc"

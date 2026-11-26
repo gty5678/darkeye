@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/SchemaManager.h"
 #include "database/repositories/PrivateRepository.h"
 
@@ -164,5 +166,5 @@ void PrivateRepositoryTest::preservesQuotedUnicodeAndRejectsInvalidRatings()
     QCOMPARE(query.value(0).toInt(), 0);
 }
 
-QTEST_MAIN(PrivateRepositoryTest)
+DARKEYE_TEST_MAIN(PrivateRepositoryTest, QCoreApplication)
 #include "PrivateRepositoryTest.moc"

@@ -291,8 +291,9 @@ std::shared_ptr<LayoutNode> LayoutTree::nodeFromJson(const QJsonObject &object,
         if (!value.isObject()) throw std::invalid_argument("invalid child node");
         node->children.append(nodeFromJson(value.toObject(), seen, depth + 1));
     }
-    QJsonArray ratios = object.value(QStringLiteral("size_ratios")).toArray();
-    if (ratios.isEmpty()) ratios = object.value(QStringLiteral("sizes")).toArray();
+    if (object.contains(QStringLiteral("sizes")))
+        throw std::invalid_argument("unsupported layout size field");
+    const QJsonArray ratios = object.value(QStringLiteral("size_ratios")).toArray();
     if (!ratios.isEmpty()) {
         if (ratios.size() != node->children.size())
             throw std::invalid_argument("layout size count mismatch");

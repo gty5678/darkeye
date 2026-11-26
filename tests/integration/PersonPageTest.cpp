@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "ui/pages/PersonPage.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/SchemaManager.h"
@@ -183,7 +185,9 @@ void PersonPageTest::actressTimelineFollowsTheme()
     darkeye::myads::WorkspaceWidget workspace;
     darkeye::myads::bindDarkeyeTheme(&workspace, &themes);
     auto &timeline = *new darkeye::ActressWorkTimeline(&workspace, {}, {}, &themes);
-    QVERIFY(!workspace.addPanel(QStringLiteral("Timeline"), &timeline).isEmpty());
+    QVERIFY(workspace.fillPane(workspace.rootPane(), {
+        .widget = &timeline, .title = QStringLiteral("Timeline"),
+    }));
     workspace.resize(640, 220);
     darkeye::PersonDetails actress;
     actress.works.append({1, QStringLiteral("TEST"), {}, QStringLiteral("2020-05-01")});
@@ -1164,5 +1168,5 @@ void PersonPageTest::detailAndEditorCompletePersonRoundTrip()
     QCOMPARE(aliasToggle->text(), QStringLiteral("别名（0）"));
 }
 
-QTEST_MAIN(PersonPageTest)
+DARKEYE_TEST_MAIN(PersonPageTest, QApplication)
 #include "PersonPageTest.moc"

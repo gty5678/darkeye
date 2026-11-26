@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "ui/pages/NfoImport.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
@@ -214,5 +216,5 @@ void NfoImportTest::mdczFanartMigration()
     QVERIFY(QFileInfo::exists(QDir(paths.fanartDirectory()).filePath(QStringLiteral("matched.jpg"))));
     QVERIFY(QFileInfo::exists(QDir(paths.fanartDirectory()).filePath(QStringLiteral("unmatched.jpg"))));
 }
-QTEST_GUILESS_MAIN(NfoImportTest)
+DARKEYE_TEST_MAIN(NfoImportTest, QCoreApplication)
 #include "NfoImportTest.moc"

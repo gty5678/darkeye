@@ -24,7 +24,7 @@
 同一标签正在处理关闭请求时，重复关闭请求返回 false。
 移动和拆分会转移原页面，保留页面状态和关闭策略。
 关闭后默认采用 `ClosePolicy::DeleteLater`，在当前事件结束后销毁页面，避免同步释放重页面卡住关闭操作。
-需要保留复用时，使用 `ContentConfig::setClosePolicy(ClosePolicy::KeepAlive)`；
+需要保留复用时，将 `ContentConfig` 的 `closePolicy` 设为 `ClosePolicy::KeepAlive`；
 直接调用 `PaneWidget::addContent()` 时可通过最后一个参数设置该策略。
 `KeepAlive` 会隐藏页面并解除父对象关系，由调用方负责重新放入窗格或销毁，关闭最后一个标签导致窗格移除时页面也能保留。
 恢复布局和重置会先向所有即将移除的页面发送 `QCloseEvent`，包括隐藏侧栏中的页面。

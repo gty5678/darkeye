@@ -112,6 +112,23 @@ bool testMotionControlsCoolingAndStopping()
     return !moving.isActive();
 }
 
+bool testLargeGraphCoolsWhileRelaxing()
+{
+    PhysicsState state;
+    state.init(10000, {});
+    Simulation simulation(&state);
+    simulation.start();
+    for (int i = 0; i < 200; ++i) {
+        const float speed = 10.0f * std::pow(0.99f, static_cast<float>(i));
+        simulation.completeGpuTick(speed * static_cast<float>(state.nNodes), speed);
+    }
+    if (simulation.alpha() >= 0.75f || !simulation.isActive()) {
+        std::cerr << "large graph did not cool while still moving\n";
+        return false;
+    }
+    return true;
+}
+
 bool testInvalidEdgesAreRejected()
 {
     PhysicsState state;
@@ -204,9 +221,9 @@ bool testBarnesHutCutoffBoundary()
 
 } // namespace
 
-int main()
+int run_physics_tests(int, char **)
 {
-    if (!testMotionControlsCoolingAndStopping())
+    if (!testMotionControlsCoolingAndStopping() || !testLargeGraphCoolsWhileRelaxing())
         return 1;
     if (!testSmoothDampedMotion() || !testPinnedNodesHaveNoResidualVelocity()
         || !testBarnesHutDoesNotIncludeSelf())

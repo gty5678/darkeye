@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "darkeye_ui/theme/ThemeService.h"
 #include "database/SchemaManager.h"
 #include "database/SqliteConnection.h"
@@ -1186,5 +1188,5 @@ void ShelfPageTest::routeJumpKeepsExcludedWorksOutOfResults()
 
 }
 
-QTEST_MAIN(ShelfPageTest)
+DARKEYE_TEST_MAIN(ShelfPageTest, QApplication)
 #include "ShelfPageTest.moc"

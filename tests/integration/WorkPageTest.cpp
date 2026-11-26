@@ -1,3 +1,5 @@
+#include "QtTestEntry.h"
+
 #include "database/repositories/PrivateRepository.h"
 #include "ui/pages/WorkPage.h"
 #include "settings/Paths.h"
@@ -1831,5 +1833,5 @@ void WorkPageTest::workCardCopiesSerialAndActivatesOnlyCover()
     QTRY_VERIFY(first.hasFocus());
 }
 
-QTEST_MAIN(WorkPageTest)
+DARKEYE_TEST_MAIN(WorkPageTest, QApplication)
 #include "WorkPageTest.moc"

@@ -3,9 +3,6 @@
 #include "settings/SettingsStore.h"
 #include "utils/Documentation.h"
 
-#include "ui/pages/ActorPage.h"
-#include "ui/pages/ActressDetailPage.h"
-#include "ui/pages/ActressPage.h"
 #include "ui/pages/AvPage.h"
 #include "ui/pages/ForceDirectPage.h"
 #include "ui/pages/FanartBrowserPage.h"
@@ -62,7 +59,6 @@
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QInputDialog>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
@@ -165,55 +161,6 @@ const QList<QPair<QString, QString>> dialogNavigationActions{
 const auto libraryOverviewRoute = QStringLiteral("library_overview");
 const auto topActressesRoute = QStringLiteral("top_actresses");
 const auto recordHeatmapRoute = QStringLiteral("record_heatmap");
-const auto legacyPersonalDataRoute = QStringLiteral("information");
-
-QJsonObject migratePersonalDataTabs(QJsonObject layout)
-{
-    const auto contentsKey = QStringLiteral("pane_contents");
-    const auto contentIdKey = QStringLiteral("content_id");
-    if (!layout.value(contentsKey).isObject())
-        return layout;
-
-    auto contents = layout.value(contentsKey).toObject();
-    QSet<QString> existingRoutes;
-    for (const auto &pane : std::as_const(contents))
-        for (const auto &tab : pane.toArray())
-            existingRoutes.insert(tab.toObject().value(contentIdKey).toString());
-    if (!existingRoutes.contains(legacyPersonalDataRoute))
-        return layout;
-
-    const auto metadataKey = QStringLiteral("pane_metadata");
-    const auto currentIdKey = QStringLiteral("current_content_id");
-    auto metadata = layout.value(metadataKey).toObject();
-    for (auto pane = contents.begin(); pane != contents.end(); ++pane) {
-        const auto tabs = pane.value().toArray();
-        QJsonArray replacements;
-        bool migrated = false;
-        for (const auto &tab : tabs) {
-            if (tab.toObject().value(contentIdKey).toString() != legacyPersonalDataRoute) {
-                replacements.append(tab);
-                continue;
-            }
-            migrated = true;
-            for (const auto &route : {libraryOverviewRoute, topActressesRoute, recordHeatmapRoute}) {
-                if (!existingRoutes.contains(route)) {
-                    replacements.append(QJsonObject{{contentIdKey, route}});
-                    existingRoutes.insert(route);
-                }
-            }
-        }
-        if (!migrated) continue;
-        pane.value() = replacements;
-        auto selected = metadata.value(pane.key()).toObject();
-        if (selected.value(currentIdKey).toString() == legacyPersonalDataRoute) {
-            selected.insert(currentIdKey, libraryOverviewRoute);
-            metadata.insert(pane.key(), selected);
-        }
-    }
-    layout.insert(contentsKey, contents);
-    layout.insert(metadataKey, metadata);
-    return layout;
-}
 
 struct ShelfReferenceRoute
 {
@@ -750,9 +697,8 @@ void MainWindow::restoreWorkspace()
     const auto savedLayout = workspaceFile();
     const bool hasSavedLayout = QFile::exists(savedLayout);
     QString error;
-    const auto layoutData = hasSavedLayout ? myads::loadLayoutFile(savedLayout, &error) : QJsonObject{};
-    const bool restored = !layoutData.isEmpty() &&
-        m_workspace->restoreLayout(migratePersonalDataTabs(layoutData),
+    const bool restored = hasSavedLayout &&
+        m_workspace->loadLayout(savedLayout,
             [this](const QJsonObject &descriptor) { return workspaceContent(descriptor); }, &error);
     if (!restored) {
         if (hasSavedLayout)
@@ -762,18 +708,9 @@ void MainWindow::restoreWorkspace()
         return;
     }
 
-    if (layoutData.contains(QStringLiteral("active_pane_id"))) {
-        const auto *pane = m_workspace->activePane();
-        if (pane && !pane->currentContentId().isEmpty())
-            navigateTo(pane->currentContentId(), false);
-        return;
-    }
-    QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
-    auto active = settings.value(QStringLiteral("workspace/activeRoute")).toString();
-    if (active == legacyPersonalDataRoute)
-        active = libraryOverviewRoute;
-    if (m_workspace->findPaneByContentId(active) || active.startsWith(QStringLiteral("work_detail/")))
-        navigateTo(active, false);
+    const auto *pane = m_workspace->activePane();
+    if (pane && !pane->currentContentId().isEmpty())
+        navigateTo(pane->currentContentId(), false);
 }
 
 QWidget *MainWindow::buildNavigationBar(QWidget *parent)
@@ -1469,27 +1406,23 @@ std::optional<myads::ContentConfig> MainWindow::workspaceContent(const QJsonObje
     auto *page = ensurePage(route, descriptor.value(QStringLiteral("actress_id")).toString().toLongLong());
     if (!page) return std::nullopt;
     if (!existingPage && page != m_workFilter) page->setParent(nullptr);
-    auto config = myads::ContentConfig(route).setWidget(page).setWindowTitle(page->windowTitle());
-    if (page == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
+    myads::ContentConfig config{.contentId = route, .widget = page, .title = page->windowTitle()};
+    if (page == m_workFilter) config.closePolicy = myads::ClosePolicy::KeepAlive;
     return config;
 }
 
 bool MainWindow::restoreWorkspacePreset(const QString &resource, bool showFailureDialog)
 {
-    Resources::ensureInitialized();
+    initializeResources();
     QString error;
-    const auto preset = myads::loadLayoutFile(resource, &error);
-    if (!preset.isEmpty()) {
-        if (m_workspace->restoreLayout(preset, [this](const QJsonObject &descriptor) {
-                return workspaceContent(descriptor);
-            }, &error)) {
-            m_workspace->setSidebarOpen(myads::SidebarSide::Left, true);
-            m_workspace->setSidebarOpen(myads::SidebarSide::Right, true);
-            return true;
-        }
-        if (error.isEmpty()) return false;
+    if (m_workspace->loadLayout(resource, [this](const QJsonObject &descriptor) {
+            return workspaceContent(descriptor);
+        }, &error)) {
+        m_workspace->setSidebarOpen(myads::SidebarSide::Left, true);
+        m_workspace->setSidebarOpen(myads::SidebarSide::Right, true);
+        return true;
     }
-    if (error.isEmpty()) error = QStringLiteral("工作区布局为空");
+    if (error.isEmpty()) return false;
     if (showFailureDialog)
         QMessageBox::warning(this, QStringLiteral("恢复预设工作区布局失败"), error);
     else
@@ -1651,8 +1584,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     }
     if (routeName == QStringLiteral("actress"))
     {
-        m_actressPage = new ActressPage(m_publicDatabase, m_privateDatabase, m_themeService,
-                                         m_paths.actressImageDirectory(), parent);
+        m_actressPage = new PersonPage(PersonKind::Actress, m_publicDatabase, m_privateDatabase,
+                                       m_themeService, m_paths.actressImageDirectory(), parent);
         connect(m_actressPage, &PersonPage::detailRequested, this,
                 [this](PersonKind requestedKind, qint64 personId) {
                     openPerson(requestedKind, personId);
@@ -1665,8 +1598,8 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     }
     if (routeName == QStringLiteral("actor"))
     {
-        m_actorPage = new ActorPage(m_publicDatabase, m_privateDatabase, m_themeService,
-                                    m_paths.actorImageDirectory(), parent);
+        m_actorPage = new PersonPage(PersonKind::Actor, m_publicDatabase, m_privateDatabase,
+                                     m_themeService, m_paths.actorImageDirectory(), parent);
         connect(m_actorPage, &PersonPage::detailRequested, this,
                 [this](PersonKind, qint64 personId) {
                     openPerson(PersonKind::Actor, personId);
@@ -1676,7 +1609,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     }
     if (routeName == QStringLiteral("actress_detail"))
     {
-        auto *detail = new ActressDetailPage(
+        auto *detail = new PersonDetailPage(
             m_publicDatabase, m_privateDatabase, m_themeService,
             m_paths.actressImageDirectory(), parent);
         connect(detail, &PersonDetailPage::editRequested, this, &MainWindow::openPersonEditor);
@@ -2005,8 +1938,8 @@ void MainWindow::navigateTo(const QString &routeName, bool recordRecent, Actress
         if (!preferredPane && pageRoute == QStringLiteral("inbox"))
             pane = m_workspace->sidebarPane(myads::SidebarSide::Right);
         if (!pane) pane = m_workspace->rootPane();
-        auto config = myads::ContentConfig(pageRoute).setWidget(widget).setWindowTitle(widget->windowTitle());
-        if (widget == m_workFilter) config.setClosePolicy(myads::ClosePolicy::KeepAlive);
+        myads::ContentConfig config{.contentId = pageRoute, .widget = widget, .title = widget->windowTitle()};
+        if (widget == m_workFilter) config.closePolicy = myads::ClosePolicy::KeepAlive;
         if (!m_workspace->fillPane(pane, config)) return;
     }
     pane->setCurrentContentId(pageRoute);

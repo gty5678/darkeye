@@ -6,6 +6,7 @@
 
 #include <QByteArray>
 #include <QAction>
+#include <QApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QContextMenuEvent>
@@ -1872,6 +1873,7 @@ void ForceViewRhiWidget::mousePressEvent(QMouseEvent* event)
     if (idx >= 0) {
         m_selectedIndex = idx;
         m_pressedButton = event->button();
+        m_nodePressPosition = event->position();
         m_hoverIndex = idx;
         updateNeighborMaskForHover(idx);
         m_lastHoverIndex = idx;
@@ -1909,6 +1911,11 @@ void ForceViewRhiWidget::mouseMoveEvent(QMouseEvent* event)
     screenToScene(ex, ey, sx, sy);
 
     if (m_selectedIndex >= 0 && m_physicsState) {
+        if (!m_dragging && (!event->buttons().testFlag(m_pressedButton)
+            || (event->position() - m_nodePressPosition).manhattanLength() < QApplication::startDragDistance())) {
+            event->accept();
+            return;
+        }
         const float x = sx + m_dragOffsetX;
         const float y = sy + m_dragOffsetY;
         {

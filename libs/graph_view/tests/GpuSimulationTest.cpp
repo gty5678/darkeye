@@ -197,6 +197,47 @@ private slots:
         view.pauseSimulation();
     }
 
+    void nodeClickWithPointerMovementDoesNotRestartSimulation()
+    {
+        ForceViewRhiWidget view;
+        view.setSimulationBackendMode("cpu");
+        view.setGraph(1, {}, {0.0f, 0.0f}, {"w1"}, {}, {7.0f});
+        view.pauseSimulation();
+        auto *canvas = view.findChild<QRhiWidget*>();
+        QVERIFY(canvas);
+        QSignalSpy clicked(&view, &ForceViewRhiWidget::nodeLeftClicked);
+        QSignalSpy dragged(&view, &ForceViewRhiWidget::nodeDragged);
+        QSignalSpy restarted(&view, &ForceViewRhiWidget::simulationStarted);
+
+        const QPointF start(view.m_viewportW / 2.0, view.m_viewportH / 2.0);
+        const int dragDistance = QApplication::startDragDistance();
+        const QPointF nearby = start + QPointF(dragDistance / 2.0, 0.0);
+        const QPointF farther = start + QPointF(dragDistance + 5, 0.0);
+        const auto mouse = [canvas](QEvent::Type type, const QPointF &position) {
+            QMouseEvent event(type, position, canvas->mapToGlobal(position.toPoint()),
+                type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton,
+                Qt::NoModifier);
+            QApplication::sendEvent(canvas, &event);
+        };
+
+        mouse(QEvent::MouseButtonPress, start);
+        mouse(QEvent::MouseMove, nearby);
+        mouse(QEvent::MouseButtonRelease, nearby);
+        QCOMPARE(clicked.size(), 1);
+        QCOMPARE(clicked.first().first().toString(), QStringLiteral("w1"));
+        QCOMPARE(dragged.size(), 0);
+        QCOMPARE(restarted.size(), 0);
+        QCOMPARE(view.getNodePosition("w1"), QPointF());
+
+        mouse(QEvent::MouseButtonPress, start);
+        mouse(QEvent::MouseMove, farther);
+        mouse(QEvent::MouseButtonRelease, farther);
+        QCOMPARE(clicked.size(), 1);
+        QCOMPARE(dragged.size(), 1);
+        QCOMPARE(restarted.size(), 1);
+    }
+
     void rightDragDoesNotOpenPerformanceMenu()
     {
         ForceViewRhiWidget view;

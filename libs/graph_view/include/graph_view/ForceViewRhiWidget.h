@@ -487,6 +487,7 @@ private:
     int m_selectedIndex = -1;
     bool m_dragging = false;
     Qt::MouseButton m_pressedButton = Qt::NoButton;
+    QPointF m_nodePressPosition;
     QPointF m_rightPressPosition;
     bool m_rightButtonHeld = false;
     bool m_rightGestureMoved = false;

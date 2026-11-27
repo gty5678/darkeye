@@ -21,7 +21,7 @@ target_include_directories(darkeye_business_ui PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>"
 )
 target_link_libraries(darkeye_business_ui PUBLIC
-    darkeye::core
+    darkeye::infra
     darkeye::domain
     darkeye::database
     darkeye::services

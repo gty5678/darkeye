@@ -21,7 +21,7 @@ target_include_directories(darkeye_services PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 target_link_libraries(darkeye_services
-    PUBLIC darkeye::core darkeye::database Qt6::Network
+    PUBLIC darkeye::infra darkeye::database Qt6::Network
     PRIVATE darkeye::gui_utils Qt6::Gui
 )
 darkeye_apply_compiler_options(darkeye_services)

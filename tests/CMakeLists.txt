@@ -23,12 +23,12 @@ endif()
 add_subdirectory(render3d)
 add_subdirectory(dvd_scene)
 
-darkeye_add_test_suite(darkeye_core_tests
-    LIBRARIES darkeye::core darkeye::domain
+darkeye_add_test_suite(darkeye_infra_domain_tests
+    LIBRARIES darkeye::infra darkeye::domain
     SOURCES unit/AppPathsTest.cpp compatibility/SerialNumberCompatibilityTest.cpp)
-target_compile_definitions(darkeye_core_tests PRIVATE DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-darkeye_register_test(darkeye_app_tests darkeye_core_tests AppPathsTest)
-darkeye_register_test(darkeye_serial_number_tests darkeye_core_tests SerialNumberCompatibilityTest)
+target_compile_definitions(darkeye_infra_domain_tests PRIVATE DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+darkeye_register_test(darkeye_app_tests darkeye_infra_domain_tests AppPathsTest)
+darkeye_register_test(darkeye_serial_number_tests darkeye_infra_domain_tests SerialNumberCompatibilityTest)
 
 # Keep the reusable widget tests linked only to the reusable UI library.
 darkeye_add_test_suite(darkeye_widgets_tests

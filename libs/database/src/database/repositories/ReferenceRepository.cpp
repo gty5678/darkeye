@@ -187,21 +187,6 @@ QList<ReferenceRecord> ReferenceRepository::list(ReferenceKind kind, QString *er
     return records;
 }
 
-std::optional<qint64> ReferenceRepository::create(ReferenceKind kind, const QString &name,
-                                                  QString *errorMessage)
-{
-    const QString normalized = name.trimmed();
-    if (normalized.isEmpty())
-    {
-        if (errorMessage != nullptr)
-        {
-            *errorMessage = QStringLiteral("名称不能为空");
-        }
-        return std::nullopt;
-    }
-    return create({kind, 0, normalized, normalized, {}, {}, {}}, errorMessage);
-}
-
 std::optional<qint64> ReferenceRepository::create(const ReferenceRecord &record,
                                                   QString *errorMessage)
 {
@@ -465,23 +450,6 @@ std::optional<qint64> ReferenceRepository::createTag(const TagRecord &record, QS
         return std::nullopt;
     }
     return id;
-}
-
-std::optional<qint64> ReferenceRepository::createTag(const QString &name,
-                                                     std::optional<qint64> typeId,
-                                                     const QString &color, const QString &detail,
-                                                     QString *errorMessage)
-{
-    return createTag({0,
-                      name,
-                      typeId,
-                      {},
-                      color.isEmpty() ? QStringLiteral("#cccccc") : color,
-                      detail,
-                      std::nullopt,
-                      std::nullopt,
-                      {}},
-                     errorMessage);
 }
 
 bool ReferenceRepository::updateTag(const TagRecord &record, QString *errorMessage)

@@ -223,11 +223,11 @@ private slots:
         QVERIFY(compressed.error.contains("Unsupported required extension"));
     }
 
-    void actualRepositoryDvd()
+    void convertedQtDvdFixture()
     {
         GltfLoader loader;
         const auto loaded = loader.load(QStringLiteral(DARKEYE_RENDER3D_SOURCE_DIR)
-            + QStringLiteral("/apps/render3d_demo/assets/dvd-case.glb"));
+            + QStringLiteral("/tests/fixtures/render3d/dvd-case.glb"));
         QVERIFY2(bool(loaded), qPrintable(loaded.error));
         QCOMPARE(loaded.asset->nodes.size(), std::size_t(5));
         std::size_t primitives = 0;

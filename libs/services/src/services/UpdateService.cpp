@@ -47,19 +47,18 @@ bool UpdateService::launchUpdater(QString *error, const QStringList &extraArgume
     const QString source = executableDir.filePath(updaterName);
     if (!QFileInfo(source).isExecutable())
         return fail(QStringLiteral("未找到可执行的更新程序：%1").arg(source));
-    QString payloadRoot = QStringLiteral(".");
-    QString installDir = executableDir.absolutePath();
-    QString mainExe = QFileInfo(QCoreApplication::applicationFilePath()).fileName();
+    const QString executableName = QFileInfo(QCoreApplication::applicationFilePath()).fileName();
 #ifdef Q_OS_MACOS
-    // QDir(".../MacOS/..").dirName() is "..", not "Contents".
-    // Normalize before checking the parent or a bundle is treated as a bin dir.
-    const QDir contentsDir(QDir::cleanPath(executableDir.filePath(QStringLiteral(".."))));
-    if (executableDir.dirName() == QStringLiteral("MacOS") &&
-        contentsDir.dirName() == QStringLiteral("Contents")) {
-        installDir = QDir::cleanPath(contentsDir.filePath(QStringLiteral("..")));
-        mainExe.prepend(QStringLiteral("Contents/MacOS/"));
-        payloadRoot = QStringLiteral("Darkeye.app");
-    }
+    const QString installDir = QDir::cleanPath(executableDir.filePath(QStringLiteral("../..")));
+    if (!executableDir.absolutePath().endsWith(QStringLiteral(".app/Contents/MacOS"),
+                                               Qt::CaseInsensitive))
+        return fail(QStringLiteral("自动更新需要从 macOS 应用包启动。"));
+    const QString mainExe = QStringLiteral("Contents/MacOS/") + executableName;
+    const QString payloadRoot = QStringLiteral("Darkeye.app");
+#else
+    const QString installDir = executableDir.absolutePath();
+    const QString mainExe = executableName;
+    const QString payloadRoot = QStringLiteral(".");
 #endif
     if (!QFileInfo(installDir).isWritable())
         return fail(QStringLiteral("程序目录不可写，请将程序移到可写位置或使用系统安装程序更新：%1").arg(installDir));

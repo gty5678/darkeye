@@ -18,6 +18,7 @@ namespace
 {
 
 constexpr qsizetype maximumResponseBytes = 8 * 1024 * 1024;
+constexpr int requestTimeoutMilliseconds = 130'000;
 
 QString jsonValueText(const QJsonValue &value)
 {
@@ -119,7 +120,6 @@ public:
     QNetworkAccessManager network;
     QHash<quint64, Pending> pending;
     quint64 nextRequestId = 1;
-    int timeoutMilliseconds = 130'000;
 };
 
 CollectorClient::CollectorClient(QUrl workApiBaseUrl, QUrl actressApiBaseUrl,
@@ -200,8 +200,7 @@ quint64 CollectorClient::startGet(CollectorRequestKind kind, const QUrl &url)
                 if (d->pending[requestId].reply != nullptr)
                     d->pending[requestId].reply->abort();
             });
-    timer->start(d->timeoutMilliseconds);
-    emit requestStarted(requestId, kind);
+    timer->start(requestTimeoutMilliseconds);
     return requestId;
 }
 
@@ -213,28 +212,6 @@ bool CollectorClient::cancel(quint64 requestId)
     if (d->pending[requestId].reply != nullptr)
         d->pending[requestId].reply->abort();
     return true;
-}
-
-void CollectorClient::cancelAll()
-{
-    const QList<quint64> requestIds = d->pending.keys();
-    for (const quint64 requestId : requestIds)
-        cancel(requestId);
-}
-
-void CollectorClient::setTimeoutMilliseconds(int timeoutMilliseconds)
-{
-    d->timeoutMilliseconds = qMax(1, timeoutMilliseconds);
-}
-
-int CollectorClient::timeoutMilliseconds() const noexcept
-{
-    return d->timeoutMilliseconds;
-}
-
-bool CollectorClient::isBusy() const noexcept
-{
-    return !d->pending.isEmpty();
 }
 
 } // namespace darkeye

@@ -22,8 +22,6 @@ public:
 
     /// 返回该对象使用的程序根目录。
     [[nodiscard]] const QString &applicationDirectory() const noexcept;
-    /// 返回资源目录和运行数据根目录。
-    [[nodiscard]] QString resourcesDirectory() const;
     [[nodiscard]] QString configDirectory() const;
     [[nodiscard]] QString dataDirectory() const;
     [[nodiscard]] QString cacheDirectory() const;

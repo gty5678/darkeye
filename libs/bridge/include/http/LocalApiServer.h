@@ -27,7 +27,7 @@ signals:
     void minnanoActressCaptureReceived(const QJsonObject &payload);
     void captureOneReceived(const QString &serialNumber);
     void crawlerBacklogWarning(int count, const QString &browser);
-    void cloudflareChallengeReceived(const QJsonObject &payload);
+    void cloudflareChallengeReceived(const QString &site, const QString &serial);
 
 private:
     class Private;

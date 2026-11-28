@@ -295,8 +295,10 @@ def validate_payload(destination, system):
         raise RuntimeError(f"Unsupported deployed payload: {system}")
     resources = destination / "Darkeye.app/Contents/Resources"
     executable = destination / "Darkeye.app/Contents/MacOS/Darkeye"
-    plugin = destination / "Darkeye.app/Contents/PlugIns/platforms/libqcocoa.dylib"
-    for required in (executable, executable.parent / "updater", plugin,
+    plugins = destination / "Darkeye.app/Contents/PlugIns"
+    for required in (executable, executable.parent / "updater",
+                     plugins / "platforms/libqcocoa.dylib",
+                     plugins / "sqldrivers/libqsqlite.dylib",
                      resources / "config/update.ini", resources / "LICENSE"):
         if not required.is_file():
             raise RuntimeError(f"Missing deployed file: {required}")
@@ -353,6 +355,10 @@ def package_macos(args, destination, portable, base, version, cmake, env):
         archs = subprocess.check_output([require_tool("lipo"), "-archs", str(executable)], text=True).split()
         if archs != ["arm64"]:
             raise RuntimeError(f"Expected an arm64-only application, got {archs}")
+        # macdeployqt selects SQL plugins by module. DarkEye uses only SQLite.
+        for driver in (app / "Contents/PlugIns/sqldrivers").glob("libqsql*.dylib"):
+            if driver.name != "libqsqlite.dylib":
+                driver.unlink()
     identity = args.mac_sign_identity or "-"
     thin_macos_arm64(app, env, args.dry_run)
     # Deployment has finished: seal nested code first, then the outer app.

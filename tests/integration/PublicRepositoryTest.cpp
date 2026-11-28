@@ -50,22 +50,18 @@ void PublicRepositoryTest::createsAndFindsPeopleAndReferences()
     QCOMPARE(people.findByName(darkeye::PersonKind::Actress, QStringLiteral("日本名")), actressId);
 
     darkeye::ReferenceRepository references(connection.database());
-    const auto makerId =
-        references.create(darkeye::ReferenceKind::Maker, QStringLiteral("Maker"), &errorMessage);
+    const auto makerId = references.create(
+        {.kind = darkeye::ReferenceKind::Maker, .chineseName = QStringLiteral("Maker"),
+         .japaneseName = QStringLiteral("Maker")}, &errorMessage);
     QVERIFY2(makerId.has_value(), qPrintable(errorMessage));
     QCOMPARE(references.findByName(darkeye::ReferenceKind::Maker, QStringLiteral("Maker")),
              makerId);
     const auto typeId = references.createTagType(QStringLiteral("类型"), 1, &errorMessage);
     QVERIFY2(typeId.has_value(), qPrintable(errorMessage));
-    QVERIFY2(references
-                 .createTag(QStringLiteral("标签"), typeId, QStringLiteral("#112233"), QString(),
-                            &errorMessage)
-                 .has_value(),
-             qPrintable(errorMessage));
-    QVERIFY(!references
-                 .createTag(QStringLiteral("标签"), typeId, QStringLiteral("#112233"), QString(),
-                            &errorMessage)
-                 .has_value());
+    const darkeye::TagRecord tag{.name = QStringLiteral("标签"), .typeId = typeId,
+                                  .color = QStringLiteral("#112233")};
+    QVERIFY2(references.createTag(tag, &errorMessage).has_value(), qPrintable(errorMessage));
+    QVERIFY(!references.createTag(tag, &errorMessage).has_value());
 }
 
 void PublicRepositoryTest::searchesPeopleWithStableFiltersAndOrdering()
@@ -421,8 +417,9 @@ void PublicRepositoryTest::importsAndExportsReferenceJsonAtomically()
         {darkeye::ReferenceKind::Maker, 0, QStringLiteral("旧片商"), QStringLiteral("旧メーカー"),
          QString(), QStringLiteral("旧说明"), QStringLiteral("old.png")},
         &errorMessage);
-    const auto unusedMakerId = references.create(darkeye::ReferenceKind::Maker,
-                                                 QStringLiteral("未引用片商"), &errorMessage);
+    const auto unusedMakerId = references.create(
+        {.kind = darkeye::ReferenceKind::Maker, .chineseName = QStringLiteral("未引用片商"),
+         .japaneseName = QStringLiteral("未引用片商")}, &errorMessage);
     QVERIFY2(makerId.has_value() && unusedMakerId.has_value(), qPrintable(errorMessage));
     QVERIFY2(
         references.createMakerPrefix(QStringLiteral("OLD"), *makerId, &errorMessage).has_value(),

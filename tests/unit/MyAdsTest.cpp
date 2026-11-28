@@ -87,6 +87,7 @@ private slots:
     void dropsTabsAtInsertionLine();
     void workspaceSavesAndRestoresContent();
     void sidebarsToggleAndCollapseOnFocusLoss();
+    void sidebarTabsSurviveLayoutRestore_data();
     void sidebarTabsSurviveLayoutRestore();
     void sidebarWidthsAreRestoredAsRatios();
     void sidebarSplitsVertically_data();
@@ -1160,8 +1161,16 @@ void MyAdsTest::sidebarsToggleAndCollapseOnFocusLoss()
     QCOMPARE(QApplication::focusWidget(), center->findChild<QTabBar *>());
 }
 
+void MyAdsTest::sidebarTabsSurviveLayoutRestore_data()
+{
+    QTest::addColumn<bool>("legacyPaneIds");
+    QTest::newRow("sidebar-trees") << false;
+    QTest::newRow("legacy-pane-ids") << true;
+}
+
 void MyAdsTest::sidebarTabsSurviveLayoutRestore()
 {
+    QFETCH(bool, legacyPaneIds);
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const auto path = directory.filePath(QStringLiteral("layout.json"));
@@ -1179,6 +1188,17 @@ void MyAdsTest::sidebarTabsSurviveLayoutRestore()
     QVERIFY(workspace.saveLayout(path, [](const PaneWidget *, const QString &contentId) {
         return QJsonObject{{QStringLiteral("content_id"), contentId}};
     }));
+
+    auto saved = loadLayoutFile(path);
+    auto sidebars = saved.value(QStringLiteral("sidebars")).toObject();
+    QVERIFY(sidebars.value(QStringLiteral("left")).isObject());
+    QVERIFY(sidebars.value(QStringLiteral("right")).isObject());
+    if (legacyPaneIds) {
+        sidebars.insert(QStringLiteral("left"), workspace.sidebarPane(SidebarSide::Left)->paneId());
+        sidebars.insert(QStringLiteral("right"), right->paneId());
+        saved.insert(QStringLiteral("sidebars"), sidebars);
+        QVERIFY(saveLayoutAtomic(path, saved));
+    }
 
     QVERIFY(workspace.loadLayout(path, [widget](const QJsonObject &descriptor) {
         return ContentConfig{

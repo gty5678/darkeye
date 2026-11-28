@@ -47,7 +47,6 @@
 #include "ui/components/WorkTagSelector.h"
 #include "ui/components/PersonTransferSelector.h"
 #include "ui/components/ModelSearchBar.h"
-#include "darkeye_ui/components/Sidebar.h"
 #include "ui/pages/MakerManagementWidget.h"
 #include "ui/pages/LabelManagementWidget.h"
 #include "darkeye_ui/components/LinkCard.h"
@@ -245,7 +244,9 @@ void MainWindowSmokeTest::referenceManagementMatchesPython()
     darkeye::ReferenceRepository repository(connection.database());
     QVERIFY(repository.create({kind, 0, QStringLiteral("Alpha一"), {}, {}, QStringLiteral("详情"),
                                series ? QStringLiteral("相关") : QString()}, &error).has_value());
-    QVERIFY(repository.create(kind, QStringLiteral("Alpha二"), &error).has_value());
+    QVERIFY(repository.create(
+        {.kind = kind, .chineseName = QStringLiteral("Alpha二"), .japaneseName = QStringLiteral("Alpha二")},
+        &error).has_value());
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::LabelManagementWidget widget(kind, connection.database(), themes);
     widget.initialize();
@@ -348,7 +349,9 @@ void MainWindowSmokeTest::makerManagementAddsAndSavesDraftRows()
     QVERIFY(clear.exec(QStringLiteral("DELETE FROM prefix_maker_relation")));
     QVERIFY(clear.exec(QStringLiteral("DELETE FROM maker")));
     darkeye::ReferenceRepository repository(connection.database());
-    const auto makerId = repository.create(darkeye::ReferenceKind::Maker, QStringLiteral("原片商"), &error);
+    const auto makerId = repository.create(
+        {.kind = darkeye::ReferenceKind::Maker, .chineseName = QStringLiteral("原片商"),
+         .japaneseName = QStringLiteral("原片商")}, &error);
     QVERIFY(makerId.has_value());
     darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
     darkeye::MakerManagementWidget widget(connection.database(), themes);
@@ -461,7 +464,9 @@ void MainWindowSmokeTest::makerManagementSearchMatchesPythonBehavior()
     QVERIFY(clear.exec(QStringLiteral("DELETE FROM prefix_maker_relation")));
     QVERIFY(clear.exec(QStringLiteral("DELETE FROM maker")));
     darkeye::ReferenceRepository repository(connection.database());
-    const auto makerId = repository.create(darkeye::ReferenceKind::Maker, QStringLiteral("Alpha片商"), &error);
+    const auto makerId = repository.create(
+        {.kind = darkeye::ReferenceKind::Maker, .chineseName = QStringLiteral("Alpha片商"),
+         .japaneseName = QStringLiteral("Alpha片商")}, &error);
     QVERIFY(makerId.has_value());
     QVERIFY(repository.createMakerPrefix(QStringLiteral("ALPHA-1"), *makerId, &error).has_value());
     QVERIFY(repository.createMakerPrefix(QStringLiteral("ALPHA-2"), *makerId, &error).has_value());
@@ -840,8 +845,8 @@ void MainWindowSmokeTest::workspaceChangesRefreshAllShelvesAndGraph()
         privateDatabase, darkeye::DatabaseKind::Private, &error));
 
     darkeye::ReferenceRepository references(publicDatabase.database());
-    const auto sourceTag = references.createTag(QStringLiteral("Source"), {}, {}, {}, &error);
-    const auto targetTag = references.createTag(QStringLiteral("Target"), {}, {}, {}, &error);
+    const auto sourceTag = references.createTag({.name = QStringLiteral("Source")}, &error);
+    const auto targetTag = references.createTag({.name = QStringLiteral("Target")}, &error);
     QVERIFY(sourceTag && targetTag);
     darkeye::WorkRepository works(publicDatabase.database());
     darkeye::Work first, second, untagged;
@@ -1143,7 +1148,6 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
     QVERIFY(search);
     QVERIFY(workspace);
-    QVERIFY(!window.findChild<darkeye::Sidebar *>());
     auto currentWidget = [workspace] { auto *pane = workspace->activePane(); return pane->contentWidget(pane->currentContentId()); };
     QCOMPARE(workspace->rootPane()->contentCount(), 0);
     search->openRequested(QStringLiteral("mutiwork"));
@@ -3095,6 +3099,9 @@ void MainWindowSmokeTest::sidebarShortcutsAndAutoCollapseSetting()
     QSettings legacy(legacyFile, QSettings::IniFormat);
     legacy.setValue(QStringLiteral("Workspace/SidebarAutoCollapse"), true);
     legacy.sync();
+    QVERIFY(darkeye::settings::ensureDefaults(legacyFile));
+    legacy.sync();
+    QVERIFY(!legacy.contains(QStringLiteral("Workspace/SidebarAutoCollapse")));
     auto migrated = darkeye::settings::app(legacyFile);
     QVERIFY(migrated.leftSidebarAutoCollapse);
     QVERIFY(migrated.rightSidebarAutoCollapse);
@@ -3443,9 +3450,15 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
     const auto legacyActorRoute = QStringLiteral("actor_detail/%1").arg(*actor);
     darkeye::WorkRepository works(database.database());
     darkeye::ReferenceRepository references(database.database());
-    const auto maker = references.create(darkeye::ReferenceKind::Maker, QStringLiteral("测试片商"), &error);
-    const auto label = references.create(darkeye::ReferenceKind::Label, QStringLiteral("测试厂牌"), &error);
-    const auto series = references.create(darkeye::ReferenceKind::Series, QStringLiteral("测试系列"), &error);
+    const auto maker = references.create(
+        {.kind = darkeye::ReferenceKind::Maker, .chineseName = QStringLiteral("测试片商"),
+         .japaneseName = QStringLiteral("测试片商")}, &error);
+    const auto label = references.create(
+        {.kind = darkeye::ReferenceKind::Label, .chineseName = QStringLiteral("测试厂牌"),
+         .japaneseName = QStringLiteral("测试厂牌")}, &error);
+    const auto series = references.create(
+        {.kind = darkeye::ReferenceKind::Series, .chineseName = QStringLiteral("测试系列"),
+         .japaneseName = QStringLiteral("测试系列")}, &error);
     QVERIFY2(maker && label && series, qPrintable(error));
     darkeye::Work work; work.serialNumber = QStringLiteral("SEARCH-001"); work.chineseTitle = QStringLiteral("测试作品");
     work.makerId = maker;

@@ -5,9 +5,9 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QPointer>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
-#include <QStringList>
 
 class QNetworkReply;
 

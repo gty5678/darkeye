@@ -4,7 +4,7 @@
 
 两个启动目标：
 
-默认 DVD 模型来自 `libs/dvd/dvd.glb`，通过 Qt 资源嵌入两个 demo，替换文件后重新构建即可更新。原 `assets/dvd-case.glb` 不再用于 demo。加载时只取根节点 `back` 的子树与 `disc`，忽略文件中的第二套盒子、书架和辅助平面；`pic` 在内存中映射为可替换封面的 `cover`，保留其余材质属性。默认选择“模型原材质”，不覆盖 Blender 的透明材质。文件内动画仍不播放，开合由软件交互控制。`KHR_materials_clearcoat`、`KHR_materials_specular` 当前不支持，相关细节不会与 Blender 完全一致。
+默认 DVD 模型来自 `libs/dvd/dvd.glb`，通过 Qt 资源嵌入两个 demo，替换文件后重新构建即可更新。加载时只取根节点 `back` 的子树与 `disc`，忽略文件中的第二套盒子、书架和辅助平面；`pic` 在内存中映射为可替换封面的 `cover`，保留其余材质属性。默认选择“模型原材质”，不覆盖 Blender 的透明材质。文件内动画仍不播放，开合由软件交互控制。`KHR_materials_clearcoat`、`KHR_materials_specular` 当前不支持，相关细节不会与 Blender 完全一致。
 
 2026-10-23 更新：当前 GLB 已精简为 `back → spine → front` 与独立 `disc`，共 4 个节点、4 个网格、5 个材质、1 段动画，无内嵌贴图，不再包含额外盒子和书架。文件大小 139028 字节，SHA256 为 `243ba8fb1cbd7f5e89795b2a848fe754d494a3d754f7e77160b29452c0a5ae91`。已重新构建两个 demo，D3D11、4× MSAA 下 1000 件 DVD 的选中、开盒、截图与归位检查通过；日志和截图位于 `build/dvd-new-export-*`。
 
@@ -86,7 +86,7 @@ Smoke 会聚焦/开盒、读回 framebuffer、关盒返回并校验错误、退�
 
 导入采用 cgltf v1.15（MIT），支持静态三角网格 GLB/外部 glTF、层级、多个 primitive、缺法线生成、切线、baseColor/MR/normal/occlusion/emissive 图、采样与透明模式，以及 KHR_materials_emissive_strength。明确拒绝不支持的 required extension/非静态网格；缺图警告并降级。限制文件/节点/顶点/解码图像大小，避免损坏资产造成无限分配。详见 loader 与 `third_party/cgltf/README.md`。
 
-`assets/dvd-case.glb` 历史上由四个 Qt `.mesh` 离线导出，保留原层级、9 个材质子集、几何与法线，V 转换为 `1-v`；Qt ARGB 颜色转换为线性 glTF 因子。`dvd-case.provenance.json` 保存来源和哈希。原 Qt 网格和导出工具已删除；GLB 与来源哈希作为历史资产记录保留。仓库未提供原模型单独的上游许可证，导出不改变其授权状态。
+Qt 网格转出的 DVD 模型和来源记录位于 [渲染测试夹具](../../tests/fixtures/README.md)。
 
 ## 验证和问题排查
 

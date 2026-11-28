@@ -982,23 +982,15 @@ int main(int argc, char *argv[])
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
 
-    const QList<darkeye::SidebarMenuDefinition> menus = {
-        {QStringLiteral("buttons"), QStringLiteral("按钮"), QStringLiteral("square_pen")},
-        {QStringLiteral("text"), QStringLiteral("文本输入"), QStringLiteral("scroll_text")},
-        {QStringLiteral("toggles"), QStringLiteral("开关选择"), QStringLiteral("check")},
-        {QStringLiteral("inputs"), QStringLiteral("数值滑块"), QStringLiteral("list_plus")},
-        {QStringLiteral("containers"), QStringLiteral("标签页分组"),
-         QStringLiteral("layout_panel_left")},
-        {QStringLiteral("data_nav"), QStringLiteral("P1 Data/Nav"),
-         QStringLiteral("layout_panel_left")},
-        {QStringLiteral("p2_experience"), QStringLiteral("P2 Experience"),
-         QStringLiteral("circle_plus")},
-        {QStringLiteral("more"), QStringLiteral("更多组件"), QStringLiteral("circle_plus")},
-        {QStringLiteral("advanced"), QStringLiteral("高级组件"), QStringLiteral("chart_line")},
-        {QStringLiteral("color_icons"), QStringLiteral("颜色图标"), QStringLiteral("copy")},
-        {QStringLiteral("theme"), QStringLiteral("主题"), QStringLiteral("refresh_cw")},
-    };
-    auto *sidebar = new darkeye::Sidebar(menus, &themes, central);
+    auto *sidebar = new QListWidget(central);
+    sidebar->setFixedWidth(180);
+    sidebar->setAccessibleName(QStringLiteral("组件分类"));
+    sidebar->addItems({QStringLiteral("按钮"), QStringLiteral("文本输入"),
+                       QStringLiteral("开关选择"), QStringLiteral("数值滑块"),
+                       QStringLiteral("标签页分组"), QStringLiteral("P1 Data/Nav"),
+                       QStringLiteral("P2 Experience"), QStringLiteral("更多组件"),
+                       QStringLiteral("高级组件"), QStringLiteral("颜色图标"),
+                       QStringLiteral("主题"), QStringLiteral("设置")});
     auto *stack = new QStackedWidget(central);
     stack->setObjectName(QStringLiteral("GalleryPages"));
     const QStringList pageIds = {
@@ -1032,18 +1024,9 @@ int main(int argc, char *argv[])
     settingsLayout->addStretch();
     stack->addWidget(settingsPage);
 
-    QHash<QString, int> pageIndexes;
-    for (int index = 0; index < menus.size(); ++index)
-    {
-        pageIndexes.insert(menus.at(index).id, index);
-    }
-    pageIndexes.insert(QStringLiteral("setting"), stack->count() - 1);
-    QObject::connect(sidebar, &darkeye::Sidebar::itemClicked, &window,
-                     [stack, pageIndexes](const QString &menuId)
-                     {
-                         stack->setCurrentIndex(pageIndexes.value(menuId, 0));
-                     });
-    sidebar->select(QStringLiteral("buttons"));
+    QObject::connect(sidebar, &QListWidget::currentRowChanged,
+                     stack, &QStackedWidget::setCurrentIndex);
+    sidebar->setCurrentRow(0);
     root->addWidget(sidebar);
     root->addWidget(stack, 1);
     window.setCentralWidget(central);

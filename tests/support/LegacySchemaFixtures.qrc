@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/sql/fixtures">
+        <file alias="initPublicTable-v1.0.sql">../fixtures/schema/legacy/initPublicTable-v1.0.sql</file>
+        <file alias="initPrivateTable-v1.0.sql">../fixtures/schema/legacy/initPrivateTable-v1.0.sql</file>
+    </qresource>
+</RCC>

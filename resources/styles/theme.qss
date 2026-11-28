@@ -37,26 +37,6 @@ QComboBoxPrivateContainer > QAbstractItemView#DesignComboBoxPopup::item {
     padding: {{space_3}} 0 {{space_3}} {{space_2}};
 }
 
-QListWidget#mainSidebar {
-    background-color: {{color_bg}};
-    border: 0;
-    border-right: {{border_width_thin}} solid {{color_border}};
-    outline: 0;
-}
-
-QListWidget#mainSidebar::item {
-    padding: {{space_11}} {{space_14}};
-}
-
-QListWidget#mainSidebar::item:hover {
-    background-color: {{color_bg_page}};
-}
-
-QListWidget#mainSidebar::item:selected {
-    background-color: {{color_primary}};
-    color: {{color_text_inverse}};
-}
-
 QFrame#WorkspaceSearch[searchPopup="true"] QLineEdit#workspaceSearchInput {
     background-color: {{color_bg_input}};
     border: {{border_width}} solid {{color_border}};
@@ -859,21 +839,6 @@ QAbstractItemView#DesignCompleterPopup {
     padding: {{space_4}};
     selection-color: {{color_text_inverse}};
     selection-background-color: {{color_primary}};
-}
-
-QWidget#DesignSidebarMenuButton {
-    background-color: transparent;
-    border-left: {{border_width_indicator}} solid transparent;
-}
-QWidget#DesignSidebarMenuButton:hover { background-color: {{color_bg_page}}; }
-QWidget#DesignSidebarMenuButton[selected="true"] {
-    background-color: {{color_bg_page}};
-    border-left-color: {{color_primary}};
-}
-QLabel#DesignSidebarMenuText {
-    color: {{color_text}};
-    background-color: transparent;
-    font-size: {{font_size_base}};
 }
 
 /* Keep every scroll-menu surface on the same background. Plain layout widgets

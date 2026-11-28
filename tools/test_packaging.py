@@ -177,6 +177,29 @@ class PackagingTest(unittest.TestCase):
         self.assertTrue(any("verify" in c for c in commands))
         self.assertTrue(any("--verify" in c for c in commands))
 
+    def test_macos_package_removes_unused_sql_drivers_before_signing(self):
+        destination = self.root / "out/payload"
+        drivers = destination / "Darkeye.app/Contents/PlugIns/sqldrivers"
+        drivers.mkdir(parents=True)
+        sqlite = drivers / "libqsqlite.dylib"
+        unused = drivers / "libqsqlmimer.dylib"
+        sqlite.touch()
+        unused.touch()
+
+        def check_before_signing(app, env, dry_run):
+            self.assertTrue(sqlite.is_file())
+            self.assertFalse(unused.exists())
+
+        args = SimpleNamespace(dry_run=False, format="installer", mac_sign_identity=None)
+        with patch.object(package, "validate_payload", return_value=(destination / "Darkeye", None)), \
+             patch.object(package, "require_tool", side_effect=lambda name, *args: name), \
+             patch.object(package.subprocess, "check_output", return_value="arm64"), \
+             patch.object(package, "thin_macos_arm64", side_effect=check_before_signing) as thin, \
+             patch.object(package, "run"), patch.object(package, "create_macos_dmg"):
+            package.package_macos(args, destination, self.root / "out/portable",
+                                  self.root / "out/Darkeye", "1.2.5", "cmake", {})
+        thin.assert_called_once()
+
     def test_macos_thinning_rejects_missing_arm64_before_changes(self):
         app = self.root / "Darkeye.app"
         app.mkdir()

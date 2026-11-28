@@ -1255,7 +1255,8 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
         QString errorMessage;
         std::optional<qint64> id = m_references.findByName(kind, trimmed, &errorMessage);
         if (!id.has_value() && errorMessage.isEmpty()) {
-            id = m_references.create(kind, trimmed, &errorMessage);
+            id = m_references.create(
+                {.kind = kind, .chineseName = trimmed, .japaneseName = trimmed}, &errorMessage);
             if (id.has_value())
                 emit referencesChanged(kind);
         }
@@ -1340,7 +1341,7 @@ void AddWorkTabPage3::applyCrawledData(const QString &serialNumber, const QJsonO
             if (found != records.cend())
                 id = found->id;
             else if (errorMessage.isEmpty()) {
-                id = m_references.createTag(name, std::nullopt, {}, {}, &errorMessage);
+                id = m_references.createTag({.name = name}, &errorMessage);
                 createdTags |= id.has_value();
             }
             if (id.has_value())

@@ -14,7 +14,6 @@
 #include "ui/pages/StatisticsChartPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/ShelfPage.h"
-#include "ui/pages/PlaceholderPage.h"
 #include "ui/pages/WorkPage.h"
 #include "ui/pages/AddWorkTabPage3.h"
 #include "ui/pages/LabelManagementWidget.h"
@@ -459,11 +458,6 @@ void MainWindow::showInitial()
 
 void MainWindow::setLocalApiServer(LocalApiServer &api)
 {
-    attachLocalApi(api);
-}
-
-void MainWindow::attachLocalApi(LocalApiServer &api)
-{
     connect(&api, &LocalApiServer::captureOneReceived, this,
             [this](const QString &serial) { m_crawlerScheduler->enqueue({serial}); });
     connect(&api, &LocalApiServer::crawlerBacklogWarning, this,
@@ -473,10 +467,8 @@ void MainWindow::attachLocalApi(LocalApiServer &api)
                                    &m_themeService, 6000);
             });
     connect(&api, &LocalApiServer::cloudflareChallengeReceived, this,
-            [this](const QJsonObject &payload)
+            [this](const QString &site, const QString &serial)
             {
-                const QString site = payload.value(QStringLiteral("site")).toString();
-                const QString serial = payload.value(QStringLiteral("serial")).toString();
                 const QString target = site.isEmpty() ? QStringLiteral("目标站点") : site;
                 const QString suffix = serial.isEmpty() ? QString() : QStringLiteral("（%1）").arg(serial);
                 Toast::showWarning(this, QStringLiteral("%1 出现 Cloudflare 验证%2，请在浏览器中完成验证。")
@@ -1441,7 +1433,6 @@ void MainWindow::registerPage(const QString &menuTitle, const QString &routeName
     // Registration is metadata only; each page is created on demand.
     m_routeTitles.insert(routeName, menuTitle);
     if (!icon.isEmpty()) m_navigationPages.append({routeName, icon});
-    m_routePages.insert(routeName, nullptr);
 }
 
 QMap<QString, QString> MainWindow::workspaceCommandPages() const
@@ -1475,7 +1466,7 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
     } else if (base == QStringLiteral("fanart_work") && id > 0) {
         const auto work = WorkRepository(m_publicDatabase).findById(id);
         if (!work) return nullptr;
-        auto *fanart = static_cast<FanartBrowserPage *>(createPage(QStringLiteral("剧照"), QStringLiteral("fanart"), nullptr));
+        auto *fanart = static_cast<FanartBrowserPage *>(createPage(QStringLiteral("fanart"), nullptr));
         fanart->showWork(id);
         widget = fanart;
         title = work->serialNumber + QStringLiteral(" · 剧照");
@@ -1483,7 +1474,7 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
         const bool switching = routeName == actressSwitchRoute;
         const auto personId = switching ? switchActressId : argument.section(u'/', 0, 0).toLongLong();
         if (!switching && personId <= 0) return nullptr;
-        auto *detail = static_cast<PersonDetailPage *>(createPage(title, base, nullptr));
+        auto *detail = static_cast<PersonDetailPage *>(createPage(base, nullptr));
         const bool loaded = personId > 0 && detail->showPerson(personId, false);
         if (!switching && !loaded) {
             delete detail;
@@ -1500,14 +1491,14 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
         query.limit = 1;
         const auto people = PersonRepository(m_publicDatabase).search(query);
         if (people.isEmpty()) return nullptr;
-        auto *editor = static_cast<PersonEditorPage *>(createPage(title, base, nullptr));
+        auto *editor = static_cast<PersonEditorPage *>(createPage(base, nullptr));
         editor->setInitialPerson(kind, id);
         widget = editor;
         title = QStringLiteral("编辑 · ") + people.first().name;
     } else if (base == QStringLiteral("work_edit") && id > 0) {
         const auto work = WorkRepository(m_publicDatabase).findById(id);
         if (!work) return nullptr;
-        auto *editor = static_cast<AddWorkTabPage3 *>(createPage({}, base, nullptr));
+        auto *editor = static_cast<AddWorkTabPage3 *>(createPage(base, nullptr));
         editor->loadWorkAsync(id);
         title = QStringLiteral("编辑 · ") + work->serialNumber;
         widget = editor;
@@ -1520,7 +1511,7 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
         title = QStringLiteral("分类作品 · %1 %2").arg(base).arg(id);
         widget = shelf;
     } else if (m_routeTitles.contains(base) && argument.isEmpty() && !base.contains(QStringLiteral("detail")) && !base.startsWith(QStringLiteral("modify"))) {
-        widget = createPage(title, base, nullptr);
+        widget = createPage(base, nullptr);
     }
     if (!widget) return nullptr;
     widget->setParent(this);
@@ -1537,8 +1528,7 @@ QWidget *MainWindow::ensurePage(const QString &routeName, qint64 switchActressId
     return widget;
 }
 
-QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeName,
-                                QWidget *parent)
+QWidget *MainWindow::createPage(const QString &routeName, QWidget *parent)
 {
     if (routeName == QStringLiteral("home"))
     {
@@ -1804,7 +1794,7 @@ QWidget *MainWindow::createPage(const QString &menuTitle, const QString &routeNa
     {
         return new InboxPage(*m_crawlerScheduler, *m_crawlerPersistence, parent);
     }
-    return new PlaceholderPage(menuTitle, routeName, parent);
+    return nullptr;
 }
 
 void MainWindow::navigateTo(const QString &routeName, bool recordRecent, ActressOpenMode actressMode,

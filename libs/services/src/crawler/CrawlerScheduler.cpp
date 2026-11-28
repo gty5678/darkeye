@@ -26,12 +26,7 @@ CrawlerScheduler::CrawlerScheduler(QUrl workApiBaseUrl, const QStringList &unfin
     m_scheduleTimer.setSingleShot(true);
     connect(&m_scheduleTimer, &QTimer::timeout, this, &CrawlerScheduler::onScheduleTimeout);
     connect(m_collector, &CollectorClient::requestFinished, this,
-            [this](quint64 requestId, CollectorRequestKind kind, bool succeeded,
-                   const QJsonObject &payload, const QString &errorMessage, int httpStatus)
-            {
-                onCollectorFinished(requestId, static_cast<int>(kind), succeeded, payload,
-                                    errorMessage, httpStatus);
-            });
+            &CrawlerScheduler::onCollectorFinished);
 
     for (const QString &serial : unfinishedSerials)
     {
@@ -194,11 +189,11 @@ void CrawlerScheduler::onScheduleTimeout()
     Q_UNUSED(requestId);
 }
 
-void CrawlerScheduler::onCollectorFinished(quint64, int kind, bool succeeded,
+void CrawlerScheduler::onCollectorFinished(quint64, CollectorRequestKind kind, bool succeeded,
                                            const QJsonObject &payload,
                                            const QString &errorMessage, int httpStatus)
 {
-    if (kind != static_cast<int>(CollectorRequestKind::Work) || m_currentSerial.isEmpty())
+    if (kind != CollectorRequestKind::Work || m_currentSerial.isEmpty())
         return;
     const QString serial = m_currentSerial;
     m_currentSerial.clear();

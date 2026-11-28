@@ -1,7 +1,5 @@
 #include "settings/Paths.h"
 
-#include "settings/SettingsStore.h"
-
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QDir>
@@ -174,7 +172,7 @@ QString Paths::resourceRootDirectory() const
 
 QString Paths::configuredPath(const QString &key, const QString &defaultRelativePath) const
 {
-    const SettingsStore store(settingsFile());
+    const QSettings store(settingsFile(), QSettings::IniFormat);
     const QString configured = store.value(key).toString().trimmed();
     if (configured.isEmpty()) return QDir(dataDirectory()).absoluteFilePath(defaultRelativePath);
     if (QFileInfo(configured).isAbsolute()) return QDir::cleanPath(configured);
@@ -192,7 +190,7 @@ bool Paths::migratePathSettings(QString *errorMessage) const
     const QStringList keys = {QStringLiteral("Database"), QStringLiteral("PrivateDatabase"),
         QStringLiteral("DatabaseBackups"), QStringLiteral("PrivateDatabaseBackups"),
         QStringLiteral("Actressimages"), QStringLiteral("Actorimages"), QStringLiteral("WorkCovers"),
-        QStringLiteral("Fanart"), QStringLiteral("Temp")};
+        QStringLiteral("Fanart")};
     for (const auto &name : keys) {
         const QString key = QStringLiteral("Paths/") + name;
         QString path = settings.value(key).toString().trimmed();
@@ -210,7 +208,6 @@ bool Paths::migratePathSettings(QString *errorMessage) const
     return false;
 }
 
-QString Paths::resourcesDirectory() const { return QDir(resourceRootDirectory()).filePath(QStringLiteral("resources")); }
 QString Paths::configDirectory() const
 {
     return m_configDirectoryOverride.isEmpty()
@@ -261,15 +258,14 @@ QString Paths::logFile() const { return QDir(dataDirectory()).filePath(QStringLi
 
 bool Paths::ensureRuntimeDirectories(QString *errorMessage) const
 {
-    if (dataDirectory().isEmpty()) {
+    const QString data = dataDirectory();
+    if (data.isEmpty()) {
         if (errorMessage) *errorMessage = QStringLiteral("无法确定数据目录，请检查 portable.ini 中的 Portable/DataDirectory 配置。");
         return false;
     }
-    const QString seed = QDir(resourceRootDirectory()).filePath(QStringLiteral("seed-data"));
-    if (QFileInfo(seed).isDir() && !initializeDirectory(seed, dataDirectory(), errorMessage)) return false;
     // 仅创建应用托管的运行目录，不创建用户配置的外部数据路径。
     const QStringList directories = {QStringLiteral("public/public_backup"), QStringLiteral("public/workcovers"), QStringLiteral("public/fanart"), QStringLiteral("public/actressimages"), QStringLiteral("public/actorimages"), QStringLiteral("private/private_backup"), QStringLiteral("cache/images"), QStringLiteral("cache/graph"), QStringLiteral("cache/translations"), QStringLiteral("temp"), QStringLiteral("logs")};
-    QDir dataRoot(dataDirectory());
+    QDir dataRoot(data);
     for (const QString &directory : directories)
     {
         if (dataRoot.mkpath(directory)) continue;
@@ -282,7 +278,7 @@ bool Paths::ensureRuntimeDirectories(QString *errorMessage) const
     // 实际写入探测；便携目录不可写时直接报错，不切换数据位置。
     QTemporaryFile probe(dataRoot.filePath(QStringLiteral(".write-test-XXXXXX")));
     if (!probe.open()) {
-        if (errorMessage) *errorMessage = QStringLiteral("数据目录不可写：%1").arg(dataDirectory());
+        if (errorMessage) *errorMessage = QStringLiteral("数据目录不可写：%1").arg(data);
         return false;
     }
     if (!migratePathSettings(errorMessage)) return false;

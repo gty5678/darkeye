@@ -29,7 +29,6 @@
 #include "darkeye_ui/components/Pagination.h"
 #include "darkeye_ui/components/RatingSelector.h"
 #include "darkeye_ui/components/SearchBar.h"
-#include "darkeye_ui/components/Sidebar.h"
 #include "darkeye_ui/components/StateToggleButton.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "darkeye_ui/components/TokenControls.h"

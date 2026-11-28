@@ -1,3 +1,5 @@
+find_package(OpenMP COMPONENTS CXX)
+
 file(GLOB_RECURSE DARKEYE_GRAPH_VIEW_HEADERS CONFIGURE_DEPENDS "include/*.h")
 file(GLOB_RECURSE DARKEYE_GRAPH_VIEW_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
@@ -36,7 +38,6 @@ target_link_libraries(darkeye_graph_view
         Qt6::GuiPrivate
         msdfgen::msdfgen-core
         msdfgen::msdfgen-ext
-        Freetype::Freetype
 )
 if(OpenMP_CXX_FOUND)
     target_link_libraries(darkeye_graph_view PRIVATE OpenMP::OpenMP_CXX)

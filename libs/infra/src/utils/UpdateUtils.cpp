@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QUrl>
+#include <algorithm>
 
 namespace darkeye::utils {
 
@@ -30,9 +31,12 @@ std::optional<QList<int>> parseVersion(const QString &version)
     if (normalized.isEmpty()) return std::nullopt;
     if (normalized.startsWith(QLatin1Char('v'), Qt::CaseInsensitive)) normalized.remove(0, 1);
     QList<int> parsed;
-    for (const QString &part : normalized.split(QLatin1Char('.'), Qt::SkipEmptyParts)) {
+    for (const QString &part : normalized.split(QLatin1Char('.'))) {
+        if (part.isEmpty() || !std::all_of(part.cbegin(), part.cend(),
+                                          [](QChar c) { return c >= u'0' && c <= u'9'; }))
+            return std::nullopt;
         bool ok = false;
-        const int value = part.trimmed().toInt(&ok);
+        const int value = part.toInt(&ok);
         if (!ok) return std::nullopt;
         parsed.append(value);
     }
@@ -43,14 +47,14 @@ bool isNewerVersion(const QString &remoteVersion, const QString &localVersion)
 {
     const auto remote = parseVersion(remoteVersion);
     const auto local = parseVersion(localVersion);
-    if (!remote || !local) return remoteVersion.trimmed() != localVersion.trimmed();
-    const qsizetype count = qMin(remote->size(), local->size());
+    if (!remote || !local) return false;
+    const qsizetype count = qMax(remote->size(), local->size());
     for (qsizetype index = 0; index < count; ++index) {
-        const int remotePart = remote->at(index);
-        const int localPart = local->at(index);
+        const int remotePart = remote->value(index);
+        const int localPart = local->value(index);
         if (remotePart != localPart) return remotePart > localPart;
     }
-    return remote->size() > local->size();
+    return false;
 }
 
 UpdateCheckResult evaluateUpdateManifest(const QString &localVersion,
@@ -63,7 +67,7 @@ UpdateCheckResult evaluateUpdateManifest(const QString &localVersion,
                 QStringLiteral("无法解析 latest.json：%1").arg(error.errorString())};
     }
     const QJsonObject root = document.object();
-    const QString latest = root.value(QStringLiteral("latestVersion")).toVariant().toString().trimmed();
+    const QString latest = root.value(QStringLiteral("latestVersion")).toString().trimmed();
     const QString notes = root.value(QStringLiteral("releaseNotes")).toVariant().toString().trimmed();
     const QJsonObject package = root.value(QStringLiteral("packages")).toObject()
         .value(updateTarget()).toObject();
@@ -72,6 +76,10 @@ UpdateCheckResult evaluateUpdateManifest(const QString &localVersion,
     if (latest.isEmpty()) {
         return {false, QStringLiteral("更新检查结果"),
                 QStringLiteral("latest.json 缺少 latestVersion 字段。")};
+    }
+    if (!parseVersion(latest) || !parseVersion(localVersion)) {
+        return {false, QStringLiteral("更新检查失败"),
+                QStringLiteral("更新清单或当前程序包含无效版本号。")};
     }
     const QUrl url(packageUrl);
     bool validHash = hash.size() == 64 && hash != QString(64, u'0');

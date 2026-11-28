@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
+#include <QSettings>
 #include <QVariantMap>
 
 namespace darkeye::settings
@@ -21,12 +22,6 @@ QString normalizedUrl(const QString &value, const QUrl &fallback)
     while (normalized.endsWith(QChar('/')))
         normalized.chop(1);
     return normalized.isEmpty() ? fallback.toString() : normalized;
-}
-
-QString normalizedEngine(const QString &value)
-{
-    Q_UNUSED(value);
-    return QStringLiteral("llm");
 }
 
 QString normalizedFallback(const QString &value)
@@ -101,6 +96,39 @@ QStringList normalizedVideoPaths(const QStringList &paths)
     return normalized;
 }
 
+bool migrateAppSettings(const QString &settingsFile, QString *errorMessage)
+{
+    QSettings settings(settingsFile, QSettings::IniFormat);
+    const auto copyIfMissing = [&settings](const QString &key, const QVariant &value) {
+        if (value.isValid() && !settings.contains(key))
+            settings.setValue(key, value);
+    };
+
+    copyIfMissing(QStringLiteral("window/first_launch"),
+                  settings.value(QStringLiteral("window/first_lunch")));
+    const QVariant sidebar = settings.value(QStringLiteral("Workspace/SidebarAutoCollapse"));
+    copyIfMissing(QStringLiteral("Workspace/LeftSidebarAutoCollapse"), sidebar);
+    copyIfMissing(QStringLiteral("Workspace/RightSidebarAutoCollapse"), sidebar);
+    const auto check = QStringLiteral("Update/AutomaticCheck");
+    const auto notify = QStringLiteral("Update/UpdateNotification");
+    if (settings.contains(check) || settings.contains(notify))
+        copyIfMissing(QStringLiteral("Update/CheckAndNotify"),
+                      settings.value(check).toBool() && settings.value(notify).toBool());
+
+    for (const QString &key : {QStringLiteral("window/first_lunch"),
+                               QStringLiteral("window/size"), QStringLiteral("window/pos"),
+                               QStringLiteral("Workspace/SidebarAutoCollapse"), check, notify,
+                               QStringLiteral("App/GreenMode"), QStringLiteral("Paths/Temp"),
+                               QStringLiteral("Translation/Engine")}) {
+        if (settings.contains(key)) settings.remove(key);
+    }
+    settings.sync();
+    if (settings.status() == QSettings::NoError) return true;
+    if (errorMessage)
+        *errorMessage = QStringLiteral("无法迁移设置文件：%1").arg(settingsFile);
+    return false;
+}
+
 } // namespace
 
 QString resolvedSettingsFile(QString settingsFile) { return settingsFile.isEmpty() ? Paths{}.settingsFile() : std::move(settingsFile); }
@@ -109,7 +137,7 @@ bool ensureDefaults(QString settingsFile, QString *errorMessage)
 {
     SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
     if (m_store.exists())
-        return true;
+        return migrateAppSettings(m_store.fileName(), errorMessage);
 
     const QFileInfo fileInfo(m_store.fileName());
     if (!QDir().mkpath(fileInfo.absolutePath()))
@@ -133,29 +161,22 @@ bool ensureDefaults(QString settingsFile, QString *errorMessage)
         {QStringLiteral("Paths/PrivateDatabase"), QStringLiteral("private/private.db")},
         {QStringLiteral("Paths/PrivateDatabaseBackups"),
          QStringLiteral("private/private_backup/")},
-        {QStringLiteral("Paths/Temp"), QStringLiteral("temp/")},
-        {QStringLiteral("Paths/Videos"), QString()},
-        {QStringLiteral("Video/LocalPlayerExe"), QString()},
     });
     return m_store.exists();
 }
 
 AppSettings app(QString settingsFile)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
+    const QSettings m_store(resolvedSettingsFile(std::move(settingsFile)), QSettings::IniFormat);
     AppSettings settings;
     settings.themeId = m_store.value(QStringLiteral("App/Theme"), settings.themeId).toString();
     settings.customPrimary = m_store.value(QStringLiteral("App/CustomPrimary")).toString();
     settings.customPrimaryOklch = m_store.value(QStringLiteral("App/CustomPrimaryOklch")).toString();
     settings.colorMode = m_store.value(QStringLiteral("App/ColorMode"), settings.colorMode).toString();
     settings.firstLaunch =
-        m_store.value(QStringLiteral("window/first_lunch"), settings.firstLaunch).toBool();
+        m_store.value(QStringLiteral("window/first_launch"), settings.firstLaunch).toBool();
     settings.maximized =
         m_store.value(QStringLiteral("window/maximized"), settings.maximized).toBool();
-    settings.windowSize =
-        m_store.value(QStringLiteral("window/size"), settings.windowSize).toSize();
-    settings.windowPosition =
-        m_store.value(QStringLiteral("window/pos"), settings.windowPosition).toPoint();
     settings.workLargeCoverView = m_store
                                       .value(QStringLiteral("WorkPage/LargeCoverView"),
                                              settings.workLargeCoverView)
@@ -163,12 +184,12 @@ AppSettings app(QString settingsFile)
     settings.navigationBarVisible = m_store.value(QStringLiteral("Workspace/NavigationBarVisible"),
                                                   settings.navigationBarVisible).toBool();
     settings.hiddenNavigationItems = m_store.value(QStringLiteral("Workspace/HiddenNavigationItems")).toStringList();
-    const bool legacySidebarAutoCollapse =
-        m_store.value(QStringLiteral("Workspace/SidebarAutoCollapse"), false).toBool();
     settings.leftSidebarAutoCollapse =
-        m_store.value(QStringLiteral("Workspace/LeftSidebarAutoCollapse"), legacySidebarAutoCollapse).toBool();
+        m_store.value(QStringLiteral("Workspace/LeftSidebarAutoCollapse"),
+                      settings.leftSidebarAutoCollapse).toBool();
     settings.rightSidebarAutoCollapse =
-        m_store.value(QStringLiteral("Workspace/RightSidebarAutoCollapse"), legacySidebarAutoCollapse).toBool();
+        m_store.value(QStringLiteral("Workspace/RightSidebarAutoCollapse"),
+                      settings.rightSidebarAutoCollapse).toBool();
     settings.leftSidebarToggleVisible = m_store.value(QStringLiteral("Workspace/LeftSidebarToggleVisible"),
                                                      settings.leftSidebarToggleVisible).toBool();
     settings.rightSidebarToggleVisible = m_store.value(QStringLiteral("Workspace/RightSidebarToggleVisible"),
@@ -193,21 +214,15 @@ AppSettings app(QString settingsFile)
     settings.videoPaths = readVideoPaths(m_store.value(QStringLiteral("Paths/Videos")).toString());
     settings.update.lastAutoCheckWeek =
         m_store.value(QStringLiteral("Update/LastAutoCheckWeek")).toString().trimmed();
-    const QVariant checkAndNotify = m_store.value(QStringLiteral("Update/CheckAndNotify"));
-    if (checkAndNotify.isValid()) {
-        settings.update.checkAndNotify = checkAndNotify.toBool();
-    } else {
-        // Preserve the user's previous choice about showing update prompts.
-        settings.update.checkAndNotify =
-            m_store.value(QStringLiteral("Update/AutomaticCheck")).toBool()
-            && m_store.value(QStringLiteral("Update/UpdateNotification")).toBool();
-    }
+    settings.update.checkAndNotify =
+        m_store.value(QStringLiteral("Update/CheckAndNotify"),
+                      settings.update.checkAndNotify).toBool();
     return settings;
 }
 
 CrawlerSettings crawler(QString settingsFile)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
+    const QSettings m_store(resolvedSettingsFile(std::move(settingsFile)), QSettings::IniFormat);
     CrawlerSettings settings;
     settings.workApiBaseUrl = QUrl(normalizedUrl(
         m_store.value(QStringLiteral("Crawler/WorkApiBaseUrl"),
@@ -261,10 +276,8 @@ CrawlerSettings crawler(QString settingsFile)
 
 TranslationSettings translation(QString settingsFile)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
+    const QSettings m_store(resolvedSettingsFile(std::move(settingsFile)), QSettings::IniFormat);
     TranslationSettings settings;
-    settings.engine = normalizedEngine(
-        m_store.value(QStringLiteral("Translation/Engine"), settings.engine).toString());
     settings.model = m_store.value(QStringLiteral("Translation/Model")).toString().trimmed();
     settings.baseUrl = m_store.value(QStringLiteral("Translation/BaseUrl"), settings.baseUrl)
                            .toString()
@@ -322,10 +335,8 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("App/CustomPrimary"), settings.customPrimary},
         {QStringLiteral("App/CustomPrimaryOklch"), settings.customPrimaryOklch},
         {QStringLiteral("App/ColorMode"), settings.colorMode},
-        {QStringLiteral("window/first_lunch"), settings.firstLaunch},
+        {QStringLiteral("window/first_launch"), settings.firstLaunch},
         {QStringLiteral("window/maximized"), settings.maximized},
-        {QStringLiteral("window/size"), settings.windowSize},
-        {QStringLiteral("window/pos"), settings.windowPosition},
         {QStringLiteral("WorkPage/LargeCoverView"), settings.workLargeCoverView},
         {QStringLiteral("Workspace/NavigationBarVisible"), settings.navigationBarVisible},
         {QStringLiteral("Workspace/HiddenNavigationItems"), settings.hiddenNavigationItems},
@@ -343,7 +354,6 @@ void saveApp(const AppSettings &settings, QString settingsFile)
         {QStringLiteral("Update/LastAutoCheckWeek"), settings.update.lastAutoCheckWeek.trimmed()},
         {QStringLiteral("Update/CheckAndNotify"), settings.update.checkAndNotify},
     });
-    m_store.remove(QStringLiteral("App/GreenMode"));
 }
 
 void saveCrawler(const CrawlerSettings &settings, QString settingsFile)
@@ -378,7 +388,6 @@ void saveTranslation(const TranslationSettings &settings, QString settingsFile)
 {
     SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
     m_store.setValues({
-        {QStringLiteral("Translation/Engine"), normalizedEngine(settings.engine)},
         {QStringLiteral("Translation/Model"), settings.model.trimmed()},
         {QStringLiteral("Translation/BaseUrl"), settings.baseUrl.trimmed()},
         {QStringLiteral("Translation/ApiKey"), settings.apiKey.trimmed()},

@@ -29,7 +29,6 @@
 #include "darkeye_ui/components/MakerSelector.h"
 #include "darkeye_ui/components/MakerComboDelegate.h"
 #include "darkeye_ui/components/SearchBar.h"
-#include "darkeye_ui/components/Sidebar.h"
 #include "darkeye_ui/components/StateToggleButton.h"
 #include "darkeye_ui/components/TokenControls.h"
 #include "darkeye_ui/components/TokenViews.h"
@@ -102,8 +101,7 @@ private slots:
     void completerModalAndColorPickerKeepContract();
     void avatarsHeartAndChamferButtonKeepContract();
     void chartComponentsRenderCurrentData();
-    void navigationComponentsKeepSelectionContract();
-    void sidebarResolvesExternalIconBasePath();
+    void scrollMenuKeepsSelectionContract();
     void linkImageAndVerticalComponentsKeepContract();
     void avatarBatchRendering();
     void softShadowCacheSeparatesContours();
@@ -690,23 +688,8 @@ void ComponentLibraryTest::chartComponentsRenderCurrentData()
     QCOMPARE(radar.values().at(2), 0.3);
 }
 
-void ComponentLibraryTest::navigationComponentsKeepSelectionContract()
+void ComponentLibraryTest::scrollMenuKeepsSelectionContract()
 {
-    darkeye::ThemeService themes(*qApp);
-    darkeye::Sidebar sidebar(
-        {{QStringLiteral("work"), QStringLiteral("作品"), QStringLiteral("database")},
-         {QStringLiteral("person"), QStringLiteral("人物"), QStringLiteral("house")}},
-        &themes);
-    QCOMPARE(sidebar.selectedId(), QStringLiteral("work"));
-    QSignalSpy selection(&sidebar, &darkeye::Sidebar::selectionChanged);
-    sidebar.select(QStringLiteral("person"));
-    QCOMPARE(sidebar.selectedId(), QStringLiteral("person"));
-    QCOMPARE(selection.count(), 1);
-    sidebar.clearSelection();
-    QVERIFY(sidebar.selectedId().isEmpty());
-    sidebar.toggleMenu();
-    QVERIFY(sidebar.isExpanded());
-
     auto *general = new QWidget;
     auto *advanced = new QWidget;
     darkeye::ModernScrollMenu menu(
@@ -719,40 +702,6 @@ void ComponentLibraryTest::navigationComponentsKeepSelectionContract()
     menu.addSection(QStringLiteral("外观"), new QWidget);
     QCOMPARE(menu.sectionCount(), 3);
     QCOMPARE(menu.findChildren<QFrame *>(QStringLiteral("DesignScrollMenuSeparator")).size(), 2);
-
-    darkeye::Sidebar2 compact(
-        {{QStringLiteral("work"), QStringLiteral("作品"), QStringLiteral("database")},
-         {QStringLiteral("home"), QStringLiteral("首页"), QStringLiteral("house")}},
-        &themes);
-    QCOMPARE(compact.width(), 72);
-    QCOMPARE(compact.selectedId(), QStringLiteral("work"));
-    compact.select(QStringLiteral("home"));
-    QCOMPARE(compact.selectedId(), QStringLiteral("home"));
-}
-
-void ComponentLibraryTest::sidebarResolvesExternalIconBasePath()
-{
-    QTemporaryDir directory;
-    QVERIFY(directory.isValid());
-    const QString iconPath = directory.filePath(QStringLiteral("external.svg"));
-    QFile iconFile(iconPath);
-    QVERIFY(iconFile.open(QIODevice::WriteOnly | QIODevice::Text));
-    iconFile.write("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\">"
-                   "<path fill=\"currentColor\" d=\"M0 0h16v16H0z\"/></svg>");
-    iconFile.close();
-
-    darkeye::ThemeService themes(*qApp);
-    darkeye::Sidebar sidebar(
-        {{QStringLiteral("external"), QStringLiteral("外部图标"),
-          QStringLiteral("external.svg")}},
-        directory.path(), &themes);
-    const auto iconButtons = sidebar.findChildren<darkeye::IconButton *>();
-    const auto external = std::find_if(
-        iconButtons.cbegin(), iconButtons.cend(),
-        [](const darkeye::IconButton *button)
-        { return button->iconName() == QStringLiteral("external.svg"); });
-    QVERIFY(external != iconButtons.cend());
-    QVERIFY(!(*external)->icon().isNull());
 }
 
 void ComponentLibraryTest::linkImageAndVerticalComponentsKeepContract()

@@ -424,7 +424,8 @@ void AppPathsTest::initializesMissingSettingsFile()
     QVERIFY(QFileInfo::exists(settingsFile));
 
     QSettings ini(settingsFile, QSettings::IniFormat);
-    QCOMPARE(ini.value(QStringLiteral("window/size")).toSize(), QSize(800, 600));
+    QVERIFY(ini.value(QStringLiteral("window/first_launch")).toBool());
+    QVERIFY(!ini.contains(QStringLiteral("window/size")));
     QCOMPARE(ini.value(QStringLiteral("App/Theme")).toString(), QStringLiteral("LIGHT"));
     QCOMPARE(ini.value(QStringLiteral("Paths/Database")).toString(),
              QStringLiteral("public/public.db"));
@@ -432,8 +433,7 @@ void AppPathsTest::initializesMissingSettingsFile()
              QStringLiteral("http://127.0.0.1:56790/api/v1/work"));
     QCOMPARE(ini.value(QStringLiteral("WebDAV/RemoteRoot")).toString(),
              QStringLiteral("/darkeye"));
-    QCOMPARE(ini.value(QStringLiteral("Translation/Engine")).toString(),
-             QStringLiteral("llm"));
+    QVERIFY(!ini.contains(QStringLiteral("Translation/Engine")));
     QCOMPARE(ini.value(QStringLiteral("LlamaCpp/Mode")).toString(), QStringLiteral("cpu"));
 
     ini.setValue(QStringLiteral("App/Theme"), QStringLiteral("DARK"));
@@ -496,23 +496,42 @@ void AppPathsTest::migratesLegacyUpdatePreferences()
     QVERIFY(!darkeye::settings::app(settingsFile).update.checkAndNotify);
 
     QSettings legacy(settingsFile, QSettings::IniFormat);
-    legacy.setValue(QStringLiteral("Update/AutomaticCheck"), true);
-    legacy.setValue(QStringLiteral("Update/UpdateNotification"), false);
-    legacy.sync();
-    QVERIFY(!darkeye::settings::app(settingsFile).update.checkAndNotify);
+    for (const bool automatic : {false, true}) {
+        for (const bool notification : {false, true}) {
+            legacy.remove(QStringLiteral("Update/CheckAndNotify"));
+            legacy.setValue(QStringLiteral("Update/AutomaticCheck"), automatic);
+            legacy.setValue(QStringLiteral("Update/UpdateNotification"), notification);
+            legacy.sync();
+            QVERIFY(darkeye::settings::ensureDefaults(settingsFile));
+            QCOMPARE(darkeye::settings::app(settingsFile).update.checkAndNotify,
+                     automatic && notification);
+            legacy.sync();
+            QVERIFY(!legacy.contains(QStringLiteral("Update/AutomaticCheck")));
+            QVERIFY(!legacy.contains(QStringLiteral("Update/UpdateNotification")));
+        }
+    }
 
-    legacy.setValue(QStringLiteral("Update/AutomaticCheck"), false);
-    legacy.setValue(QStringLiteral("Update/UpdateNotification"), true);
+    legacy.setValue(QStringLiteral("window/first_lunch"), false);
+    legacy.setValue(QStringLiteral("window/size"), QSize(1440, 900));
+    legacy.setValue(QStringLiteral("Paths/Temp"), QStringLiteral("old-temp"));
+    legacy.setValue(QStringLiteral("Translation/Engine"), QStringLiteral("obsolete"));
     legacy.sync();
-    QVERIFY(!darkeye::settings::app(settingsFile).update.checkAndNotify);
-
-    legacy.setValue(QStringLiteral("Update/AutomaticCheck"), true);
-    legacy.sync();
+    QVERIFY(darkeye::settings::ensureDefaults(settingsFile));
     auto settings = darkeye::settings::app(settingsFile);
     QVERIFY(settings.update.checkAndNotify);
+    QVERIFY(!settings.firstLaunch);
+    legacy.sync();
+    QVERIFY(!legacy.contains(QStringLiteral("window/first_lunch")));
+    QVERIFY(!legacy.contains(QStringLiteral("window/size")));
+    QVERIFY(!legacy.contains(QStringLiteral("Paths/Temp")));
+    QVERIFY(!legacy.contains(QStringLiteral("Translation/Engine")));
 
     settings.update.checkAndNotify = false;
     darkeye::settings::saveApp(settings, settingsFile);
+    legacy.setValue(QStringLiteral("Update/AutomaticCheck"), true);
+    legacy.setValue(QStringLiteral("Update/UpdateNotification"), true);
+    legacy.sync();
+    QVERIFY(darkeye::settings::ensureDefaults(settingsFile));
     QVERIFY(!darkeye::settings::app(settingsFile).update.checkAndNotify);
 }
 
@@ -527,11 +546,9 @@ void AppPathsTest::readsAndWritesTypedSettings()
     darkeye::AppSettings app = darkeye::settings::app(settingsFile);
     QCOMPARE(app.themeId, QStringLiteral("LIGHT"));
     QVERIFY(app.firstLaunch);
-    QCOMPARE(app.windowSize, QSize(800, 600));
     app.themeId = QStringLiteral("DARK");
     app.customPrimary = QStringLiteral("#123456");
     app.firstLaunch = false;
-    app.windowSize = QSize(1440, 900);
     app.videoPaths = {QStringLiteral(" C:/Videos "), QStringLiteral("."), QString()};
     darkeye::settings::saveApp(app, settingsFile);
 
@@ -539,7 +556,6 @@ void AppPathsTest::readsAndWritesTypedSettings()
     QCOMPARE(loadedApp.themeId, QStringLiteral("DARK"));
     QCOMPARE(loadedApp.customPrimary, QStringLiteral("#123456"));
     QVERIFY(!loadedApp.firstLaunch);
-    QCOMPARE(loadedApp.windowSize, QSize(1440, 900));
     QCOMPARE(loadedApp.videoPaths, QStringList{QStringLiteral("C:/Videos")});
 
     darkeye::CrawlerSettings crawler = darkeye::settings::crawler(settingsFile);
@@ -554,7 +570,6 @@ void AppPathsTest::readsAndWritesTypedSettings()
     QCOMPARE(loadedCrawler.webDav.remoteRoot, QStringLiteral("/darkeye/backups"));
 
     darkeye::TranslationSettings translation = darkeye::settings::translation(settingsFile);
-    QCOMPARE(translation.engine, QStringLiteral("llm"));
     QCOMPARE(translation.timeoutSeconds, 12);
     QCOMPARE(translation.retries, 2);
     QCOMPARE(translation.llama.mode, QStringLiteral("cpu"));

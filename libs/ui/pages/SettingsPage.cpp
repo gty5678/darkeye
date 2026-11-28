@@ -1177,11 +1177,6 @@ void TranslationSettingsPage::lazyLoad()
         return control;
     };
 
-    m_engine = new DesignComboBox(this);
-    m_engine->addItem(QStringLiteral("LLM（llama.cpp / OpenAI 兼容）"), QStringLiteral("llm"));
-    m_engine->setCurrentIndex(m_engine->findData(values.engine.trimmed().toLower()));
-    if (m_engine->currentIndex() < 0) m_engine->setCurrentIndex(0);
-    form->addRow(new DesignLabel(QStringLiteral("翻译引擎"), this), m_engine);
     const auto line = [this](QFormLayout *target, const QString &label, const QString &value,
                              QLineEdit **field) {
         *field = new DesignLineEdit(this);
@@ -1330,8 +1325,6 @@ void TranslationSettingsPage::lazyLoad()
 
     connect(m_fallback, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [this](int) { save(); });
-    connect(m_engine, qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this](int) { save(); updateLlmFields(); });
     connect(m_mode, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [this](int) { updateModeFields(); save(); });
     connect(m_llamaPreset, qOverload<int>(&QComboBox::currentIndexChanged), this,
@@ -1364,7 +1357,6 @@ void TranslationSettingsPage::lazyLoad()
             [this](bool) { updateLlamaRunButtons(); });
     setLlamaStatus(runtime.status());
     appendLlamaLog(runtime.logs().join(u'\n'));
-    updateLlmFields();
     updateModeFields();
     updateCommandPreview();
     updateLlamaRunButtons();
@@ -1373,7 +1365,6 @@ void TranslationSettingsPage::lazyLoad()
 void TranslationSettingsPage::save()
 {
     TranslationSettings values = settings::translation();
-    values.engine = m_engine->currentData().toString();
     values.model = m_model->text().trimmed();
     values.baseUrl = m_baseUrl->text().trimmed();
     values.apiKey = m_apiKey->text();
@@ -1395,13 +1386,6 @@ void TranslationSettingsPage::save()
     values.llama.autoSyncTranslation = m_autoSync->isChecked();
     values.llama.autoStart = m_autoStart->isChecked();
     settings::saveTranslation(values);
-}
-
-void TranslationSettingsPage::updateLlmFields()
-{
-    m_model->setEnabled(true);
-    m_baseUrl->setEnabled(true);
-    m_apiKey->setEnabled(true);
 }
 
 void TranslationSettingsPage::updateModeFields()

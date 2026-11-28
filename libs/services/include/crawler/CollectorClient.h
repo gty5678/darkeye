@@ -30,13 +30,8 @@ public:
     [[nodiscard]] quint64 fetchActress(const QString &japaneseName, const QString &minnanoUrl = {});
     [[nodiscard]] quint64 fetchTopActresses();
     bool cancel(quint64 requestId);
-    void cancelAll();
-    void setTimeoutMilliseconds(int timeoutMilliseconds);
-    [[nodiscard]] int timeoutMilliseconds() const noexcept;
-    [[nodiscard]] bool isBusy() const noexcept;
 
 signals:
-    void requestStarted(quint64 requestId, darkeye::CollectorRequestKind kind);
     void requestFinished(quint64 requestId, darkeye::CollectorRequestKind kind, bool succeeded,
                          const QJsonObject &payload, const QString &errorMessage, int httpStatus);
 

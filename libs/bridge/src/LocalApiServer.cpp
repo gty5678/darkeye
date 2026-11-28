@@ -204,12 +204,8 @@ public:
         QHttpServerResponse error(QHttpServerResponse::StatusCode::BadRequest);
         const auto body = objectBody(request, &error);
         if (!body.has_value()) return error;
-        QJsonObject payload;
-        for (const QString &key : {QStringLiteral("site"), QStringLiteral("phase"),
-                                   QStringLiteral("url"), QStringLiteral("serial"),
-                                   QStringLiteral("merge_request_id")})
-            payload.insert(key, trimmedString(*body, key));
-        emit owner->cloudflareChallengeReceived(payload);
+        emit owner->cloudflareChallengeReceived(trimmedString(*body, QStringLiteral("site")),
+                                                trimmedString(*body, QStringLiteral("serial")));
         return jsonResponse({{QStringLiteral("status"), QStringLiteral("success")},
                              {QStringLiteral("message"), QStringLiteral("notified")}});
     }

@@ -1,9 +1,7 @@
 #pragma once
 
-#include <QPoint>
 #include <QString>
 #include <QStringList>
-#include <QSize>
 #include <QUrl>
 
 namespace darkeye
@@ -24,8 +22,6 @@ struct AppSettings final
 
     bool firstLaunch = true;
     bool maximized = false;
-    QSize windowSize{800, 600};
-    QPoint windowPosition{100, 100};
 
     bool navigationBarVisible = true;
     QStringList hiddenNavigationItems;
@@ -87,7 +83,6 @@ struct LlamaCppSettings final
 
 struct TranslationSettings final
 {
-    QString engine = QStringLiteral("llm");
     QString model;
     QString baseUrl;
     QString apiKey;

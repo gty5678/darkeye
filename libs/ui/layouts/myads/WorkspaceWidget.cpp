@@ -1171,12 +1171,9 @@ bool WorkspaceWidget::saveLayout(const QString &path, const ContentDescriptor &d
             m_leftWidthRatio != DefaultSidebarWidthRatio || m_rightWidthRatio != DefaultSidebarWidthRatio) {
             ids.append(leftIds);
             ids.append(rightIds);
-            const auto saveSidebar = [](const Sidebar &sidebar, const QList<QString> &sidebarIds) {
-                return sidebarIds.size() == 1 ? QJsonValue(sidebarIds.first()) : QJsonValue(sidebar.tree.toJson());
-            };
             documentData.insert(QStringLiteral("sidebars"),
-                QJsonObject{{QStringLiteral("left"), saveSidebar(m_leftSidebar, leftIds)},
-                            {QStringLiteral("right"), saveSidebar(m_rightSidebar, rightIds)},
+                QJsonObject{{QStringLiteral("left"), m_leftSidebar.tree.toJson()},
+                            {QStringLiteral("right"), m_rightSidebar.tree.toJson()},
                             {QStringLiteral("left_width_ratio"), m_leftWidthRatio},
                             {QStringLiteral("right_width_ratio"), m_rightWidthRatio}});
         }
@@ -1248,6 +1245,7 @@ bool WorkspaceWidget::restoreLayout(const QJsonObject &documentData, const Conte
         };
         if (documentData.contains(QStringLiteral("sidebars"))) {
             const auto readSidebar = [&paneIds](const QJsonValue &value) {
+                // Previously saved single-pane sidebars used a bare pane ID.
                 LayoutTree tree = value.isString() ? singleSidebarPane(value.toString())
                                                    : LayoutTree::fromJson(value.toObject());
                 if (!isVerticalSidebarTree(tree.root()))

@@ -13,6 +13,7 @@ namespace darkeye
 {
 
 class CollectorClient;
+enum class CollectorRequestKind;
 
 enum class CrawlWorkflowState
 {
@@ -57,13 +58,12 @@ signals:
                      const QSet<QString> &selectedFields, bool withGui);
     void workFailed(const QString &serialNumber, const QString &errorMessage);
 
-private slots:
+private:
     void onScheduleTimeout();
-    void onCollectorFinished(quint64 requestId, int kind, bool succeeded,
+    void onCollectorFinished(quint64 requestId, CollectorRequestKind kind, bool succeeded,
                              const QJsonObject &payload, const QString &errorMessage,
                              int httpStatus);
 
-private:
     struct QueueItem final
     {
         QString serialNumber;

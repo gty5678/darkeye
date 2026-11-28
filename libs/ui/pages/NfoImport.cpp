@@ -276,7 +276,12 @@ bool importNfo(QSqlDatabase database, const QString &path, bool mdcz, const sett
     const auto parsed = parseNfo(path, mdcz, message); if (!parsed) return false;
     WorkRepository works(database); if (works.findIdBySerial(parsed->serial)) { *message = QStringLiteral("番号「%1」已在库中，已跳过导入。").arg(parsed->serial); return false; }
     ReferenceRepository references(database); PersonRepository people(database);
-    const auto resolveReference = [&references](ReferenceKind kind, const QString &name) { if (name.isEmpty()) return std::optional<qint64>{}; const auto existing = references.findByName(kind, name); return existing ? existing : references.create(kind, name); };
+    const auto resolveReference = [&references](ReferenceKind kind, const QString &name) {
+        if (name.isEmpty()) return std::optional<qint64>{};
+        const auto existing = references.findByName(kind, name);
+        return existing ? existing
+                        : references.create({.kind = kind, .chineseName = name, .japaneseName = name});
+    };
     Work work; work.serialNumber = parsed->serial; work.japaneseTitle = parsed->title; work.japaneseStory = parsed->plot; work.director = parsed->director.isEmpty() ? QStringLiteral("----") : parsed->director; work.releaseDate = parsed->releaseDate; work.notes = parsed->notes; work.runtime = parsed->runtime;
     const QStringList studioParts = parsed->studio.split(u'/', Qt::SkipEmptyParts); if (!studioParts.isEmpty()) work.makerId = resolveReference(ReferenceKind::Maker, studioParts.first().trimmed()); if (studioParts.size() > 1) work.labelId = resolveReference(ReferenceKind::Label, studioParts.at(1).trimmed()); work.seriesId = resolveReference(ReferenceKind::Series, mdcz ? parsed->series : (parsed->tags.isEmpty() ? QString{} : parsed->tags.first()));
     QList<qint64> actressIds, actorIds, tagIds; const QSet<QString> maleNames = mdcz ? QSet<QString>{} : maleActorNames(paths);
@@ -299,7 +304,18 @@ bool importNfo(QSqlDatabase database, const QString &path, bool mdcz, const sett
         }
     }
     const QList<TagOption> existingTags = works.tagOptions(); QStringList tagNames = parsed->genres; if (mdcz) tagNames.append(parsed->tags);
-    for (const QString &name : std::as_const(tagNames)) { if (name.isEmpty()) continue; std::optional<qint64> tagId; for (const TagOption &tag : existingTags) if (tag.name == name) { tagId = tag.id; break; } if (!tagId) tagId = references.createTag(name, 11, QStringLiteral("#cccccc"), {}); if (tagId && !tagIds.contains(*tagId)) tagIds.append(*tagId); }
+    for (const QString &name : std::as_const(tagNames)) {
+        if (name.isEmpty()) continue;
+        std::optional<qint64> tagId;
+        for (const TagOption &tag : existingTags) {
+            if (tag.name == name) {
+                tagId = tag.id;
+                break;
+            }
+        }
+        if (!tagId) tagId = references.createTag({.name = name, .typeId = 11});
+        if (tagId && !tagIds.contains(*tagId)) tagIds.append(*tagId);
+    }
     const QString cover = mdcz ? QDir(QFileInfo(path).absolutePath()).filePath(QStringLiteral("fanart.jpg")) : pickCover(*parsed); const QString localCover = isRemoteImage(cover) ? QString{} : resolveLocalImage(cover); if (!cover.isEmpty() && (isRemoteImage(cover) || !localCover.isEmpty())) { const QString destination = QDir(paths.workCoverDirectory()).filePath(parsed->serial + QStringLiteral(".jpg")); if ((isRemoteImage(cover) ? downloadImageAsJpeg(cover, destination) : saveImageAsJpeg(localCover, destination))) work.imageUrl = QFileInfo(destination).fileName(); }
     QList<ParsedNfo::Fanart> fanart = parsed->fanart;
     if (mdcz) fanart = migrateMdczFanart(fanart, path, paths);

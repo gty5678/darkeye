@@ -23,7 +23,7 @@ private slots:
     void textFilesAndImageMseMatchPythonContract();
     void titleTagMappingMatchesPythonCrawlerContract();
     void csvExportsQuoteFieldsAndPreserveUtf8();
-    void updateManifestMatchesPythonVersionRules();
+    void updateManifestRequiresNumericVersions();
 };
 
 void UtilsCompatibilityTest::generalFunctionsMatchPythonBoundaries()
@@ -202,15 +202,17 @@ void UtilsCompatibilityTest::csvExportsQuoteFieldsAndPreserveUtf8()
     QCOMPARE(QString::fromUtf8(sqlOutput.readAll()), QStringLiteral("id,name\n1,中文\n"));
 }
 
-void UtilsCompatibilityTest::updateManifestMatchesPythonVersionRules()
+void UtilsCompatibilityTest::updateManifestRequiresNumericVersions()
 {
     QCOMPARE(darkeye::utils::parseVersion(QStringLiteral("v1.2.3")).value(),
              QList<int>({1, 2, 3}));
     QVERIFY(!darkeye::utils::parseVersion(QStringLiteral("1.beta")).has_value());
     QVERIFY(darkeye::utils::isNewerVersion(QStringLiteral("1.2.0"), QStringLiteral("1.1.9")));
     QVERIFY(!darkeye::utils::isNewerVersion(QStringLiteral("1.0"), QStringLiteral("1.0.0")));
-    QVERIFY(darkeye::utils::isNewerVersion(QStringLiteral("1.0.0"), QStringLiteral("1.0")));
-    QVERIFY(darkeye::utils::isNewerVersion(QStringLiteral("nightly"), QStringLiteral("stable")));
+    QVERIFY(!darkeye::utils::isNewerVersion(QStringLiteral("1.0.0"), QStringLiteral("1.0")));
+    QVERIFY(!darkeye::utils::isNewerVersion(QStringLiteral("nightly"), QStringLiteral("stable")));
+    QVERIFY(!darkeye::utils::parseVersion(QStringLiteral("1..2")));
+    QVERIFY(!darkeye::utils::parseVersion(QStringLiteral("1.-2")));
 
     const QByteArray manifest = QString::fromUtf8(
         R"({"latestVersion":"1.1.0","releaseNotes":"修复问题","packages":{"%1":{"url":"https://example.test/app.zip","sha256":"%2"}}})")
@@ -224,6 +226,9 @@ void UtilsCompatibilityTest::updateManifestMatchesPythonVersionRules()
     const auto current = darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.1.0"), manifest);
     QVERIFY(current.success);
     QVERIFY(!current.updateAvailable);
+    QByteArray invalidVersion = manifest;
+    invalidVersion.replace("1.1.0", "nightly");
+    QVERIFY(!darkeye::utils::evaluateUpdateManifest(QStringLiteral("1.0.0"), invalidVersion).success);
     for (const QByteArray &invalid : {
             QByteArray(R"({"latestVersion":"1.1.0","package":{"url":"https://example.test/old.zip"}})"),
             QByteArray(R"({"latestVersion":"1.1.0","packages":{"other-target":{}}})"),

@@ -31,7 +31,7 @@ std::shared_ptr<const ModelAsset> model()
 {
     GltfLoader loader;
     return loader.load(QStringLiteral(DARKEYE_DVD_SOURCE_DIR)
-        +QStringLiteral("/apps/render3d_demo/assets/dvd-case.glb")).asset;
+        +QStringLiteral("/tests/fixtures/render3d/dvd-case.glb")).asset;
 }
 }
 

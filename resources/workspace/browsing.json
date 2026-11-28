@@ -10,7 +10,11 @@
         ]
     },
     "sidebars": {
-        "left": "MyAdsLeftSidebar",
+        "left": {
+            "type": "split",
+            "orientation": "vertical",
+            "children": [{ "type": "pane", "pane_id": "MyAdsLeftSidebar" }]
+        },
         "right": {
             "type": "split",
             "orientation": "vertical",

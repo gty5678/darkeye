@@ -25,7 +25,6 @@ class QComboBox;
 class QLabel;
 class QJsonObject;
 class QPushButton;
-class QStackedWidget;
 class QTimer;
 
 namespace darkeye
@@ -34,7 +33,6 @@ namespace darkeye
 namespace myads { struct ContentConfig; class PaneWidget; class WorkspaceWidget; }
 class WorkspaceSearch;
 class SettingsDialog;
-class Sidebar;
 class HomePage;
 class ActressWorkTimeline;
 class PersonDetailPage;
@@ -92,8 +90,7 @@ private:
     void updateNativeTitleBarColors();
 #endif
     void registerPage(const QString &menuTitle, const QString &routeName, const QString &icon = {});
-    QWidget *createPage(const QString &menuTitle, const QString &routeName,
-                        QWidget *parent);
+    QWidget *createPage(const QString &routeName, QWidget *parent);
     QWidget *ensurePage(const QString &routeName, qint64 switchActressId = 0);
     QMap<QString, QString> workspaceCommandPages() const;
     void ensureSettingsDialog();
@@ -132,7 +129,6 @@ private:
     void openWorkspaceSearchResult(const QString &route);
     [[nodiscard]] QWidget *partialCaptureTarget();
     void captureWidget(QWidget *widget);
-    void attachLocalApi(LocalApiServer &api);
     void startNextActressSync();
     void enqueueActressSyncs(const QList<qint64> &actressIds);
 

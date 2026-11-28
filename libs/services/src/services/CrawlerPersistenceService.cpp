@@ -49,7 +49,8 @@ std::optional<qint64> ensureReference(ReferenceRepository &repository, Reference
         return std::nullopt;
     std::optional<qint64> id = repository.findByName(kind, trimmed, errorMessage);
     if (!id.has_value() && (errorMessage == nullptr || errorMessage->isEmpty()))
-        id = repository.create(kind, trimmed, errorMessage);
+        id = repository.create(
+            {.kind = kind, .chineseName = trimmed, .japaneseName = trimmed}, errorMessage);
     return id;
 }
 
@@ -88,7 +89,7 @@ QList<qint64> ensureTags(ReferenceRepository &repository, const QStringList &nam
         if (found != records.cend())
             id = found->id;
         else
-            id = repository.createTag(name, std::nullopt, {}, {}, errorMessage);
+            id = repository.createTag({.name = name}, errorMessage);
         if (!id.has_value())
             return {};
         ids.append(*id);

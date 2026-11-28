@@ -69,8 +69,6 @@ public:
 
     [[nodiscard]] QList<ReferenceRecord> list(ReferenceKind kind,
                                               QString *errorMessage = nullptr) const;
-    std::optional<qint64> create(ReferenceKind kind, const QString &name,
-                                 QString *errorMessage = nullptr);
     std::optional<qint64> create(const ReferenceRecord &record, QString *errorMessage = nullptr);
     bool update(const ReferenceRecord &record, QString *errorMessage = nullptr);
     bool remove(ReferenceKind kind, qint64 id, QString *errorMessage = nullptr);
@@ -80,9 +78,6 @@ public:
     [[nodiscard]] QList<TagRecord> listTags(QString *errorMessage = nullptr) const;
     [[nodiscard]] QList<TagTypeRecord> listTagTypes(QString *errorMessage = nullptr) const;
     std::optional<qint64> createTag(const TagRecord &record, QString *errorMessage = nullptr);
-    std::optional<qint64> createTag(const QString &name, std::optional<qint64> typeId,
-                                    const QString &color, const QString &detail,
-                                    QString *errorMessage = nullptr);
     bool updateTag(const TagRecord &record, QString *errorMessage = nullptr);
     bool updateTagColors(const QList<qint64> &tagIds, const QString &color,
                          QString *errorMessage = nullptr);

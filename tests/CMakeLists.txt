@@ -58,6 +58,7 @@ darkeye_add_test_suite(darkeye_database_tests
         integration/WebDavTimeoutTest.cpp
         integration/WorkRepositoryTest.cpp
         integration/PrivateRepositoryTest.cpp)
+target_sources(darkeye_database_tests PRIVATE support/LegacySchemaFixtures.qrc)
 if(WIN32)
     target_link_libraries(darkeye_database_tests PRIVATE Advapi32)
 endif()
@@ -79,7 +80,8 @@ set_tests_properties(darkeye_webdav_timeout_tests PROPERTIES TIMEOUT 60)
 
 darkeye_add_test_executable(darkeye_schema_snapshot_dump support/SchemaSnapshotDump.cpp)
 target_link_libraries(darkeye_schema_snapshot_dump PRIVATE darkeye::database)
-darkeye_add_test_executable(darkeye_fixture_database_builder support/FixtureDatabaseBuilder.cpp)
+darkeye_add_test_executable(darkeye_fixture_database_builder
+    support/FixtureDatabaseBuilder.cpp support/LegacySchemaFixtures.qrc)
 target_compile_definitions(darkeye_fixture_database_builder PRIVATE DARKEYE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(darkeye_fixture_database_builder PRIVATE darkeye::database)
 set(database_fixture_dir "${CMAKE_CURRENT_BINARY_DIR}/fixtures/databases")
@@ -107,6 +109,10 @@ darkeye_register_test(darkeye_collector_client_tests darkeye_services_tests Coll
 darkeye_register_test(darkeye_public_repository_tests darkeye_services_tests PublicRepositoryTest)
 darkeye_register_test(darkeye_llm_translation_tests darkeye_services_tests LlmTranslationServiceTest)
 darkeye_register_test(darkeye_translation_settings_timing_tests darkeye_services_tests TranslationSettingsTimingTest)
+
+darkeye_add_test_executable(darkeye_local_api_tests integration/LocalApiServerTest.cpp)
+target_link_libraries(darkeye_local_api_tests PRIVATE darkeye::bridge Qt6::Network Qt6::Test)
+darkeye_register_test(darkeye_local_api_tests darkeye_local_api_tests)
 
 darkeye_add_test_executable(darkeye_workspace_tests unit/MyAdsTest.cpp)
 target_link_libraries(darkeye_workspace_tests PRIVATE darkeye::docking Qt6::Test)

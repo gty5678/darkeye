@@ -210,7 +210,6 @@ public:
 private:
     void lazyLoad() override;
     void save();
-    void updateLlmFields();
     void updateModeFields();
     void browseServerExecutable();
     void browseModel();
@@ -226,7 +225,6 @@ private:
     void updateLlamaRunButtons();
 
     ThemeService &m_themeService;
-    QComboBox *m_engine = nullptr;
     QLineEdit *m_model = nullptr;
     QLineEdit *m_baseUrl = nullptr;
     QLineEdit *m_apiKey = nullptr;

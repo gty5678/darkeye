@@ -83,10 +83,11 @@ DataDirectory=../data
 | 7-Zip | 生成并校验便携压缩包 | PATH 中的 `7zz` / `7z` / `7za`，或常见 Program Files 下的 `7-Zip/7z.exe` |
 | Inno Setup | 编译 Windows 安装程序 | `ISCC.exe`，安装脚本为 `tools/installer.iss` |
 
-Windows 预设固定使用 `C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6`；Qt 安装在其他位置时请修改预设或通过 CMake 的 `-DQt6_DIR=...` 覆盖。先在终端设置 `VCPKG_ROOT`，例如：
+在终端中设置 `Qt6_DIR` 和 `VCPKG_ROOT`，并按本机安装位置调整路径。`Qt6_DIR` 指向包含 `Qt6Config.cmake` 的目录。
 
 ```powershell
 $env:VCPKG_ROOT = "C:/src/vcpkg"
+$env:Qt6_DIR = "C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6"
 ```
 
 本机已安装 Inno Setup 6.7.3，安装目录为 `C:/Program Files (x86)/Inno Setup 6/`，编译器完整路径为 `C:/Program Files (x86)/Inno Setup 6/ISCC.exe`。当前打包脚本可以自动找到该路径，无需额外配置。建议将 Inno Setup 安装在项目外的固定目录，避免清理 `out/` 时一并删除编译器及其配套文件。

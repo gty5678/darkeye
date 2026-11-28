@@ -1,4 +1,5 @@
 #include "darkeye_ui/components/OctImage.h"
+#include "darkeye_ui/UiResources.h"
 #include "darkeye_ui/components/SoftShadow.h"
 
 #include <QDir>
@@ -10,20 +11,9 @@
 #include <QPainter>
 #include <QMetaObject>
 #include <QPointer>
-#include <QResource>
 #include <QThreadPool>
 
 #include <cmath>
-
-// Q_INIT_RESOURCE must declare the generated symbol in the global namespace.
-static void ensureFallbackImageResourceInitialized()
-{
-    static const bool initialized = [] {
-        Q_INIT_RESOURCE(darkeye_ui_resources);
-        return true;
-    }();
-    Q_UNUSED(initialized);
-}
 
 namespace darkeye {
 
@@ -107,7 +97,7 @@ void OctImage::setImageActive(bool active)
 
 void OctImage::updateImage(const QString &imagePath)
 {
-    ensureFallbackImageResourceInitialized();
+    initializeUiResources();
     m_source = resolvedPath(imagePath);
     if (m_source.isEmpty() || !QFileInfo::exists(m_source)) {
         m_source = QString::fromLatin1(kAnonymousImagePath);

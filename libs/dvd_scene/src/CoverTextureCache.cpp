@@ -1,24 +1,18 @@
 #include "dvd_scene/CoverTextureCache.h"
+#include "DvdSceneResources.h"
 #include <QDateTime>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QMetaObject>
 #include <QPointer>
 #include <QRunnable>
-#include <QResource>
 #include <QThread>
 #include <algorithm>
-
-static void initializeDvdDefaults()
-{
-    static const bool initialized=[] { Q_INIT_RESOURCE(dvd_scene_defaults); return true; }();
-    Q_UNUSED(initialized);
-}
 
 namespace darkeye::dvd_scene {
 CoverTextureCache::CoverTextureCache(QObject *parent):QObject(parent)
 {
-    initializeDvdDefaults();
+    initializeSceneResources();
     // Match card loading concurrency on smaller machines, while bounding
     // decoded RGBA buffers and GPU upload pressure on many-core systems.
     m_pool.setMaxThreadCount(std::clamp(QThread::idealThreadCount(), 2, 8));

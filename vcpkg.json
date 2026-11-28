@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "darkeye-cpp",
-  "version-string": "1.2.5",
+  "version-string": "1.2.6",
   "vcpkg-configuration": {
     "overlay-ports": ["cmake/vcpkg-ports"],
     "overlay-triplets": ["cmake/vcpkg-triplets"]

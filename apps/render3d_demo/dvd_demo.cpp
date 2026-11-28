@@ -251,7 +251,7 @@ public:
         m_statsTimer.start();
 
         GltfLoader loader;
-        const auto model=darkeye::dvd_scene::loadDvdModel(loader,QStringLiteral(":/dvd_scene_demo/dvd.glb"));
+        const auto model=darkeye::dvd_scene::loadDvdModel(loader);
         if(!model || !m_view->setModel(model.asset)) {
             m_error->setText(model.error);
             m_modelReady=false;

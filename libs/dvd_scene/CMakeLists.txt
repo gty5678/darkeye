@@ -10,12 +10,16 @@ qt_add_library(darkeye_dvd_scene STATIC
     src/DvdCaseFactory.cpp
     src/CoverTextureCache.cpp
     src/DvdInteractionController.cpp
+    src/DvdSceneResources.h
+    src/DvdSceneResources.cpp
     src/DvdSceneWidget.cpp
 )
 add_library(darkeye::dvd_scene ALIAS darkeye_dvd_scene)
+set(dvd_model "${CMAKE_CURRENT_SOURCE_DIR}/../dvd/dvd.glb")
+set_source_files_properties("${dvd_model}" PROPERTIES QT_RESOURCE_ALIAS "dvd.glb")
 qt_add_resources(darkeye_dvd_scene dvd_scene_defaults
     PREFIX "/dvd_scene" BASE "${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
-    FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../resources/maps/0.png")
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../resources/maps/0.png" "${dvd_model}")
 target_include_directories(darkeye_dvd_scene PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(darkeye_dvd_scene PUBLIC darkeye::render3d)

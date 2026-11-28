@@ -1,5 +1,6 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "ChamferStyle.h"
+#include "darkeye_ui/UiResources.h"
 #include "darkeye_ui/theme/StylesheetLoader.h"
 
 #include <QApplication>
@@ -9,7 +10,6 @@
 #include <QPalette>
 #include <QPainter>
 #include <QProxyStyle>
-#include <QResource>
 #include <QRegularExpression>
 #include <QStringView>
 #include <QStyleOption>
@@ -17,13 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <mutex>
 #include <utility>
-
-void initializeDarkeyeUiResourceCollection()
-{
-    Q_INIT_RESOURCE(darkeye_ui_resources);
-}
 
 namespace darkeye {
 namespace {
@@ -357,8 +351,7 @@ namespace {
 
 QString loadStyleSheetTemplate()
 {
-    static std::once_flag resourceInitialization;
-    std::call_once(resourceInitialization, initializeDarkeyeUiResourceCollection);
+    initializeUiResources();
     QFile styleFile(QStringLiteral(":/styles/theme.qss"));
     if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "Cannot load theme resource";

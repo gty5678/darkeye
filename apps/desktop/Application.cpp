@@ -175,7 +175,7 @@ void Application::showMainWindowWithGraphicsPrewarm()
     auto *dvdPrewarm = new dvd_scene::DvdSceneWidget(prewarm.get());
     dvdPrewarm->setFixedHeight(48);
     render3d::GltfLoader loader;
-    const auto model=dvd_scene::loadDvdModel(loader,QStringLiteral(":/assets/dvd/dvd.glb"));
+    const auto model=dvd_scene::loadDvdModel(loader);
     if(model && dvdPrewarm->setModel(model.asset))
         dvdPrewarm->setItems({{QStringLiteral("prewarm"),{},QStringLiteral("DVD"),0,false}});
     layout->addWidget(dvdPrewarm);

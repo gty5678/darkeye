@@ -6,6 +6,7 @@
 #include "database/repositories/PrivateRepository.h"
 #include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/ToastNotification.h"
+#include "darkeye_ui/theme/IconProvider.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "settings/Settings.h"
 #include "ui/components/FanartStripWidget.h"
@@ -150,22 +151,25 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     tools->setContentsMargins(0,0,0,0); tools->setSpacing(8);
     const auto tool=[&](const QString &name,const QString &icon,const QString &tip,auto handler) {
         auto *button=new QToolButton(m_coverActions); button->setObjectName(name);
-        button->setFixedSize(40,40); button->setIcon(QIcon(icon)); button->setIconSize(QSize(26,26));
+        button->setFixedSize(40,40); button->setIconSize(QSize(26,26));
+        button->setIcon(IconProvider::builtIn(icon, button->iconSize(), QColor(QStringLiteral("#888888")),
+                                            button->devicePixelRatioF()));
         button->setToolTip(tip);
         button->setStyleSheet("QToolButton { background:transparent;border:0;border-radius:6px; } QToolButton:hover { background:rgba(255,255,255,100); }");
         connect(button,&QToolButton::clicked,this,handler); tools->addWidget(button); return button;
     };
-    m_coverFavorite=tool("ShelfCoverFavorite",":/icons/dvd/love-off.svg",QStringLiteral("收藏"),[this]{on_heart_clicked(selectedIndex());});
-    tool("ShelfCoverEdit",":/icons/dvd/square-pen.svg",QStringLiteral("编辑"),[this]{on_edit_clicked(selectedIndex());});
-    tool("ShelfCoverDelete",":/icons/dvd/trash-2.svg",QStringLiteral("删除"),[this]{on_delete_clicked(selectedIndex());});
+    m_coverFavorite=tool("ShelfCoverFavorite","love_off",QStringLiteral("收藏"),[this]{on_heart_clicked(selectedIndex());});
+    tool("ShelfCoverEdit","square_pen",QStringLiteral("编辑"),[this]{on_edit_clicked(selectedIndex());});
+    tool("ShelfCoverDelete","trash_2",QStringLiteral("删除"),[this]{on_delete_clicked(selectedIndex());});
     m_coverActions->setFixedSize(40,136); m_coverActions->hide();
     const auto navigationButton = [this](const QString &name, const QString &icon,
                                          const QString &label, int step) {
         auto *button = new QToolButton(this);
         button->setObjectName(name);
         button->setFixedSize(36, 36);
-        button->setIcon(QIcon(icon));
         button->setIconSize(QSize(20, 20));
+        button->setIcon(IconProvider::builtIn(icon, button->iconSize(), Qt::white,
+                                            button->devicePixelRatioF()));
         button->setAccessibleName(label);
         button->setToolTip(label);
         button->setCursor(Qt::PointingHandCursor);
@@ -181,9 +185,9 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
         return button;
     };
     m_previousWork = navigationButton(QStringLiteral("ShelfPreviousWork"),
-        QStringLiteral(":/icons/dvd/chevron-left.svg"), QStringLiteral("上一部"), -1);
+        QStringLiteral("chevron_left"), QStringLiteral("上一部"), -1);
     m_nextWork = navigationButton(QStringLiteral("ShelfNextWork"),
-        QStringLiteral(":/icons/dvd/chevron-right.svg"), QStringLiteral("下一部"), 1);
+        QStringLiteral("chevron_right"), QStringLiteral("下一部"), 1);
     connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::updateCoverInfo);
     connect(this,&DvdShelfView::expandedWorkMetaChanged,this,&DvdShelfView::layoutOverlays);
     connect(m_scene,&dvd_scene::DvdSceneWidget::presentationChanged,this,&DvdShelfView::layoutOverlays);
@@ -280,7 +284,7 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     connect(m_fanartStrip, &FanartStripWidget::fanartChanged,
             this, &DvdShelfView::persistFanartPreview);
     render3d::GltfLoader loader;
-    const auto model=dvd_scene::loadDvdModel(loader,QStringLiteral(":/assets/dvd/dvd.glb"));
+    const auto model=dvd_scene::loadDvdModel(loader);
     auto shelfModel=model?std::make_shared<render3d::ModelAsset>(*model.asset):nullptr;
     if(shelfModel) {
         // Paper remains matte; the separate plastic shell supplies reflections.
@@ -384,7 +388,6 @@ dvd_scene::DvdItemViewModel DvdShelfView::sceneItem(const WorkSummary &work, int
         qWarning().noquote() << "Shelf cover file missing for work" << work.id << ":" << cover;
         cover.clear();
     }
-    if (cover.isEmpty()) cover = QStringLiteral(":/assets/maps/0.png");
     const auto title = work.chineseTitle.isEmpty() ? work.serialNumber : work.chineseTitle;
     return {QString::number(work.id), cover, title, index, false, !work.videoUrl.trimmed().isEmpty()};
 }
@@ -460,7 +463,9 @@ void DvdShelfView::updateActions()
     m_openAction->setText(m_scene->isExpanded()?QStringLiteral("合盒"):QStringLiteral("开盒"));
     m_openAction->setEnabled(m_scene->state()==dvd_scene::DvdInteractionController::State::Focused);
     m_playAction->setEnabled(m_hasLocalVideo);
-    m_coverFavorite->setIcon(QIcon(m_favorited?":/icons/dvd/love-on.svg":":/icons/dvd/love-off.svg"));
+    m_coverFavorite->setIcon(IconProvider::builtIn(
+        m_favorited ? QStringLiteral("love_on") : QStringLiteral("love_off"),
+        m_coverFavorite->iconSize(), {}, m_coverFavorite->devicePixelRatioF()));
     m_coverFavorite->setToolTip(m_favoriteAction->text());
 }
 void DvdShelfView::updateCoverInfo()

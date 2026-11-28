@@ -214,7 +214,7 @@ private:
 
     void showDvdAsset()
     {
-        const auto loaded = darkeye::dvd_scene::loadDvdModel(m_loader, QStringLiteral(":/dvd_demo/dvd.glb"));
+        const auto loaded = darkeye::dvd_scene::loadDvdModel(m_loader);
         if (!loaded) {
             m_error->setText(loaded.error);
             return;

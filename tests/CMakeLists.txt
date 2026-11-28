@@ -5,8 +5,6 @@ if(WIN32)
     set(DARKEYE_TEST_NATIVE_PLATFORM windows)
 elseif(APPLE)
     set(DARKEYE_TEST_NATIVE_PLATFORM cocoa)
-else()
-    set(DARKEYE_TEST_NATIVE_PLATFORM xcb)
 endif()
 
 set(test_qt_path "PATH=path_list_prepend:${DARKEYE_QT_BIN_DIR}")

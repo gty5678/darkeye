@@ -7,6 +7,7 @@ file(GLOB DARKEYE_COMPONENT_SOURCES CONFIGURE_DEPENDS
 
 qt_add_library(darkeye_ui STATIC
     DarkeyeUi.h
+    UiResources.h UiResources.cpp
     ${DARKEYE_COMPONENT_SOURCES}
     layouts/FlowLayout.h layouts/FlowLayout.cpp
     layouts/Layouts.h

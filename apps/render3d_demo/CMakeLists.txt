@@ -17,9 +17,6 @@ endif()
 
 qt_add_executable(darkeye_render3d_demo main.cpp)
 get_filename_component(_dvd_demo_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
-qt_add_resources(darkeye_render3d_demo dvd_demo_assets
-    PREFIX "/dvd_demo" BASE "${_dvd_demo_root}/libs/dvd"
-    FILES "${_dvd_demo_root}/libs/dvd/dvd.glb")
 set_target_properties(darkeye_render3d_demo PROPERTIES
     WIN32_EXECUTABLE FALSE RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_link_libraries(darkeye_render3d_demo PRIVATE darkeye::dvd_scene)
@@ -31,9 +28,6 @@ qt_add_executable(darkeye_dvd_scene_demo
 )
 set_target_properties(darkeye_dvd_scene_demo PROPERTIES
     WIN32_EXECUTABLE FALSE RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-qt_add_resources(darkeye_dvd_scene_demo dvd_scene_demo_assets
-    PREFIX "/dvd_scene_demo" BASE "${_dvd_demo_root}/libs/dvd"
-    FILES "${_dvd_demo_root}/libs/dvd/dvd.glb")
 qt_add_resources(darkeye_dvd_scene_demo dvd_lighting_assets
     PREFIX "/dvd_scene_demo" BASE "${_dvd_demo_root}/resources/hdr"
     FILES "${_dvd_demo_root}/resources/hdr/lebombo_1k.hdr")

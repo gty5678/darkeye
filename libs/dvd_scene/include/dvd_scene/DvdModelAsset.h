@@ -5,6 +5,8 @@
 
 // Adapt Blender exports to the shelf node/material contract without changing the file.
 namespace darkeye::dvd_scene {
+render3d::ModelLoadResult loadDvdModel(render3d::GltfLoader &loader);
+
 inline darkeye::render3d::ModelLoadResult loadDvdModel(
     darkeye::render3d::GltfLoader &loader, const QString &path)
 {

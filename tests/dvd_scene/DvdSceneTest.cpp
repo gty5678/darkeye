@@ -41,7 +41,7 @@ private slots:
     void localVideoSparkleTracksAvailability()
     {
         GltfLoader loader;
-        const auto loaded=loadDvdModel(loader,QStringLiteral(DARKEYE_DVD_SOURCE_DIR)+"/libs/dvd/dvd.glb");
+        const auto loaded=loadDvdModel(loader);
         QVERIFY2(loaded,qPrintable(loaded.error));
         Scene scene;
         DvdCaseFactory factory(loaded.asset);

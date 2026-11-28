@@ -27,9 +27,31 @@ class DarkeyeUiBoundaryTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void builtInIconsLoadBeforeThemeSetup();
     void publicFacadeIsUsableWithoutBusinessUi();
     void lazyWidgetInitializesExactlyOnce();
 };
+
+void DarkeyeUiBoundaryTest::builtInIconsLoadBeforeThemeSetup()
+{
+    using darkeye::IconProvider;
+    QVERIFY(IconProvider::contains(QStringLiteral(" CHEVRON_LEFT ")));
+    QVERIFY(IconProvider::contains(QStringLiteral("refresh")));
+    QVERIFY(IconProvider::contains(QStringLiteral("circle_question")));
+    QVERIFY(!IconProvider::contains(QStringLiteral("unknown")));
+    QVERIFY(IconProvider::builtIn(QStringLiteral("unknown")).isNull());
+
+    const QSize size(24, 24);
+    const auto red = IconProvider::builtIn(QStringLiteral("chevron_left"), size, Qt::red, 2.0)
+        .pixmap(size, 2.0);
+    const auto blue = IconProvider::builtIn(QStringLiteral("chevron_left"), size, Qt::blue, 2.0)
+        .pixmap(size, 2.0);
+    QVERIFY(!red.isNull());
+    QVERIFY(!blue.isNull());
+    QCOMPARE(red.size(), size * 2);
+    QCOMPARE(red.devicePixelRatio(), 2.0);
+    QVERIFY(red.toImage() != blue.toImage());
+}
 
 void DarkeyeUiBoundaryTest::publicFacadeIsUsableWithoutBusinessUi()
 {

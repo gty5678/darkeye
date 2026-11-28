@@ -62,12 +62,13 @@ ninja --version
    已有 Qt 安装时，可以通过 Qt Maintenance Tool 添加这些组件。
 3. 确认 `C:\Qt\6.12.0\msvc2022_64\lib\cmake\Qt6\Qt6Config.cmake` 存在。
 
-Windows 预设默认使用上述路径。若将 Qt 安装到其他位置，为 `tools/build.py` 和 VS Code 的启动任务设置用户环境变量 `Qt6_DIR`，值为包含 `Qt6Config.cmake` 的目录。
-完全退出并重新打开 VS Code 后，启动任务会读取该变量。手动执行 CMake 预设时，通过 `-DQt6_DIR` 传入相同目录：
+在开发者 PowerShell 中设置 `Qt6_DIR`，使它指向本机包含 `Qt6Config.cmake` 的目录。CMake 预设和 `tools/build.py` 都可以读取该变量。
 
 ```powershell
-cmake --preset windows-msvc-debug -DQt6_DIR="D:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6"
+$env:Qt6_DIR = "C:/Qt/6.12.0/msvc2022_64/lib/cmake/Qt6"
 ```
+
+如果从开始菜单启动 VS Code，请设置同名的 Windows 用户环境变量，再完全退出并重新打开 VS Code。手动配置时也可用 `-DQt6_DIR=...` 指定目录。若已有构建目录缓存了旧的 Qt 路径，更换 Qt 安装后可用该参数更新缓存。
 
 ### 4. 配置 vcpkg
 

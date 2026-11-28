@@ -16,19 +16,10 @@
     </qresource>
     <qresource prefix="/icons">
         <file alias="logo.svg">icons/logo.svg</file>
-        <file alias="anonymous.jpg">icons/anonymous.jpg</file>
-        <file alias="dvd/love-off.svg">icons/dvd/love-off.svg</file>
-        <file alias="dvd/love-on.svg">icons/dvd/love-on.svg</file>
-        <file alias="dvd/square-pen.svg">icons/dvd/square-pen.svg</file>
-        <file alias="dvd/trash-2.svg">icons/dvd/trash-2.svg</file>
-        <file alias="dvd/chevron-left.svg">icons/dvd/chevron-left.svg</file>
-        <file alias="dvd/chevron-right.svg">icons/dvd/chevron-right.svg</file>
     </qresource>
     <qresource prefix="/assets">
         <file alias="shop/darkeye-shop.glb">../libs/dvd/darkeye-shop.glb</file>
-        <file alias="dvd/dvd.glb">../libs/dvd/dvd.glb</file>
         <file alias="hdr/lebombo_1k.hdr">hdr/lebombo_1k.hdr</file>
         <file alias="hdr/fireplace_1k.hdr">hdr/fireplace_1k.hdr</file>
-        <file alias="maps/0.png">maps/0.png</file>
     </qresource>
 </RCC>

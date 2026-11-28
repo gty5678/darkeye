@@ -163,11 +163,11 @@ public:
         QHttpServerResponse error(QHttpServerResponse::StatusCode::BadRequest);
         const auto body = objectBody(request, &error);
         if (!body.has_value()) return error;
-        const QJsonValue content = body->value(QStringLiteral("content"));
-        if (!content.isString())
+        const QString serial = trimmedString(*body, QStringLiteral("content"));
+        if (serial.isEmpty())
             return errorResponse(QHttpServerResponse::StatusCode::UnprocessableEntity,
                                  QStringLiteral("content is required"));
-        emit owner->captureOneReceived(content.toString());
+        emit owner->captureOneReceived(serial);
         return jsonResponse({{QStringLiteral("status"), QStringLiteral("success")},
                              {QStringLiteral("message"), QStringLiteral("Data received")}});
     }

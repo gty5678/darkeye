@@ -89,6 +89,14 @@ function(darkeye_configure_packaging target)
         "${PROJECT_SOURCE_DIR}/resources/${updater_name}"
         DESTINATION "${updater_install_dir}")
 
+    if(WIN32)
+        install(PROGRAMS "${PROJECT_SOURCE_DIR}/resources/mosaic-bridge.exe"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    elseif(APPLE AND is_bundle)
+        install(PROGRAMS "${PROJECT_SOURCE_DIR}/resources/mosaic-bridge"
+            DESTINATION "${target}.app/Contents/MacOS" OPTIONAL)
+    endif()
+
     # Qt's deployment script only installs Qt runtime files. msdfgen is a
     # shared vcpkg dependency, so install both imported DLLs and recursively
     # collect their non-system dependencies (FreeType, PNG, zlib, and so on).

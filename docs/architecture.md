@@ -84,9 +84,9 @@ LocalApiServer ── Qt 信号 ──► MainWindow / CrawlerScheduler
                        CrawlerPersistenceService ──► SQLite 与图片资源
 ```
 
-`LocalApiServer` 只转发本地采集事件，不在 HTTP 处理器内执行长时间任务。`CrawlerScheduler`
-负责排队、暂停、取消、失败状态与完成回调；`CollectorClient` 通过网络请求与外部信息补充器通信。
-Collector 是可选的独立程序，仓库不包含其实现或构建方式。
+`LocalApiServer` 提供本地查重、采集提交和扩展通知。`CrawlerScheduler` 负责排队、暂停、取消及处理执行结果。
+`CollectorClient` 按配置调用外部信息补充器，默认使用独立运行的 Mosaic Bridge（`jav-server`）。
+请求参数、响应和端口见[采集 HTTP 接口](http-api.md)。
 
 数据库由 `DatabaseManager` 管理公共和私有连接。领域仓储覆盖作品、人物、统计、引用和私有数据；
 数据库模块同时提供事务、架构脚本、快照、维护、CSV 和 WebDAV 备份服务。运行数据路径全部由

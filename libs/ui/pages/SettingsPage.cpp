@@ -1131,7 +1131,8 @@ void CrawlerSettingsPage::setCollectorStatus(const QString &status)
 void CrawlerSettingsPage::startCollector()
 {
     save();
-    const QString executable = m_collectorExecutable->text().trimmed();
+    const QString executable = settings::crawler().collectorExecutable;
+    m_collectorExecutable->setText(executable);
     if (executable.isEmpty()) {
         QMessageBox::information(operationDialogParent(this), QStringLiteral("提示"), QStringLiteral("请先选择信息补充器可执行文件。"));
         return;

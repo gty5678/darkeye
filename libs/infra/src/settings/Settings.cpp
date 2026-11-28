@@ -2,6 +2,7 @@
 
 #include "settings/Paths.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
@@ -13,6 +14,26 @@ namespace darkeye::settings
 
 namespace
 {
+
+QString bundledCollectorName()
+{
+#if defined(Q_OS_WIN)
+    return QStringLiteral("mosaic-bridge.exe");
+#elif defined(Q_OS_MACOS)
+    return QStringLiteral("mosaic-bridge");
+#else
+    return {};
+#endif
+}
+
+QString bundledCollectorPath()
+{
+    const QString name = bundledCollectorName();
+    if (name.isEmpty() || !QCoreApplication::instance()) return {};
+
+    const QFileInfo file(QDir(QCoreApplication::applicationDirPath()).filePath(name));
+    return file.isFile() && file.isExecutable() ? file.absoluteFilePath() : QString{};
+}
 
 QString normalizedUrl(const QString &value, const QUrl &fallback)
 {
@@ -147,7 +168,7 @@ bool ensureDefaults(QString settingsFile, QString *errorMessage)
     }
 
     saveApp(AppSettings{}, settingsFile);
-    saveCrawler(CrawlerSettings{}, settingsFile);
+    saveCrawler(crawler(settingsFile), settingsFile);
     saveTranslation(TranslationSettings{}, settingsFile);
     saveValues(settingsFile, {
         {QStringLiteral("Paths/Version"), 2},
@@ -243,11 +264,15 @@ CrawlerSettings crawler(QString settingsFile)
                       settings.topActressesApiUrl.toString())
             .toString(),
         settings.topActressesApiUrl));
-    settings.collectorExecutable =
+    const QString bundledCollector = bundledCollectorPath();
+    const QString configuredCollector =
         m_store.value(QStringLiteral("Crawler/CollectorExe")).toString().trimmed();
+    const bool useBundledCollector =
+        configuredCollector.isEmpty() || configuredCollector == bundledCollectorName();
+    settings.collectorExecutable = useBundledCollector ? bundledCollector : configuredCollector;
     settings.autoStartCollector =
         m_store.value(QStringLiteral("Crawler/AutoStartCollector"),
-                      settings.autoStartCollector)
+                      useBundledCollector && !bundledCollector.isEmpty())
             .toBool();
     settings.unfinishedSerials = readUnfinishedSerials(
         m_store.value(QStringLiteral("Inbox/UnfinishedSerials")).toString());
@@ -357,6 +382,10 @@ void saveApp(const AppSettings &settings, QString settingsFile)
 
 void saveCrawler(const CrawlerSettings &settings, QString settingsFile)
 {
+    QString collectorExecutable = settings.collectorExecutable.trimmed();
+    if (!collectorExecutable.isEmpty() && collectorExecutable == bundledCollectorPath())
+        collectorExecutable = bundledCollectorName();
+
     saveValues(resolvedSettingsFile(std::move(settingsFile)), {
         {QStringLiteral("Crawler/WorkApiBaseUrl"),
          normalizedUrl(settings.workApiBaseUrl.toString(), CrawlerSettings{}.workApiBaseUrl)},
@@ -367,7 +396,7 @@ void saveCrawler(const CrawlerSettings &settings, QString settingsFile)
         {QStringLiteral("Crawler/TopActressesApiUrl"),
          normalizedUrl(settings.topActressesApiUrl.toString(),
                        CrawlerSettings{}.topActressesApiUrl)},
-        {QStringLiteral("Crawler/CollectorExe"), settings.collectorExecutable.trimmed()},
+        {QStringLiteral("Crawler/CollectorExe"), collectorExecutable},
         {QStringLiteral("Crawler/AutoStartCollector"), settings.autoStartCollector},
         {QStringLiteral("Inbox/UnfinishedSerials"), settings.unfinishedSerials.join(u',')},
         {QStringLiteral("WebDAV/Enabled"), settings.webDav.enabled},

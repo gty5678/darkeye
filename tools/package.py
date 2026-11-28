@@ -210,7 +210,7 @@ def package_windows(args, on_build_time=None):
          "--prefix", str(destination)], env, args.dry_run)
     remove_unused_runtime(destination, dry_run=args.dry_run)
     if not args.dry_run:
-        for relative in ("Darkeye.exe", "updater.exe", "Qt6Core.dll", "Qt6Gui.dll",
+        for relative in ("Darkeye.exe", "updater.exe", "mosaic-bridge.exe", "Qt6Core.dll", "Qt6Gui.dll",
                          "Qt6Widgets.dll", "plugins/platforms/qwindows.dll",
                          "plugins/sqldrivers/qsqlite.dll", "LICENSE", "config/update.ini"):
             if not (destination / relative).is_file():

@@ -13,6 +13,7 @@ nav:
   - macOS 编译与打包: macos-packaging.md
   - 数据安全说明: security.md
   - 整体架构: architecture.md
+  - 采集 HTTP 接口: http-api.md
   - 文档与网页: doc-webpage.md
 
 theme:

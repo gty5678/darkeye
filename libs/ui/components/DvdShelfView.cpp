@@ -120,6 +120,9 @@ DvdShelfView::DvdShelfView(QSqlDatabase database, QSqlDatabase privateDatabase,
     };
     m_openAction = action(QStringLiteral("开盒"), QStringLiteral("ShelfToggleOpen"), [this] { m_scene->toggleOpen(); });
     m_playAction = action(QStringLiteral("播放本地视频"), QStringLiteral("ShelfPlay"), [this] { on_cd_clicked(selectedIndex()); });
+    connect(m_scene, &dvd_scene::DvdSceneWidget::discClicked, this, [this](const QString &id) {
+        if (id == m_scene->selectedId()) on_cd_clicked(selectedIndex());
+    });
     m_favoriteAction = action(QStringLiteral("收藏"), QStringLiteral("ShelfFavorite"), [this] { on_heart_clicked(selectedIndex()); });
     action(QStringLiteral("复制番号"), QStringLiteral("ShelfCopyCode"), [this] { copy_to_clipboard(m_code); });
     action(QStringLiteral("编辑"), QStringLiteral("ShelfEdit"), [this] { on_edit_clicked(selectedIndex()); });

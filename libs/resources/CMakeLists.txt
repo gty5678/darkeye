@@ -1,4 +1,3 @@
-# Share the resource collection between the database and UI targets.
 add_library(darkeye_resources STATIC
     include/app/Resources.h
     src/Resources.cpp

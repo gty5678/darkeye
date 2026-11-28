@@ -1040,7 +1040,11 @@ void ForceViewRhiWidget::stopSimThread()
     if (!m_simThreadRunning.load(std::memory_order_acquire)) {
         return;
     }
-    m_simThreadRunning.store(false, std::memory_order_release);
+    {
+        // Synchronize with the wait predicate so the worker cannot miss the wakeup.
+        std::lock_guard<std::mutex> lock(m_simMutex);
+        m_simThreadRunning.store(false, std::memory_order_release);
+    }
     m_simCv.notify_all();
     if (m_simThread.joinable()) {
         m_simThread.join();

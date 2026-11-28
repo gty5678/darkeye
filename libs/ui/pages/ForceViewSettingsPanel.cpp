@@ -1,17 +1,17 @@
 #include "ui/pages/ForceViewSettingsPanel.h"
-#include "graph_view/GraphViewWidget.h"
-#include "graph_view/ForceViewRhiWidget.h"
 
+#include "darkeye_ui/components/AnimatedIndicators.h"
 #include "darkeye_ui/components/CollapsibleSection.h"
 #include "darkeye_ui/components/ColorPicker.h"
 #include "darkeye_ui/components/DesignLabel.h"
 #include "darkeye_ui/components/InteractionEffects.h"
-#include "darkeye_ui/components/AnimatedIndicators.h"
-#include "darkeye_ui/components/TokenControls.h"
 #include "darkeye_ui/theme/ThemeService.h"
+#include "graph_view/ForceViewRhiWidget.h"
+#include "graph_view/GraphViewWidget.h"
 
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QSettings>
 #include <QSlider>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -19,52 +19,9 @@
 
 namespace darkeye {
 
-namespace {
-
-ColorPicker *makeColorPicker(const QString &group, const QColor &initial,
-                             ForceViewSettingsPanel *panel)
-{
-    auto *picker = new ColorPicker(initial, false, ColorPicker::Shape::Octagon, panel);
-    QObject::connect(picker, &ColorPicker::colorChanged, panel, [panel, group](const QString &color) {
-        emit panel->nodeColorChanged(group, QColor(color));
-    });
-    return picker;
-}
-
-} // namespace
-
-void ForceViewSettingsPanel::bindGraph(graph_view::GraphViewWidget *graph)
-{
-    auto *view = graph->view();
-    connect(this, &ForceViewSettingsPanel::manyBodyStrengthChanged,
-            view, &ForceViewRhiWidget::setManyBodyStrength);
-    connect(this, &ForceViewSettingsPanel::centerStrengthChanged,
-            view, &ForceViewRhiWidget::setCenterStrength);
-    connect(this, &ForceViewSettingsPanel::linkStrengthChanged,
-            view, &ForceViewRhiWidget::setLinkStrength);
-    connect(this, &ForceViewSettingsPanel::linkDistanceChanged,
-            view, &ForceViewRhiWidget::setLinkDistance);
-    connect(this, &ForceViewSettingsPanel::radiusFactorChanged,
-            view, &ForceViewRhiWidget::setRadiusFactor);
-    connect(this, &ForceViewSettingsPanel::textThresholdFactorChanged,
-            view, &ForceViewRhiWidget::setTextThresholdFactor);
-    connect(this, &ForceViewSettingsPanel::linkWidthFactorChanged,
-            view, &ForceViewRhiWidget::setSideWidthFactor);
-    connect(this, &ForceViewSettingsPanel::neighborDepthChanged,
-            view, &ForceViewRhiWidget::setNeighborDepth);
-    connect(this, &ForceViewSettingsPanel::graphNeighborDepthChanged,
-            graph, &graph_view::GraphViewWidget::setEgoRadius);
-    connect(this, &ForceViewSettingsPanel::arrowEnabledChanged,
-            view, &ForceViewRhiWidget::setArrowEnabled);
-    connect(this, &ForceViewSettingsPanel::imageOverlayEnabledChanged,
-            graph, &graph_view::GraphViewWidget::setImageOverlayEnabled);
-    connect(this, &ForceViewSettingsPanel::arrowScaleChanged,
-            view, &ForceViewRhiWidget::setArrowScale);
-    connect(this, &ForceViewSettingsPanel::nodeColorChanged,
-            graph, &graph_view::GraphViewWidget::setNodeColor);
-}
-
-ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidget *parent)
+ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService,
+                                               graph_view::GraphViewWidget &graph,
+                                               QSettings *settings, QWidget *parent)
     : QScrollArea(parent)
 {
     setObjectName(QStringLiteral("ForceViewSettingsPanel"));
@@ -81,61 +38,106 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    const auto addSlider = [this, content, settings](QFormLayout *form, const QString &label,
+                                                    const QString &key, int minimum, int maximum,
+                                                    int defaultValue, auto apply) {
+        auto *slider = new ClickableSlider(Qt::Horizontal, nullptr, content);
+        slider->setProperty("graphSetting", key);
+        slider->setRange(minimum, maximum);
+        slider->setValue(defaultValue);
+        // Keep the renderer's initial value until a setting has been saved.
+        if (settings != nullptr) {
+            bool ok = false;
+            const int savedValue = settings->value(key).toInt(&ok);
+            if (ok) {
+                slider->setValue(savedValue);
+                apply(slider->value());
+            }
+        }
+        connect(slider, &QSlider::valueChanged, this, [settings, key, apply](int value) {
+            apply(value);
+            if (settings != nullptr) settings->setValue(key, value);
+        });
+        form->addRow(new DesignLabel(label, content), slider);
+        return slider;
+    };
+    const auto addToggle = [this, content, settings, &themeService](QFormLayout *form,
+                             const QString &label, const QString &key, auto apply) {
+        auto *toggle = new ToggleSwitch(40, 24, &themeService, content);
+        toggle->setProperty("graphSetting", key);
+        const bool enabled = settings == nullptr || settings->value(key, true).toBool();
+        toggle->setChecked(enabled);
+        apply(enabled);
+        connect(toggle, &ToggleSwitch::toggled, this, [settings, key, apply](bool enabled) {
+            apply(enabled);
+            if (settings != nullptr) settings->setValue(key, enabled);
+        });
+        form->addRow(new DesignLabel(label, content), toggle);
+    };
+
+    auto *view = graph.view();
     auto *effects = new TokenCollapsibleSection(QStringLiteral("效果"), &themeService, content);
     auto *effectForm = new QFormLayout;
-    auto *manyBody = slider(1000, 50000, 10000, content);
-    auto *center = slider(1, 50, 10, content);
-    auto *linkStrength = slider(1, 100, 30, content);
-    auto *linkDistance = slider(10, 80, 40, content);
-    effectForm->addRow(new DesignLabel(QStringLiteral("斥力强度"), content), manyBody);
-    effectForm->addRow(new DesignLabel(QStringLiteral("中心力强度"), content), center);
-    effectForm->addRow(new DesignLabel(QStringLiteral("连接力强度"), content), linkStrength);
-    effectForm->addRow(new DesignLabel(QStringLiteral("连接距离"), content), linkDistance);
+    addSlider(effectForm, QStringLiteral("斥力强度"), QStringLiteral("ManyBodyStrength"),
+              1000, 50000, 10000, [view](int value) { view->setManyBodyStrength(float(value)); });
+    addSlider(effectForm, QStringLiteral("中心力强度"), QStringLiteral("CenterStrength"),
+              1, 50, 10, [view](int value) { view->setCenterStrength(float(value) / 1000.0F); });
+    addSlider(effectForm, QStringLiteral("连接力强度"), QStringLiteral("LinkStrength"),
+              1, 100, 30, [view](int value) { view->setLinkStrength(float(value) / 100.0F); });
+    addSlider(effectForm, QStringLiteral("连接距离"), QStringLiteral("LinkDistance"),
+              10, 80, 40, [view](int value) { view->setLinkDistance(float(value)); });
     auto *effectContent = new QWidget(content);
     effectContent->setLayout(effectForm);
     effects->addWidget(effectContent);
-    connect(manyBody, &QSlider::valueChanged, this,
-            [this](int value) { emit manyBodyStrengthChanged(float(value)); });
-    connect(center, &QSlider::valueChanged, this,
-            [this](int value) { emit centerStrengthChanged(float(value) / 1000.0F); });
-    connect(linkStrength, &QSlider::valueChanged, this,
-            [this](int value) { emit linkStrengthChanged(float(value) / 100.0F); });
-    connect(linkDistance, &QSlider::valueChanged, this,
-            [this](int value) { emit linkDistanceChanged(float(value)); });
 
     auto *display = new TokenCollapsibleSection(QStringLiteral("显示"), &themeService, content);
     auto *displayForm = new QFormLayout;
-    auto *showArrow = new ToggleSwitch(40, 24, &themeService, content);
-    showArrow->setChecked(true);
-    auto *showImage = new ToggleSwitch(40, 24, &themeService, content);
-    showImage->setChecked(true);
-    auto *arrowSize = slider(3, 30, 10, content);
-    auto *textFade = slider(10, 1000, 100, content);
-    auto *nodeSize = slider(10, 300, 100, content);
-    auto *lineWidth = slider(10, 300, 60, content);
-    auto *neighborDepth = slider(1, 5, 2, content);
-    auto *graphNeighborDepth = slider(1, 5, 3, content);
+    addToggle(displayForm, QStringLiteral("显示箭头"), QStringLiteral("ArrowEnabled"),
+              [view](bool enabled) { view->setArrowEnabled(enabled); });
+    addSlider(displayForm, QStringLiteral("箭头大小"), QStringLiteral("ArrowSize"),
+              3, 30, 10, [view](int value) { view->setArrowScale(float(value) / 10.0F); });
+    addToggle(displayForm, QStringLiteral("显示图片"), QStringLiteral("ImageOverlayEnabled"),
+              [&graph](bool enabled) { graph.setImageOverlayEnabled(enabled); });
+    addSlider(displayForm, QStringLiteral("文字渐隐"), QStringLiteral("TextFade"),
+              10, 1000, 100, [view](int value) { view->setTextThresholdFactor(float(value) / 100.0F); });
+    addSlider(displayForm, QStringLiteral("节点大小"), QStringLiteral("NodeSize"),
+              10, 300, 100, [view](int value) { view->setRadiusFactor(float(value) / 100.0F); });
+    addSlider(displayForm, QStringLiteral("连线宽度"), QStringLiteral("LineWidth"),
+              10, 300, 60, [view](int value) { view->setSideWidthFactor(float(value) / 100.0F); });
+    addSlider(displayForm, QStringLiteral("邻居深度"), QStringLiteral("NeighborDepth"),
+              1, 5, 2, [view](int value) { view->setNeighborDepth(value); });
     m_displayForm = displayForm;
-    m_graphNeighborDepth = graphNeighborDepth;
-    displayForm->addRow(new DesignLabel(QStringLiteral("显示箭头"), content), showArrow);
-    displayForm->addRow(new DesignLabel(QStringLiteral("箭头大小"), content), arrowSize);
-    displayForm->addRow(new DesignLabel(QStringLiteral("显示图片"), content), showImage);
-    displayForm->addRow(new DesignLabel(QStringLiteral("文字渐隐"), content), textFade);
-    displayForm->addRow(new DesignLabel(QStringLiteral("节点大小"), content), nodeSize);
-    displayForm->addRow(new DesignLabel(QStringLiteral("连线宽度"), content), lineWidth);
-    displayForm->addRow(new DesignLabel(QStringLiteral("邻居深度"), content), neighborDepth);
-    displayForm->addRow(new DesignLabel(QStringLiteral("图邻居深度"), content), graphNeighborDepth);
-    displayForm->setRowVisible(graphNeighborDepth, false);
+    m_graphNeighborDepth = addSlider(displayForm, QStringLiteral("图邻居深度"),
+                                     QStringLiteral("GraphNeighborDepth"), 1, 5, 3,
+                                     [this](int value) { emit graphNeighborDepthChanged(value); });
+    connect(this, &ForceViewSettingsPanel::graphNeighborDepthChanged, &graph,
+            &graph_view::GraphViewWidget::setEgoRadius);
+    displayForm->setRowVisible(m_graphNeighborDepth, false);
     auto *colorColumn = new QVBoxLayout;
     colorColumn->setContentsMargins(0, 0, 0, 0);
     colorColumn->setSpacing(6);
-    const auto addColor = [colorColumn, content, this](const QString &name,
-                                                                        const QString &group,
-                                                                        const QColor &initial) {
+    const auto addColor = [this, colorColumn, content, settings, &graph](const QString &name,
+                                   const QString &group, const QColor &defaultColor) {
+        const auto key = QStringLiteral("NodeColor/") + group;
+        QColor color = defaultColor;
+        if (settings != nullptr) {
+            const QColor savedColor(settings->value(key).toString());
+            if (savedColor.isValid()) {
+                color = savedColor;
+                graph.setNodeColor(group, color);
+            }
+        }
+        auto *picker = new ColorPicker(color, false, ColorPicker::Shape::Octagon, content);
+        picker->setProperty("graphSetting", key);
+        connect(picker, &ColorPicker::colorChanged, this,
+                [settings, key, &graph, group](const QString &color) {
+            graph.setNodeColor(group, QColor(color));
+            if (settings != nullptr) settings->setValue(key, color);
+        });
         auto *row = new QHBoxLayout;
         row->setContentsMargins(0, 0, 0, 0);
         row->addWidget(new DesignLabel(name, content));
-        row->addWidget(makeColorPicker(group, initial, this));
+        row->addWidget(picker);
         row->addStretch();
         colorColumn->addLayout(row);
     };
@@ -147,21 +149,6 @@ ForceViewSettingsPanel::ForceViewSettingsPanel(ThemeService &themeService, QWidg
     auto *displayContent = new QWidget(content);
     displayContent->setLayout(displayForm);
     display->addWidget(displayContent);
-    connect(showArrow, &ToggleSwitch::toggled, this,
-            &ForceViewSettingsPanel::arrowEnabledChanged);
-    connect(showImage, &ToggleSwitch::toggled, this,
-            &ForceViewSettingsPanel::imageOverlayEnabledChanged);
-    connect(arrowSize, &QSlider::valueChanged, this,
-            [this](int value) { emit arrowScaleChanged(float(value) / 10.0F); });
-    connect(textFade, &QSlider::valueChanged, this,
-            [this](int value) { emit textThresholdFactorChanged(float(value) / 100.0F); });
-    connect(nodeSize, &QSlider::valueChanged, this,
-            [this](int value) { emit radiusFactorChanged(float(value) / 100.0F); });
-    connect(lineWidth, &QSlider::valueChanged, this,
-            [this](int value) { emit linkWidthFactorChanged(float(value) / 100.0F); });
-    connect(neighborDepth, &QSlider::valueChanged, this, &ForceViewSettingsPanel::neighborDepthChanged);
-    connect(graphNeighborDepth, &QSlider::valueChanged, this,
-            &ForceViewSettingsPanel::graphNeighborDepthChanged);
 
     layout->addWidget(effects);
     layout->addWidget(display);
@@ -196,12 +183,9 @@ void ForceViewSettingsPanel::setGraphNeighborDepthVisible(bool visible)
     });
 }
 
-QSlider *ForceViewSettingsPanel::slider(int minimum, int maximum, int value, QWidget *parent)
+int ForceViewSettingsPanel::graphNeighborDepth() const
 {
-    auto *result = new ClickableSlider(Qt::Horizontal, nullptr, parent);
-    result->setRange(minimum, maximum);
-    result->setValue(value);
-    return result;
+    return m_graphNeighborDepth->value();
 }
 
 void ForceViewSettingsPanel::resizeEvent(QResizeEvent *event)

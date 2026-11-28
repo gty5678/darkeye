@@ -163,6 +163,8 @@ PyQt/PySide 中可以用 QListView + QAbstractListModel + delegate 模拟瀑布�
 ### 修bug
  - [ ] 插件过cloudflare
  - [ ] 修复爬虫bug
+ - [x] macos上播放器设置问题
+ - [x] 无法点击光盘播放问题
 
 ## 1.2.6
 ### 新功能

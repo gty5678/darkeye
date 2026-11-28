@@ -82,8 +82,25 @@ bool playVideo(const QString &videoPath, const QString &configuredPlayer)
 {
     const QFileInfo video(videoPath);
     if (!video.isFile()) return false;
-    const QFileInfo player(configuredPlayer);
-    if (!configuredPlayer.trimmed().isEmpty() && player.isFile()) {
+    const QString playerPath = configuredPlayer.trimmed();
+    const QFileInfo player(QDir::cleanPath(playerPath));
+#ifdef Q_OS_MACOS
+    if (player.isDir() && player.suffix().compare(QStringLiteral("app"), Qt::CaseInsensitive) == 0) {
+        QProcess launcher;
+        launcher.start(QStringLiteral("/usr/bin/open"),
+                       {QStringLiteral("-a"), player.absoluteFilePath(), video.absoluteFilePath()});
+        if (!launcher.waitForFinished(3000)) {
+            if (launcher.state() != QProcess::NotRunning) {
+                launcher.kill();
+                launcher.waitForFinished();
+            }
+            return false;
+        }
+        return launcher.exitStatus() == QProcess::NormalExit && launcher.exitCode() == 0;
+    }
+    if (!playerPath.isEmpty() && !player.isFile()) return false;
+#endif
+    if (!playerPath.isEmpty() && player.isFile()) {
         return QProcess::startDetached(player.absoluteFilePath(), {video.absoluteFilePath()},
                                        video.absolutePath());
     }

@@ -4,6 +4,7 @@ file(GLOB_RECURSE DARKEYE_DATABASE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 qt_add_library(darkeye_database STATIC
     ${DARKEYE_DATABASE_HEADERS}
     ${DARKEYE_DATABASE_SOURCES}
+    "${PROJECT_SOURCE_DIR}/resources/database_sql.qrc"
 )
 add_library(darkeye::database ALIAS darkeye_database)
 target_include_directories(darkeye_database PUBLIC
@@ -11,7 +12,7 @@ target_include_directories(darkeye_database PUBLIC
 )
 target_link_libraries(darkeye_database
     PUBLIC darkeye::infra darkeye::domain Qt6::Sql
-    PRIVATE darkeye::resources Qt6::CorePrivate Qt6::Gui Qt6::Network
+    PRIVATE Qt6::CorePrivate Qt6::Gui Qt6::Network
 )
 if(WIN32)
     target_link_libraries(darkeye_database PRIVATE Advapi32)

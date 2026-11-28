@@ -24,10 +24,6 @@ foreach(scale IN ITEMS 1 1.5)
         ENVIRONMENT "QT_SCALE_FACTOR=${scale};QT_QPA_PLATFORM_PLUGIN_PATH=${DARKEYE_QT_PLUGIN_DIR}"
         ENVIRONMENT_MODIFICATION "${test_qt_path}")
 endforeach()
-if(APPLE)
-    # Temporarily disable these rendering tests while macOS CI failures are investigated.
-    set_tests_properties(darkeye_render3d_dpr_1 darkeye_render3d_dpr_1.5 PROPERTIES DISABLED TRUE)
-endif()
 if(TARGET darkeye_render3d_demo)
     add_test(NAME darkeye_render3d_demo_smoke COMMAND darkeye_render3d_demo --smoke-test)
     add_test(NAME darkeye_render3d_dvd_smoke COMMAND darkeye_render3d_demo --scene dvd --smoke-test)

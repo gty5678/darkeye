@@ -7,11 +7,16 @@ target_include_directories(darkeye_desktop_ui PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 )
 target_link_libraries(darkeye_desktop_ui PUBLIC
+    darkeye::darkeye_ui
     darkeye::domain
     darkeye::graph
+    darkeye::infra
     darkeye::resources
+    darkeye::services
     darkeye::ui
-    PRIVATE darkeye::bridge
+    PRIVATE
+    darkeye::bridge
+    darkeye::docking
 )
 if(WIN32)
     target_link_libraries(darkeye_desktop_ui PRIVATE dwmapi)
@@ -42,7 +47,18 @@ endif()
 if(WIN32)
     target_sources(Darkeye PRIVATE "${PROJECT_SOURCE_DIR}/resources/logo.rc")
 endif()
-target_link_libraries(Darkeye PRIVATE darkeye::desktop_ui darkeye::bridge)
+target_link_libraries(Darkeye PRIVATE
+    darkeye::desktop_ui
+    darkeye::ui
+    darkeye::bridge
+    darkeye::dvd_scene
+    darkeye::graph_view
+    darkeye::services
+    darkeye::darkeye_ui
+    darkeye::database
+    darkeye::infra
+    darkeye::resources
+)
 darkeye_apply_compiler_options(Darkeye)
 darkeye_configure_packaging(Darkeye)
 

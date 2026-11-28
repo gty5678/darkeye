@@ -48,6 +48,7 @@ public:
 signals:
     void dvdClicked(const QString &stableId);
     void dvdDoubleClicked(const QString &stableId);
+    void discClicked(const QString &stableId);
     void selectionChanged(const QString &stableId);
     void stateChanged(const QString &state);
     void expandedChanged(bool expanded);

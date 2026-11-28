@@ -6,11 +6,13 @@
 #include "graph/GraphManager.h"
 #include "graph_view/ForceViewRhiWidget.h"
 #include "graph_view/GraphViewWidget.h"
+#include "settings/Paths.h"
 #include "ui/pages/ForceViewSettingsPanel.h"
 
 #include <QColor>
 #include <QLabel>
 #include <QPalette>
+#include <QSettings>
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QTimer>
@@ -19,8 +21,7 @@
 namespace darkeye {
 
 ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager &graphManager,
-                                 QWidget *parent, QString actressImageDirectory,
-                                 QString workCoverDirectory)
+                                 QWidget *parent, const settings::Paths *paths, bool localGraph)
     : LazyWidget(parent), m_themeService(themeService), m_graphManager(graphManager)
 {
     // QRhiWidget must already belong to the top-level widget tree when that
@@ -30,9 +31,11 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
     layout->setContentsMargins(0, 0, 0, 0);
 
     m_graphView = new graph_view::GraphViewWidget(m_graphManager, this);
-    if (!actressImageDirectory.isEmpty() || !workCoverDirectory.isEmpty()) {
-        m_graphView->setImageDirectories(std::move(actressImageDirectory),
-                                         std::move(workCoverDirectory));
+    QSettings *settings = nullptr;
+    if (paths != nullptr) {
+        m_graphView->setImageDirectories(paths->actressImageDirectory(), paths->workCoverDirectory());
+        settings = new QSettings(paths->settingsFile(), QSettings::IniFormat, this);
+        settings->beginGroup(localGraph ? QStringLiteral("Graph/Local") : QStringLiteral("Graph/Global"));
     }
     layout->addWidget(m_graphView, 1);
 
@@ -50,25 +53,33 @@ ForceDirectPage::ForceDirectPage(ThemeService &themeService, graph::GraphManager
                 QTimer::singleShot(32, overlay, &QWidget::hide);
             });
 
-    m_favoriteOnly = new TokenCheckBox(QStringLiteral("仅显示收藏作品图"), this);
-    m_favoriteOnly->setChecked(false);
-    m_favoriteOnly->setMinimumWidth(160);
+    if (!localGraph) {
+        m_favoriteOnly = new TokenCheckBox(QStringLiteral("仅显示收藏作品图"), this);
+        const auto key = QStringLiteral("FavoriteOnly");
+        m_favoriteOnly->setProperty("graphSetting", key);
+        m_favoriteOnly->setMinimumWidth(160);
+        connect(m_favoriteOnly, &TokenCheckBox::toggled, m_graphView,
+                &graph_view::GraphViewWidget::setFavoriteOnly);
+        if (settings != nullptr) {
+            m_favoriteOnly->setChecked(settings->value(key, false).toBool());
+            connect(m_favoriteOnly, &TokenCheckBox::toggled, this,
+                    [settings, key](bool enabled) { settings->setValue(key, enabled); });
+        }
+    }
 
     m_settingsButton = new StateToggleButton(QStringLiteral("settings"), QStringLiteral("x"),
                                               24, 32, &m_themeService, this);
     m_settingsButton->setToolTip(QStringLiteral("关系图设置"));
-    m_settingsPanel = new ForceViewSettingsPanel(m_themeService, this);
+    m_settingsPanel = new ForceViewSettingsPanel(m_themeService, *m_graphView, settings, this);
     m_settingsPanel->hide();
+    m_egoRadius = m_settingsPanel->graphNeighborDepth();
 
-    connect(m_favoriteOnly, &TokenCheckBox::toggled, m_graphView,
-            &graph_view::GraphViewWidget::setFavoriteOnly);
     connect(m_settingsButton, &StateToggleButton::stateChanged, this, [this](bool visible) {
         m_settingsPanel->setVisible(visible);
         updateOverlayGeometry();
     });
     connect(m_settingsPanel, &ForceViewSettingsPanel::contentSizeChanged, this,
             &ForceDirectPage::updateOverlayGeometry);
-    m_settingsPanel->bindGraph(m_graphView);
     connect(m_settingsPanel, &ForceViewSettingsPanel::graphNeighborDepthChanged,
             this, [this](int radius) { m_egoRadius = radius; });
     connect(m_graphView, &graph_view::GraphViewWidget::nodeLeftClicked, this,
@@ -179,14 +190,6 @@ void ForceDirectPage::showEmptyGraph()
     initialize();
     m_settingsPanel->setGraphNeighborDepthVisible(false);
     if (m_graphView != nullptr) m_graphView->showEmpty();
-}
-
-void ForceDirectPage::setFavoriteFilterToggleVisible(bool visible)
-{
-    if (m_favoriteOnly == nullptr) return;
-    if (!visible && m_favoriteOnly->isChecked()) m_favoriteOnly->setChecked(false);
-    m_favoriteOnly->setVisible(visible);
-    updateOverlayGeometry();
 }
 
 void ForceDirectPage::applyTheme()

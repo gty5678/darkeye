@@ -2,6 +2,7 @@
 #include "ui/pages/PageScrollArea.h"
 
 #include "database/CsvExport.h"
+#include "database/SqlScriptRunner.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignComboBox.h"
 #include "darkeye_ui/components/DesignInput.h"
@@ -16,7 +17,6 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QEvent>
-#include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -178,16 +178,6 @@ QString sqlResourceForType(int type)
     return QStringLiteral(":/sql/work_all_info.sql");
 }
 
-QString readSqlResource(int type, QString *errorMessage)
-{
-    QFile file(sqlResourceForType(type));
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
-        *errorMessage = file.errorString();
-        return {};
-    }
-    return QString::fromUtf8(file.readAll());
-}
 } // namespace
 
 SummaryQueryWidget::SummaryQueryWidget(QSqlDatabase database, ThemeService &themes, QWidget *parent)
@@ -303,14 +293,15 @@ void SummaryQueryWidget::clearCompletenessPresentation()
 void SummaryQueryWidget::loadQuery()
 {
     QString errorMessage;
-    const QString sql = readSqlResource(m_queryType->currentIndex(), &errorMessage);
-    if (sql.isEmpty())
+    const auto sql = SqlScriptRunner::readResource(
+        sqlResourceForType(m_queryType->currentIndex()), &errorMessage);
+    if (!sql || sql->isEmpty())
     {
         Toast::showError(window(), QStringLiteral("读取资料汇总失败：%1").arg(errorMessage), &m_themes);
         return;
     }
     clearCompletenessPresentation();
-    m_model->setQuery(sql, m_database);
+    m_model->setQuery(*sql, m_database);
     if (m_model->lastError().isValid())
     {
         Toast::showError(window(), QStringLiteral("加载汇总数据失败: %1").arg(m_model->lastError().text()), &m_themes);

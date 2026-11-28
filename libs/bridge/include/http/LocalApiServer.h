@@ -2,9 +2,12 @@
 
 #include <QJsonObject>
 #include <QObject>
-#include <QSqlDatabase>
+#include <QSet>
+#include <QStringList>
 
+#include <functional>
 #include <memory>
+#include <optional>
 
 namespace darkeye
 {
@@ -14,7 +17,10 @@ class LocalApiServer final : public QObject
     Q_OBJECT
 
 public:
-    explicit LocalApiServer(QSqlDatabase publicDatabase, QObject *parent = nullptr);
+    using SerialLookup = std::function<std::optional<QSet<QString>>(
+        const QStringList &normalizedSerials, QString *errorMessage)>;
+
+    explicit LocalApiServer(SerialLookup serialLookup, QObject *parent = nullptr);
     ~LocalApiServer() override;
 
     bool start(quint16 port = 56789, QString *errorMessage = nullptr);

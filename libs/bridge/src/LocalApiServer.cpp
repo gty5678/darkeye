@@ -6,9 +6,9 @@
 #include <QHttpServerResponder>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QSqlQuery>
-#include <QSqlError>
 #include <QTcpServer>
+
+#include <utility>
 
 namespace darkeye
 {
@@ -72,8 +72,8 @@ QString trimmedString(const QJsonObject &body, const QString &name)
 class LocalApiServer::Private final
 {
 public:
-    explicit Private(LocalApiServer *owner, QSqlDatabase database)
-        : owner(owner), database(std::move(database)), server(owner), tcpServer(owner)
+    explicit Private(LocalApiServer *owner, SerialLookup serialLookup)
+        : owner(owner), serialLookup(std::move(serialLookup)), server(owner), tcpServer(owner)
     {
         server.addAfterRequestHandler(owner,
                                       [](const QHttpServerRequest &, QHttpServerResponse &response)
@@ -132,24 +132,18 @@ public:
             normalized.append(original.trimmed().toUpper());
         }
         if (normalized.isEmpty()) return jsonResponse({{QStringLiteral("results"), results}});
-        if (!database.isOpen())
+        if (!serialLookup)
             return errorResponse(QHttpServerResponse::StatusCode::InternalServerError,
                                  QStringLiteral("Database is unavailable"));
 
-        QStringList placeholders;
-        placeholders.fill(QStringLiteral("?"), normalized.size());
-        QSqlQuery query(database);
-        query.prepare(QStringLiteral("SELECT serial_number FROM work WHERE UPPER(serial_number) IN (%1)")
-                          .arg(placeholders.join(QLatin1Char(','))));
-        for (const QString &item : normalized) query.addBindValue(item);
-        if (!query.exec())
-            return errorResponse(QHttpServerResponse::StatusCode::InternalServerError, query.lastError().text());
-        QSet<QString> existing;
-        while (query.next()) existing.insert(query.value(0).toString().toUpper());
+        QString lookupError;
+        const auto existing = serialLookup(normalized, &lookupError);
+        if (!existing)
+            return errorResponse(QHttpServerResponse::StatusCode::InternalServerError, lookupError);
         for (const QJsonValue &value : items)
         {
             const QString original = value.toString();
-            if (existing.contains(original.trimmed().toUpper())) results.insert(original, true);
+            if (existing->contains(original.trimmed().toUpper())) results.insert(original, true);
         }
         return jsonResponse({{QStringLiteral("results"), results}});
     }
@@ -211,13 +205,13 @@ public:
     }
 
     LocalApiServer *owner;
-    QSqlDatabase database;
+    SerialLookup serialLookup;
     QHttpServer server;
     QTcpServer tcpServer;
 };
 
-LocalApiServer::LocalApiServer(QSqlDatabase publicDatabase, QObject *parent)
-    : QObject(parent), d(std::make_unique<Private>(this, std::move(publicDatabase)))
+LocalApiServer::LocalApiServer(SerialLookup serialLookup, QObject *parent)
+    : QObject(parent), d(std::make_unique<Private>(this, std::move(serialLookup)))
 {
 }
 

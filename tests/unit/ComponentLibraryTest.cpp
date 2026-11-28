@@ -268,7 +268,7 @@ void ComponentLibraryTest::pathManagementBrowsesWithOneClick()
         if (auto *dialog = multiple.findChild<QFileDialog *>(); dialog && dialog->isVisible()) {
             selectFolder.stop();
             opened = true;
-            dialog->selectFile(second.path());
+            dialog->setDirectory(second.path());
             QMetaObject::invokeMethod(dialog, "accept", Qt::QueuedConnection);
             QTimer::singleShot(3000, dialog, &QDialog::reject);
         }

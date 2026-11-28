@@ -1,11 +1,16 @@
 #include "database/SqlScriptRunner.h"
 
-#include "app/Resources.h"
-
 #include <QFile>
 #include <QRegularExpression>
 #include <QSqlError>
 #include <QSqlQuery>
+
+#include <mutex>
+
+static void initializeDatabaseSqlResources()
+{
+    Q_INIT_RESOURCE(database_sql);
+}
 
 namespace darkeye {
 
@@ -133,18 +138,31 @@ bool SqlScriptRunner::execute(QSqlDatabase database, const QString &script,
     return true;
 }
 
+std::optional<QString> SqlScriptRunner::readResource(const QString &resourcePath,
+                                                     QString *errorMessage)
+{
+    static std::once_flag initializationFlag;
+    std::call_once(initializationFlag, initializeDatabaseSqlResources);
+
+    QFile file(resourcePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (errorMessage != nullptr)
+            *errorMessage = file.errorString();
+        return std::nullopt;
+    }
+    return QString::fromUtf8(file.readAll());
+}
+
 bool SqlScriptRunner::executeResource(QSqlDatabase database, const QString &resourcePath,
                                       QString *errorMessage)
 {
-    initializeResources();
-    QFile file(resourcePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (errorMessage != nullptr) {
+    const auto script = readResource(resourcePath);
+    if (!script) {
+        if (errorMessage != nullptr)
             *errorMessage = QStringLiteral("无法读取 SQL 资源：%1").arg(resourcePath);
-        }
         return false;
     }
-    return execute(database, QString::fromUtf8(file.readAll()), errorMessage);
+    return execute(database, *script, errorMessage);
 }
 
 } // namespace darkeye

@@ -66,6 +66,7 @@
 #include <QDialog>
 #include <QDesktopServices>
 #include <QDir>
+#include <QEnterEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFontDatabase>
@@ -73,6 +74,7 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPainter>
 #include <QPointer>
@@ -84,6 +86,7 @@
 #include <QRegularExpression>
 #include <QResource>
 #include <QSettings>
+#include <QSlider>
 #include <QSpinBox>
 #include <QSqlQuery>
 #include <QStackedWidget>
@@ -176,6 +179,7 @@ private slots:
     void actressDetailOpenModes();
     void actressPartialCaptureSavesCard();
     void localRelationshipGraphFollowsActiveContent();
+    void relationshipGraphSettingsPersistIndependently();
     void timelineFollowsActressAndFilteredWorks();
     void openingPagesLeavesFocusUnset();
     void statisticsPagesOpenIndependentlyAndScroll();
@@ -969,12 +973,20 @@ void MainWindowSmokeTest::summarySearchKeyboardNavigation()
 
 void MainWindowSmokeTest::settingsDialogClosesWithoutTitleBar()
 {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const darkeye::settings::Paths paths(QCoreApplication::applicationDirPath(), directory.path());
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
     darkeye::ThemeService themes(*qApp);
     QVERIFY(themes.setTheme(darkeye::ThemeId::Dark));
-    QWidget parent;
-    QActionGroup shortcuts(&parent);
-    darkeye::SettingsDialog dialog(themes, shortcuts, {}, {}, {}, &parent);
-    dialog.open();
+    darkeye::MainWindow window(themes, {}, {}, paths);
+    auto *openSettings = window.findChild<QAction *>(QStringLiteral("open_settings"));
+    QVERIFY(openSettings);
+    openSettings->trigger();
+    auto *settings = window.findChild<darkeye::SettingsDialog *>();
+    QVERIFY(settings && settings->isVisible());
+    auto &dialog = *settings;
 
     QVERIFY(dialog.windowFlags().testFlag(Qt::FramelessWindowHint));
     QImage frame(dialog.size(), QImage::Format_ARGB32_Premultiplied);
@@ -992,7 +1004,7 @@ void MainWindowSmokeTest::settingsDialogClosesWithoutTitleBar()
     QTest::mouseClick(closeButton, Qt::LeftButton);
     QVERIFY(dialog.isHidden());
 
-    dialog.open();
+    openSettings->trigger();
     QVERIFY(dialog.isVisible());
     QTest::keyClick(&dialog, Qt::Key_Escape);
     QVERIFY(dialog.isHidden());
@@ -1111,7 +1123,9 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     darkeye::MainWindow window(themeService, publicConnection.database(),
                                privateConnection.database(), paths);
     window.show();
-    QCoreApplication::processEvents();
+    window.raise();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
     auto *search = window.findChild<darkeye::WorkspaceSearch *>();
     auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
     QVERIFY(search);
@@ -2119,6 +2133,106 @@ void MainWindowSmokeTest::localRelationshipGraphFollowsActiveContent()
     QTRY_COMPARE(globalGraph->getNodeIds().size(), 4);
 }
 
+void MainWindowSmokeTest::relationshipGraphSettingsPersistIndependently()
+{
+    QTemporaryDir directory;
+    const darkeye::settings::Paths paths(directory.path(), directory.filePath(QStringLiteral("data")));
+    QVERIFY(paths.ensureRuntimeDirectories());
+    QVERIFY(saveEmptyWorkspace(paths));
+    darkeye::SqliteConnection publicDatabase, privateDatabase;
+    QString error;
+    QVERIFY(publicDatabase.open(paths.publicDatabase(), false, &error));
+    QVERIFY(privateDatabase.open(paths.privateDatabase(), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(publicDatabase, darkeye::DatabaseKind::Public, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(privateDatabase, darkeye::DatabaseKind::Private, &error));
+    darkeye::PersonRepository people(publicDatabase.database());
+    const auto actress = people.create(darkeye::PersonKind::Actress, QStringLiteral("人物"), QStringLiteral("Test"), &error);
+    QVERIFY(actress);
+    darkeye::WorkRepository works(publicDatabase.database());
+    darkeye::Work first, second;
+    first.serialNumber = QStringLiteral("GRAPH-001");
+    second.serialNumber = QStringLiteral("GRAPH-002");
+    const auto firstId = works.insertComplete(first, {*actress}, {}, {}, &error);
+    const auto secondId = works.insertComplete(second, {*actress}, {}, {}, &error);
+    QVERIFY(firstId && secondId);
+    darkeye::PrivateRepository privateData(privateDatabase.database());
+    QVERIFY(privateData.addFavoriteWork(*firstId, first.serialNumber, &error));
+
+    const QString globalRoute = QStringLiteral("graph");
+    const QString localRoute = QStringLiteral("local_graph");
+    const QString firstRoute = QStringLiteral("work_edit/%1").arg(*firstId);
+    const QString secondNode = QStringLiteral("w%1").arg(*secondId);
+    const QString globalColorValue = QStringLiteral("#123456");
+    const QString localColorValue = QStringLiteral("#654321");
+    const auto control = [](QWidget *page, const QString &key) -> QWidget * {
+        for (auto *child : page->findChildren<QWidget *>()) {
+            if (child->property("graphSetting").toString() == key)
+                return child;
+        }
+        return nullptr;
+    };
+    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
+    for (bool reopening : {false, true}) {
+        QVERIFY(saveEmptyWorkspace(paths));
+        darkeye::MainWindow window(themes, publicDatabase.database(), privateDatabase.database(), paths);
+        window.resize(1200, 800);
+        auto *workspace = window.findChild<darkeye::myads::WorkspaceWidget *>(QStringLiteral("mainWorkspace"));
+        auto *search = window.findChild<darkeye::WorkspaceSearch *>();
+        QVERIFY(workspace && search);
+        auto *sourcePane = workspace->rootPane();
+        auto *graphPane = workspace->split(sourcePane, darkeye::myads::Placement::Right);
+        QVERIFY(graphPane);
+        workspace->setActivePane(sourcePane);
+        search->openRequested(firstRoute);
+        workspace->setActivePane(graphPane);
+        search->openRequested(globalRoute);
+        search->openRequested(localRoute);
+        auto *globalPage = graphPane->contentWidget(globalRoute);
+        auto *localPage = graphPane->contentWidget(localRoute);
+        QVERIFY(globalPage && localPage);
+        auto *globalGraph = globalPage->findChild<ForceViewRhiWidget *>();
+        auto *localGraph = localPage->findChild<ForceViewRhiWidget *>();
+        auto *globalSize = qobject_cast<QSlider *>(control(globalPage, QStringLiteral("NodeSize")));
+        auto *localSize = qobject_cast<QSlider *>(control(localPage, QStringLiteral("NodeSize")));
+        auto *localDepth = qobject_cast<QSlider *>(control(localPage, QStringLiteral("GraphNeighborDepth")));
+        auto *globalColor = qobject_cast<darkeye::ColorPicker *>(control(globalPage, QStringLiteral("NodeColor/work")));
+        auto *localColor = qobject_cast<darkeye::ColorPicker *>(control(localPage, QStringLiteral("NodeColor/work")));
+        auto *favoriteOnly = qobject_cast<QAbstractButton *>(control(globalPage, QStringLiteral("FavoriteOnly")));
+        auto *localArrows = qobject_cast<QAbstractButton *>(control(localPage, QStringLiteral("ArrowEnabled")));
+        auto *globalArrows = qobject_cast<QAbstractButton *>(control(globalPage, QStringLiteral("ArrowEnabled")));
+        QVERIFY(globalGraph && localGraph && globalSize && localSize && localDepth
+                && globalColor && localColor && favoriteOnly && localArrows && globalArrows);
+        QVERIFY(!control(localPage, QStringLiteral("FavoriteOnly")));
+        window.show();
+        if (!reopening) {
+            QCOMPARE(globalSize->value(), 100);
+            QCOMPARE(localSize->value(), 100);
+            QTRY_VERIFY(localGraph->getNodeIds().contains(secondNode));
+            globalSize->setValue(125);
+            QCOMPARE(localSize->value(), 100);
+            localSize->setValue(175);
+            localDepth->setValue(1);
+            globalColor->setColor(globalColorValue);
+            localColor->setColor(localColorValue);
+            favoriteOnly->setChecked(true);
+            localArrows->setChecked(false);
+        }
+        QCOMPARE(globalSize->value(), 125);
+        QCOMPARE(localSize->value(), 175);
+        QCOMPARE(localDepth->value(), 1);
+        QCOMPARE(globalColor->color(), globalColorValue);
+        QCOMPARE(localColor->color(), localColorValue);
+        QVERIFY(globalArrows->isChecked());
+        QVERIFY(!localArrows->isChecked());
+        QVERIFY(favoriteOnly->isChecked());
+        QTRY_COMPARE(localGraph->getNodeIds().size(), 2);
+        QVERIFY(!localGraph->getNodeIds().contains(secondNode));
+        QVERIFY(graphPane->setCurrentContentId(globalRoute));
+        QTRY_COMPARE(globalGraph->getNodeIds().size(), 2);
+        QVERIFY(!globalGraph->getNodeIds().contains(secondNode));
+    }
+}
+
 void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
 {
     QTemporaryDir temp;
@@ -2169,7 +2283,7 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
     auto *viewport = results->viewport();
     const auto rowPoint = [results](int row) {
         const QRect rect = results->visualItemRect(results->item(row));
-        return QPoint(rect.right() - 16, rect.center().y());
+        return QPoint(rect.left() + rect.width() * 3 / 4, rect.center().y());
     };
     const auto rowColor = [viewport, &rowPoint](int row) {
         const auto snapshot = viewport->grab();
@@ -2180,19 +2294,27 @@ void MainWindowSmokeTest::workspaceSearchShortcutsOpenBothModes()
     QVERIFY(results->count() >= 3);
     const int firstHoverRow = selectedRow == 1 ? 0 : 1;
     const int secondHoverRow = selectedRow == 2 ? 0 : 2;
-    const auto moveTo = [&window](QWidget *widget, const QPoint &point) {
-        QTest::mouseMove(window.windowHandle(), widget->mapTo(&window, point));
+    const auto moveToResultRow = [&window, viewport, &rowPoint](int row) {
+        const QPoint pos = rowPoint(row);
+        const QPoint windowPos = viewport->mapTo(&window, pos);
+        const QPoint globalPos = viewport->mapToGlobal(pos);
+        QEnterEvent enter(pos, windowPos, globalPos);
+        QApplication::sendEvent(viewport, &enter);
+        QMouseEvent move(QEvent::MouseMove, pos, windowPos, globalPos,
+                         Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(viewport, &move);
     };
     for (const auto theme : {darkeye::ThemeId::Dark, darkeye::ThemeId::Light}) {
         QVERIFY(themes.setTheme(theme));
         const auto palette = results->palette();
-        moveTo(viewport, rowPoint(firstHoverRow));
+        moveToResultRow(firstHoverRow);
         QTRY_COMPARE(rowColor(firstHoverRow), palette.color(QPalette::AlternateBase));
         QCOMPARE(results->currentRow(), selectedRow);
-        moveTo(viewport, rowPoint(secondHoverRow));
+        moveToResultRow(secondHoverRow);
         QTRY_COMPARE(rowColor(secondHoverRow), palette.color(QPalette::AlternateBase));
         QCOMPARE(rowColor(firstHoverRow), palette.color(QPalette::Base));
-        moveTo(input, input->rect().center());
+        QEvent leave(QEvent::Leave);
+        QApplication::sendEvent(viewport, &leave);
         QTRY_COMPARE(rowColor(secondHoverRow), palette.color(QPalette::Base));
     }
 
@@ -3473,7 +3595,7 @@ void MainWindowSmokeTest::workspaceSearchAndSessionLifecycle()
         QCOMPARE(window.windowHandle()->focusObject(), input);
         input->setText(QStringLiteral("统计"));
         QTRY_VERIFY(results->count() == 1 && results->item(0)->data(Qt::UserRole).toString().startsWith(QStringLiteral("search/")));
-        QTest::keyClick(input, Qt::Key_P, Qt::ControlModifier);
+        openSearch(Qt::Key_P);
         QTRY_VERIFY(results->isVisible() && results->count() > 9);
         QVERIFY(input->text().isEmpty());
         QCOMPARE(startupPane->contentCount(), 0);

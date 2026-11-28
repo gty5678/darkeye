@@ -29,8 +29,10 @@ target_link_libraries(darkeye_business_ui PUBLIC
     darkeye::darkeye_ui
     darkeye::docking
     darkeye::dvd_scene
+    darkeye::render3d
     Qt6::Widgets
     PRIVATE
+    darkeye::graph
     darkeye::gui_utils
     darkeye::resources
     MdEdit::Editor

@@ -1600,8 +1600,8 @@ QWidget *MainWindow::createPage(const QString &routeName, QWidget *parent)
     }
     if (routeName == QStringLiteral("graph") || routeName == QStringLiteral("local_graph"))
     {
-        auto *graph = new ForceDirectPage(m_themeService, *m_graphManager, parent,
-                                          m_paths.actressImageDirectory(), m_paths.workCoverDirectory());
+        const bool localGraph = routeName == QStringLiteral("local_graph");
+        auto *graph = new ForceDirectPage(m_themeService, *m_graphManager, parent, &m_paths, localGraph);
         connect(graph, &ForceDirectPage::workRequested, this, [this](qint64 workId) {
             navigateTo(QStringLiteral("work_detail/%1").arg(workId), true,
                        ActressOpenMode::Automatic, nullptr, ShelfFilterPolicy::ClearIfExcluded);
@@ -1609,8 +1609,7 @@ QWidget *MainWindow::createPage(const QString &routeName, QWidget *parent)
         connect(graph, &ForceDirectPage::actressRequested, this, [this](qint64 actressId) {
             openPerson(PersonKind::Actress, actressId);
         });
-        if (routeName == QStringLiteral("local_graph")) {
-            graph->setFavoriteFilterToggleVisible(false);
+        if (localGraph) {
             graph->setObjectName(QStringLiteral("LocalGraphPage"));
             m_localGraphPage = graph;
             updateLocalGraph();

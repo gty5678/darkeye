@@ -213,6 +213,7 @@ struct DvdSceneWidget::Impl {
         const bool expanded=owner->isExpanded();
         if(expanded!=lastExpanded) {
             lastExpanded=expanded;
+            if(!expanded) canvas->setCursor(Qt::ArrowCursor);
             emit owner->expandedChanged(expanded);
         }
         if(camera.target.x()!=lastCameraX || cameraTargetX!=lastCameraTargetX) {
@@ -340,6 +341,20 @@ struct DvdSceneWidget::Impl {
         return raycast(*scene,*ray,owner->isExpanded()?RaycastMode::Triangles:RaycastMode::Bounds);
     }
 
+    bool hitsSelectedDisc(const RayHit &hit) const
+    {
+        const auto selected=cases.find(interaction.selectedId());
+        if(selected==cases.end() || !selected->second.expanded) return false;
+        const auto *node=scene->node(hit.node);
+        return node && node->parent==selected->second.disc;
+    }
+
+    void updateDiscCursor(const std::optional<RayHit> &hit)
+    {
+        const auto cursor=hit && hitsSelectedDisc(*hit)?Qt::PointingHandCursor:Qt::ArrowCursor;
+        if(canvas->cursor().shape()!=cursor) canvas->setCursor(cursor);
+    }
+
     QString hit(const QPointF &point) const
     {
         const auto result=pick(point);
@@ -352,6 +367,7 @@ struct DvdSceneWidget::Impl {
         const auto result=pick(hoverPosition);
         const auto id=result?primitiveIds.value(result->node):QString();
         interaction.hover(id,now());
+        updateDiscCursor(result);
     }
 
     void cameraChanged()
@@ -664,6 +680,7 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
         d->dragButton=mouse->button();
         d->pressPosition=d->lastPosition=mouse->position();
         d->moved=false;
+        if(d->dragButton!=Qt::LeftButton) d->canvas->setCursor(Qt::ArrowCursor);
         d->canvas->setFocus();
         return true;
     }
@@ -698,13 +715,17 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
         if(mouse->button()==Qt::LeftButton && !d->moved) {
             const auto hit=d->pick(mouse->position());
             const auto id=hit?d->primitiveIds.value(hit->node):QString();
+            if(hit && d->hitsSelectedDisc(*hit)) {
+                emit discClicked(id);
+                return true;
+            }
             if(isExpanded()) {
                 const auto &instance=d->cases.at(selectedId());
                 if(id==selectedId()) {
                     const auto *node=d->scene->node(hit->node);
                     if(node->parent==instance.front) {
                         toggleOpen();
-                    } else if(node->parent==instance.back || node->parent==instance.disc) {
+                    } else if(node->parent==instance.back) {
                         d->interaction.closeToBack(d->now());
                         d->notify();
                         d->updateTimer();
@@ -726,6 +747,8 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
                 }
                 emit dvdClicked(id);
             }
+        } else if(isExpanded() && (mouse->button()==Qt::RightButton || mouse->button()==Qt::MiddleButton)) {
+            d->updateDiscCursor(d->pick(mouse->position()));
         }
         return true;
     }
@@ -776,6 +799,7 @@ bool DvdSceneWidget::eventFilter(QObject *object,QEvent *event)
     case QEvent::Leave:
         d->hoverPositionValid=false;
         d->interaction.hover({},d->now());
+        d->canvas->setCursor(Qt::ArrowCursor);
         d->updateTimer(); break;
     default:break;
     }

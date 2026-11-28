@@ -1,6 +1,7 @@
 #include "ui/components/WorkMaintenanceActions.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
+#include "database/repositories/PersonRepository.h"
 #include "services/TopActressSyncService.h"
 #include "services/ActressSyncService.h"
 #include "settings/Settings.h"
@@ -8,8 +9,6 @@
 
 #include <QAction>
 #include <QMessageBox>
-#include <QSqlError>
-#include <QSqlQuery>
 #include <QWidget>
 
 namespace darkeye
@@ -149,16 +148,13 @@ void WorkMaintenanceActions::updateNeededActresses()
 {
     if (m_actressSync)
         return;
-    m_pendingActressIds.clear();
-    QSqlQuery query(m_database);
-    if (!query.exec(QStringLiteral("SELECT actress_id FROM actress WHERE need_update=1 ORDER BY actress_id")))
+    QString error;
+    m_pendingActressIds = PersonRepository(m_database).actressIdsNeedingUpdate(&error);
+    if (!error.isEmpty())
     {
-        Toast::showError(m_window, QStringLiteral("读取待更新女优失败：%1").arg(query.lastError().text()),
-                         &m_themes);
+        Toast::showError(m_window, QStringLiteral("读取待更新女优失败：%1").arg(error), &m_themes);
         return;
     }
-    while (query.next())
-        m_pendingActressIds.append(query.value(0).toLongLong());
     if (m_pendingActressIds.isEmpty())
     {
         Toast::showMessage(m_window, QStringLiteral("没有待更新的女优"), Toast::Level::Info, 2500,

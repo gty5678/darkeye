@@ -6,10 +6,17 @@
 #include <QList>
 #include <QSqlDatabase>
 #include <QString>
+#include <QVariantMap>
 #include <optional>
 
 namespace darkeye
 {
+
+struct WorkCrawlSnapshot final
+{
+    QString serial;
+    QVariantMap values;
+};
 
 class WorkRepository final
 {
@@ -29,6 +36,9 @@ public:
                                            QString *errorMessage = nullptr) const;
     [[nodiscard]] bool existsSerial(const QString &serialNumber,
                                     QString *errorMessage = nullptr) const;
+    [[nodiscard]] std::optional<QSet<QString>> existingSerials(
+        const QStringList &normalizedSerials, QString *errorMessage = nullptr) const;
+    [[nodiscard]] QList<WorkCrawlSnapshot> loadCrawlSnapshots(QString *errorMessage = nullptr) const;
     [[nodiscard]] std::optional<qint64> findIdBySerial(
         const QString &serialNumber, QString *errorMessage = nullptr) const;
     [[nodiscard]] QStringList serialSuggestions() const;

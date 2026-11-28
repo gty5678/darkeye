@@ -139,6 +139,7 @@ private slots:
         view.setCenterStrength(0);
         view.setLinkStrength(0);
         view.setCollisionStrength(0);
+        QSignalSpy cameraFit(&view, &ForceViewRhiWidget::scaleChanged);
         view.setGraph(2, {}, {-100, 0, 100, 0}, {"a", "b"}, {"a", "b"}, {4, 4});
         auto *canvas = view.findChild<QRhiWidget*>();
         QVERIFY(canvas);
@@ -146,9 +147,14 @@ private slots:
         QSignalSpy stopped(&view, &ForceViewRhiWidget::simulationStopped);
         view.show();
         QTRY_VERIFY_WITH_TIMEOUT(view.m_gpuSimulation && view.m_gpuSimulation->submittedSteps() > 0, 5000);
+        QTRY_VERIFY(!cameraFit.isEmpty()); // Finish the initial fit before measuring idle rendering.
         view.setDragging(0, true); // Keep the graph active despite faster scheduling.
-        if (minimized) view.showMinimized();
-        else view.hide();
+        if (minimized) {
+            view.showMinimized();
+            QTRY_VERIFY(view.isMinimized());
+        } else {
+            view.hide();
+        }
         QTest::qWait(100); // Drain any already requested paints.
         const int frameCount = frames.size();
         const int ticks = view.m_simulation->tickCount();

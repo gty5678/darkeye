@@ -535,6 +535,78 @@ bool WorkRepository::existsSerial(const QString &serialNumber, QString *errorMes
     return query.next();
 }
 
+std::optional<QSet<QString>> WorkRepository::existingSerials(
+    const QStringList &normalizedSerials, QString *errorMessage) const
+{
+    if (normalizedSerials.isEmpty())
+        return QSet<QString>{};
+    if (!m_database.isOpen())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = QStringLiteral("Database is unavailable");
+        return std::nullopt;
+    }
+
+    QStringList placeholders;
+    placeholders.fill(QStringLiteral("?"), normalizedSerials.size());
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT serial_number FROM work WHERE UPPER(serial_number) IN (%1)")
+                      .arg(placeholders.join(QLatin1Char(','))));
+    for (const QString &serial : normalizedSerials)
+        query.addBindValue(serial);
+    if (!query.exec())
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = query.lastError().text();
+        return std::nullopt;
+    }
+
+    QSet<QString> existing;
+    while (query.next())
+        existing.insert(query.value(0).toString().toUpper());
+    return existing;
+}
+
+QList<WorkCrawlSnapshot> WorkRepository::loadCrawlSnapshots(QString *errorMessage) const
+{
+    QSqlQuery query(m_database);
+    if (!query.exec(QStringLiteral(R"(
+SELECT w.serial_number, w.release_date, w.director, w.runtime, w.cn_title, w.jp_title,
+       w.cn_story, w.jp_story, w.image_url, w.maker_id, w.label_id, w.series_id, w.fanart,
+       (SELECT COUNT(1) FROM work_actress_relation war WHERE war.work_id=w.work_id),
+       (SELECT COUNT(1) FROM work_actor_relation wor WHERE wor.work_id=w.work_id),
+       (SELECT COUNT(1) FROM work_tag_relation wtr WHERE wtr.work_id=w.work_id)
+FROM work w
+WHERE IFNULL(w.is_deleted, 0)=0
+)")))
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = query.lastError().text();
+        return {};
+    }
+
+    QList<WorkCrawlSnapshot> snapshots;
+    while (query.next())
+    {
+        WorkCrawlSnapshot snapshot;
+        snapshot.serial = query.value(0).toString().trimmed().toUpper();
+        if (snapshot.serial.isEmpty())
+            continue;
+        const QStringList names = {QStringLiteral("release_date"), QStringLiteral("director"),
+                                   QStringLiteral("runtime"), QStringLiteral("cn_title"),
+                                   QStringLiteral("jp_title"), QStringLiteral("cn_story"),
+                                   QStringLiteral("jp_story"), QStringLiteral("image_url"),
+                                   QStringLiteral("maker_id"), QStringLiteral("label_id"),
+                                   QStringLiteral("series_id"), QStringLiteral("fanart"),
+                                   QStringLiteral("actress_count"), QStringLiteral("actor_count"),
+                                   QStringLiteral("tag_count")};
+        for (qsizetype index = 0; index < names.size(); ++index)
+            snapshot.values.insert(names.at(index), query.value(index + 1));
+        snapshots.append(std::move(snapshot));
+    }
+    return snapshots;
+}
+
 std::optional<qint64> WorkRepository::findIdBySerial(const QString &serialNumber,
                                                      QString *errorMessage) const
 {

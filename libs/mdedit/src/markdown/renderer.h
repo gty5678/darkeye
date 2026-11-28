@@ -1,6 +1,6 @@
 #pragma once
 #include <QtWidgets>
-#include "../editor/theme_palette.h"
+#include "theme_palette.h"
 
 inline const QColor highlightBackground("#fff2a8");
 inline const QColor quoteBackground("#eee9f7");

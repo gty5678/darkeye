@@ -14,6 +14,7 @@
 
 #include <QAbstractButton>
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QDir>
 #include <QImage>
 #include <QLabel>
@@ -29,6 +30,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QToolButton>
@@ -58,6 +60,7 @@ private slots:
     void initialCameraFramesShelf();
     void filtersAndLoadsVirtualizedShelf();
     void themeChangesUseThemedEnvironmentBackground();
+    void clickingDiscPlaysLinkedVideo();
     void nativeRenderingAndActions();
     void tagFiltersCurrentShelfAndNavigationFollowsHistory();
     void rightDragRotatesWithoutContextMenu();
@@ -72,6 +75,10 @@ private slots:
     void routeJumpReplacesAnAlreadyExpandedWork();
     void routeJumpKeepsExcludedWorksOutOfResults_data();
     void routeJumpKeepsExcludedWorksOutOfResults();
+
+private:
+    Q_INVOKABLE void captureVideoUrl(const QUrl &url) { m_openedVideo = url; }
+    QUrl m_openedVideo;
 };
 
 void ShelfPageTest::themeChangesUseThemedEnvironmentBackground()
@@ -295,6 +302,54 @@ void ShelfPageTest::filtersAndLoadsVirtualizedShelf()
     QVERIFY(filter && filter->isHidden());
     QCOMPARE(serial->text(), QStringLiteral("002"));
 
+}
+
+void ShelfPageTest::clickingDiscPlaysLinkedVideo()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto previousDataDir = qgetenv("DARKEYE_DATA_DIR");
+    QVERIFY(qputenv("DARKEYE_DATA_DIR", QFile::encodeName(directory.path())));
+    const auto restoreDataDir = qScopeGuard([previousDataDir] {
+        if (previousDataDir.isNull()) qunsetenv("DARKEYE_DATA_DIR");
+        else qputenv("DARKEYE_DATA_DIR", previousDataDir);
+    });
+    const auto videoPath = directory.filePath("local-video.mp4");
+    QFile video(videoPath);
+    QVERIFY(video.open(QIODevice::WriteOnly));
+    video.close();
+
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY(connection.open(directory.filePath("public.db"), false, &error));
+    QVERIFY(darkeye::SchemaManager::initializeEmptyDatabase(connection, darkeye::DatabaseKind::Public, &error));
+    darkeye::Work work;
+    work.serialNumber = QStringLiteral("DISC-001");
+    work.videoUrl = videoPath;
+    const auto id = darkeye::WorkRepository(connection.database()).insertComplete(work, {}, {}, {}, &error);
+    QVERIFY2(id.has_value(), qPrintable(error));
+
+    darkeye::ThemeService themes(*qApp);
+    darkeye::ShelfPage page(connection.database(), {}, themes, directory.path(), {});
+    page.resize(1000, 600);
+    page.initialize();
+    page.show();
+    QVERIFY(page.showWork(*id));
+    auto *scene = page.findChild<darkeye::dvd_scene::DvdSceneWidget *>();
+    QVERIFY(scene);
+    QTRY_VERIFY(scene->isFullyExpanded());
+    const auto disc = scene->selectedDiscCenter();
+    QVERIFY(disc);
+    auto *canvas = scene->renderWidget();
+    const auto click = disc->toPoint() + QPoint(20, -30);
+    QCOMPARE(page.childAt(canvas->mapTo(&page, click)), canvas);
+
+    m_openedVideo.clear();
+    QDesktopServices::setUrlHandler(QStringLiteral("file"), this, "captureVideoUrl");
+    QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, click);
+    QDesktopServices::unsetUrlHandler(QStringLiteral("file"));
+    QCOMPARE(m_openedVideo, QUrl::fromLocalFile(videoPath));
+    QVERIFY(scene->isFullyExpanded());
 }
 
 void ShelfPageTest::nativeRenderingAndActions()

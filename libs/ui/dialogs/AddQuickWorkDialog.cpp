@@ -1,6 +1,7 @@
 #include "ui/dialogs/AddQuickWorkDialog.h"
 
 #include "crawler/CrawlerScheduler.h"
+#include "database/repositories/WorkRepository.h"
 #include "domain/SerialNumber.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/IconButton.h"
@@ -30,8 +31,6 @@
 #include <QRegularExpression>
 #include <QPair>
 #include <QSet>
-#include <QSqlError>
-#include <QSqlQuery>
 #include <QTableWidgetItem>
 #include <QTextStream>
 #include <QVariantMap>
@@ -45,51 +44,6 @@ namespace darkeye
 
 namespace
 {
-
-struct WorkCrawlSnapshot final
-{
-    QString serial;
-    QVariantMap values;
-};
-
-QList<WorkCrawlSnapshot> loadWorkCrawlSnapshots(const QSqlDatabase &database,
-                                                 QString *errorMessage)
-{
-    QSqlQuery query(database);
-    if (!query.exec(QStringLiteral(R"(
-SELECT w.serial_number, w.release_date, w.director, w.runtime, w.cn_title, w.jp_title,
-       w.cn_story, w.jp_story, w.image_url, w.maker_id, w.label_id, w.series_id, w.fanart,
-       (SELECT COUNT(1) FROM work_actress_relation war WHERE war.work_id=w.work_id),
-       (SELECT COUNT(1) FROM work_actor_relation wor WHERE wor.work_id=w.work_id),
-       (SELECT COUNT(1) FROM work_tag_relation wtr WHERE wtr.work_id=w.work_id)
-FROM work w
-WHERE IFNULL(w.is_deleted, 0)=0
-)")))
-    {
-        if (errorMessage != nullptr) *errorMessage = query.lastError().text();
-        return {};
-    }
-
-    QList<WorkCrawlSnapshot> snapshots;
-    while (query.next())
-    {
-        WorkCrawlSnapshot snapshot;
-        snapshot.serial = query.value(0).toString().trimmed().toUpper();
-        if (snapshot.serial.isEmpty()) continue;
-        const QStringList names = {QStringLiteral("release_date"), QStringLiteral("director"),
-                                   QStringLiteral("runtime"), QStringLiteral("cn_title"),
-                                   QStringLiteral("jp_title"), QStringLiteral("cn_story"),
-                                   QStringLiteral("jp_story"), QStringLiteral("image_url"),
-                                   QStringLiteral("maker_id"), QStringLiteral("label_id"),
-                                   QStringLiteral("series_id"), QStringLiteral("fanart"),
-                                   QStringLiteral("actress_count"), QStringLiteral("actor_count"),
-                                   QStringLiteral("tag_count")};
-        for (qsizetype index = 0; index < names.size(); ++index)
-            snapshot.values.insert(names.at(index), query.value(index + 1));
-        snapshots.append(std::move(snapshot));
-    }
-    return snapshots;
-}
 
 bool isEmptyForCrawlField(const QVariantMap &values, const QString &field)
 {
@@ -375,7 +329,7 @@ void AddQuickWorkDialog::applyEmptyFieldFilter()
     }
 
     QString error;
-    const QList<WorkCrawlSnapshot> snapshots = loadWorkCrawlSnapshots(m_publicDatabase, &error);
+    const QList<WorkCrawlSnapshot> snapshots = WorkRepository(m_publicDatabase).loadCrawlSnapshots(&error);
     if (!error.isEmpty())
     {
         QMessageBox::warning(this, QStringLiteral("筛选失败"), error);
@@ -562,7 +516,7 @@ void AddQuickWorkDialog::submit()
     else
     {
         QString error;
-        const QList<WorkCrawlSnapshot> snapshots = loadWorkCrawlSnapshots(m_publicDatabase, &error);
+        const QList<WorkCrawlSnapshot> snapshots = WorkRepository(m_publicDatabase).loadCrawlSnapshots(&error);
         if (!error.isEmpty()) { QMessageBox::warning(this, QStringLiteral("提交失败"), error); return; }
         QHash<QString, QVariantMap> works;
         for (const WorkCrawlSnapshot &snapshot : snapshots) works.insert(snapshot.serial, snapshot.values);

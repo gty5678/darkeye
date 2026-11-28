@@ -3,6 +3,7 @@
 #include "app/LogService.h"
 #include "app/Resources.h"
 #include "crawler/ManagedCollector.h"
+#include "database/repositories/WorkRepository.h"
 #include "darkeye_ui/components/ColorWheel.h"
 #include "darkeye_ui/theme/ThemeService.h"
 #include "http/LocalApiServer.h"
@@ -142,7 +143,12 @@ int Application::run()
     m_mainWindow = std::make_unique<MainWindow>(
         m_themeService, m_databaseManager.publicConnection().database(),
         m_databaseManager.privateConnection().database(), m_paths);
-    m_localApiServer = std::make_unique<LocalApiServer>(m_databaseManager.publicConnection().database());
+    m_localApiServer = std::make_unique<LocalApiServer>(
+        [works = WorkRepository(m_databaseManager.publicConnection().database())](
+            const QStringList &normalizedSerials, QString *error)
+        {
+            return works.existingSerials(normalizedSerials, error);
+        });
     m_managedCollector = std::make_unique<ManagedCollector>();
     m_mainWindow->setLocalApiServer(*m_localApiServer);
     reportStartupStatus(QStringLiteral("正在预热图形引擎"));

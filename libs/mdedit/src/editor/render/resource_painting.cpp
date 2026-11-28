@@ -1,7 +1,7 @@
 #include "resource_painting.h"
 
 #include "../resources/resource_manager.h"
-#include "../theme_palette.h"
+#include "theme_palette.h"
 
 #include <QFontDatabase>
 #include <QPainter>

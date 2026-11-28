@@ -19,6 +19,9 @@ class GraphManager;
 namespace graph_view {
 class GraphViewWidget;
 }
+namespace settings {
+class Paths;
+}
 
 /** Python ForceDirectPage equivalent: page-only controls around GraphViewWidget. */
 class ForceDirectPage final : public LazyWidget
@@ -27,14 +30,13 @@ class ForceDirectPage final : public LazyWidget
 
 public:
     explicit ForceDirectPage(ThemeService &themeService, graph::GraphManager &graphManager,
-                             QWidget *parent = nullptr, QString actressImageDirectory = {},
-                             QString workCoverDirectory = {});
+                             QWidget *parent = nullptr, const settings::Paths *paths = nullptr,
+                             bool localGraph = false);
     void refreshGraph();
     void setEgoGraph(const QString &centerId, int radius = -1);
     void showFilteredWorks(QSet<qint64> workIds);
     void showFilteredActresses(const QSet<qint64> &actressIds);
     void showEmptyGraph();
-    void setFavoriteFilterToggleVisible(bool visible);
 
 signals:
     void workRequested(qint64 workId);

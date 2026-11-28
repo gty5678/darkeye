@@ -1,10 +1,10 @@
 add_library(MdEditEditor STATIC
   src/platform.h
+  src/theme_palette.h
   src/markdown/scanner.h src/markdown/scanner.cpp
   src/markdown/renderer.h src/markdown/renderer.cpp
   src/editor/highlighter.h src/editor/highlighter.cpp
   src/editor/numbered_editor.h
-  src/editor/theme_palette.h
   src/editor/tables/table_data.h src/editor/tables/table_data.cpp
   src/editor/live_editor.h src/editor/live_editor.cpp
   src/editor/live/live_editor_layout.cpp

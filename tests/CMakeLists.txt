@@ -109,7 +109,7 @@ darkeye_register_test(darkeye_llm_translation_tests darkeye_services_tests LlmTr
 darkeye_register_test(darkeye_translation_settings_timing_tests darkeye_services_tests TranslationSettingsTimingTest)
 
 darkeye_add_test_executable(darkeye_local_api_tests integration/LocalApiServerTest.cpp)
-target_link_libraries(darkeye_local_api_tests PRIVATE darkeye::bridge Qt6::Network Qt6::Test)
+target_link_libraries(darkeye_local_api_tests PRIVATE darkeye::bridge darkeye::database Qt6::Network Qt6::Test)
 darkeye_register_test(darkeye_local_api_tests darkeye_local_api_tests)
 
 darkeye_add_test_executable(darkeye_workspace_tests unit/MyAdsTest.cpp)
@@ -171,6 +171,12 @@ darkeye_register_test(darkeye_llama_runtime_tests darkeye_llama_runtime_tests)
 darkeye_add_test_executable(darkeye_graph_tests ../libs/graph/tests/GraphViewSessionTest.cpp)
 target_link_libraries(darkeye_graph_tests PRIVATE darkeye::graph)
 darkeye_register_test(darkeye_graph_tests darkeye_graph_tests)
+
+darkeye_add_test_executable(darkeye_graph_schema_tests
+    integration/GraphSchemaTest.cpp support/LegacySchemaFixtures.qrc)
+target_link_libraries(darkeye_graph_schema_tests PRIVATE darkeye::database darkeye::graph Qt6::Test)
+darkeye_register_test(darkeye_graph_schema_tests darkeye_graph_schema_tests)
+
 darkeye_add_test_suite(darkeye_graph_view_tests
     LIBRARIES darkeye::graph_view Qt6::GuiPrivate
     SOURCES
@@ -186,12 +192,6 @@ set_tests_properties(darkeye_graph_tests darkeye_graph_view_physics_tests darkey
 set_tests_properties(darkeye_msdf_font_atlas_tests PROPERTIES TIMEOUT 60)
 set_tests_properties(darkeye_gpu_simulation_tests PROPERTIES
     TIMEOUT 120 ENVIRONMENT "${native_ui_environment}")
-
-if(APPLE)
-    # Temporarily disable these tests while macOS CI failures are investigated.
-    set_tests_properties(darkeye_work_page_tests darkeye_gpu_simulation_tests
-        darkeye_graph_page_rendering_tests PROPERTIES DISABLED TRUE)
-endif()
 
 darkeye_add_test_executable(darkeye_cover_maker_tests unit/CoverMakerTest.cpp)
 target_link_libraries(darkeye_cover_maker_tests PRIVATE darkeye::cover_maker Qt6::Test)
@@ -217,7 +217,20 @@ qt_add_executable(darkeye_startup_tests
     integration/ApplicationStartupTest.cpp
     ../apps/desktop/Application.cpp
     ../apps/desktop/Application.h)
-target_link_libraries(darkeye_startup_tests PRIVATE darkeye::desktop_ui darkeye::bridge Qt6::Test)
+target_link_libraries(darkeye_startup_tests PRIVATE
+    darkeye::desktop_ui
+    darkeye::ui
+    darkeye::bridge
+    darkeye::docking
+    darkeye::dvd_scene
+    darkeye::graph_view
+    darkeye::services
+    darkeye::darkeye_ui
+    darkeye::database
+    darkeye::infra
+    darkeye::resources
+    Qt6::Test
+)
 set_target_properties(darkeye_startup_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/startup")
 darkeye_apply_compiler_options(darkeye_startup_tests)

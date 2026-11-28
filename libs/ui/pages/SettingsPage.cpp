@@ -595,7 +595,11 @@ void VideoSettingsPage::lazyLoad()
     m_player->setText(appSettings.localVideoPlayer);
     playerRow->addWidget(m_player, 1);
     auto *browse = new DesignButton(QStringLiteral("浏览…"), this);
+#ifdef Q_OS_MACOS
+    browse->setToolTip(QStringLiteral("选择播放器应用（如 IINA.app、VLC.app）"));
+#else
     browse->setToolTip(QStringLiteral("选择播放器可执行文件（如 VLC、MPC-HC 等）"));
+#endif
     playerRow->addWidget(browse);
     layout->addLayout(playerRow);
 
@@ -657,9 +661,18 @@ void VideoSettingsPage::savePaths()
 
 void VideoSettingsPage::browsePlayer()
 {
+#ifdef Q_OS_MACOS
+    const QFileInfo currentPlayer(QDir::cleanPath(m_player->text().trimmed()));
+    const QString initialFolder = currentPlayer.exists() ? currentPlayer.absolutePath()
+                                                        : QStringLiteral("/Applications");
+    const QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("选择播放器应用"), initialFolder,
+        QStringLiteral("应用程序 (*.app);;所有文件 (*)"));
+#else
     const QString path = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择播放器可执行文件"), QString{},
         executableFileFilter());
+#endif
     if (!path.isEmpty())
     {
         m_player->setText(path);

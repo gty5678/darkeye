@@ -791,11 +791,14 @@ private slots:
         QTRY_VERIFY(view->statistics().submittedFrames > 0);
         const auto initial = view->statistics();
         first.showMinimized();
-        QTRY_VERIFY(first.isMinimized());
-        // Wait for Cocoa's native minimize transition before requesting restoration.
-        QTRY_VERIFY(!first.windowHandle()->isExposed());
+        // Exposure is backend-specific. Observe the Qt window-state transition.
+        QTRY_COMPARE(first.windowHandle()->visibility(), QWindow::Minimized);
         first.showNormal();
+        QTRY_COMPARE(first.windowHandle()->visibility(), QWindow::Windowed);
         QVERIFY(QTest::qWaitForWindowExposed(&first));
+        const auto restoredFrames = view->statistics().submittedFrames;
+        view->update();
+        QTRY_VERIFY(view->statistics().submittedFrames > restoredFrames);
         QVERIFY(!foregroundBounds(view->grabFramebuffer()).isEmpty());
         for (int i = 0; i < 6; ++i) {
             view->hide();

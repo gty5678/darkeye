@@ -22,6 +22,7 @@ class PublicRepositoryTest final : public QObject
 
 private slots:
     void createsAndFindsPeopleAndReferences();
+    void listsActressesNeedingUpdateInIdOrder();
     void searchesPeopleWithStableFiltersAndOrdering();
     void updatesPersonDetailsAndNameChains();
     void managesAndRedirectsReferenceRecordsAtomically();
@@ -62,6 +63,26 @@ void PublicRepositoryTest::createsAndFindsPeopleAndReferences()
                                   .color = QStringLiteral("#112233")};
     QVERIFY2(references.createTag(tag, &errorMessage).has_value(), qPrintable(errorMessage));
     QVERIFY(!references.createTag(tag, &errorMessage).has_value());
+}
+
+void PublicRepositoryTest::listsActressesNeedingUpdateInIdOrder()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    darkeye::SqliteConnection connection;
+    QString error;
+    QVERIFY2(connection.open(directory.filePath(QStringLiteral("public.db")), false, &error),
+             qPrintable(error));
+    QVERIFY2(darkeye::SchemaManager::initializeEmptyDatabase(
+                 connection, darkeye::DatabaseKind::Public, &error), qPrintable(error));
+
+    QSqlQuery seed(connection.database());
+    QVERIFY(seed.exec(QStringLiteral(
+        "INSERT INTO actress(actress_id, need_update) VALUES(20, 1), (10, 1), (30, 0), (40, NULL)")));
+    const QList<qint64> expected{10, 20};
+    QCOMPARE(darkeye::PersonRepository(connection.database()).actressIdsNeedingUpdate(&error),
+             expected);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
 }
 
 void PublicRepositoryTest::searchesPeopleWithStableFiltersAndOrdering()

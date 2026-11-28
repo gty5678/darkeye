@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/sql">
+        <file alias="initPublicTable.sql">sql/initPublicTable.sql</file>
+        <file alias="init-content.sql">sql/init-content.sql</file>
+        <file alias="initPrivateTable.sql">sql/initPrivateTable.sql</file>
+        <file alias="public/v1.0-v2/migration.sql">sql/public/v1.0-v2/migration.sql</file>
+        <file alias="private/v1.0-v1.1/RBfavorite_actress.sql">sql/private/v1.0-v1.1/RBfavorite_actress.sql</file>
+        <file alias="private/v1.0-v1.1/RBfavorite_work.sql">sql/private/v1.0-v1.1/RBfavorite_work.sql</file>
+        <file alias="work_all_info.sql">sql/work_all_info.sql</file>
+        <file alias="actress_all_info.sql">sql/actress_all_info.sql</file>
+        <file alias="actor_all_info.sql">sql/actor_all_info.sql</file>
+    </qresource>
+</RCC>

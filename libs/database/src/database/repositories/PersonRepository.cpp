@@ -312,6 +312,22 @@ QSet<qint64> PersonRepository::matchingPersonIds(const PersonSearch &search) con
     return ids;
 }
 
+QList<qint64> PersonRepository::actressIdsNeedingUpdate(QString *errorMessage) const
+{
+    QSqlQuery query(m_database);
+    if (!query.exec(QStringLiteral("SELECT actress_id FROM actress WHERE need_update=1 ORDER BY actress_id")))
+    {
+        if (errorMessage != nullptr)
+            *errorMessage = query.lastError().text();
+        return {};
+    }
+
+    QList<qint64> ids;
+    while (query.next())
+        ids.append(query.value(0).toLongLong());
+    return ids;
+}
+
 QStringList PersonRepository::nameSuggestions(PersonKind kind) const
 {
     const QString table =

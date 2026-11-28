@@ -164,6 +164,20 @@ void WorkRepositoryTest::completeInsertCommitsRelationsAtomically()
     QCOMPARE(updatedDetails->actresses.first().id, secondActressId);
     QVERIFY(updatedDetails->actors.isEmpty());
     QCOMPARE(updatedDetails->tags.size(), 1);
+
+    errorMessage.clear();
+    const auto snapshots = repository.loadCrawlSnapshots(&errorMessage);
+    QVERIFY2(errorMessage.isEmpty(), qPrintable(errorMessage));
+    QCOMPARE(snapshots.size(), 1);
+    QCOMPARE(snapshots.first().serial, QStringLiteral("FULL-1"));
+    QCOMPARE(snapshots.first().values.value(QStringLiteral("runtime")).toInt(), 120);
+    QCOMPARE(snapshots.first().values.value(QStringLiteral("actress_count")).toInt(), 1);
+    QCOMPARE(snapshots.first().values.value(QStringLiteral("actor_count")).toInt(), 0);
+    QCOMPARE(snapshots.first().values.value(QStringLiteral("tag_count")).toInt(), 1);
+
+    QVERIFY2(repository.setDeleted(*workId, true, &errorMessage), qPrintable(errorMessage));
+    QVERIFY(repository.loadCrawlSnapshots(&errorMessage).isEmpty());
+    QVERIFY2(errorMessage.isEmpty(), qPrintable(errorMessage));
 }
 
 void WorkRepositoryTest::searchesAndUpdatesWorkDetails()

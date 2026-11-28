@@ -25,6 +25,7 @@ public:
     [[nodiscard]] std::optional<int> count(const PersonSearch &search,
                                            QString *errorMessage = nullptr) const;
     [[nodiscard]] QSet<qint64> matchingPersonIds(const PersonSearch &search) const;
+    [[nodiscard]] QList<qint64> actressIdsNeedingUpdate(QString *errorMessage = nullptr) const;
     [[nodiscard]] QStringList nameSuggestions(PersonKind kind) const;
     [[nodiscard]] QStringList cupOptions() const;
     [[nodiscard]] std::optional<PersonDetails> findDetails(PersonKind kind, qint64 personId,

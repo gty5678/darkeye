@@ -263,9 +263,10 @@ CrawlerSettings crawler(QString settingsFile)
     settings.webDav.remoteRoot = normalizedWebDavRoot(
         m_store.value(QStringLiteral("WebDAV/RemoteRoot"), settings.webDav.remoteRoot).toString());
     settings.webDav.timeoutSeconds = qBound(
+        3,
         m_store.value(QStringLiteral("WebDAV/TimeoutSeconds"), settings.webDav.timeoutSeconds)
             .toInt(),
-        3, 300);
+        300);
     settings.webDav.autoUploadOnBackup = m_store
                                              .value(QStringLiteral("WebDAV/AutoUploadOnBackup"),
                                                     settings.webDav.autoUploadOnBackup)
@@ -298,7 +299,7 @@ TranslationSettings translation(QString settingsFile)
     if (settings.llama.host.isEmpty())
         settings.llama.host = QStringLiteral("127.0.0.1");
     settings.llama.port = qBound(
-        m_store.value(QStringLiteral("LlamaCpp/Port"), settings.llama.port).toInt(), 1, 65535);
+        1, m_store.value(QStringLiteral("LlamaCpp/Port"), settings.llama.port).toInt(), 65535);
     settings.llama.mode = normalizedMode(
         m_store.value(QStringLiteral("LlamaCpp/Mode"), settings.llama.mode).toString());
     settings.llama.contextSize = qMax(

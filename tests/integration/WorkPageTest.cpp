@@ -272,7 +272,7 @@ void WorkPageTest::searchableSelectorsAndClearFilters()
         selector->setCurrentIndex(selector->findData(900001));
         QTRY_COMPARE(count->text(), QStringLiteral("过滤总数:1"));
         QCOMPARE(selector->maker(), std::optional<qint64>(900001));
-        page.refreshReferences();
+        page.refreshFromWorkspace(false, true);
         QCOMPARE(selector->maker(), std::optional<qint64>(900001));
         clear->click();
         QCOMPARE(selector->currentIndex(), 0);
@@ -1201,7 +1201,7 @@ void WorkPageTest::fanartChangesRenderWarningFrame()
         QVERIFY(editor.loadWork(*workId));
         QApplication::processEvents();
         QVERIFY(!hasOrangeEdges());
-        fanart->setUrlList({QStringLiteral("https://example.invalid/scene.jpg")});
+        QVERIFY(fanart->addImageUrl(QStringLiteral("https://example.invalid/scene.jpg"), &error));
         QVERIFY(fanart->property("addWorkModified").toBool());
         QApplication::processEvents();
         QVERIFY(hasOrangeEdges());
@@ -1687,8 +1687,7 @@ void WorkPageTest::importsCoverAndRollsBackOnDatabaseFailure()
     title->setPlainText(QStringLiteral("封面导入"));
     imageDrop->setImagePath(sourcePath);
     imageDrop->setDirty(true);
-    QVERIFY(fanart->addLocalImage(sourcePath, &errorMessage));
-    fanart->setUrlList({QStringLiteral("https://example.invalid/scene.jpg")});
+    QVERIFY(fanart->addImageUrl(QStringLiteral("https://example.invalid/scene.jpg"), &errorMessage));
     QVERIFY(fanart->addLocalImage(sourcePath, &errorMessage));
     // 保存按钮位于可停靠工作区的基础信息窗格；测试业务行为时直接触发其槽，
     // 不依赖当前活动标签页的可见状态。

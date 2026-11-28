@@ -538,12 +538,9 @@ void MediaComponentTest::fanartPreservesJsonOrderAndRemoteState()
     darkeye::FanartStripWidget strip(fanartDirectory, directory.path());
     strip.setEntries(entries);
     QSignalSpy changed(&strip, &darkeye::FanartStripWidget::fanartChanged);
-    strip.setUrlList({QStringLiteral("https://example.invalid/一.jpg"),
-                      QStringLiteral("https://example.invalid/two.png")});
-    QCOMPARE(changed.count(), 0);
-    QCOMPARE(strip.entries().at(0).file, QStringLiteral("one.jpg"));
     QVERIFY(strip.moveEntry(1, 0));
     QCOMPARE(changed.count(), 1);
+    QCOMPARE(strip.entries().at(1), entries.at(0));
     const QString serialized = darkeye::FanartStripWidget::toJson(strip.entries());
     QList<darkeye::FanartEntry> roundTrip;
     QVERIFY(darkeye::FanartStripWidget::parseJson(serialized, &roundTrip, &errorMessage));
@@ -563,8 +560,7 @@ void MediaComponentTest::fanartFinalizesPendingLocalImages()
     const QString fanartDirectory = directory.filePath(QStringLiteral("fanart"));
     darkeye::FanartStripWidget strip(fanartDirectory);
     QString errorMessage;
-    QVERIFY(strip.addLocalImage(sourcePath, &errorMessage));
-    strip.setUrlList({QStringLiteral("https://example.invalid/remote.jpg")});
+    QVERIFY(strip.addImageUrl(QStringLiteral("https://example.invalid/remote.jpg"), &errorMessage));
     QVERIFY(strip.addLocalImage(sourcePath, &errorMessage));
 
     QList<darkeye::FanartEntry> finalized;

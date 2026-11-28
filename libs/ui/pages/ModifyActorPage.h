@@ -14,8 +14,6 @@ public:
                              QString imageDirectory, QWidget *parent = nullptr,
                              QString coverDirectory = {});
 
-    bool loadActor(qint64 actorId);
-
 private:
     void buildEditorActions() override;
 };

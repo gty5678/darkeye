@@ -327,20 +327,6 @@ QString ThemeService::customPrimary() const
     return m_customPrimary;
 }
 
-void ThemeService::setCurrent(ThemeId theme)
-{
-    if (m_current == theme) return;
-    m_current = theme;
-    emit themeChanged(theme);
-}
-
-void ThemeService::setCustomPrimary(const QString &customPrimary)
-{
-    const QString normalized = customPrimary.trimmed();
-    if (m_customPrimary == normalized) return;
-    m_customPrimary = normalized;
-}
-
 ThemeTokens ThemeService::currentTokens() const
 {
     return tokens(m_current, m_customPrimary);

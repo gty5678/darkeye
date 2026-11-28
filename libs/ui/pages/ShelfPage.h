@@ -26,9 +26,6 @@ public:
                        QWidget *parent = nullptr, WorkFilter *filter = nullptr);
 
     void refresh();
-    void refreshAfterCapture();
-    void refreshReferences();
-    void refreshTags();
     void refreshFromWorkspace(bool tagsChanged, bool referencesChanged);
     void refreshCurrentFavorite();
     void filterByDirector(const QString &director);

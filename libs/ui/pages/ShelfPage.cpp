@@ -59,21 +59,6 @@ void ShelfPage::refresh()
     if (!m_filter->flush()) refreshData();
 }
 
-void ShelfPage::refreshAfterCapture()
-{
-    refreshFromWorkspace(false, false);
-}
-
-void ShelfPage::refreshReferences()
-{
-    refreshFromWorkspace(false, true);
-}
-
-void ShelfPage::refreshTags()
-{
-    refreshFromWorkspace(true, false);
-}
-
 void ShelfPage::refreshFromWorkspace(bool tagsChanged, bool referencesChanged)
 {
     initialize();

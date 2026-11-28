@@ -1397,13 +1397,9 @@ QWidget *MainWindow::createPage(const QString &routeName, QWidget *parent)
     if (routeName == QStringLiteral("mutiwork"))
     {
         auto *works = new WorkPage(m_publicDatabase, m_themeService,
-                                   m_paths.workCoverDirectory(), m_privateDatabase,
-                                   m_paths.fanartDirectory(),
-                                   settings::crawler().coverFetchApiUrl, parent, m_workFilter);
+                                   m_paths.workCoverDirectory(), m_privateDatabase, parent, m_workFilter);
         connect(works, &WorkPage::detailRequested, this, &MainWindow::showWorkInShelf);
         connect(works, &WorkPage::editRequested, this, &MainWindow::openWorkEditor);
-        connect(works, &WorkPage::worksChanged, this,
-                [this] { queueWorkspaceRefresh(WorksChanged); });
         connect(works, &WorkPage::filteredWorksChanged, this, [this, works] {
             if (m_localGraphSource == works) updateLocalGraph();
             if (m_timelineSource == works) updateTimeline();

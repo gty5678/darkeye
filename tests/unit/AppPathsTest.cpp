@@ -562,12 +562,14 @@ void AppPathsTest::readsAndWritesTypedSettings()
     crawler.workApiBaseUrl = QUrl(QStringLiteral("http://127.0.0.1:61234/work"));
     crawler.autoStartCollector = true;
     crawler.webDav.remoteRoot = QStringLiteral("/darkeye/backups/");
+    crawler.webDav.timeoutSeconds = 30;
     darkeye::settings::saveCrawler(crawler, settingsFile);
     const darkeye::CrawlerSettings loadedCrawler = darkeye::settings::crawler(settingsFile);
     QCOMPARE(loadedCrawler.workApiBaseUrl,
              QUrl(QStringLiteral("http://127.0.0.1:61234/work")));
     QVERIFY(loadedCrawler.autoStartCollector);
     QCOMPARE(loadedCrawler.webDav.remoteRoot, QStringLiteral("/darkeye/backups"));
+    QCOMPARE(loadedCrawler.webDav.timeoutSeconds, 30);
 
     darkeye::TranslationSettings translation = darkeye::settings::translation(settingsFile);
     QCOMPARE(translation.timeoutSeconds, 12);
@@ -585,6 +587,19 @@ void AppPathsTest::readsAndWritesTypedSettings()
     QCOMPARE(loadedTranslation.llama.contextSize, 4096);
     QCOMPARE(loadedTranslation.llama.port, 1);
     QCOMPARE(loadedTranslation.llama.mode, QStringLiteral("cpu"));
+
+    QSettings ini(settingsFile, QSettings::IniFormat);
+    ini.setValue(QStringLiteral("WebDAV/TimeoutSeconds"), 301);
+    ini.setValue(QStringLiteral("LlamaCpp/Port"), 8080);
+    ini.sync();
+    QCOMPARE(darkeye::settings::crawler(settingsFile).webDav.timeoutSeconds, 300);
+    QCOMPARE(darkeye::settings::translation(settingsFile).llama.port, 8080);
+
+    ini.setValue(QStringLiteral("WebDAV/TimeoutSeconds"), 2);
+    ini.setValue(QStringLiteral("LlamaCpp/Port"), 65536);
+    ini.sync();
+    QCOMPARE(darkeye::settings::crawler(settingsFile).webDav.timeoutSeconds, 3);
+    QCOMPARE(darkeye::settings::translation(settingsFile).llama.port, 65535);
 }
 
 DARKEYE_TEST_MAIN(AppPathsTest, QCoreApplication)

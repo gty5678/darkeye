@@ -28,8 +28,6 @@ public:
     void setFavoriteOnly(bool enabled);
     /** Prepare CPU data, simulation and font atlas while hidden when requested. */
     void setEgoGraph(const QString &centerId, int radius = 1, bool prepareWhileHidden = false);
-    void showEgoGraph(int radius);
-    void showAll();
     void showFilteredWorks(QSet<QString> workIds);
     void showFilteredActresses(QSet<QString> actressIds);
     void showEmpty();

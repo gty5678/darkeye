@@ -1111,11 +1111,6 @@ QWidget *PaneWidget::contentWidget(const QString &id) const
     const int index = indexOf(id);
     return index < 0 ? nullptr : m_stack->widget(index);
 }
-QIcon PaneWidget::contentIcon(const QString &id) const
-{
-    const int index = indexOf(id);
-    return index < 0 ? QIcon() : m_tabBar->tabIcon(index);
-}
 bool PaneWidget::isContentCloseable(const QString &id) const
 {
     return m_closeable.value(id, true);

@@ -1125,7 +1125,7 @@ void ShelfPageTest::routeJumpReplacesAnAlreadyExpandedWork()
     QVERIFY(updated.has_value());
     updated->chineseTitle = QStringLiteral("采集后的新标题");
     QVERIFY(repository.updateDetails(*updated, &error));
-    page.refreshAfterCapture();
+    page.refreshFromWorkspace(false, false);
     QTRY_COMPARE(view->expandedWorkTitle(), updated->chineseTitle);
     QTRY_COMPARE(view->currentWorkId(), secondId);
     QTRY_COMPARE(view->expandedWorkCode(), secondSerial);

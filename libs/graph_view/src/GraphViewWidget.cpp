@@ -12,7 +12,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-#include <algorithm>
+#include <utility>
 
 namespace darkeye::graph_view {
 
@@ -82,26 +82,6 @@ void GraphViewWidget::setEgoGraph(const QString &centerId, int radius, bool prep
     m_session.setEgoRadius(radius);
     m_egoRadius = radius;
     m_style.centerId = centerId;
-    reloadView();
-}
-
-void GraphViewWidget::showEgoGraph(int radius)
-{
-    const graph::GraphViewSnapshot snapshot = m_session.snapshot();
-    if (snapshot.nodes.isEmpty()) return;
-    const auto actress = std::find_if(snapshot.nodes.cbegin(), snapshot.nodes.cend(),
-                                      [](const graph::GraphViewNode &node) {
-        return node.node.group == QStringLiteral("actress")
-               || node.node.id.startsWith(QLatin1Char('a'));
-    });
-    setEgoGraph((actress == snapshot.nodes.cend() ? snapshot.nodes.cbegin() : actress)->node.id,
-                radius);
-}
-
-void GraphViewWidget::showAll()
-{
-    m_session.setFilterMode(graph::GraphFilterMode::All);
-    m_style.centerId.clear();
     reloadView();
 }
 

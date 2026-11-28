@@ -12,8 +12,6 @@ public:
     explicit ClickableLabel(const QString &text = QStringLiteral("xxx"),
                             bool actressJump = false, QWidget *parent = nullptr);
 
-    void setActressJumpEnabled(bool enabled) noexcept;
-    [[nodiscard]] bool actressJumpEnabled() const noexcept;
     QSize sizeHint() const override;
 
 signals:

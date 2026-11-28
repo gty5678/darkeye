@@ -60,7 +60,6 @@ public:
     void addTabBarButton(QWidget *button, Qt::Edge edge);
     [[nodiscard]] QString contentTitle(const QString &contentId) const;
     [[nodiscard]] QWidget *contentWidget(const QString &contentId) const;
-    [[nodiscard]] QIcon contentIcon(const QString &contentId) const;
     [[nodiscard]] bool isContentCloseable(const QString &contentId) const;
     [[nodiscard]] ClosePolicy contentClosePolicy(const QString &contentId) const;
     // The caller owns the returned menu; unknown content returns nullptr.

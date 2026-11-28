@@ -18,16 +18,6 @@ ClickableLabel::ClickableLabel(const QString &text, bool actressJump, QWidget *p
     setWordWrap(false);
 }
 
-void ClickableLabel::setActressJumpEnabled(bool enabled) noexcept
-{
-    m_actressJump = enabled;
-}
-
-bool ClickableLabel::actressJumpEnabled() const noexcept
-{
-    return m_actressJump;
-}
-
 QSize ClickableLabel::sizeHint() const
 {
     const QFontMetrics metrics(font());

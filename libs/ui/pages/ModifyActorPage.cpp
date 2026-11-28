@@ -17,9 +17,4 @@ void ModifyActorPage::buildEditorActions()
     configureAvatar(QStringLiteral("男优头像"), QStringLiteral("把男优头像拖进来"));
 }
 
-bool ModifyActorPage::loadActor(qint64 actorId)
-{
-    return loadPerson(PersonKind::Actor, actorId);
-}
-
 } // namespace darkeye

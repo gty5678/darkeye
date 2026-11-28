@@ -4,7 +4,6 @@
 #include "darkeye_ui/components/LazyScrollArea.h"
 #include "darkeye_ui/components/ToastNotification.h"
 #include "database/SqliteConnection.h"
-#include "database/repositories/PersonRepository.h"
 #include "ui/components/WorkCard.h"
 #include "ui/components/WorkFilter.h"
 
@@ -18,12 +17,11 @@
 namespace darkeye
 {
 WorkPage::WorkPage(QSqlDatabase database, ThemeService &themeService,
-                   QString coverDirectory, QSqlDatabase privateDatabase, QString fanartDirectory,
-                   QUrl imageFetchEndpoint, QWidget *parent, WorkFilter *filter)
+                   QString coverDirectory, QSqlDatabase privateDatabase,
+                   QWidget *parent, WorkFilter *filter)
     : LazyWidget(parent), m_themeService(themeService), m_database(database),
       m_repository(std::move(database)),
-      m_coverDirectory(std::move(coverDirectory)), m_fanartDirectory(std::move(fanartDirectory)),
-      m_imageFetchEndpoint(std::move(imageFetchEndpoint)),
+      m_coverDirectory(std::move(coverDirectory)),
       m_filter(filter ? filter : new WorkFilter(m_database, std::move(privateDatabase), themeService, this))
 {
 }
@@ -139,16 +137,6 @@ QWidget *WorkPage::captureContent()
     return m_lazyArea->widget();
 }
 
-void WorkPage::refreshReferences()
-{
-    refreshFromWorkspace(false, true);
-}
-
-void WorkPage::refreshTags()
-{
-    refreshFromWorkspace(true, false);
-}
-
 void WorkPage::refreshFromWorkspace(bool tagsChanged, bool referencesChanged)
 {
     initialize();
@@ -199,8 +187,8 @@ void WorkPage::loadCardPage(quint64 request, int pageIndex, int pageSize)
                                  [this, works = std::move(result.works)](int index) {
             auto *card = new WorkCard(works.at(index), m_coverDirectory, m_largeCoverView,
                                       nullptr, true);
-            connect(card, &WorkCard::activated, this, &WorkPage::showWorkDetails);
-            connect(card, &WorkCard::editRequested, this, &WorkPage::loadWork);
+            connect(card, &WorkCard::activated, this, &WorkPage::detailRequested);
+            connect(card, &WorkCard::editRequested, this, &WorkPage::editRequested);
             return card;
         });
         if (result.total) emit filteredWorksChanged();
@@ -238,46 +226,6 @@ void WorkPage::loadCardPage(quint64 request, int pageIndex, int pageSize)
         promise.addResult(std::move(result));
         promise.finish();
     });
-}
-
-void WorkPage::showWorkDetails(qint64 workId)
-{
-    emit detailRequested(workId);
-}
-
-void WorkPage::loadWork(qint64 workId)
-{
-    emit editRequested(workId);
-}
-
-void WorkPage::filterByActor(qint64 actorId)
-{
-    if (actorId <= 0) return;
-    initialize();
-    QString error;
-    SqliteConnection connection;
-    if (!connection.open(m_database.databaseName(), true, &error)) return;
-    const auto details =
-        PersonRepository(connection.database()).findDetails(PersonKind::Actor, actorId, &error);
-    if (!details.has_value()) return;
-    for (const PersonName &name : details->names)
-    {
-        const QString displayName = !name.chinese.trimmed().isEmpty() ? name.chinese
-                                    : !name.japanese.trimmed().isEmpty() ? name.japanese
-                                                                         : name.english;
-        if (!displayName.trimmed().isEmpty())
-        {
-            m_filter->filterByActor(actorId, displayName);
-            return;
-        }
-    }
-}
-
-void WorkPage::filterByTag(qint64 tagId)
-{
-    if (tagId <= 0) return;
-    initialize();
-    m_filter->filterByTag(tagId);
 }
 
 } // namespace darkeye

@@ -37,9 +37,7 @@ public:
 
     void setEntries(const QList<FanartEntry> &entries);
     [[nodiscard]] QList<FanartEntry> entries() const;
-    void setUrlList(const QStringList &urls);
     void setCanAdd(bool canAdd);
-    [[nodiscard]] bool canAdd() const noexcept;
     enum class Mode { Edit, Display };
     void setMode(Mode mode);
     [[nodiscard]] Mode mode() const noexcept { return m_mode; }
@@ -48,7 +46,6 @@ public:
     bool addImageUrl(const QString &url, QString *errorMessage = nullptr);
     bool removeEntry(int index);
     bool moveEntry(int from, int to);
-    bool updateEntry(int index, const QString &url, const QString &file = {});
     bool downloadEntry(int index);
     [[nodiscard]] bool downloadInProgress() const noexcept;
 

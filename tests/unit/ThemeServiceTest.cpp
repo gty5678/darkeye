@@ -36,7 +36,6 @@ class ThemeServiceTest final : public QObject
 
 private slots:
     void initTestCase();
-    void stateOnlyMethodsDoNotApplyStyleSheet();
     void mapsAllPersistedThemeIds();
     void chamferEdgesKeepStyleAndAntialiasing();
     void tableChamfersShowParentBackground();
@@ -60,24 +59,6 @@ void ThemeServiceTest::initTestCase()
     auto format = QSurfaceFormat::defaultFormat();
     format.setColorSpace(QColorSpace(QColorSpace::DisplayP3));
     QSurfaceFormat::setDefaultFormat(format);
-}
-
-void ThemeServiceTest::stateOnlyMethodsDoNotApplyStyleSheet()
-{
-    auto *application = qobject_cast<QApplication *>(QCoreApplication::instance());
-    QVERIFY(application != nullptr);
-    application->setStyleSheet(QStringLiteral("QWidget { padding: 3px; }"));
-
-    darkeye::ThemeService service(*application);
-    QSignalSpy changed(&service, &darkeye::ThemeService::themeChanged);
-    service.setCustomPrimary(QStringLiteral("#336699"));
-    service.setCurrent(darkeye::ThemeId::Dark);
-
-    QCOMPARE(application->styleSheet(), QStringLiteral("QWidget { padding: 3px; }"));
-    QCOMPARE(service.current(), darkeye::ThemeId::Dark);
-    QCOMPARE(service.customPrimary(), QStringLiteral("#336699"));
-    QCOMPARE(service.currentTokens().primary, QStringLiteral("#336699"));
-    QCOMPARE(changed.count(), 1);
 }
 
 void ThemeServiceTest::exposesThemeTokenMap()

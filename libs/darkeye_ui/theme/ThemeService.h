@@ -76,11 +76,6 @@ public:
     ThemeId current() const;
     QString customPrimary() const;
 
-    // These three operations deliberately mirror Python ThemeManager's
-    // state-only API.  They never mutate QApplication's style sheet; callers
-    // that want to apply the state use setTheme().
-    void setCurrent(ThemeId theme);
-    void setCustomPrimary(const QString &customPrimary);
     [[nodiscard]] ThemeTokens currentTokens() const;
 
     bool setTheme(ThemeId theme, const QString &customPrimary = {});

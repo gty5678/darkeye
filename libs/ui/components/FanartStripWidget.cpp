@@ -399,46 +399,11 @@ QList<FanartEntry> FanartStripWidget::entries() const
     return m_entries;
 }
 
-void FanartStripWidget::setUrlList(const QStringList &urls)
-{
-    if (downloadInProgress())
-    {
-        const quint64 requestId = m_activeRequestId;
-        m_activeRequestId = 0;
-        m_activeDownloadIndex = -1;
-        m_imageFetch->cancel(requestId);
-        emit downloadStateChanged(false);
-    }
-    QList<FanartEntry> replacement;
-    for (const QString &value : urls)
-    {
-        const QString url = value.trimmed();
-        if (!url.isEmpty())
-            replacement.append({url, {}, {}});
-    }
-    QList<QString> oldUrls;
-    for (const FanartEntry &entry : std::as_const(m_entries))
-        oldUrls.append(entry.url.trimmed());
-    QList<QString> newUrls;
-    for (const FanartEntry &entry : std::as_const(replacement))
-        newUrls.append(entry.url);
-    if (oldUrls == newUrls)
-        return;
-    m_entries = replacement;
-    rebuild();
-    emit fanartChanged(m_entries);
-}
-
 void FanartStripWidget::setCanAdd(bool canAdd)
 {
     m_canAdd = canAdd;
     if (m_mode == Mode::Edit)
         rebuild();
-}
-
-bool FanartStripWidget::canAdd() const noexcept
-{
-    return m_canAdd;
 }
 
 void FanartStripWidget::setMode(Mode mode)
@@ -516,17 +481,6 @@ bool FanartStripWidget::moveEntry(int from, int to)
         to >= m_entries.size() || from == to)
         return false;
     m_entries.move(from, to);
-    rebuild();
-    emit fanartChanged(m_entries);
-    return true;
-}
-
-bool FanartStripWidget::updateEntry(int index, const QString &url, const QString &file)
-{
-    if (downloadInProgress() || index < 0 || index >= m_entries.size())
-        return false;
-    m_entries[index].url = url.trimmed();
-    m_entries[index].file = file.trimmed();
     rebuild();
     emit fanartChanged(m_entries);
     return true;

@@ -1,7 +1,6 @@
 #include "settings/Settings.h"
 
 #include "settings/Paths.h"
-#include "settings/SettingsStore.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -11,7 +10,6 @@
 
 namespace darkeye::settings
 {
-using ::darkeye::SettingsStore;
 
 namespace
 {
@@ -36,11 +34,6 @@ QString normalizedMode(const QString &value)
     return normalized == QStringLiteral("gpu") ? normalized : QStringLiteral("cpu");
 }
 
-int bounded(int value, int minimum, int maximum)
-{
-    return qBound(minimum, value, maximum);
-}
-
 QString normalizedWebDavRoot(const QString &value)
 {
     QString normalized = value;
@@ -48,7 +41,6 @@ QString normalizedWebDavRoot(const QString &value)
     normalized = normalized.trimmed();
     if (normalized.isEmpty())
         normalized = QStringLiteral("/darkeye");
-    normalized = normalized.trimmed();
     while (normalized.startsWith(u'/'))
         normalized.remove(0, 1);
     while (normalized.endsWith(u'/'))
@@ -96,6 +88,14 @@ QStringList normalizedVideoPaths(const QStringList &paths)
     return normalized;
 }
 
+void saveValues(const QString &settingsFile, const QVariantMap &values)
+{
+    QSettings settings(settingsFile, QSettings::IniFormat);
+    for (auto it = values.cbegin(); it != values.cend(); ++it)
+        settings.setValue(it.key(), it.value());
+    settings.sync();
+}
+
 bool migrateAppSettings(const QString &settingsFile, QString *errorMessage)
 {
     QSettings settings(settingsFile, QSettings::IniFormat);
@@ -120,7 +120,7 @@ bool migrateAppSettings(const QString &settingsFile, QString *errorMessage)
                                QStringLiteral("Workspace/SidebarAutoCollapse"), check, notify,
                                QStringLiteral("App/GreenMode"), QStringLiteral("Paths/Temp"),
                                QStringLiteral("Translation/Engine")}) {
-        if (settings.contains(key)) settings.remove(key);
+        settings.remove(key);
     }
     settings.sync();
     if (settings.status() == QSettings::NoError) return true;
@@ -135,11 +135,10 @@ QString resolvedSettingsFile(QString settingsFile) { return settingsFile.isEmpty
 
 bool ensureDefaults(QString settingsFile, QString *errorMessage)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
-    if (m_store.exists())
-        return migrateAppSettings(m_store.fileName(), errorMessage);
-
-    const QFileInfo fileInfo(m_store.fileName());
+    settingsFile = resolvedSettingsFile(std::move(settingsFile));
+    const QFileInfo fileInfo(settingsFile);
+    if (fileInfo.exists())
+        return migrateAppSettings(settingsFile, errorMessage);
     if (!QDir().mkpath(fileInfo.absolutePath()))
     {
         if (errorMessage != nullptr)
@@ -147,10 +146,10 @@ bool ensureDefaults(QString settingsFile, QString *errorMessage)
         return false;
     }
 
-    saveApp(AppSettings{}, m_store.fileName());
-    saveCrawler(CrawlerSettings{}, m_store.fileName());
-    saveTranslation(TranslationSettings{}, m_store.fileName());
-    m_store.setValues({
+    saveApp(AppSettings{}, settingsFile);
+    saveCrawler(CrawlerSettings{}, settingsFile);
+    saveTranslation(TranslationSettings{}, settingsFile);
+    saveValues(settingsFile, {
         {QStringLiteral("Paths/Version"), 2},
         {QStringLiteral("Paths/Database"), QStringLiteral("public/public.db")},
         {QStringLiteral("Paths/DatabaseBackups"), QStringLiteral("public/public_backup/")},
@@ -162,7 +161,7 @@ bool ensureDefaults(QString settingsFile, QString *errorMessage)
         {QStringLiteral("Paths/PrivateDatabaseBackups"),
          QStringLiteral("private/private_backup/")},
     });
-    return m_store.exists();
+    return QFileInfo::exists(settingsFile);
 }
 
 AppSettings app(QString settingsFile)
@@ -263,7 +262,7 @@ CrawlerSettings crawler(QString settingsFile)
     settings.webDav.baseUrl = QUrl(m_store.value(QStringLiteral("WebDAV/BaseUrl")).toString().trimmed());
     settings.webDav.remoteRoot = normalizedWebDavRoot(
         m_store.value(QStringLiteral("WebDAV/RemoteRoot"), settings.webDav.remoteRoot).toString());
-    settings.webDav.timeoutSeconds = bounded(
+    settings.webDav.timeoutSeconds = qBound(
         m_store.value(QStringLiteral("WebDAV/TimeoutSeconds"), settings.webDav.timeoutSeconds)
             .toInt(),
         3, 300);
@@ -298,7 +297,7 @@ TranslationSettings translation(QString settingsFile)
                               .trimmed();
     if (settings.llama.host.isEmpty())
         settings.llama.host = QStringLiteral("127.0.0.1");
-    settings.llama.port = bounded(
+    settings.llama.port = qBound(
         m_store.value(QStringLiteral("LlamaCpp/Port"), settings.llama.port).toInt(), 1, 65535);
     settings.llama.mode = normalizedMode(
         m_store.value(QStringLiteral("LlamaCpp/Mode"), settings.llama.mode).toString());
@@ -329,8 +328,7 @@ TranslationSettings translation(QString settingsFile)
 
 void saveApp(const AppSettings &settings, QString settingsFile)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
-    m_store.setValues({
+    saveValues(resolvedSettingsFile(std::move(settingsFile)), {
         {QStringLiteral("App/Theme"), settings.themeId},
         {QStringLiteral("App/CustomPrimary"), settings.customPrimary},
         {QStringLiteral("App/CustomPrimaryOklch"), settings.customPrimaryOklch},
@@ -358,8 +356,7 @@ void saveApp(const AppSettings &settings, QString settingsFile)
 
 void saveCrawler(const CrawlerSettings &settings, QString settingsFile)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
-    m_store.setValues({
+    saveValues(resolvedSettingsFile(std::move(settingsFile)), {
         {QStringLiteral("Crawler/WorkApiBaseUrl"),
          normalizedUrl(settings.workApiBaseUrl.toString(), CrawlerSettings{}.workApiBaseUrl)},
         {QStringLiteral("Crawler/ActressApiBaseUrl"),
@@ -379,15 +376,14 @@ void saveCrawler(const CrawlerSettings &settings, QString settingsFile)
         {QStringLiteral("WebDAV/BaseUrl"), settings.webDav.baseUrl.toString().trimmed()},
         {QStringLiteral("WebDAV/RemoteRoot"), normalizedWebDavRoot(settings.webDav.remoteRoot)},
         {QStringLiteral("WebDAV/TimeoutSeconds"),
-         bounded(settings.webDav.timeoutSeconds, 3, 300)},
+         qBound(settings.webDav.timeoutSeconds, 3, 300)},
         {QStringLiteral("WebDAV/AutoUploadOnBackup"), settings.webDav.autoUploadOnBackup},
     });
 }
 
 void saveTranslation(const TranslationSettings &settings, QString settingsFile)
 {
-    SettingsStore m_store(resolvedSettingsFile(std::move(settingsFile)));
-    m_store.setValues({
+    saveValues(resolvedSettingsFile(std::move(settingsFile)), {
         {QStringLiteral("Translation/Model"), settings.model.trimmed()},
         {QStringLiteral("Translation/BaseUrl"), settings.baseUrl.trimmed()},
         {QStringLiteral("Translation/ApiKey"), settings.apiKey.trimmed()},
@@ -399,7 +395,7 @@ void saveTranslation(const TranslationSettings &settings, QString settingsFile)
         {QStringLiteral("LlamaCpp/Host"),
          settings.llama.host.trimmed().isEmpty() ? QStringLiteral("127.0.0.1")
                                                  : settings.llama.host.trimmed()},
-        {QStringLiteral("LlamaCpp/Port"), bounded(settings.llama.port, 1, 65535)},
+        {QStringLiteral("LlamaCpp/Port"), qBound(settings.llama.port, 1, 65535)},
         {QStringLiteral("LlamaCpp/Mode"), normalizedMode(settings.llama.mode)},
         {QStringLiteral("LlamaCpp/CtxSize"), qMax(256, settings.llama.contextSize)},
         {QStringLiteral("LlamaCpp/GpuLayers"), qMax(0, settings.llama.gpuLayers)},

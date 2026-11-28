@@ -6,8 +6,6 @@
 
 namespace darkeye::utils {
 
-[[nodiscard]] QStringList loadSensitiveWords(const QString &filePath,
-                                             QString *errorMessage = nullptr);
 [[nodiscard]] QVariantMap loadTagMap(const QString &filePath,
                                      QString *errorMessage = nullptr);
 /// Returns tag names whose configured keywords occur in text. A key containing

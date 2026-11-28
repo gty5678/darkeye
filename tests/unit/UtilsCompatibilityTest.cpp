@@ -6,7 +6,6 @@
 #include "database/SqliteConnection.h"
 
 #include <QFile>
-#include <QImage>
 #include <QSqlQuery>
 #include <QStandardItemModel>
 #include <QTemporaryDir>
@@ -17,32 +16,16 @@ class UtilsCompatibilityTest final : public QObject
     Q_OBJECT
 
 private slots:
-    void generalFunctionsMatchPythonBoundaries();
+    void personDisplayFormatting();
     void mediaScanMatchesPythonContract();
-    void imageConversionFlattensTransparencyToWhite();
-    void textFilesAndImageMseMatchPythonContract();
+    void genreExclusionsIgnoreNulls();
     void titleTagMappingMatchesPythonCrawlerContract();
     void csvExportsQuoteFieldsAndPreserveUtf8();
     void updateManifestRequiresNumericVersions();
 };
 
-void UtilsCompatibilityTest::generalFunctionsMatchPythonBoundaries()
+void UtilsCompatibilityTest::personDisplayFormatting()
 {
-    QCOMPARE(darkeye::utils::loadIds(QStringLiteral("[1, \"2\", \"x\", null]")),
-             QList<int>({1, 2}));
-    QVERIFY(darkeye::utils::loadIds(QStringLiteral("@Invalid()")).isEmpty());
-    QVERIFY(darkeye::utils::loadIds(QStringLiteral("not-json")).isEmpty());
-
-    QCOMPARE(darkeye::utils::textColorForBackground(QColor(255, 255, 255)),
-             QStringLiteral("black"));
-    QCOMPARE(darkeye::utils::textColorForBackground(QColor(0, 0, 0)),
-             QStringLiteral("white"));
-    QCOMPARE(darkeye::utils::hoverColorForBackground(QColor(255, 255, 255)),
-             QStringLiteral("#646464"));
-    QCOMPARE(darkeye::utils::hoverColorForBackground(QColor(0, 0, 0)),
-             QStringLiteral("#C5C5C5"));
-    QCOMPARE(darkeye::utils::invertColor(QColor(10, 20, 30, 40)), QColor(245, 235, 225, 40));
-
     QCOMPARE(darkeye::utils::rankPosition(20, {10, 20, 30}), 0.5);
     QCOMPARE(darkeye::utils::rankPosition(20, {10, 20, 30}, true), 0.5);
     QCOMPARE(darkeye::utils::rankPosition(1, {}), 0.0);
@@ -50,10 +33,6 @@ void UtilsCompatibilityTest::generalFunctionsMatchPythonBoundaries()
              QStringLiteral("2026年09月16日"));
     QCOMPARE(darkeye::utils::convertDate(QStringLiteral("bad-date")),
              QStringLiteral("bad-date"));
-
-    QCOMPARE(darkeye::utils::replaceSensitive(
-                 QStringLiteral("Alpha beta ALPHA"), {QStringLiteral("alpha")}),
-             QStringLiteral("** beta **"));
 }
 
 void UtilsCompatibilityTest::mediaScanMatchesPythonContract()
@@ -83,48 +62,12 @@ void UtilsCompatibilityTest::mediaScanMatchesPythonContract()
     QCOMPARE(scan.filesWithoutSerial.size(), 1);
     QVERIFY(std::any_of(scan.filesWithoutSerial.cbegin(), scan.filesWithoutSerial.cend(),
                         [](const auto &entry) { return entry.first == QStringLiteral("holiday"); }));
-
-    const QStringList found = darkeye::utils::findVideos(
-        QStringLiteral("START-451"), {temporary.path()});
-    QCOMPARE(found.size(), 1);
-    QCOMPARE(QFileInfo(found.first()).fileName(), QStringLiteral("1start00451-extra.mkv"));
-    QVERIFY(darkeye::utils::findVideos(QStringLiteral("NOPE-999"), {temporary.path()}).isEmpty());
 }
 
-void UtilsCompatibilityTest::imageConversionFlattensTransparencyToWhite()
+void UtilsCompatibilityTest::genreExclusionsIgnoreNulls()
 {
     QTemporaryDir temporary;
     QVERIFY(temporary.isValid());
-    const QString pngPath = temporary.filePath(QStringLiteral("alpha.png"));
-    const QString jpgPath = temporary.filePath(QStringLiteral("alpha.jpg"));
-
-    QImage source(4, 4, QImage::Format_ARGB32);
-    source.fill(Qt::transparent);
-    source.setPixelColor(0, 0, Qt::red);
-    QVERIFY(source.save(pngPath));
-    QVERIFY(darkeye::utils::saveAsJpeg(pngPath, jpgPath, 100));
-
-    const QImage converted(jpgPath);
-    QVERIFY(!converted.isNull());
-    const QColor corner = converted.pixelColor(3, 3);
-    QVERIFY(corner.red() > 245 && corner.green() > 245 && corner.blue() > 245);
-    QVERIFY(darkeye::utils::deleteImage(jpgPath));
-    QVERIFY(!QFileInfo::exists(jpgPath));
-    QVERIFY(darkeye::utils::deleteImage(jpgPath));
-}
-
-void UtilsCompatibilityTest::textFilesAndImageMseMatchPythonContract()
-{
-    QTemporaryDir temporary;
-    QVERIFY(temporary.isValid());
-    const QString wordsPath = temporary.filePath(QStringLiteral("words.txt"));
-    QFile words(wordsPath);
-    QVERIFY(words.open(QIODevice::WriteOnly));
-    words.write(" Alpha \n\nBeta\n");
-    words.close();
-    QCOMPARE(darkeye::utils::loadSensitiveWords(wordsPath),
-             QStringList({QStringLiteral("Alpha"), QStringLiteral("Beta")}));
-
     const QString configPath = temporary.filePath(QStringLiteral("exclude.json"));
     QFile config(configPath);
     QVERIFY(config.open(QIODevice::WriteOnly));
@@ -133,22 +76,6 @@ void UtilsCompatibilityTest::textFilesAndImageMseMatchPythonContract()
     const QSet<QString> excluded = darkeye::utils::loadExcludedGenres(configPath);
     QCOMPARE(excluded.size(), 2);
     QVERIFY(excluded.contains(QStringLiteral("AV女优")));
-
-    const QString firstPath = temporary.filePath(QStringLiteral("first.png"));
-    const QString secondPath = temporary.filePath(QStringLiteral("second.png"));
-    const QString smallPath = temporary.filePath(QStringLiteral("small.png"));
-    QImage first(2, 2, QImage::Format_RGB32);
-    first.fill(Qt::black);
-    QImage second = first;
-    second.setPixelColor(0, 0, QColor(1, 0, 0));
-    QImage small(1, 1, QImage::Format_RGB32);
-    small.fill(Qt::black);
-    QVERIFY(first.save(firstPath));
-    QVERIFY(second.save(secondPath));
-    QVERIFY(small.save(smallPath));
-    QCOMPARE(darkeye::utils::imageMse(firstPath, firstPath), 0.0);
-    QCOMPARE(darkeye::utils::imageMse(firstPath, secondPath), 0.25);
-    QCOMPARE(darkeye::utils::imageMse(firstPath, smallPath), 1.0);
 }
 
 void UtilsCompatibilityTest::titleTagMappingMatchesPythonCrawlerContract()

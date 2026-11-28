@@ -9,6 +9,7 @@
 #include "ui/components/ImageDropWidget.h"
 
 #include <QApplication>
+#include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
@@ -520,7 +521,21 @@ void MediaComponentTest::fanartPreservesJsonOrderAndRemoteState()
 
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
-    darkeye::FanartStripWidget strip(directory.path());
+    const QString fanartDirectory = directory.filePath(QStringLiteral("fanart"));
+    QVERIFY(QDir().mkpath(fanartDirectory));
+    const QString legacyImage = directory.filePath(QStringLiteral("one.jpg"));
+    const QString currentImage = QDir(fanartDirectory).filePath(QStringLiteral("one.jpg"));
+    QImage image(8, 8, QImage::Format_RGB32);
+    image.fill(Qt::blue);
+    QVERIFY(image.save(legacyImage));
+    QCOMPARE(entries.first().resolvedPath(fanartDirectory, directory.path()), legacyImage);
+    QVERIFY(image.save(currentImage));
+    QCOMPARE(entries.first().resolvedPath(fanartDirectory, directory.path()), currentImage);
+
+    const darkeye::FanartEntry outside{{}, QStringLiteral("../one.jpg"), {}};
+    QVERIFY(outside.resolvedPath(fanartDirectory, directory.path()).isEmpty());
+
+    darkeye::FanartStripWidget strip(fanartDirectory, directory.path());
     strip.setEntries(entries);
     QSignalSpy changed(&strip, &darkeye::FanartStripWidget::fanartChanged);
     strip.setUrlList({QStringLiteral("https://example.invalid/一.jpg"),

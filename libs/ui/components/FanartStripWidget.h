@@ -20,6 +20,8 @@ struct FanartEntry final
     QString file;
     QString localPath;
 
+    [[nodiscard]] QString resolvedPath(const QString &fanartDirectory,
+                                       const QString &legacyCoverDirectory) const;
     bool operator==(const FanartEntry &) const = default;
 };
 
@@ -67,7 +69,6 @@ private:
     void chooseImage();
     void showPreview(int index);
     void rebuild();
-    [[nodiscard]] QString resolvedPath(const FanartEntry &entry) const;
     [[nodiscard]] static bool saveAsJpeg(const QString &sourcePath, const QString &targetPath,
                                          QString *errorMessage);
 

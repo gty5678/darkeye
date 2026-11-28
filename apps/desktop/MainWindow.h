@@ -33,17 +33,13 @@ namespace darkeye
 namespace myads { struct ContentConfig; class PaneWidget; class WorkspaceWidget; }
 class WorkspaceSearch;
 class SettingsDialog;
-class HomePage;
 class ActressWorkTimeline;
 class PersonDetailPage;
 class ModifyActressPage;
 class ModifyActorPage;
-class PersonPage;
-class WorkPage;
 class ShelfPage;
 class WorkFilter;
 class ForceDirectPage;
-class FanartBrowserPage;
 class LocalApiServer;
 
 class MainWindow final : public QMainWindow
@@ -82,7 +78,6 @@ private:
     std::optional<myads::ContentConfig> workspaceContent(const QJsonObject &descriptor);
     void scheduleWorkspaceSave();
     void saveWorkspace() const;
-    void updateWindowTitle();
 #ifdef Q_OS_MACOS
     void updateMacTitleBarBackground();
 #endif
@@ -150,16 +145,11 @@ private:
     WorkFilter *m_workFilter = nullptr;
     WorkspaceSearch *m_globalSearch = nullptr;
     QActionGroup *m_shortcutActions = nullptr;
-    QPointer<HomePage> m_homePage;
-    QPointer<WorkPage> m_workPage;
     QPointer<ShelfPage> m_shelfPage;
     QPointer<ForceDirectPage> m_localGraphPage;
     QPointer<QWidget> m_localGraphSource;
     QPointer<ActressWorkTimeline> m_timelinePage;
     QPointer<QWidget> m_timelineSource;
-    QPointer<FanartBrowserPage> m_fanartBrowserPage;
-    QPointer<PersonPage> m_actressPage;
-    QPointer<PersonPage> m_actorPage;
     QPointer<ModifyActressPage> m_actressEditorPage;
     QPointer<ModifyActorPage> m_actorEditorPage;
     QPointer<SettingsDialog> m_settingsDialog;

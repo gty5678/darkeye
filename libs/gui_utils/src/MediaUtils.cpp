@@ -5,14 +5,10 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
-#include <QFile>
 #include <QFileInfo>
-#include <QImage>
-#include <QPainter>
 #include <QProcess>
 #include <QSet>
 #include <QUrl>
-#include <algorithm>
 
 namespace darkeye::utils {
 namespace {
@@ -66,51 +62,6 @@ VideoScanResult videoNamesFromPaths(const QStringList &folders, const QStringLis
     }
     result.serials = unique.values();
     return result;
-}
-
-QStringList findVideos(const QString &serialNumber, const QStringList &folders,
-                       const QStringList &extensions)
-{
-    const QStringList candidates{serialNumber, serial::convertFanza(serialNumber),
-                                 serial::convertSpecial(serialNumber)};
-    QStringList found;
-    for (const VideoFile &video : collectVideos(folders, extensions)) {
-        const QString fileName = QFileInfo(video.path).fileName();
-        const bool matches = std::any_of(candidates.cbegin(), candidates.cend(),
-            [&fileName](const QString &candidate) {
-                return fileName.contains(candidate, Qt::CaseInsensitive);
-            });
-        if (matches) found.append(video.path);
-    }
-    return found;
-}
-
-bool deleteImage(const QString &path)
-{
-    const QFileInfo info(path);
-    return !info.exists() || QFile::remove(path);
-}
-
-bool saveAsJpeg(const QString &inputPath, const QString &outputPath, int quality)
-{
-    QImage image(inputPath);
-    if (image.isNull()) return false;
-    if (image.hasAlphaChannel()) {
-        QImage flattened(image.size(), QImage::Format_RGB32);
-        flattened.fill(Qt::white);
-        QPainter painter(&flattened);
-        painter.drawImage(0, 0, image);
-        painter.end();
-        image = flattened;
-    } else {
-        image = image.convertToFormat(QImage::Format_RGB32);
-    }
-    QString destination = outputPath;
-    if (destination.isEmpty()) {
-        const QFileInfo info(inputPath);
-        destination = info.dir().filePath(info.completeBaseName() + QStringLiteral(".jpg"));
-    }
-    return image.save(destination, "JPG", qBound(0, quality, 100));
 }
 
 bool revealInFileManager(const QString &path)

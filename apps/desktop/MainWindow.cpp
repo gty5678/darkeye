@@ -1,6 +1,5 @@
 #include "MainWindow.h"
 #include "app/Resources.h"
-#include "settings/SettingsStore.h"
 #include "utils/Documentation.h"
 
 #include "ui/pages/AvPage.h"
@@ -53,7 +52,6 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDesktopServices>
-#include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -83,14 +81,10 @@
 #define NOMINMAX
 #include <Windows.h>
 #include <dwmapi.h>
-#include <psapi.h>
 #elif defined(Q_OS_MACOS)
 #include "MacWindowAppearance.h"
 #include "MacWorkspaceShortcuts.h"
 #include <QShowEvent>
-#include <mach/mach.h>
-#include <sys/resource.h>
-#include <QThread>
 #endif
 
 namespace darkeye
@@ -185,134 +179,6 @@ bool isRecentEntityRoute(const QString &route)
         && base != u"manage_work" && base != u"actor_detail";
 }
 
-QString formatMemory(qint64 bytes, int fieldWidth = 0)
-{
-    return QStringLiteral("%1 MiB").arg(bytes / 1024.0 / 1024.0, fieldWidth, 'f', 1);
-}
-
-#ifdef Q_OS_MACOS
-constexpr int macMemoryFieldWidth = 9;
-#endif
-
-QString processMemoryUsage()
-{
-#ifdef Q_OS_WIN
-    PROCESS_MEMORY_COUNTERS_EX2 counters{};
-    counters.cb = sizeof(counters);
-    if (GetProcessMemoryInfo(GetCurrentProcess(),
-                             reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&counters),
-                             sizeof(counters)))
-    {
-        const qint64 privateWorkingSet = static_cast<qint64>(counters.PrivateWorkingSetSize);
-        const qint64 sharedWorkingSet = qMax<qint64>(
-            0, static_cast<qint64>(counters.WorkingSetSize) - privateWorkingSet);
-        return QStringLiteral("公共内存 %1 | 私有内存 %2")
-            .arg(formatMemory(sharedWorkingSet), formatMemory(privateWorkingSet));
-    }
-#elif defined(Q_OS_MACOS)
-    const auto fields = QStringLiteral("内存占用 %1 | 驻留内存 %2");
-    task_vm_info_data_t counters{};
-    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
-    if (task_info(mach_task_self(), TASK_VM_INFO,
-                  reinterpret_cast<task_info_t>(&counters), &count) == KERN_SUCCESS)
-    {
-        // Activity Monitor reports physical footprint, not internal + external
-        // resident pages. The latter are not a private/shared memory split.
-        return fields.arg(formatMemory(static_cast<qint64>(counters.phys_footprint), macMemoryFieldWidth),
-                          formatMemory(static_cast<qint64>(counters.resident_size), macMemoryFieldWidth));
-    }
-    const QString unavailable = QStringLiteral("N/A").rightJustified(macMemoryFieldWidth)
-        + QStringLiteral(" MiB");
-    return fields.arg(unavailable, unavailable);
-#endif
-#ifndef Q_OS_MACOS
-    return QStringLiteral("内存 N/A");
-#endif
-}
-
-QString processCpuUsage()
-{
-#ifdef Q_OS_WIN
-    FILETIME creationTime{};
-    FILETIME exitTime{};
-    FILETIME kernelTime{};
-    FILETIME userTime{};
-    if (!GetProcessTimes(GetCurrentProcess(), &creationTime, &exitTime, &kernelTime, &userTime))
-    {
-        return QStringLiteral("N/A");
-    }
-
-    const auto toTicks = [](const FILETIME &time)
-    {
-        ULARGE_INTEGER value{};
-        value.LowPart = time.dwLowDateTime;
-        value.HighPart = time.dwHighDateTime;
-        return value.QuadPart;
-    };
-
-    static QElapsedTimer elapsed;
-    static ULONGLONG previousCpuTime = 0;
-    const ULONGLONG currentCpuTime = toTicks(kernelTime) + toTicks(userTime);
-    if (!elapsed.isValid())
-    {
-        previousCpuTime = currentCpuTime;
-        elapsed.start();
-        return QStringLiteral("0.0%");
-    }
-
-    const qint64 elapsedNanoseconds = elapsed.nsecsElapsed();
-    elapsed.restart();
-    const ULONGLONG cpuTimeDelta = currentCpuTime - previousCpuTime;
-    previousCpuTime = currentCpuTime;
-    if (elapsedNanoseconds <= 0)
-    {
-        return QStringLiteral("0.0%");
-    }
-
-    SYSTEM_INFO systemInfo{};
-    GetSystemInfo(&systemInfo);
-    const DWORD processorCount = qMax<DWORD>(systemInfo.dwNumberOfProcessors, 1);
-    const double usage = qBound(0.0, static_cast<double>(cpuTimeDelta) * 10000.0 /
-        static_cast<double>(elapsedNanoseconds) / processorCount, 100.0);
-    return QStringLiteral("%1%").arg(usage, 5, 'f', 1, QLatin1Char('0'));
-#elif defined(Q_OS_MACOS)
-    rusage counters{};
-    if (getrusage(RUSAGE_SELF, &counters) != 0)
-        return QStringLiteral("N/A");
-
-    // RUSAGE_SELF includes all process threads, including terminated threads.
-    // timeval uses microseconds on both Apple Silicon and Intel Macs.
-    const auto toMicroseconds = [](const timeval &time) -> qint64
-    {
-        return static_cast<qint64>(time.tv_sec) * 1000000 + time.tv_usec;
-    };
-    const qint64 currentCpuTime = toMicroseconds(counters.ru_utime)
-        + toMicroseconds(counters.ru_stime);
-    static QElapsedTimer elapsed;
-    static qint64 previousCpuTime = 0;
-    if (!elapsed.isValid())
-    {
-        previousCpuTime = currentCpuTime;
-        elapsed.start();
-        return QStringLiteral("0.0%");
-    }
-
-    const qint64 elapsedNanoseconds = elapsed.nsecsElapsed();
-    elapsed.restart();
-    const qint64 cpuTimeDelta = qMax<qint64>(0, currentCpuTime - previousCpuTime);
-    previousCpuTime = currentCpuTime;
-    if (elapsedNanoseconds <= 0)
-        return QStringLiteral("0.0%");
-
-    const int processorCount = qMax(QThread::idealThreadCount(), 1);
-    const double usage = qBound(0.0, static_cast<double>(cpuTimeDelta) * 100000.0 /
-        static_cast<double>(elapsedNanoseconds) / processorCount, 100.0);
-    return QStringLiteral("%1%").arg(usage, 0, 'f', 1);
-#else
-    return QStringLiteral("N/A");
-#endif
-}
-
 } // namespace
 
 MainWindow::MainWindow(ThemeService &themeService,
@@ -326,7 +192,7 @@ MainWindow::MainWindow(ThemeService &themeService,
     setWindowFlag(Qt::NoTitleBarBackgroundHint);
     connect(&m_themeService, &ThemeService::themeChanged, this, &MainWindow::updateMacTitleBarBackground);
 #endif
-    updateWindowTitle();
+    setWindowTitle(QStringLiteral("暗之眼 V%1").arg(QStringLiteral(DARKEYE_VERSION)));
 #ifdef Q_OS_WIN
     connect(&m_themeService, &ThemeService::themeChanged, this, &MainWindow::updateNativeTitleBarColors);
 #endif
@@ -383,18 +249,8 @@ MainWindow::MainWindow(ThemeService &themeService,
                                << result.errorMessage;
                 startNextActressSync();
             });
-    auto *resourceTimer = new QTimer(this);
-    connect(resourceTimer, &QTimer::timeout, this, &MainWindow::updateWindowTitle);
-    resourceTimer->start(100);
     buildUi();
     resize(1200, 600);
-}
-
-void MainWindow::updateWindowTitle()
-{
-    setWindowTitle(QStringLiteral("暗之眼 V%1 | CPU %2 | %3")
-                       .arg(QStringLiteral(DARKEYE_VERSION), processCpuUsage(),
-                            processMemoryUsage()));
 }
 
 #ifdef Q_OS_WIN
@@ -508,7 +364,9 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     if (m_workspaceSaveTimer) m_workspaceSaveTimer->stop();
     saveWorkspace();
-    SettingsStore(m_paths.settingsFile()).setValue(QStringLiteral("window/maximized"), isMaximized());
+    QSettings settings(m_paths.settingsFile(), QSettings::IniFormat);
+    settings.setValue(QStringLiteral("window/maximized"), isMaximized());
+    settings.sync();
     QMainWindow::closeEvent(event);
 }
 
@@ -1532,25 +1390,20 @@ QWidget *MainWindow::createPage(const QString &routeName, QWidget *parent)
 {
     if (routeName == QStringLiteral("home"))
     {
-        m_homePage = new HomePage(m_publicDatabase, m_paths.workCoverDirectory(), m_themeService, parent);
-        connect(m_homePage, &HomePage::detailRequested, this, &MainWindow::showWorkInShelfWithFilterFallback);
-        return m_homePage;
+        auto *home = new HomePage(m_publicDatabase, m_paths.workCoverDirectory(), m_themeService, parent);
+        connect(home, &HomePage::detailRequested, this, &MainWindow::showWorkInShelfWithFilterFallback);
+        return home;
     }
     if (routeName == QStringLiteral("mutiwork"))
     {
-        m_workPage = new WorkPage(m_publicDatabase, m_themeService,
-                                  m_paths.workCoverDirectory(), m_privateDatabase,
-                                  m_paths.fanartDirectory(),
-                                  settings::crawler().coverFetchApiUrl, parent, m_workFilter);
-        connect(m_workPage, &WorkPage::detailRequested, this, [this](qint64 workId) {
-            showWorkInShelf(workId);
-        });
-        connect(m_workPage, &WorkPage::editRequested, this, [this](qint64 workId) {
-            openWorkEditor(workId);
-        });
-        connect(m_workPage, &WorkPage::worksChanged, this,
+        auto *works = new WorkPage(m_publicDatabase, m_themeService,
+                                   m_paths.workCoverDirectory(), m_privateDatabase,
+                                   m_paths.fanartDirectory(),
+                                   settings::crawler().coverFetchApiUrl, parent, m_workFilter);
+        connect(works, &WorkPage::detailRequested, this, &MainWindow::showWorkInShelf);
+        connect(works, &WorkPage::editRequested, this, &MainWindow::openWorkEditor);
+        connect(works, &WorkPage::worksChanged, this,
                 [this] { queueWorkspaceRefresh(WorksChanged); });
-        auto *works = m_workPage.data();
         connect(works, &WorkPage::filteredWorksChanged, this, [this, works] {
             if (m_localGraphSource == works) updateLocalGraph();
             if (m_timelineSource == works) updateTimeline();
@@ -1559,43 +1412,33 @@ QWidget *MainWindow::createPage(const QString &routeName, QWidget *parent)
     }
     if (routeName == QStringLiteral("fanart"))
     {
-        m_fanartBrowserPage = new FanartBrowserPage(
+        auto *fanart = new FanartBrowserPage(
             m_publicDatabase, m_themeService, m_paths.fanartDirectory(),
             m_paths.workCoverDirectory(), settings::crawler().coverFetchApiUrl, parent);
-        auto *fanart = m_fanartBrowserPage.data();
         connect(fanart, &FanartBrowserPage::closeRequested, this, [this, fanart] {
             const auto route = fanart->property("workspaceRoute").toString();
             if (auto *pane = m_workspace->findPaneByContentId(route)) pane->removeContent(route);
         });
-        connect(m_fanartBrowserPage, &FanartBrowserPage::fanartChanged, this, [this](qint64 workId) {
+        connect(fanart, &FanartBrowserPage::fanartChanged, this, [this](qint64 workId) {
             queueWorkspaceRefresh(WorksChanged, workId);
         });
-        return m_fanartBrowserPage;
+        return fanart;
     }
-    if (routeName == QStringLiteral("actress"))
+    if (routeName == QStringLiteral("actress") || routeName == QStringLiteral("actor"))
     {
-        m_actressPage = new PersonPage(PersonKind::Actress, m_publicDatabase, m_privateDatabase,
-                                       m_themeService, m_paths.actressImageDirectory(), parent);
-        connect(m_actressPage, &PersonPage::detailRequested, this,
-                [this](PersonKind requestedKind, qint64 personId) {
-                    openPerson(requestedKind, personId);
-                });
-        connect(m_actressPage, &PersonPage::editRequested, this, &MainWindow::openPersonEditor);
-        connect(m_actressPage, &PersonPage::filteredPeopleChanged, this, [this] {
-            if (m_localGraphSource == m_actressPage) updateLocalGraph();
-        });
-        return m_actressPage;
-    }
-    if (routeName == QStringLiteral("actor"))
-    {
-        m_actorPage = new PersonPage(PersonKind::Actor, m_publicDatabase, m_privateDatabase,
-                                     m_themeService, m_paths.actorImageDirectory(), parent);
-        connect(m_actorPage, &PersonPage::detailRequested, this,
-                [this](PersonKind, qint64 personId) {
-                    openPerson(PersonKind::Actor, personId);
-                });
-        connect(m_actorPage, &PersonPage::editRequested, this, &MainWindow::openPersonEditor);
-        return m_actorPage;
+        const bool isActress = routeName == QStringLiteral("actress");
+        auto *people = new PersonPage(
+            isActress ? PersonKind::Actress : PersonKind::Actor, m_publicDatabase, m_privateDatabase,
+            m_themeService, isActress ? m_paths.actressImageDirectory() : m_paths.actorImageDirectory(),
+            parent);
+        connect(people, &PersonPage::detailRequested, this, &MainWindow::openPerson);
+        connect(people, &PersonPage::editRequested, this, &MainWindow::openPersonEditor);
+        if (isActress) {
+            connect(people, &PersonPage::filteredPeopleChanged, this, [this, people] {
+                if (m_localGraphSource == people) updateLocalGraph();
+            });
+        }
+        return people;
     }
     if (routeName == QStringLiteral("actress_detail"))
     {

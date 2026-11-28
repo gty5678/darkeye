@@ -24,21 +24,6 @@ QJsonDocument readJson(const QString &filePath, QString *errorMessage)
 }
 }
 
-QStringList loadSensitiveWords(const QString &filePath, QString *errorMessage)
-{
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (errorMessage) *errorMessage = file.errorString();
-        return {};
-    }
-    QStringList words;
-    while (!file.atEnd()) {
-        const QString word = QString::fromUtf8(file.readLine()).trimmed();
-        if (!word.isEmpty()) words.append(word);
-    }
-    return words;
-}
-
 QVariantMap loadTagMap(const QString &filePath, QString *errorMessage)
 {
     const QJsonDocument document = readJson(filePath, errorMessage);

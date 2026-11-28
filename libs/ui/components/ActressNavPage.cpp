@@ -1,16 +1,14 @@
 #include "ui/components/ActressNavPage.h"
 
 #include "darkeye_ui/components/DesignButton.h"
+#include "utils/MediaUtils.h"
 
 #include <QDesktopServices>
-#include <QDir>
 #include <QFile>
-#include <QFileInfo>
 #include <QGridLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QProcess>
 #include <QRegularExpression>
 #include <QUrl>
 
@@ -60,16 +58,7 @@ void ActressNavPage::loadButtons(QGridLayout *layout)
     reveal->setProperty("testId", QStringLiteral("ActressNavConfigButton"));
     reveal->setToolTip(QStringLiteral("在文件管理器中选中 actress_nav_buttons.json；其他系统则打开其所在文件夹"));
     connect(reveal, &QPushButton::clicked, this, [this] {
-#ifdef Q_OS_WIN
-        // Keep the Python page's reveal-in-file-manager behavior: show the
-        // configuration file itself, instead of merely opening its directory.
-        QProcess::startDetached(QStringLiteral("explorer.exe"),
-                                {QStringLiteral("/select,%1").arg(QDir::toNativeSeparators(m_configFile))});
-#elif defined(Q_OS_MACOS)
-        QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), m_configFile});
-#else
-        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_configFile).absolutePath()));
-#endif
+        utils::revealInFileManager(m_configFile);
     });
     layout->addWidget(reveal, (buttons.size() + columns - 1) / columns, 0, 1, columns);
 }

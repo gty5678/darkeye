@@ -305,6 +305,22 @@ private:
 };
 } // namespace
 
+QString FanartEntry::resolvedPath(const QString &fanartDirectory,
+                                  const QString &legacyCoverDirectory) const
+{
+    if (!localPath.isEmpty() && QFileInfo(localPath).isFile())
+        return localPath;
+    if (file.isEmpty() || QFileInfo(file).fileName() != file)
+        return {};
+    const QString fanartPath = QDir(fanartDirectory).filePath(file);
+    if (QFileInfo(fanartPath).isFile())
+        return fanartPath;
+    if (legacyCoverDirectory.isEmpty())
+        return {};
+    const QString legacyPath = QDir(legacyCoverDirectory).filePath(file);
+    return QFileInfo(legacyPath).isFile() ? legacyPath : QString();
+}
+
 FanartStripWidget::FanartStripWidget(QString fanartDirectory, QString legacyCoverDirectory,
                                      QUrl imageFetchEndpoint, QWidget *parent)
     : QWidget(parent), m_fanartDirectory(QDir::cleanPath(std::move(fanartDirectory))),
@@ -793,7 +809,7 @@ void FanartStripWidget::showPreview(int index)
         if (currentIndex < 0 || currentIndex >= m_entries.size())
             return;
         const FanartEntry &entry = m_entries.at(currentIndex);
-        const QString path = resolvedPath(entry);
+        const QString path = entry.resolvedPath(m_fanartDirectory, m_legacyCoverDirectory);
         const QPixmap pixmap(path);
         image->showImage(pixmap, draftUrls.at(currentIndex).isEmpty()
                                     ? QStringLiteral("无预览")
@@ -872,7 +888,8 @@ void FanartStripWidget::rebuild()
             [this, index] { removeEntry(index); }, this);
         cell->setObjectName(QStringLiteral("FanartCell"));
         cell->setToolTip(entry.url.isEmpty() ? entry.file : entry.url);
-        cell->setThumbnail(resolvedPath(entry), !entry.url.isEmpty());
+        cell->setThumbnail(entry.resolvedPath(m_fanartDirectory, m_legacyCoverDirectory),
+                           !entry.url.isEmpty());
         cell->setEditMode(m_mode == Mode::Edit);
         m_stripLayout->addWidget(cell);
     }
@@ -888,19 +905,6 @@ void FanartStripWidget::rebuild()
         m_stripLayout->addWidget(addCell);
     }
     m_stripLayout->addStretch();
-}
-
-QString FanartStripWidget::resolvedPath(const FanartEntry &entry) const
-{
-    if (!entry.localPath.isEmpty() && QFileInfo::exists(entry.localPath))
-        return entry.localPath;
-    if (entry.file.isEmpty())
-        return {};
-    const QString fanartPath = QDir(m_fanartDirectory).filePath(entry.file);
-    if (QFileInfo::exists(fanartPath))
-        return fanartPath;
-    const QString legacyPath = QDir(m_legacyCoverDirectory).filePath(entry.file);
-    return QFileInfo::exists(legacyPath) ? legacyPath : QString();
 }
 
 bool FanartStripWidget::saveAsJpeg(const QString &sourcePath, const QString &targetPath,

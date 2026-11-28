@@ -145,7 +145,6 @@ class MainWindowSmokeTest final : public QObject
     Q_OBJECT
 
 private slots:
-    void resourceUsageAppearsInWindowTitle();
     void referenceManagementMatchesPython_data();
     void referenceManagementMatchesPython();
     void makerManagementAddsAndSavesDraftRows();
@@ -190,37 +189,6 @@ private slots:
 private:
     QUrl m_openedUrl;
 };
-
-void MainWindowSmokeTest::resourceUsageAppearsInWindowTitle()
-{
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
-    darkeye::ThemeService themes(*qobject_cast<QApplication *>(QCoreApplication::instance()));
-    darkeye::MainWindow window(themes);
-    const auto titleText = [&window] { return window.windowTitle(); };
-#ifdef Q_OS_MACOS
-    const QRegularExpression metrics(QStringLiteral(
-        "CPU +([0-9]+\\.[0-9]+)% \\| 内存占用 +([0-9]+\\.[0-9]+) MiB \\| 驻留内存 +([0-9]+\\.[0-9]+) MiB"));
-#else
-    const QRegularExpression metrics(QStringLiteral(
-        "CPU ([0-9]+\\.[0-9]+)% \\| 公共内存 ([0-9]+\\.[0-9]+) MiB \\| 私有内存 ([0-9]+\\.[0-9]+) MiB"));
-#endif
-    QTRY_VERIFY_WITH_TIMEOUT(metrics.match(titleText()).hasMatch(), 3000);
-    auto sample = metrics.match(titleText());
-    QVERIFY(sample.captured(2).toDouble() + sample.captured(3).toDouble() > 0.0);
-
-    // Accumulate CPU time between timer samples to catch unit conversion and
-    // sampling bugs, rather than accepting a permanently hard-coded zero.
-    QElapsedTimer work;
-    work.start();
-    while (work.elapsed() < 250) {}
-    QTRY_VERIFY_WITH_TIMEOUT(
-        metrics.match(titleText()).captured(1).toDouble() > 0.0, 3000);
-    sample = metrics.match(titleText());
-    QVERIFY(sample.captured(1).toDouble() <= 100.0);
-#else
-    QSKIP("Process resource metrics are implemented for Windows and macOS");
-#endif
-}
 
 void MainWindowSmokeTest::referenceManagementMatchesPython_data()
 {
@@ -1636,7 +1604,7 @@ void MainWindowSmokeTest::exposesAllPrimaryNavigationPages()
     QCOMPARE(currentWidget()->objectName(), QStringLiteral("ModifyActressPage"));
     const auto dialogs = window.findChildren<QDialog *>();
     QVERIFY(std::ranges::none_of(dialogs, [](const QDialog *dialog) { return dialog->isVisible(); }));
-    QVERIFY(window.windowTitle().startsWith(QStringLiteral("暗之眼 V")));
+    QCOMPARE(window.windowTitle(), QStringLiteral("暗之眼 V%1").arg(QStringLiteral(DARKEYE_VERSION)));
 }
 
 

@@ -42,7 +42,6 @@ private:
     void downloadCurrent();
     void deleteCurrent();
     bool saveEntries(QString *errorMessage = nullptr);
-    [[nodiscard]] QString resolvedPath(const FanartEntry &entry) const;
     [[nodiscard]] QString downloadFileName(const FanartEntry &entry) const;
 
     ThemeService &m_themes;

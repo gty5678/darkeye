@@ -1,6 +1,7 @@
 #include "ui/components/ImageDropWidget.h"
 
 #include "ui/components/AsyncImageLabel.h"
+#include "utils/MediaUtils.h"
 
 #include <QBuffer>
 #include <QContextMenuEvent>
@@ -16,7 +17,6 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QProcess>
 #include <QResizeEvent>
 #include <QSaveFile>
 #include <QUrl>
@@ -399,16 +399,7 @@ void ImageDropWidget::contextMenuEvent(QContextMenuEvent *event)
     clear->setEnabled(!m_imagePath.isEmpty());
     QAction *chosen = menu.exec(event->globalPos());
     if (chosen == openFolder)
-    {
-#ifdef Q_OS_WIN
-        QProcess::startDetached(QStringLiteral("explorer"),
-                                {QStringLiteral("/select,"),
-                                 QDir::toNativeSeparators(imageInfo.absoluteFilePath())});
-#elif defined(Q_OS_MACOS)
-        QProcess::startDetached(QStringLiteral("open"),
-                                {QStringLiteral("-R"), imageInfo.absoluteFilePath()});
-#endif
-    }
+        utils::revealInFileManager(imageInfo.absoluteFilePath());
     else if (chosen == select)
         chooseImage();
     else if (chosen == clear)

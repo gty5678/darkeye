@@ -7,15 +7,14 @@ target_include_directories(darkeye_desktop_ui PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 )
 target_link_libraries(darkeye_desktop_ui PUBLIC
-    darkeye::app
-    # MainWindow.h directly includes graph/GraphManager.h.  Keep the direct
-    # usage requirement visible to CMake generators and Visual Studio's
-    # IntelliSense target model instead of relying only on the app facade.
+    darkeye::domain
     darkeye::graph
+    darkeye::resources
+    darkeye::ui
     PRIVATE darkeye::bridge
 )
 if(WIN32)
-    target_link_libraries(darkeye_desktop_ui PRIVATE dwmapi Psapi)
+    target_link_libraries(darkeye_desktop_ui PRIVATE dwmapi)
 elseif(APPLE)
     find_library(DARKEYE_APPKIT AppKit REQUIRED)
     target_sources(darkeye_desktop_ui PRIVATE

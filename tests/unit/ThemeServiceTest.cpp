@@ -1,7 +1,6 @@
 #include "QtTestEntry.h"
 
 #include "darkeye_ui/theme/ThemeService.h"
-#include "darkeye_ui/theme/StylesheetLoader.h"
 #include "darkeye_ui/components/DesignButton.h"
 #include "darkeye_ui/components/DesignInput.h"
 #include "darkeye_ui/components/DesignLabel.h"
@@ -53,7 +52,7 @@ private slots:
     void renamedComponentsKeepStyle();
     void confirmsColorWhenPickerPopupCloses();
     void closesColorPickerOnFirstOutsideClick();
-    void exposesCompletePythonTokenMapAndLoader();
+    void exposesThemeTokenMap();
 };
 
 void ThemeServiceTest::initTestCase()
@@ -81,7 +80,7 @@ void ThemeServiceTest::stateOnlyMethodsDoNotApplyStyleSheet()
     QCOMPARE(changed.count(), 1);
 }
 
-void ThemeServiceTest::exposesCompletePythonTokenMapAndLoader()
+void ThemeServiceTest::exposesThemeTokenMap()
 {
     const auto blue = darkeye::ThemeService::tokens(darkeye::ThemeId::Blue);
     QCOMPARE(blue.radiusMd, QStringLiteral("8px"));
@@ -92,9 +91,6 @@ void ThemeServiceTest::exposesCompletePythonTokenMapAndLoader()
     QCOMPARE(values.value(QStringLiteral("color_modified")), blue.modified);
     QCOMPARE(values.value(QStringLiteral("field_content_height")), QStringLiteral("20px"));
     QCOMPARE(values.value(QStringLiteral("scrollbar_width")), QStringLiteral("10px"));
-    QCOMPARE(darkeye::StylesheetLoader::render(
-                 QStringLiteral("color:{{color_text}};border:{{border_width}} solid;"), blue),
-             QStringLiteral("color:#1e3a5f;border:2px solid;"));
 }
 
 void ThemeServiceTest::mapsAllPersistedThemeIds()

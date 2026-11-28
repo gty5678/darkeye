@@ -17,7 +17,6 @@ qt_add_library(darkeye_ui STATIC
     theme/ChamferPath.h
     theme/ChamferStyle.h theme/ChamferStyle.cpp
     theme/IconProvider.h theme/IconProvider.cpp
-    theme/StylesheetLoader.h theme/StylesheetLoader.cpp
     theme/ThemeService.h theme/ThemeService.cpp
     darkeye_ui_resources.qrc
 )

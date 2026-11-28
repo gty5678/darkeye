@@ -136,6 +136,7 @@ void FanartBrowserPage::updateView()
     if (m_image == nullptr)
         return;
     const bool hasEntry = m_currentIndex >= 0 && m_currentIndex < m_entries.size();
+    bool canDownload = false;
     if (!hasEntry) {
         m_image->clearSource();
         m_caption->setText(QStringLiteral("剧照 0 / 0"));
@@ -143,19 +144,19 @@ void FanartBrowserPage::updateView()
             m_status->setText(QStringLiteral("该作品还没有剧照"));
     } else {
         const FanartEntry &entry = m_entries.at(m_currentIndex);
-        const QString path = resolvedPath(entry);
+        const QString path = entry.resolvedPath(m_fanartDirectory, m_legacyCoverDirectory);
+        canDownload = path.isEmpty() && !entry.url.isEmpty();
         if (path.isEmpty())
             m_image->clearSource();
         else
             m_image->setSource(path);
         m_caption->setText(QStringLiteral("%1 · 剧照 %2 / %3").arg(m_work.serialNumber).arg(m_currentIndex + 1).arg(m_entries.size()));
         if (m_downloadRequestId == 0)
-            m_status->setText(path.isEmpty() && !entry.url.isEmpty() ? QStringLiteral("远程剧照尚未下载") : QString());
+            m_status->setText(canDownload ? QStringLiteral("远程剧照尚未下载") : QString());
     }
     m_previous->setEnabled(m_entries.size() > 1 && m_downloadRequestId == 0);
     m_next->setEnabled(m_entries.size() > 1 && m_downloadRequestId == 0);
-    m_download->setEnabled(hasEntry && !m_entries.at(m_currentIndex).url.isEmpty() &&
-                           resolvedPath(m_entries.at(m_currentIndex)).isEmpty() && m_downloadRequestId == 0);
+    m_download->setEnabled(canDownload && m_downloadRequestId == 0);
     m_delete->setEnabled(hasEntry && m_downloadRequestId == 0);
 }
 
@@ -220,17 +221,6 @@ bool FanartBrowserPage::saveEntries(QString *errorMessage)
 {
     m_work.fanartJson = FanartStripWidget::toJson(m_entries);
     return m_repository.updateDetails(m_work, errorMessage);
-}
-
-QString FanartBrowserPage::resolvedPath(const FanartEntry &entry) const
-{
-    if (!entry.localPath.isEmpty() && QFileInfo::exists(entry.localPath)) return entry.localPath;
-    const QString fileName = QFileInfo(entry.file).fileName();
-    if (fileName.isEmpty() || fileName != entry.file) return {};
-    const QString fanartPath = QDir(m_fanartDirectory).filePath(fileName);
-    if (QFileInfo::exists(fanartPath)) return fanartPath;
-    const QString legacyPath = QDir(m_legacyCoverDirectory).filePath(fileName);
-    return QFileInfo::exists(legacyPath) ? legacyPath : QString();
 }
 
 QString FanartBrowserPage::downloadFileName(const FanartEntry &entry) const

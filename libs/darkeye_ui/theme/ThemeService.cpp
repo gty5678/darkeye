@@ -1,7 +1,6 @@
 #include "darkeye_ui/theme/ThemeService.h"
 #include "ChamferStyle.h"
 #include "darkeye_ui/UiResources.h"
-#include "darkeye_ui/theme/StylesheetLoader.h"
 
 #include <QApplication>
 #include <QColor>
@@ -401,7 +400,10 @@ bool ThemeService::setTheme(ThemeId theme, const QString &customPrimary)
                                 ? requested.name()
                                 : QString();
     const ThemeTokens values = tokens(theme, nextPrimary);
-    QString styleSheet = StylesheetLoader::render(styleSheetTemplate, values);
+    const auto tokensByName = values.toMap();
+    QString styleSheet = styleSheetTemplate;
+    for (auto token = tokensByName.cbegin(); token != tokensByName.cend(); ++token)
+        styleSheet.replace(QStringLiteral("{{%1}}").arg(token.key()), token.value());
     if (styleSheet.contains(QStringLiteral("{{"))) {
         qWarning() << "Unresolved token in theme stylesheet";
         return false;
